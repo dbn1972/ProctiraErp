@@ -1,19 +1,19 @@
 /**
- * Infrastructure tab — Server Component.
+ * Infrastructure tab — Server Component — v2.0 redesign.
  *
- * Renders the parent-child Land → Building → Floor → Room hierarchy along
- * with capacity and condition information. Powered by the institution
+ * Renders the real Land → Building → Floor → Room hierarchy with capacity and
+ * colour-coded condition pills, plus a per-tab toolbar and a warning banner
+ * summarising any nodes flagged for repair. Powered by the institution
  * service's `/infrastructure/hierarchy` endpoint (Requirement 5.6).
  */
-import { Building, Home, Layers, Map } from 'lucide-react';
+import { AlertTriangle, Building, FileText, Home, Layers, Map as MapIcon, Plus } from 'lucide-react';
 
 import {
-  Badge,
+  Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from '@proctira/ui/components';
+import { cn } from '@/lib/utils';
 import {
   ApiClientError,
   getInfrastructureHierarchy,
@@ -24,105 +24,42 @@ interface InfrastructurePageProps {
   params: { id: string };
 }
 
-export default async function InstitutionInfrastructurePage({
-  params,
-}: InfrastructurePageProps) {
-  const result = await loadHierarchy(params.id);
+/* ──────────────────────────────── condition helpers ── */
 
+function normCondition(condition: string): 'good' | 'fair' | 'repair' | 'unknown' {
+  const c = condition.toUpperCase();
+  if (c.includes('GOOD') || c.includes('AVAILABLE') || c.includes('NEW')) return 'good';
+  if (c.includes('REPAIR') || c.includes('POOR') || c.includes('DAMAGED') || c.includes('BAD')) return 'repair';
+  if (c.includes('FAIR') || c.includes('AVERAGE')) return 'fair';
+  return 'unknown';
+}
+
+const CONDITION_PILL: Record<string, string> = {
+  good:    'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  fair:    'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
+  repair:  'bg-red-50     text-red-700     dark:bg-red-950/40     dark:text-red-400',
+  unknown: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
+};
+
+function titleCase(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function ConditionPill({ condition }: { condition: string }) {
+  const kind = normCondition(condition);
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-2">
-          <Map className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
-          <CardTitle className="text-base">Infrastructure</CardTitle>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {result.error ? (
-          <p className="text-sm text-muted-foreground">{result.error}</p>
-        ) : result.hierarchy.lands.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No infrastructure has been recorded for this institution yet.
-          </p>
-        ) : (
-          result.hierarchy.lands.map((land) => (
-            <div
-              key={land.id}
-              className="rounded-md border bg-muted/20 p-4"
-              data-testid="infrastructure-land"
-            >
-              <InfrastructureRow
-                icon={<Map className="h-4 w-4" aria-hidden="true" />}
-                title={land.name}
-                capacity={land.capacity}
-                condition={land.condition}
-                description={land.description}
-              />
-
-              {land.buildings.length > 0 && (
-                <div className="mt-3 space-y-3 border-l-2 border-border pl-4">
-                  {land.buildings.map((building) => (
-                    <div key={building.id} className="space-y-2">
-                      <InfrastructureRow
-                        icon={<Building className="h-4 w-4" aria-hidden="true" />}
-                        title={building.name}
-                        capacity={building.capacity}
-                        condition={building.condition}
-                        description={building.description}
-                      />
-                      {building.floors.length > 0 && (
-                        <div className="ml-2 space-y-2 border-l border-border pl-4">
-                          {building.floors.map((floor) => (
-                            <div key={floor.id} className="space-y-1">
-                              <InfrastructureRow
-                                icon={
-                                  <Layers
-                                    className="h-4 w-4"
-                                    aria-hidden="true"
-                                  />
-                                }
-                                title={floor.name}
-                                capacity={floor.capacity}
-                                condition={floor.condition}
-                                description={floor.description}
-                              />
-                              {floor.rooms.length > 0 && (
-                                <ul className="ml-2 space-y-1 border-l border-border pl-4">
-                                  {floor.rooms.map((room) => (
-                                    <li key={room.id}>
-                                      <InfrastructureRow
-                                        icon={
-                                          <Home
-                                            className="h-4 w-4"
-                                            aria-hidden="true"
-                                          />
-                                        }
-                                        title={room.name}
-                                        capacity={room.capacity}
-                                        condition={room.condition}
-                                        description={room.description}
-                                      />
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
+    <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', CONDITION_PILL[kind])}>
+      {titleCase(condition)}
+    </span>
   );
 }
 
-function InfrastructureRow({
+/* ──────────────────────────────── row ── */
+
+function InfraRow({
   icon,
   title,
   capacity,
@@ -136,20 +73,168 @@ function InfrastructureRow({
   description: string | null;
 }) {
   return (
-    <div className="flex flex-col gap-1 text-sm md:flex-row md:items-center md:justify-between">
-      <div className="flex items-center gap-2 font-medium text-foreground">
+    <div className="flex flex-col gap-1.5 py-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-2">
         <span className="text-muted-foreground">{icon}</span>
-        {title}
+        <span className="text-sm font-semibold text-foreground">{title}</span>
         {description && (
-          <span className="text-xs font-normal text-muted-foreground">
-            — {description}
-          </span>
+          <span className="truncate text-xs font-normal text-muted-foreground">— {description}</span>
         )}
       </div>
-      <div className="flex items-center gap-2 text-xs">
-        <Badge variant="outline">Capacity {capacity.toLocaleString()}</Badge>
-        <Badge variant="secondary">{condition}</Badge>
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums">
+          Capacity {capacity.toLocaleString()}
+        </span>
+        <ConditionPill condition={condition} />
       </div>
+    </div>
+  );
+}
+
+/* ──────────────────────────────── repair counter ── */
+
+function countRepairs(hierarchy: InfrastructureHierarchy): number {
+  let n = 0;
+  for (const land of hierarchy.lands) {
+    if (normCondition(land.condition) === 'repair') n++;
+    for (const b of land.buildings) {
+      if (normCondition(b.condition) === 'repair') n++;
+      for (const f of b.floors) {
+        if (normCondition(f.condition) === 'repair') n++;
+        for (const r of f.rooms) {
+          if (normCondition(r.condition) === 'repair') n++;
+        }
+      }
+    }
+  }
+  return n;
+}
+
+/* ──────────────────────────────── page ── */
+
+export default async function InstitutionInfrastructurePage({ params }: InfrastructurePageProps) {
+  const result = await loadHierarchy(params.id);
+  const repairs = result.error ? 0 : countRepairs(result.hierarchy as InfrastructureHierarchy);
+
+  return (
+    <div className="space-y-4">
+
+      {/* ── Toolbar ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-foreground">Facility register</h2>
+          <p className="text-sm text-muted-foreground">
+            Land, buildings, floors, and rooms with capacity and condition
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" disabled>
+            <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Verification report
+          </Button>
+          <Button size="sm" disabled>
+            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Log repair request
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Repair warning ── */}
+      {repairs > 0 && (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950/30"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <div>
+            <p className="font-semibold text-amber-800 dark:text-amber-300">
+              {repairs} {repairs === 1 ? 'facility needs' : 'facilities need'} repair
+            </p>
+            <p className="text-amber-700 dark:text-amber-400">
+              Review the flagged items below and log a repair request to escalate them.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Hierarchy ── */}
+      <Card>
+        <CardContent className="space-y-4 p-5">
+          {result.error ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">{result.error}</p>
+          ) : result.hierarchy.lands.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+              <MapIcon className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+              <p className="text-base font-semibold">No infrastructure recorded</p>
+              <p className="text-sm text-muted-foreground">
+                Add land, buildings, and rooms to build this institution&apos;s facility register.
+              </p>
+            </div>
+          ) : (
+            result.hierarchy.lands.map((land) => (
+              <div
+                key={land.id}
+                className="rounded-lg border border-border bg-muted/20 p-4"
+                data-testid="infrastructure-land"
+              >
+                <InfraRow
+                  icon={<MapIcon className="h-4 w-4" aria-hidden="true" />}
+                  title={land.name}
+                  capacity={land.capacity}
+                  condition={land.condition}
+                  description={land.description}
+                />
+
+                {land.buildings.length > 0 && (
+                  <div className="mt-3 space-y-3 border-s-2 border-border ps-4">
+                    {land.buildings.map((building) => (
+                      <div key={building.id} className="space-y-2">
+                        <InfraRow
+                          icon={<Building className="h-4 w-4" aria-hidden="true" />}
+                          title={building.name}
+                          capacity={building.capacity}
+                          condition={building.condition}
+                          description={building.description}
+                        />
+                        {building.floors.length > 0 && (
+                          <div className="ms-2 space-y-2 border-s border-border ps-4">
+                            {building.floors.map((floor) => (
+                              <div key={floor.id} className="space-y-1">
+                                <InfraRow
+                                  icon={<Layers className="h-4 w-4" aria-hidden="true" />}
+                                  title={floor.name}
+                                  capacity={floor.capacity}
+                                  condition={floor.condition}
+                                  description={floor.description}
+                                />
+                                {floor.rooms.length > 0 && (
+                                  <ul className="ms-2 space-y-1 border-s border-border ps-4">
+                                    {floor.rooms.map((room) => (
+                                      <li key={room.id}>
+                                        <InfraRow
+                                          icon={<Home className="h-4 w-4" aria-hidden="true" />}
+                                          title={room.name}
+                                          capacity={room.capacity}
+                                          condition={room.condition}
+                                          description={room.description}
+                                        />
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

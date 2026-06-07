@@ -10,6 +10,7 @@ import { notFound } from 'next/navigation';
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
@@ -21,6 +22,13 @@ interface EditInstitutionPageProps {
   params: { id: string };
 }
 
+/**
+ * Edit institution form (Server Component shell) — v2.0 redesign.
+ *
+ * Sits under the institution detail layout, so the shared hero + tab nav
+ * provide the "which school" context. This page renders only a focused,
+ * max-width edit form below that shell.
+ */
 export default async function EditInstitutionPage({ params }: EditInstitutionPageProps) {
   const [institution, lookups] = await Promise.all([
     loadInstitutionOrNotFound(params.id),
@@ -28,29 +36,24 @@ export default async function EditInstitutionPage({ params }: EditInstitutionPag
   ]);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Edit institution</h1>
-        <p className="text-sm text-muted-foreground">
-          Update the institution profile, classification, and contact details.
-        </p>
-      </header>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{institution.name}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <InstitutionForm
-            initialValue={institution}
-            areas={lookups.areas}
-            types={lookups.types}
-            sectors={lookups.sectors}
-            ownerships={lookups.ownerships}
-          />
-        </CardContent>
-      </Card>
-    </div>
+    <Card className="max-w-[860px]">
+      <CardHeader>
+        <CardTitle className="text-base">Edit institution profile</CardTitle>
+        <CardDescription>
+          Update identity, location, classification, and contact details. Changes
+          are recorded in the audit trail. Fields marked * are required.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <InstitutionForm
+          initialValue={institution}
+          areas={lookups.areas}
+          types={lookups.types}
+          sectors={lookups.sectors}
+          ownerships={lookups.ownerships}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
