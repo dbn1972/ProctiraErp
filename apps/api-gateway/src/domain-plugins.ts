@@ -37,12 +37,12 @@ import {
   InMemoryResultRepository,
 } from '@proctira/backend-examination';
 import {
+  createInstitutionRepository,
   institutionPlugin,
-  InMemoryInstitutionRepository,
 } from '@proctira/backend-institution';
 import {
+  createStaffRepository,
   InMemoryAssignmentRepository,
-  InMemoryStaffRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
@@ -78,8 +78,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'institution',
     proxyPrefixes: ['/institutions'],
     register: async (scope) => {
+      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       await scope.register(institutionPlugin, {
-        repository: new InMemoryInstitutionRepository(),
+        repository: createInstitutionRepository(),
         prefix: '/institutions',
       });
     },
@@ -88,8 +89,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'staff',
     proxyPrefixes: ['/staff'],
     register: async (scope) => {
+      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
+      // Assignments remain in-memory (no staff_assignment table yet).
       await scope.register(staffPlugin, {
-        repository: new InMemoryStaffRepository(),
+        repository: createStaffRepository(),
         assignmentRepository: new InMemoryAssignmentRepository(),
         prefix: '/staff',
       });

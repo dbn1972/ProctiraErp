@@ -206,3 +206,8 @@ export type {
 // Training Routes
 export { registerTrainingRoutes } from './training-routes.js';
 export type { TrainingRoutesOptions } from './training-routes.js';
+
+// Persistence: Prisma repository + env-driven factory
+export { PrismaStaffRepository } from './prisma-staff-repository.js';
+export { createStaffRepository } from './repository-factory.js';
+export type { StaffRepositoryConfig } from './repository-factory.js';
