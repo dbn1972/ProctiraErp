@@ -1,14 +1,12 @@
 /**
- * /students/[id]/edit — Edit an existing student (Server Component).
+ * /students/[id]/edit — Edit an existing student (Server Component) — v2.0 redesign.
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { ArrowLeft } from 'lucide-react';
 
-import {
-  Button,
-} from '@proctira/ui/components';
+import { Button } from '@proctira/ui/components';
 import { getStudent, getStudentCustomFields } from '@/lib/api/students';
 
 import { StudentForm } from '../../_components/student-form';
@@ -59,24 +57,40 @@ export default async function EditStudentPage({ params }: PageProps) {
     customData: student.customData ?? {},
   };
 
+  const cd = student.customData ?? {};
+  const gradeSection = typeof cd['gradeSection'] === 'string' ? cd['gradeSection'] : '';
+  const institutionName = typeof cd['institutionName'] === 'string' ? cd['institutionName'] : '';
+  const admNo = typeof cd['admissionNo'] === 'string' ? cd['admissionNo'] : '';
+  const contextParts = [admNo && `Adm. ${admNo}`, gradeSection, institutionName].filter(Boolean);
+
   return (
     <section aria-labelledby="edit-student-heading" className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Button asChild variant="ghost" size="sm">
-          <Link href={`/students/${student.id}`}>
-            <ArrowLeft className="me-2 h-4 w-4" aria-hidden="true" />
-            Back to profile
-          </Link>
-        </Button>
+      {/* Page head */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1
+            id="edit-student-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            Edit student: {student.firstName} {student.lastName}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {contextParts.length > 0
+              ? `${contextParts.join(' · ')} · `
+              : ''}
+            All changes are recorded in the audit trail with your name and timestamp.
+          </p>
+        </div>
+        <div className="shrink-0">
+          <Button asChild variant="ghost" size="sm">
+            <Link href={`/students/${student.id}`}>
+              <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Back to profile
+            </Link>
+          </Button>
+        </div>
       </div>
-      <div>
-        <h1 id="edit-student-heading" className="text-2xl font-semibold tracking-tight">
-          Edit {student.firstName} {student.lastName}
-        </h1>
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          All changes are recorded in the audit trail.
-        </p>
-      </div>
+
       <StudentForm
         mode="edit"
         studentId={student.id}

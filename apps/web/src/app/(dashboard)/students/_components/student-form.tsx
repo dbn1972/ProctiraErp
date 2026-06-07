@@ -15,7 +15,7 @@
  *   cleared on a successful save.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Plus, Trash2 } from 'lucide-react';
+import { Check, Plus, Trash2, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useFieldArray, useForm, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form';
@@ -198,14 +198,35 @@ export function StudentForm({
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Personal information</CardTitle>
+      <Card className="max-w-[880px]">
+        <CardHeader className="pb-4">
+          <CardTitle>Personal details</CardTitle>
           <CardDescription>
-            Name and date of birth are required (Requirement 6.1).
+            Name and date of birth are required. National ID is used for
+            duplicate detection across all institutions.
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Photo drop / current photo */}
+          <div className="mb-6 flex items-center gap-4 rounded-xl border-2 border-dashed border-border bg-muted/30 p-4 transition-colors hover:border-primary/40">
+            <span
+              aria-hidden="true"
+              className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+            >
+              <User className="h-7 w-7" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">Drop a passport-size photo here, or browse</p>
+              <p className="text-xs text-muted-foreground">
+                JPG or PNG, up to 2 MB · plain background preferred ·
+                photo is saved after the student record is created
+              </p>
+            </div>
+            <Button type="button" variant="outline" size="sm" disabled>
+              Browse files
+            </Button>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
               id="firstName"
@@ -294,11 +315,11 @@ export function StudentForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="max-w-[880px]">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Contacts</CardTitle>
-            <CardDescription>Phones, emails, addresses for the student.</CardDescription>
+            <CardDescription>Phone numbers and emails for the student.</CardDescription>
           </div>
           <Button
             type="button"
@@ -331,11 +352,14 @@ export function StudentForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="max-w-[880px]">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Guardians</CardTitle>
-            <CardDescription>Parents or other guardians for the student.</CardDescription>
+            <CardTitle>Guardian</CardTitle>
+            <CardDescription>
+              Parents or other guardians. Attendance and fee alerts are sent to
+              the primary guardian's phone.
+            </CardDescription>
           </div>
           <Button
             type="button"
@@ -374,11 +398,11 @@ export function StudentForm({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="max-w-[880px]">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Identity documents</CardTitle>
-            <CardDescription>Passport, birth certificate, etc.</CardDescription>
+            <CardDescription>Passport, birth certificate, or other official documents.</CardDescription>
           </div>
           <Button
             type="button"
@@ -418,7 +442,7 @@ export function StudentForm({
       </Card>
 
       {customFields.length > 0 && (
-        <Card>
+        <Card className="max-w-[880px]">
           <CardHeader>
             <CardTitle>Custom fields</CardTitle>
             <CardDescription>
@@ -442,24 +466,50 @@ export function StudentForm({
         </Card>
       )}
 
-      <div className="flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isPending}>
-          {isPending
-            ? mode === 'create'
-              ? 'Creating…'
-              : 'Saving…'
-            : mode === 'create'
-              ? 'Create student'
-              : 'Save changes'}
-        </Button>
+      {/* Sticky save footer */}
+      <div
+        className="sticky bottom-4 z-20 max-w-[880px] overflow-hidden rounded-xl border border-border bg-background/90 shadow-lg backdrop-blur"
+        aria-label="Save actions"
+      >
+        <div className="flex flex-wrap items-center gap-2 px-5 py-3">
+          <p className="me-auto text-xs text-muted-foreground">
+            Fields marked{' '}
+            <span className="text-destructive" aria-hidden="true">*</span>{' '}
+            are required · all changes are recorded in the audit trail
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => router.back()}
+            disabled={isPending}
+          >
+            Cancel
+          </Button>
+          {mode === 'create' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isPending}
+              onClick={() => {
+                void handleSubmit((values) => onSubmit(values))();
+              }}
+            >
+              Save &amp; add another
+            </Button>
+          )}
+          <Button type="submit" size="sm" disabled={isPending}>
+            {isPending ? (
+              mode === 'create' ? 'Creating…' : 'Saving…'
+            ) : (
+              <>
+                <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
+                {mode === 'create' ? 'Save student' : 'Save changes'}
+              </>
+            )}
+          </Button>
+        </div>
       </div>
     </form>
   );
