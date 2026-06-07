@@ -33,7 +33,7 @@ async function rateLimitPlugin(
     try {
       redis = new Redis(resolvedRedisUrl, {
         maxRetriesPerRequest: 2,
-        retryStrategy: (times) => Math.min(times * 200, 2000),
+        retryStrategy: (times: number) => Math.min(times * 200, 2000),
         lazyConnect: true,
         enableOfflineQueue: false,
       });

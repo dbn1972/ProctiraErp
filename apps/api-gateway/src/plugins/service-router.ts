@@ -38,10 +38,38 @@ function getBreaker(serviceName: string): CircuitBreaker {
   return serviceBreakers.get(serviceName)!;
 }
 
+/** Default upstream request timeout. */
+const DEFAULT_TIMEOUT_MS = 15_000;
+
 /**
- * Forwards a request to the target service.
- * In a production setup, this would use @fastify/http-proxy or similar.
- * For now, we register route handlers that document the routing behavior.
+ * Hop-by-hop headers that must not be forwarded between connections
+ * (RFC 7230 §6.1), plus length/encoding headers that the runtime recomputes.
+ */
+const STRIP_REQUEST_HEADERS = new Set<string>([
+  'host',
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade',
+  'content-length',
+  'expect',
+]);
+
+const STRIP_RESPONSE_HEADERS = new Set<string>([
+  'connection',
+  'keep-alive',
+  'transfer-encoding',
+  'content-encoding', // fetch() already decodes the body
+  'content-length', // recomputed by Fastify on send
+]);
+
+/**
+ * Forwards a request to the target service using the runtime's global `fetch`
+ * (undici on Node 18+), wrapped in a per-service circuit breaker.
  */
 const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
   fastify: FastifyInstance,
@@ -107,58 +135,101 @@ const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
   });
 };
 
+/** Build the outbound headers, dropping hop-by-hop entries. */
+function buildForwardHeaders(request: FastifyRequest): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(request.headers)) {
+    if (value === undefined) continue;
+    if (STRIP_REQUEST_HEADERS.has(key.toLowerCase())) continue;
+    out[key] = Array.isArray(value) ? value.join(', ') : value;
+  }
+  // Preserve the original client identity for downstream services / audit.
+  const xff = request.headers['x-forwarded-for'];
+  out['x-forwarded-for'] = xff
+    ? `${Array.isArray(xff) ? xff.join(', ') : xff}, ${request.ip}`
+    : request.ip;
+  return out;
+}
+
+/** Serialize the (already-parsed) request body for forwarding. */
+function buildForwardBody(request: FastifyRequest): BodyInit | undefined {
+  const method = request.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD') return undefined;
+  const body = request.body;
+  if (body === undefined || body === null) return undefined;
+  if (typeof body === 'string' || body instanceof Buffer || body instanceof Uint8Array) {
+    return body as BodyInit;
+  }
+  return JSON.stringify(body);
+}
+
 /**
- * Creates a proxy handler that forwards requests to the target service.
- * Wraps the call with a CircuitBreaker to fail fast when a service is unhealthy.
- * In production, this would use HTTP proxy; here we simulate the routing logic.
+ * Creates a proxy handler that forwards requests to the target service via
+ * global `fetch`, wrapped with a CircuitBreaker that fails fast (and trips)
+ * on network errors / timeouts. HTTP responses (including upstream 4xx/5xx)
+ * are passed through unchanged.
  */
 function createProxyHandler(
   serviceName: string,
   route: ServiceRoute,
-  fullPrefix: string,
+  _fullPrefix: string,
 ) {
   const breaker = getBreaker(serviceName);
+  const timeoutMs = route.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   return async function proxyHandler(request: FastifyRequest, reply: FastifyReply) {
-    // Extract the path after the prefix
-    const params = (request.params as { '*'?: string });
+    const params = request.params as { '*'?: string };
     const subPath = params['*'] ? `/${params['*']}` : '';
-    const targetUrl = `${route.target}${route.prefix}${subPath}`;
+    const queryIndex = request.url.indexOf('?');
+    const queryString = queryIndex >= 0 ? request.url.slice(queryIndex) : '';
+    const targetUrl = `${route.target}${route.prefix}${subPath}${queryString}`;
 
     try {
-      // Execute the service call through the circuit breaker
-      return await breaker.execute(async () => {
-        // In a real implementation, this would proxy the request to the target service
-        // using @fastify/http-proxy or undici for actual proxying.
-        // For now, return routing metadata to demonstrate the routing logic.
-        return reply.status(502).send({
-          code: 'SERVICE_UNAVAILABLE',
-          message: `Service '${serviceName}' is not connected. Target: ${targetUrl}`,
-          statusCode: 502,
-          routing: {
-            service: serviceName,
-            target: targetUrl,
+      const upstream = await breaker.execute(async () => {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch(targetUrl, {
             method: request.method,
-            originalUrl: request.url,
-          },
-        });
+            headers: buildForwardHeaders(request),
+            body: buildForwardBody(request),
+            signal: controller.signal,
+            redirect: 'manual',
+          });
+        } finally {
+          clearTimeout(timer);
+        }
       });
+
+      // Mirror the upstream response back to the client.
+      upstream.headers.forEach((value, key) => {
+        if (!STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) {
+          reply.header(key, value);
+        }
+      });
+      const buffer = Buffer.from(await upstream.arrayBuffer());
+      return reply.status(upstream.status).send(buffer);
     } catch (error) {
       if (error instanceof CircuitBreakerError) {
         return reply.status(503).send({
           code: 'CIRCUIT_OPEN',
           message: `Service '${serviceName}' is temporarily unavailable (circuit breaker open). Please retry later.`,
           statusCode: 503,
-          routing: {
-            service: serviceName,
-            target: targetUrl,
-            method: request.method,
-            originalUrl: request.url,
-            circuitState: error.state,
-          },
         });
       }
-      throw error;
+      // Network failure / timeout / abort → bad gateway (breaker has counted it).
+      request.log.error(
+        { err: error, service: serviceName, target: targetUrl },
+        'Upstream proxy request failed',
+      );
+      const isAbort = error instanceof Error && error.name === 'AbortError';
+      return reply.status(isAbort ? 504 : 502).send({
+        code: isAbort ? 'GATEWAY_TIMEOUT' : 'BAD_GATEWAY',
+        message: isAbort
+          ? `Service '${serviceName}' did not respond in time.`
+          : `Service '${serviceName}' is unreachable.`,
+        statusCode: isAbort ? 504 : 502,
+      });
     }
   };
 }

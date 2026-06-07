@@ -71,6 +71,29 @@ export const DEFAULT_SESSION_DURATION = 8 * 60 * 60; // 28800 seconds
 /** Default bcrypt salt rounds */
 export const DEFAULT_SALT_ROUNDS = 12;
 
+/** Dev-only fallback secret; never permitted when NODE_ENV=production. */
+const INSECURE_DEV_JWT_SECRET = 'insecure-dev-only-change-me';
+
+/**
+ * Resolves the JWT signing secret, failing closed in production.
+ *
+ * In production (`NODE_ENV=production`) an explicit secret or `JWT_SECRET`
+ * env var is REQUIRED — we throw rather than silently fall back to a known
+ * default, which would let anyone forge valid tokens. Outside production a
+ * dev-only fallback is used so local/test setups work without configuration.
+ */
+function resolveJwtSecret(explicit?: string): string {
+  const secret = explicit ?? process.env['JWT_SECRET'];
+  if (secret && secret.length > 0) return secret;
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'JWT_SECRET is required in production. Refusing to start with a default ' +
+        'signing secret (tokens would be forgeable). Set a long, random JWT_SECRET.',
+    );
+  }
+  return INSECURE_DEV_JWT_SECRET;
+}
+
 /**
  * Creates a default auth configuration.
  * Values can be overridden via environment variables or explicit options.
@@ -78,7 +101,7 @@ export const DEFAULT_SALT_ROUNDS = 12;
 export function createAuthConfig(overrides?: Partial<AuthConfig>): AuthConfig {
   return {
     jwt: {
-      secret: overrides?.jwt?.secret ?? process.env['JWT_SECRET'] ?? 'change-me-in-production',
+      secret: resolveJwtSecret(overrides?.jwt?.secret),
       issuer: overrides?.jwt?.issuer ?? process.env['JWT_ISSUER'] ?? 'proctira-platform',
       audience: overrides?.jwt?.audience ?? process.env['JWT_AUDIENCE'] ?? 'proctira-api',
       accessTokenExpiresIn: clamp(

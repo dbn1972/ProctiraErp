@@ -144,4 +144,29 @@ describe('createAuthConfig', () => {
     expect(config.jwt.accessTokenExpiresIn).toBe(DEFAULT_ACCESS_TOKEN_EXPIRES);
     expect(config.session.duration).toBe(DEFAULT_SESSION_DURATION);
   });
+
+  it('should fail closed when no JWT secret is set in production', () => {
+    process.env['NODE_ENV'] = 'production';
+    delete process.env['JWT_SECRET'];
+
+    expect(() => createAuthConfig()).toThrow(/JWT_SECRET is required in production/);
+  });
+
+  it('should accept an explicit/env JWT secret in production', () => {
+    process.env['NODE_ENV'] = 'production';
+    process.env['JWT_SECRET'] = 'a-long-random-production-secret';
+
+    const config = createAuthConfig();
+    expect(config.jwt.secret).toBe('a-long-random-production-secret');
+  });
+
+  it('should not use the known default secret outside production', () => {
+    delete process.env['NODE_ENV'];
+    delete process.env['JWT_SECRET'];
+
+    const config = createAuthConfig();
+    // Dev fallback is used, and it is NOT the old guessable string.
+    expect(config.jwt.secret).not.toBe('change-me-in-production');
+    expect(config.jwt.secret.length).toBeGreaterThan(0);
+  });
 });

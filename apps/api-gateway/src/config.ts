@@ -16,6 +16,8 @@ export const ServiceRouteSchema = Type.Object({
   target: Type.String(),
   /** Health check path on the target service */
   healthCheck: Type.String({ default: '/health' }),
+  /** Upstream request timeout in milliseconds (default: 15000) */
+  timeoutMs: Type.Optional(Type.Number()),
 });
 
 export type ServiceRoute = Static<typeof ServiceRouteSchema>;
