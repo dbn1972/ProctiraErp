@@ -71,23 +71,24 @@ export default async function AssessmentResultsPage({ searchParams }: PageProps)
 
   return (
     <section aria-labelledby="results-heading" className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/assessments">
-          <ArrowLeft className="me-2 h-4 w-4" aria-hidden="true" />
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
           Back to assessments
         </Link>
       </Button>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 id="results-heading" className="text-2xl font-semibold tracking-tight">
-            Result entry
-          </h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Bulk entry via data grid; supports Excel import (up to 5,000 rows).
-            Scores are validated against the grading scheme range.
-          </p>
-        </div>
+      <div>
+        <h1
+          id="results-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          Result entry
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Bulk entry via data grid; supports Excel import (up to 5,000 rows).
+          Scores are validated against the grading scheme range.
+        </p>
       </div>
 
       <Card>

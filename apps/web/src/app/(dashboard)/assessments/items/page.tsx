@@ -62,23 +62,24 @@ export default async function AssessmentItemsPage({ searchParams }: PageProps) {
 
   return (
     <section aria-labelledby="items-heading" className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/assessments">
-          <ArrowLeft className="me-2 h-4 w-4" aria-hidden="true" />
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
           Back to assessments
         </Link>
       </Button>
 
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 id="items-heading" className="text-2xl font-semibold tracking-tight">
-            Assessment items
-          </h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Define up to 50 items per subject per academic period. Weights must
-            sum to exactly 100%.
-          </p>
-        </div>
+      <div>
+        <h1
+          id="items-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          Assessment items
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Define up to 50 items per subject per academic period. Weights must
+          sum to exactly 100%.
+        </p>
       </div>
 
       <Card>

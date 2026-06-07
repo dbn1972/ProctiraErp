@@ -21,19 +21,32 @@ export const dynamic = 'force-dynamic';
 export default function NewGradingSchemePage() {
   return (
     <section aria-labelledby="new-scheme-heading" className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/assessments">
-          <ArrowLeft className="me-2 h-4 w-4" aria-hidden="true" />
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
           Back to assessments
         </Link>
       </Button>
 
-      <Card>
+      <div>
+        <h1
+          id="new-scheme-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          New grading scheme
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Numeric, letter, or competency-based scheme. Define thresholds that
+          map score ranges to grade labels.
+        </p>
+      </div>
+
+      <Card className="max-w-[860px]">
         <CardHeader>
-          <CardTitle id="new-scheme-heading">New grading scheme</CardTitle>
+          <CardTitle className="text-base">Scheme definition</CardTitle>
           <CardDescription>
-            Numeric, letter, or competency-based scheme. Define thresholds that
-            map score ranges to grade labels (Requirement 8.1).
+            Set the scale type, value range, and the grade bands that map scores
+            to labels.
           </CardDescription>
         </CardHeader>
         <CardContent>

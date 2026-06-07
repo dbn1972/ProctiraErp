@@ -46,20 +46,31 @@ export default async function EditGradingSchemePage({ params }: PageProps) {
 
   return (
     <section aria-labelledby="edit-scheme-heading" className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/assessments">
-          <ArrowLeft className="me-2 h-4 w-4" aria-hidden="true" />
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
           Back to assessments
         </Link>
       </Button>
 
-      <Card>
+      <div>
+        <h1
+          id="edit-scheme-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          Edit {scheme.name}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Update scheme range and grade thresholds. Existing assessment items
+          referencing this scheme will continue to use the new bounds.
+        </p>
+      </div>
+
+      <Card className="max-w-[860px]">
         <CardHeader>
-          <CardTitle id="edit-scheme-heading">Edit {scheme.name}</CardTitle>
+          <CardTitle className="text-base">Scheme definition</CardTitle>
           <CardDescription>
-            Update scheme range and grade thresholds. Existing assessment items
-            referencing this scheme will continue to use the new bounds
-            (Requirement 8.1).
+            Scale type, value range, and grade bands.
           </CardDescription>
         </CardHeader>
         <CardContent>
