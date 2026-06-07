@@ -4,14 +4,12 @@
  * Validates: Requirement 13.1 — define multi-step approval workflow.
  */
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
 import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   FormField,
   Input,
   Textarea,
@@ -19,19 +17,26 @@ import {
 
 export default function NewWorkflowDefinitionPage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">New workflow definition</h1>
-        <p className="text-sm text-muted-foreground">
-          Define the approval steps and roles required for this workflow.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+        <Link href="/workflows">
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+          Workflows
+        </Link>
+      </Button>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Definition</CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          New workflow definition
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Define the approval chain once — every matching request is then routed
+          step by step, with SLA tracking and escalation built in.
+        </p>
+      </div>
+
+      <Card className="max-w-[860px]">
+        <CardContent className="p-6">
           <form className="space-y-5" noValidate>
             <FormField id="wf-name" label="Workflow name" required>
               <Input id="wf-name" name="name" placeholder="Student transfer approval" />
@@ -61,16 +66,6 @@ export default function NewWorkflowDefinitionPage() {
             </div>
           </form>
         </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Tips</CardTitle>
-          <CardDescription>
-            Steps execute in order. Each step requires approval from one of the
-            mapped roles before the next step is activated.
-          </CardDescription>
-        </CardHeader>
       </Card>
     </div>
   );

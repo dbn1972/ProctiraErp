@@ -4,16 +4,12 @@
  * Validates: Requirement 13.1 — workflow definition browse and management.
  */
 import Link from 'next/link';
-import { GitBranch, Plus } from 'lucide-react';
+import { Eye, GitBranch, ListChecks, Plus, ShieldCheck } from 'lucide-react';
 
 import {
-  Badge,
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
   Table,
   TableBody,
   TableCell,
@@ -30,65 +26,73 @@ export const dynamic = 'force-dynamic';
 
 export default async function WorkflowsPage() {
   const definitions = await listWorkflowDefinitions();
+  const activeCount = definitions.filter((d) => d.active).length;
 
   return (
     <section aria-labelledby="workflows-heading" className="space-y-6">
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 id="workflows-heading" className="text-2xl font-semibold tracking-tight">
+          <h1
+            id="workflows-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
             Workflow definitions
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Configure approval flows for transfers, leaves, and other actions.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Approval flows for transfers, leaves, disbursements and other district
+            actions · {definitions.length.toLocaleString()} definition
+            {definitions.length === 1 ? '' : 's'}, {activeCount.toLocaleString()} active
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href="/workflows/instances">View instances</Link>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/workflows/instances">
+              <ListChecks className="me-1.5 h-4 w-4" aria-hidden="true" />
+              View instances
+            </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link href="/workflows/approvals">My approvals</Link>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/workflows/approvals">
+              <ShieldCheck className="me-1.5 h-4 w-4" aria-hidden="true" />
+              My approvals
+            </Link>
           </Button>
-          <Button asChild>
+          <Button asChild size="sm">
             <Link href="/workflows/definitions/new">
-              <Plus className="me-2 h-4 w-4" aria-hidden="true" />
+              <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
               New definition
             </Link>
           </Button>
         </div>
-      </header>
+      </div>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">All definitions</CardTitle>
-          <CardDescription>
-            {definitions.length.toLocaleString()} workflow definitions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {definitions.length === 0 ? (
-            <EmptyState />
-          ) : (
+      {definitions.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
             <DefinitionsTable items={definitions} />
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </section>
   );
 }
 
 function EmptyState() {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed py-12 text-center">
-      <GitBranch className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-      <p className="text-base font-medium">No workflows defined</p>
-      <p className="text-sm text-muted-foreground">
-        Define an approval flow to start routing requests.
-      </p>
-      <Button asChild className="mt-2">
-        <Link href="/workflows/definitions/new">Create definition</Link>
-      </Button>
-    </div>
+    <Card className="overflow-hidden">
+      <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+        <GitBranch className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
+        <p className="text-base font-medium">No workflows defined</p>
+        <p className="text-sm text-muted-foreground">
+          Define an approval flow to start routing requests.
+        </p>
+        <Button asChild className="mt-2" size="sm">
+          <Link href="/workflows/definitions/new">Create definition</Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -96,44 +100,71 @@ function DefinitionsTable({ items }: { items: WorkflowDefinition[] }) {
   return (
     <Table aria-label="Workflow definitions">
       <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Module</TableHead>
-          <TableHead>Version</TableHead>
-          <TableHead className="text-right">Steps</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Updated</TableHead>
-          <TableHead className="text-end">Actions</TableHead>
+        <TableRow className="bg-muted/30 hover:bg-muted/30">
+          <TableHead className="font-semibold">Workflow</TableHead>
+          <TableHead className="font-semibold">Module</TableHead>
+          <TableHead className="text-end font-semibold">Steps</TableHead>
+          <TableHead className="font-semibold">Status</TableHead>
+          <TableHead className="font-semibold">Updated</TableHead>
+          <TableHead className="text-end font-semibold">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {items.map((def) => (
-          <TableRow key={def.id}>
-            <TableCell className="font-medium">
+          <TableRow key={def.id} className="group">
+            <TableCell>
               <Link
                 href={`/workflows/definitions/${def.id}`}
-                className="text-primary hover:underline"
+                className="font-semibold text-foreground hover:underline"
               >
                 {def.name}
               </Link>
+              <p className="text-[11px] text-muted-foreground">v{def.version}</p>
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{def.module}</Badge>
+              <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
+                {def.module}
+              </span>
             </TableCell>
-            <TableCell>v{def.version}</TableCell>
-            <TableCell className="text-right">{def.steps.length}</TableCell>
+            <TableCell className="text-end tabular-nums">
+              {def.steps.length}
+            </TableCell>
             <TableCell>
-              {def.active ? <Badge variant="success">Active</Badge> : <Badge variant="secondary">Inactive</Badge>}
+              <StatusPill active={def.active} />
             </TableCell>
-            <TableCell>{def.updatedAt}</TableCell>
+            <TableCell className="text-muted-foreground">
+              {def.updatedAt || '—'}
+            </TableCell>
             <TableCell className="text-end">
-              <Button asChild variant="ghost" size="sm">
-                <Link href={`/workflows/definitions/${def.id}`}>View</Link>
-              </Button>
+              <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  aria-label={`View ${def.name}`}
+                >
+                  <Link href={`/workflows/definitions/${def.id}`}>
+                    <Eye className="h-4 w-4" aria-hidden="true" />
+                  </Link>
+                </Button>
+              </div>
             </TableCell>
           </TableRow>
         ))}
       </TableBody>
     </Table>
+  );
+}
+
+function StatusPill({ active }: { active: boolean }) {
+  return active ? (
+    <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+      Active
+    </span>
+  ) : (
+    <span className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-400">
+      Inactive
+    </span>
   );
 }

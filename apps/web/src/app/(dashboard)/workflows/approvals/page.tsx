@@ -3,24 +3,15 @@
  *
  * Validates: Requirement 13.1 — surface approval queue per user.
  */
-import { Check, X } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowLeft, Check, CheckCircle2, ListChecks, X } from 'lucide-react';
 
-import {
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listPendingApprovals } from '@/lib/api/workflows';
+import {
+  listPendingApprovals,
+  type WorkflowApproval,
+} from '@/lib/api/workflows';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,71 +21,96 @@ export default async function ApprovalsPage() {
 
   return (
     <section aria-labelledby="approvals-heading" className="space-y-6">
-      <header>
-        <h1 id="approvals-heading" className="text-2xl font-semibold tracking-tight">
-          My approvals
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Workflow steps assigned to {session.user.email} for review.
-        </p>
-      </header>
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+        <Link href="/workflows">
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+          Workflows
+        </Link>
+      </Button>
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Pending approvals</CardTitle>
-          <CardDescription>
-            {approvals.length.toLocaleString()} items awaiting action.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {approvals.length === 0 ? (
-            <p className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
-              You&apos;re all caught up. No approvals pending.
-            </p>
-          ) : (
-            <Table aria-label="Pending approvals">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Workflow</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Step</TableHead>
-                  <TableHead>Requested by</TableHead>
-                  <TableHead>Requested</TableHead>
-                  <TableHead className="text-end">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {approvals.map((a) => (
-                  <TableRow key={a.id}>
-                    <TableCell className="font-medium">{a.definitionName}</TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground">{a.subjectType}/</span>
-                      <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                        {a.subjectId}
-                      </code>
-                    </TableCell>
-                    <TableCell>{a.stepName}</TableCell>
-                    <TableCell>{a.requestedBy}</TableCell>
-                    <TableCell>{a.requestedAt}</TableCell>
-                    <TableCell className="text-end">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm">
-                          <Check className="me-1 h-4 w-4" aria-hidden="true" />
-                          Approve
-                        </Button>
-                        <Button size="sm" variant="destructive">
-                          <X className="me-1 h-4 w-4" aria-hidden="true" />
-                          Reject
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1
+            id="approvals-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            My approvals
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Requests waiting on {session.user.email} for review ·{' '}
+            {approvals.length.toLocaleString()} pending
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/workflows/instances">
+              <ListChecks className="me-1.5 h-4 w-4" aria-hidden="true" />
+              All instances
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      {approvals.length === 0 ? (
+        <Card className="overflow-hidden">
+          <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+            <CheckCircle2
+              className="h-4 w-4 text-emerald-600 dark:text-emerald-400"
+              aria-hidden="true"
+            />
+            You&apos;re all caught up. No approvals pending.
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="flex max-w-[880px] flex-col gap-4">
+          {approvals.map((a) => (
+            <ApprovalCard key={a.id} approval={a} />
+          ))}
+        </div>
+      )}
     </section>
+  );
+}
+
+function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-4 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-foreground">{a.definitionName}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Requested by {a.requestedBy || '—'} · {a.requestedAt || '—'}
+            </p>
+          </div>
+          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+            Pending
+          </span>
+        </div>
+
+        <dl className="grid gap-x-4 gap-y-2 rounded-lg border border-border bg-muted/30 p-4 text-sm sm:grid-cols-[150px_1fr]">
+          <dt className="text-muted-foreground">Subject</dt>
+          <dd>
+            <span className="text-muted-foreground">{a.subjectType}/</span>
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              {a.subjectId}
+            </code>
+          </dd>
+          <dt className="text-muted-foreground">Step</dt>
+          <dd className="font-medium text-foreground">{a.stepName || '—'}</dd>
+        </dl>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm">
+            <Check className="me-1 h-4 w-4" aria-hidden="true" />
+            Approve
+          </Button>
+          <Button size="sm" variant="destructive">
+            <X className="me-1 h-4 w-4" aria-hidden="true" />
+            Reject
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
