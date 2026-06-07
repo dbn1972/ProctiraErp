@@ -5,11 +5,13 @@
  * and registration window.
  */
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
 import {
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   FormField,
@@ -18,17 +20,30 @@ import {
 
 export default function NewExaminationPage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Create examination</h1>
-        <p className="text-sm text-muted-foreground">
-          Provide the examination definition: code, date, and registration window.
-        </p>
-      </header>
+    <section aria-labelledby="new-exam-heading" className="space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+        <Link href="/examinations">
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+          Back to examinations
+        </Link>
+      </Button>
 
-      <Card>
+      <div>
+        <h1
+          id="new-exam-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
+          Schedule examination
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Define the examination cycle: name, code, date, and registration window.
+        </p>
+      </div>
+
+      <Card className="max-w-[760px]">
         <CardHeader>
           <CardTitle className="text-base">Examination details</CardTitle>
+          <CardDescription>Fields marked * are required.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-5" noValidate>
@@ -61,6 +76,6 @@ export default function NewExaminationPage() {
           </form>
         </CardContent>
       </Card>
-    </div>
+    </section>
   );
 }
