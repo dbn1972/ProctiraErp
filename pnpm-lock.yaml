@@ -155,9 +155,24 @@ importers:
       '@proctira/auth':
         specifier: workspace:*
         version: link:../../packages/shared/auth
+      '@proctira/backend-assessment':
+        specifier: workspace:*
+        version: link:../../packages/backend/assessment
+      '@proctira/backend-attendance':
+        specifier: workspace:*
+        version: link:../../packages/backend/attendance
       '@proctira/backend-auth':
         specifier: workspace:*
         version: link:../../packages/backend/auth
+      '@proctira/backend-examination':
+        specifier: workspace:*
+        version: link:../../packages/backend/examination
+      '@proctira/backend-institution':
+        specifier: workspace:*
+        version: link:../../packages/backend/institution
+      '@proctira/backend-staff':
+        specifier: workspace:*
+        version: link:../../packages/backend/staff
       '@proctira/backend-student':
         specifier: workspace:*
         version: link:../../packages/backend/student

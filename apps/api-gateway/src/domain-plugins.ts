@@ -3,49 +3,140 @@
  *
  * The platform's intended topology runs the backend domain logic *inside* the
  * gateway as Fastify plugins (see docker-compose header). This module registers
- * those domain plugins under the `/api/v1` version prefix, returning the set of
- * route prefixes it handled so the service-router can skip them (and only proxy
- * the domains that are deployed as separate services).
+ * those domain plugins under the `/api/v1` version prefix and returns the proxy
+ * prefixes it supersedes, so the service-router skips them (only proxying
+ * domains that are deployed as separate services).
  *
- * Adding a domain is a one-liner in `DOMAIN_REGISTRARS`: give it a prefix and a
- * registrar that mounts the domain's Fastify plugin with a real (Prisma-backed)
- * repository. Repositories self-select Prisma vs in-memory from `DATABASE_URL`,
- * so the same code runs in production (Postgres + RLS) and in dev/tests.
+ * Persistence status (current schema):
+ *  - student: Prisma-backed (Postgres + RLS) via createStudentRepository.
+ *  - institution / staff: Postgres tables exist, but only in-memory repos ship
+ *    today — wired in-memory so the API is functional; swap to Prisma repos
+ *    for durable persistence (next step).
+ *  - attendance / assessment / examination: no Postgres tables yet — in-memory
+ *    only (functional within a gateway process; durable persistence needs
+ *    schema + Prisma repos).
+ *
+ * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
 import type { FastifyInstance } from 'fastify';
+import {
+  assessmentPlugin,
+  InMemoryAssessmentItemRepository,
+  InMemoryAssessmentResultRepository,
+  InMemoryGradingSchemeRepository,
+  InMemoryOutcomeRepository,
+} from '@proctira/backend-assessment';
+import {
+  attendancePlugin,
+  InMemoryAttendanceRepository,
+} from '@proctira/backend-attendance';
+import {
+  examinationPlugin,
+  InMemoryDocumentRepository,
+  InMemoryExaminationRepository,
+  InMemoryResultRepository,
+} from '@proctira/backend-examination';
+import {
+  institutionPlugin,
+  InMemoryInstitutionRepository,
+} from '@proctira/backend-institution';
+import {
+  InMemoryAssignmentRepository,
+  InMemoryStaffRepository,
+  staffPlugin,
+} from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
 
 import type { GatewayConfig } from './config.js';
 
-/** A registrar mounts one domain's plugin onto an `/api/v1`-scoped instance. */
+/** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
-  /** Route prefix under /api/v1 (e.g. '/students'). */
-  prefix: string;
-  /** Registers the domain plugin onto the provided (already /api/v1-scoped) scope. */
+  /** Logical name (for logging). */
+  name: string;
+  /** Proxy prefix(es) this domain serves in-process — excluded from the router. */
+  proxyPrefixes: string[];
+  /** Mounts the domain plugin onto an `/api/v1`-scoped instance. */
   register: (scope: FastifyInstance, config: GatewayConfig) => Promise<void>;
 }
 
 /**
- * Domains served in-process. Each entry is fully wired with a persistence-backed
- * repository. Domains NOT listed here fall through to the service-router, which
- * proxies them to a standalone service (when SERVICE_ROUTES targets one).
+ * Domains served in-process. Domains NOT listed fall through to the
+ * service-router, which proxies them to a standalone service (via SERVICE_ROUTES).
  */
 const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
-    prefix: '/students',
+    name: 'student',
+    proxyPrefixes: ['/students'],
     register: async (scope) => {
-      // createStudentRepository → Prisma (+ optional Redis cache) when
-      // DATABASE_URL is set, else in-memory. Reads RLS-safely via
-      // withTenantTransaction using the request's resolved tenantId.
+      // Prisma (+ optional Redis cache) when DATABASE_URL is set, else in-memory.
+      // Reads RLS-safely via withTenantTransaction using the request's tenantId.
       const repository = createStudentRepository();
       await scope.register(studentPlugin, { repository, prefix: '/students' });
+    },
+  },
+  {
+    name: 'institution',
+    proxyPrefixes: ['/institutions'],
+    register: async (scope) => {
+      await scope.register(institutionPlugin, {
+        repository: new InMemoryInstitutionRepository(),
+        prefix: '/institutions',
+      });
+    },
+  },
+  {
+    name: 'staff',
+    proxyPrefixes: ['/staff'],
+    register: async (scope) => {
+      await scope.register(staffPlugin, {
+        repository: new InMemoryStaffRepository(),
+        assignmentRepository: new InMemoryAssignmentRepository(),
+        prefix: '/staff',
+      });
+    },
+  },
+  {
+    name: 'attendance',
+    proxyPrefixes: ['/attendance'],
+    register: async (scope) => {
+      await scope.register(attendancePlugin, {
+        repository: new InMemoryAttendanceRepository(),
+        prefix: '/attendance',
+      });
+    },
+  },
+  {
+    name: 'examination',
+    proxyPrefixes: ['/examinations'],
+    register: async (scope) => {
+      await scope.register(examinationPlugin, {
+        repository: new InMemoryExaminationRepository(),
+        resultRepository: new InMemoryResultRepository(),
+        documentRepository: new InMemoryDocumentRepository(),
+        prefix: '/examinations',
+      });
+    },
+  },
+  {
+    name: 'assessment',
+    // The assessment plugin mounts under its own native prefixes
+    // (/grading-schemes, /assessment-items, /outcomes, /results, ...), so the
+    // legacy '/assessments' proxy is superseded and excluded.
+    proxyPrefixes: ['/assessments'],
+    register: async (scope) => {
+      await scope.register(assessmentPlugin, {
+        gradingSchemeRepository: new InMemoryGradingSchemeRepository(),
+        assessmentItemRepository: new InMemoryAssessmentItemRepository(),
+        outcomeRepository: new InMemoryOutcomeRepository(),
+        resultRepository: new InMemoryAssessmentResultRepository(),
+      });
     },
   },
 ];
 
 /**
- * Registers all in-process domain plugins and returns the prefixes handled,
- * so the caller can exclude them from the proxy router.
+ * Registers all in-process domain plugins and returns the proxy prefixes
+ * handled, so the caller can exclude them from the proxy router.
  */
 export async function registerDomainPlugins(
   app: FastifyInstance,
@@ -63,8 +154,8 @@ export async function registerDomainPlugins(
       },
       { prefix: versionPrefix },
     );
-    handled.push(domain.prefix);
-    app.log.info({ domain: domain.prefix }, 'Registered in-process domain plugin');
+    handled.push(...domain.proxyPrefixes);
+    app.log.info({ domain: domain.name }, 'Registered in-process domain plugin');
   }
 
   return handled;
