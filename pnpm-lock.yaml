@@ -158,6 +158,9 @@ importers:
       '@proctira/backend-auth':
         specifier: workspace:*
         version: link:../../packages/backend/auth
+      '@proctira/backend-student':
+        specifier: workspace:*
+        version: link:../../packages/backend/student
       '@proctira/common':
         specifier: workspace:*
         version: link:../../packages/shared/common
@@ -182,6 +185,9 @@ importers:
       fastify-plugin:
         specifier: ^4.5.0
         version: 4.5.1
+      ioredis:
+        specifier: ^5.4.0
+        version: 5.11.0
     devDependencies:
       '@types/node':
         specifier: ^20.12.0
@@ -727,6 +733,37 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@20.19.41)(jsdom@24.1.3)
 
+  packages/backend/admin-dashboard:
+    dependencies:
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
+      '@proctira/common':
+        specifier: workspace:*
+        version: link:../../shared/common
+      '@proctira/queue-abstraction':
+        specifier: workspace:*
+        version: link:../../shared/queue-abstraction
+      '@sinclair/typebox':
+        specifier: ^0.32.0
+        version: 0.32.35
+      fastify-plugin:
+        specifier: ^4.5.0
+        version: 4.5.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.0
+        version: 20.19.41
+      fastify:
+        specifier: ^4.26.0
+        version: 4.29.1
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.41)(jsdom@24.1.3)
+
   packages/backend/assessment:
     dependencies:
       '@proctira/common':
@@ -772,9 +809,15 @@ importers:
 
   packages/backend/attendance:
     dependencies:
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/queue-abstraction':
+        specifier: workspace:*
+        version: link:../../shared/queue-abstraction
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
@@ -1129,6 +1172,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
@@ -1273,6 +1319,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
@@ -1525,6 +1574,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
@@ -1617,6 +1669,9 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
@@ -1835,6 +1890,9 @@ importers:
 
   packages/backend/workflow:
     dependencies:
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common

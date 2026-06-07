@@ -19,6 +19,12 @@ export interface ServiceRouterOptions {
   services: Record<string, ServiceRoute>;
   /** API version prefix (default: '/api/v1') */
   versionPrefix?: string;
+  /**
+   * Route prefixes (e.g. '/students') already served in-process by a domain
+   * plugin. The router skips registering proxy routes for these to avoid
+   * conflicting with the in-process handlers.
+   */
+  excludePrefixes?: string[];
 }
 
 /**
@@ -75,13 +81,17 @@ const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
   fastify: FastifyInstance,
   options: ServiceRouterOptions,
 ) => {
-  const { services, versionPrefix = '/api/v1' } = options;
+  const { services, versionPrefix = '/api/v1', excludePrefixes = [] } = options;
+  const excluded = new Set(excludePrefixes);
 
   // Store service registry for introspection
   fastify.decorate('serviceRegistry', services);
 
   // Register a catch-all route for each service prefix under /api/v1
   for (const [serviceName, route] of Object.entries(services)) {
+    // Skip domains already served in-process by a domain plugin.
+    if (excluded.has(route.prefix)) continue;
+
     const fullPrefix = `${versionPrefix}${route.prefix}`;
 
     // Register wildcard route for the service

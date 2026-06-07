@@ -21,6 +21,7 @@
     "@fastify/swagger-ui": "^3.0.0",
     "@proctira/auth": "workspace:*",
     "@proctira/backend-auth": "workspace:*",
+    "@proctira/backend-student": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/logging": "workspace:*",
     "@proctira/observability": "workspace:*",

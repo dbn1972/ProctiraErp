@@ -24,6 +24,7 @@ import { tenantPlugin } from '@proctira/tenant';
 import Fastify, { type FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
+import { registerDomainPlugins } from './domain-plugins.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin from './plugins/idempotency.js';
@@ -307,10 +308,17 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     ],
   });
 
-  // 9. Register service router (routes requests to backend services)
+  // 9. Register in-process domain plugins (monolith mode). These serve their
+  // routes directly (Prisma-backed, RLS-safe) rather than being proxied.
+  const inProcessPrefixes = await registerDomainPlugins(app, config, '/api/v1');
+
+  // 10. Register service router for the remaining domains (proxies to
+  // standalone services via SERVICE_ROUTES). In-process prefixes are excluded
+  // so they don't conflict with the handlers registered above.
   await app.register(serviceRouterPlugin, {
     services: config.services,
     versionPrefix: '/api/v1',
+    excludePrefixes: inProcessPrefixes,
   });
 
   return app;

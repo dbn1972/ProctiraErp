@@ -33,6 +33,10 @@ export type { StudentRepositoryConfig } from './repository-factory.js';
 // Cached repository decorator
 export { CachedStudentRepository } from './cached-student-repository.js';
 
+// Fastify plugin (for in-process registration in the API gateway / monolith)
+export { studentPlugin } from './student-plugin.js';
+export type { StudentPluginOptions } from './student-plugin.js';
+
 // Import module
 export {
   ImportService,
