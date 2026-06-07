@@ -1,5 +1,14 @@
+import { ShieldCheck } from 'lucide-react';
+
 import { PageHeader } from '@/components/layout/page-header';
-import { Card, CardContent } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Table,
   TableBody,
@@ -10,6 +19,7 @@ import {
 } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { listAudit } from '@/lib/api/audit';
+import { listTenants } from '@/lib/api/tenants';
 import { requireRole } from '@/lib/auth/server';
 import { formatDateTime } from '@/lib/utils';
 
@@ -21,11 +31,21 @@ export default async function AuditPage({
   searchParams: { q?: string; resourceType?: string; tenantId?: string };
 }) {
   await requireRole('audit', '/audit');
-  const { entries } = await listAudit({
-    search: searchParams?.q,
-    resourceType: searchParams?.resourceType,
-    tenantId: searchParams?.tenantId,
-  });
+  const [{ entries }, { tenants }] = await Promise.all([
+    listAudit({
+      search: searchParams?.q,
+      resourceType: searchParams?.resourceType,
+      tenantId: searchParams?.tenantId,
+    }),
+    listTenants(),
+  ]);
+
+  // Resolve tenant IDs to names so raw UUIDs are never surfaced.
+  const tenantName = new Map(tenants.map((t) => [t.id, t.name]));
+  function resolveTenant(id: string): string {
+    if (id === 'platform') return 'Platform';
+    return tenantName.get(id) ?? id;
+  }
 
   return (
     <>
@@ -34,9 +54,25 @@ export default async function AuditPage({
         description="Platform-wide record of admin actions, break-glass grants, and lifecycle events."
       />
 
+      <Alert variant="info" className="mb-6">
+        <ShieldCheck className="h-4 w-4" />
+        <AlertTitle>Immutable by design</AlertTitle>
+        <AlertDescription>
+          Entries are append-only. Nothing on this page can be edited or deleted
+          — including by platform operators.
+        </AlertDescription>
+      </Alert>
+
       <Card>
+        <CardHeader>
+          <CardTitle>Events</CardTitle>
+          <CardDescription>
+            {entries.length} event{entries.length === 1 ? '' : 's'} · newest
+            first.
+          </CardDescription>
+        </CardHeader>
         <CardContent className="p-0">
-          <div className="border-b border-border p-4">
+          <div className="border-b border-border px-6 pb-4">
             <AuditFilter
               q={searchParams?.q ?? ''}
               resourceType={searchParams?.resourceType ?? ''}
@@ -64,7 +100,7 @@ export default async function AuditPage({
               )}
               {entries.map((entry) => (
                 <TableRow key={entry.id}>
-                  <TableCell className="text-xs whitespace-nowrap">
+                  <TableCell className="whitespace-nowrap font-mono text-xs text-muted-foreground">
                     {formatDateTime(entry.timestamp)}
                   </TableCell>
                   <TableCell>
@@ -75,15 +111,19 @@ export default async function AuditPage({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell className="text-xs">{entry.action}</TableCell>
                   <TableCell>
-                    <div className="text-xs">{entry.resource}</div>
+                    <span className="rounded bg-secondary px-1.5 py-0.5 font-mono text-xs text-secondary-foreground">
+                      {entry.action}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-xs font-medium">{entry.resource}</div>
                     <div className="font-mono text-xs text-muted-foreground">
                       {entry.resourceType}
                     </div>
                   </TableCell>
-                  <TableCell className="font-mono text-xs">
-                    {entry.tenantId}
+                  <TableCell className="text-xs">
+                    {resolveTenant(entry.tenantId)}
                   </TableCell>
                   <TableCell>
                     <StatusBadge status={entry.outcome} />

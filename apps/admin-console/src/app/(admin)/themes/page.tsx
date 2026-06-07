@@ -20,25 +20,36 @@ export default async function ThemesPage() {
   return (
     <>
       <PageHeader
-        title="Theme review"
-        description="Approve or reject vendor-submitted themes for the marketplace."
+        title="Theme gallery"
+        description="Curated visual themes for tenants. Approve or reject vendor-submitted themes for the marketplace."
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {themes.map((theme) => (
-          <Link key={theme.id} href={`/themes/${theme.id}`}>
-            <Card className="h-full transition-shadow hover:shadow-md">
-              <div className="aspect-video w-full rounded-t-lg bg-gradient-to-br from-[hsl(var(--primary))]/30 to-[hsl(var(--accent))]/30" />
+        {themes.map((theme) => {
+          const needsReview =
+            theme.status === 'submitted' || theme.status === 'in_review';
+          return (
+            <Card
+              key={theme.id}
+              className="flex h-full flex-col overflow-hidden transition-shadow hover:shadow-md"
+            >
+              <div className="aspect-video w-full bg-gradient-to-br from-[hsl(var(--primary))]/30 to-[hsl(var(--accent))]/30" />
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>{theme.name}</span>
+                <CardTitle className="flex items-center justify-between gap-2">
+                  <Link
+                    href={`/themes/${theme.id}`}
+                    className="hover:underline"
+                  >
+                    {theme.name}
+                  </Link>
                   <StatusBadge status={theme.status} />
                 </CardTitle>
                 <CardDescription>
-                  {theme.vendor} · v{theme.version}
+                  {theme.vendor} ·{' '}
+                  <span className="font-mono">v{theme.version}</span>
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-1 flex-col">
                 <p className="text-sm text-muted-foreground">
                   {theme.description}
                 </p>
@@ -46,10 +57,17 @@ export default async function ThemesPage() {
                   {theme.tokenOverrides} token overrides · submitted{' '}
                   {formatDate(theme.submittedAt)}
                 </p>
+                <div className="mt-4 flex-1" />
+                <Link
+                  href={`/themes/${theme.id}`}
+                  className="text-sm font-medium text-[hsl(var(--accent))] hover:underline"
+                >
+                  {needsReview ? 'Review submission →' : 'View theme →'}
+                </Link>
               </CardContent>
             </Card>
-          </Link>
-        ))}
+          );
+        })}
       </div>
     </>
   );
