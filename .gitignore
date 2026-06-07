@@ -39,3 +39,6 @@ prisma/generated/
 # Lighthouse CI reports (Task 55.7)
 tools/scripts/.lighthouseci/
 .lighthouseci/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
