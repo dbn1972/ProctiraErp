@@ -4,6 +4,7 @@
  * Validates: Requirement 17.1 — configure filters and generate report.
  */
 import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 
 import {
   Button,
@@ -40,15 +41,24 @@ export default async function NewReportPage({ searchParams }: PageProps) {
   ]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Generate report</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+        <Link href="/reports">
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+          Reports
+        </Link>
+      </Button>
+
+      <div>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          New report
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Pick a template, set filters, and download once the run completes.
         </p>
-      </header>
+      </div>
 
-      <Card>
+      <Card className="max-w-[860px]">
         <CardHeader>
           <CardTitle className="text-base">Template</CardTitle>
         </CardHeader>
@@ -76,7 +86,7 @@ export default async function NewReportPage({ searchParams }: PageProps) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="max-w-[860px]">
         <CardHeader>
           <CardTitle className="text-base">Filters</CardTitle>
           <CardDescription>
