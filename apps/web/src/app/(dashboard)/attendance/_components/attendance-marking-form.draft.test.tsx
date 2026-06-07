@@ -178,6 +178,7 @@ vi.mock('@proctira/ui/components', () => {
 // stub so the bundle does not pull in real icons.
 vi.mock('lucide-react', () => ({
   Save: () => null,
+  CheckCheck: () => null,
 }));
 
 // ─── Subject under test ──────────────────────────────────────────────────────

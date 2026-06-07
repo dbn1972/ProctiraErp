@@ -6,7 +6,7 @@
  */
 import Link from 'next/link';
 
-import { ClipboardCheck } from 'lucide-react';
+import { BarChart3 } from 'lucide-react';
 
 import {
   Button,
@@ -71,25 +71,24 @@ export default async function AttendancePage({ searchParams }: PageProps) {
 
   return (
     <section aria-labelledby="attendance-heading" className="space-y-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1
             id="attendance-heading"
-            className="text-2xl font-semibold tracking-tight"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
           >
-            <ClipboardCheck
-              className="me-2 inline h-6 w-6 align-text-bottom text-[hsl(var(--primary))]"
-              aria-hidden="true"
-            />
-            Attendance
+            Mark attendance
           </h1>
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            Mark daily attendance against the active class roster. Past 30 days
+          <p className="mt-1 text-sm text-muted-foreground">
+            Daily attendance against the active class roster. Past 30 days
             editable; future dates are locked.
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/attendance/reports">View reports</Link>
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+          <Link href="/attendance/reports">
+            <BarChart3 className="me-1.5 h-4 w-4" aria-hidden="true" />
+            View reports
+          </Link>
         </Button>
       </div>
 

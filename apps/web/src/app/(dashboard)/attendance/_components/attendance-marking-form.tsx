@@ -15,7 +15,7 @@
  *   day's roster on remount. The draft is cleared on a successful
  *   bulk save.
  */
-import { Save } from 'lucide-react';
+import { CheckCheck, Save } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
@@ -35,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { cn } from '@/lib/utils';
 import type { BulkAttendanceResponse, RosterEntry } from '@/lib/api/attendance';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 import {
@@ -90,6 +91,73 @@ const STATUS_OPTIONS: { value: AttendanceStatusValue; label: string }[] = [
 ];
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
+
+/* ── Avatar palette (literal class names for Tailwind purge) ── */
+const AVATAR_PALETTES = [
+  'bg-blue-100   text-blue-700   dark:bg-blue-900   dark:text-blue-300',
+  'bg-violet-100 text-violet-700 dark:bg-violet-900 dark:text-violet-300',
+  'bg-rose-100   text-rose-700   dark:bg-rose-900   dark:text-rose-300',
+  'bg-amber-100  text-amber-700  dark:bg-amber-900  dark:text-amber-300',
+  'bg-teal-100   text-teal-700   dark:bg-teal-900   dark:text-teal-300',
+  'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900 dark:text-fuchsia-300',
+] as const;
+
+function avatarPalette(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
+  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length] ?? AVATAR_PALETTES[0];
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  const first = parts[0]?.charAt(0) ?? '';
+  const last = parts.length > 1 ? parts[parts.length - 1]?.charAt(0) ?? '' : '';
+  return (first + last).toUpperCase() || '?';
+}
+
+/* ── Segmented attendance status toggle ── */
+const TOGGLE_ON: Record<AttendanceStatusValue, string> = {
+  PRESENT: 'bg-emerald-500 text-white',
+  ABSENT:  'bg-red-500 text-white',
+  LATE:    'bg-amber-500 text-white',
+  EXCUSED: 'bg-sky-500 text-white',
+};
+
+function StatusToggle({
+  value,
+  onChange,
+  studentName,
+}: {
+  value: AttendanceStatusValue;
+  onChange: (v: AttendanceStatusValue) => void;
+  studentName: string;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label={`Attendance status for ${studentName}`}
+      className="inline-flex gap-1 rounded-full bg-muted p-1"
+    >
+      {STATUS_OPTIONS.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+              active ? TOGGLE_ON[opt.value] : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function rosterToRows(roster: RosterEntry[]): RowState[] {
   return roster.map((entry) => ({
@@ -274,6 +342,14 @@ export function AttendanceMarkingForm({
     }
   }
 
+  const counts = rows.reduce(
+    (acc, r) => {
+      acc[r.status] = (acc[r.status] ?? 0) + 1;
+      return acc;
+    },
+    { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 } as Record<AttendanceStatusValue, number>,
+  );
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-4">
@@ -392,24 +468,6 @@ export function AttendanceMarkingForm({
         >
           Load roster
         </Button>
-        {rows.length > 0 && (
-          <>
-            <span className="text-xs text-[hsl(var(--muted-foreground))]">
-              Bulk set:
-            </span>
-            {STATUS_OPTIONS.map((opt) => (
-              <Button
-                key={opt.value}
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => bulkSet(opt.value)}
-              >
-                {opt.label}
-              </Button>
-            ))}
-          </>
-        )}
       </div>
 
       {serverState?.status === 'error' && serverState.message && (
@@ -436,70 +494,91 @@ export function AttendanceMarkingForm({
           date, then click <strong>Load roster</strong>.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-md border">
-          <Table aria-label="Attendance roster">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Student</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Comment</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.studentId}>
-                  <TableCell className="font-medium">
-                    {row.studentName}
-                  </TableCell>
-                  <TableCell className="min-w-[160px]">
-                    <Select
-                      value={row.status}
-                      onValueChange={(value) =>
-                        setRowStatus(
-                          row.studentId,
-                          value as AttendanceStatusValue,
-                        )
-                      }
-                    >
-                      <SelectTrigger
-                        aria-label={`Attendance status for ${row.studentName}`}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {STATUS_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell className="min-w-[280px]">
-                    <Input
-                      aria-label={`Comment for ${row.studentName}`}
-                      value={row.comment}
-                      onChange={(e) =>
-                        setRowComment(row.studentId, e.target.value)
-                      }
-                      placeholder="Optional"
-                    />
-                  </TableCell>
+        <div className="overflow-hidden rounded-lg border border-border">
+          {/* Summary header */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <SummaryChip color="bg-emerald-500" count={counts.PRESENT} label="present" />
+              <SummaryChip color="bg-red-500" count={counts.ABSENT} label="absent" />
+              <SummaryChip color="bg-amber-500" count={counts.LATE} label="late" />
+              <SummaryChip color="bg-sky-500" count={counts.EXCUSED} label="excused" />
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => bulkSet('PRESENT')}>
+              <CheckCheck className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Mark all present
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <Table aria-label="Attendance roster">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="font-semibold">Student</TableHead>
+                  <TableHead className="font-semibold">Today</TableHead>
+                  <TableHead className="font-semibold">Note</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.studentId}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold',
+                            avatarPalette(row.studentName),
+                          )}
+                        >
+                          {initials(row.studentName)}
+                        </span>
+                        <span className="font-medium text-foreground">{row.studentName}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="min-w-[280px]">
+                      <StatusToggle
+                        value={row.status}
+                        studentName={row.studentName}
+                        onChange={(v) => setRowStatus(row.studentId, v)}
+                      />
+                    </TableCell>
+                    <TableCell className="min-w-[240px]">
+                      <Input
+                        aria-label={`Comment for ${row.studentName}`}
+                        value={row.comment}
+                        onChange={(e) => setRowComment(row.studentId, e.target.value)}
+                        placeholder="Optional note"
+                        className="h-9"
+                      />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       )}
 
       {rows.length > 0 && (
-        <div className="flex justify-end">
+        <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/90 px-5 py-3 shadow-lg backdrop-blur">
+          <span className="me-auto text-xs text-muted-foreground">
+            {rows.length} {rows.length === 1 ? 'student' : 'students'} on roster · draft autosaves locally
+          </span>
           <Button type="button" onClick={handleSave} disabled={isSaving}>
-            <Save className="me-2 h-4 w-4" aria-hidden="true" />
-            {isSaving ? 'Saving…' : 'Save attendance'}
+            <Save className="me-1.5 h-4 w-4" aria-hidden="true" />
+            {isSaving ? 'Submitting…' : 'Submit attendance'}
           </Button>
         </div>
       )}
     </div>
+  );
+}
+
+function SummaryChip({ color, count, label }: { color: string; count: number; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <span aria-hidden="true" className={cn('h-2.5 w-2.5 rounded-full', color)} />
+      <b className="text-foreground tabular-nums">{count}</b> {label}
+    </span>
   );
 }

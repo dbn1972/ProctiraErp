@@ -6,7 +6,7 @@
  */
 import Link from 'next/link';
 
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Download } from 'lucide-react';
 
 import {
   Button,
@@ -27,29 +27,46 @@ export default async function AttendanceReportsPage() {
 
   return (
     <section aria-labelledby="reports-heading" className="space-y-6">
-      <Button asChild variant="ghost" size="sm">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/attendance">
-          <ArrowLeft className="me-2 h-4 w-4" aria-hidden="true" />
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
           Back to attendance
         </Link>
       </Button>
 
-      <div>
-        <h1 id="reports-heading" className="text-2xl font-semibold tracking-tight">
-          Attendance reports
-        </h1>
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          Calculate attendance percentage for a student, class, or institution
-          over a configurable date range. Percentages are rounded to two
-          decimal places.
-        </p>
+      {/* ── Page head ── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1
+            id="reports-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            Attendance analytics
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Attendance percentage for a student, class, or institution over a
+            configurable date range. Percentages are rounded to two decimal places.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button variant="outline" size="sm" disabled>
+            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Export CSV
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/attendance">
+              <ClipboardCheck className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Mark attendance
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Filters</CardTitle>
+          <CardTitle className="text-base">Scope &amp; date range</CardTitle>
           <CardDescription>
-            Choose the scope and date range to calculate.
+            Choose the scope and date range, then run the report.
           </CardDescription>
         </CardHeader>
         <CardContent>

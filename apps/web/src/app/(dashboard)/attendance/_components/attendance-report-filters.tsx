@@ -123,7 +123,7 @@ export function AttendanceReportFilters({
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="classId">Class UUID</Label>
+            <Label htmlFor="classId">Class reference</Label>
             <Input
               id="classId"
               value={classId}
@@ -134,7 +134,7 @@ export function AttendanceReportFilters({
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="studentId">Student UUID</Label>
+            <Label htmlFor="studentId">Student reference</Label>
             <Input
               id="studentId"
               value={studentId}
@@ -191,42 +191,62 @@ export function AttendanceReportFilters({
 
 function ResultPanel({ result }: { result: AttendancePercentageResult }) {
   const fmt = (value: number) => `${value.toFixed(2)}%`;
+  const pct = result.attendancePercentage;
+  const tone =
+    pct >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
+    pct >= 75 ? 'text-amber-600 dark:text-amber-400'     :
+                'text-red-600 dark:text-red-400';
+  const barTone =
+    pct >= 90 ? 'bg-emerald-500' :
+    pct >= 75 ? 'bg-amber-500'   :
+                'bg-red-500';
 
   return (
-    <div
-      className="rounded-md border p-4"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="flex flex-wrap items-baseline gap-3">
-        <span className="text-3xl font-semibold tracking-tight">
-          {fmt(result.attendancePercentage)}
-        </span>
-        <span className="text-sm text-[hsl(var(--muted-foreground))]">
-          attendance · {fmt(result.absencePercentage)} absence
-        </span>
+    <div className="space-y-4" role="status" aria-live="polite">
+      {/* Headline */}
+      <div className="rounded-xl border border-border bg-muted/20 p-5">
+        <div className="flex flex-wrap items-baseline gap-3">
+          <span className={`text-4xl font-extrabold tabular-nums tracking-tight ${tone}`}>
+            {fmt(pct)}
+          </span>
+          <span className="text-sm text-muted-foreground">
+            attendance · {fmt(result.absencePercentage)} absence · scope: {result.scope}
+          </span>
+        </div>
+        <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full ${barTone}`}
+            style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
+            role="progressbar"
+            aria-valuenow={Math.round(pct)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Attendance percentage"
+          />
+        </div>
       </div>
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
+
+      {/* KPI breakdown */}
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat label="Total records" value={result.totalRecords} />
-        <Stat label="Present" value={result.presentCount} />
-        <Stat label="Absent" value={result.absentCount} />
-        <Stat label="Late" value={result.lateCount} />
-        <Stat label="Excused" value={result.excusedCount} />
+        <Stat label="Present" value={result.presentCount} accent="text-emerald-600 dark:text-emerald-400" />
+        <Stat label="Absent" value={result.absentCount} accent="text-red-600 dark:text-red-400" />
+        <Stat label="Late" value={result.lateCount} accent="text-amber-600 dark:text-amber-400" />
+        <Stat label="Excused" value={result.excusedCount} accent="text-sky-600 dark:text-sky-400" />
       </dl>
-      <p className="mt-3 text-xs text-[hsl(var(--muted-foreground))]">
-        Scope: {result.scope}
-      </p>
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, accent }: { label: string; value: number; accent?: string }) {
   return (
-    <div>
-      <dt className="text-xs uppercase tracking-wide text-[hsl(var(--muted-foreground))]">
+    <div className="rounded-lg border border-border p-3">
+      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className="text-lg font-medium">{value.toLocaleString()}</dd>
+      <dd className={`mt-0.5 text-xl font-bold tabular-nums ${accent ?? 'text-foreground'}`}>
+        {value.toLocaleString()}
+      </dd>
     </div>
   );
 }
