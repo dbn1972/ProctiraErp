@@ -3,8 +3,9 @@
  *
  * Validates: Requirement 4.x — configure tenant identity, locales, branding.
  */
+import { Check } from 'lucide-react';
+
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -23,22 +24,36 @@ export default async function TenantConfigPage() {
 
   return (
     <section aria-labelledby="tenant-heading" className="space-y-6">
-      <header>
-        <h1 id="tenant-heading" className="text-2xl font-semibold tracking-tight">
-          Tenant configuration
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Update display name, locales, branding, and contact details.
-        </p>
-      </header>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1
+            id="tenant-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            Tenant settings
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Update display name, locales, branding, and contact details.
+          </p>
+        </div>
+        {config ? (
+          <Button type="submit" form="tenant-config-form" size="sm">
+            <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Save changes
+          </Button>
+        ) : null}
+      </div>
 
       {config ? (
-        <form className="grid gap-6 lg:grid-cols-2">
-          <Card>
+        <form id="tenant-config-form" className="space-y-6">
+          <Card className="max-w-[860px]">
             <CardHeader>
               <CardTitle className="text-base">Identity</CardTitle>
               <CardDescription>
-                Tenant ID <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{config.tenantId}</code>
+                Tenant ID{' '}
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+                  {config.tenantId}
+                </code>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -57,16 +72,19 @@ export default async function TenantConfigPage() {
                 <p className="text-sm font-medium">Supported locales</p>
                 <div className="flex flex-wrap gap-2">
                   {config.supportedLocales.map((locale) => (
-                    <Badge key={locale} variant="outline">
+                    <span
+                      key={locale}
+                      className="inline-flex items-center rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                    >
                       {locale}
-                    </Badge>
+                    </span>
                   ))}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="max-w-[860px]">
             <CardHeader>
               <CardTitle className="text-base">Branding</CardTitle>
               <CardDescription>Customise theme colours and logo.</CardDescription>
@@ -100,10 +118,12 @@ export default async function TenantConfigPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="max-w-[860px]">
             <CardHeader>
               <CardTitle className="text-base">Contact</CardTitle>
-              <CardDescription>Public contact details surfaced in support flows.</CardDescription>
+              <CardDescription>
+                Public contact details surfaced in support flows.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <FormField id="tenant-email" label="Email">
@@ -124,12 +144,12 @@ export default async function TenantConfigPage() {
             </CardContent>
           </Card>
 
-          <div className="flex items-end justify-end lg:col-span-2">
+          <div className="flex max-w-[860px] justify-end">
             <Button type="submit">Save changes</Button>
           </div>
         </form>
       ) : (
-        <Card>
+        <Card className="max-w-[860px]">
           <CardHeader>
             <CardTitle className="text-base">Tenant config unavailable</CardTitle>
             <CardDescription>
