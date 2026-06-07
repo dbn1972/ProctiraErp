@@ -180,9 +180,39 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return value;
   }
 
+  // v2.0 status palette.
+  static const Color _presentColor = Color(0xFF10B981);
+  static const Color _absentColor = Color(0xFFEF4444);
+  static const Color _lateColor = Color(0xFFF59E0B);
+
+  Future<void> _markAllPresent() async {
+    for (final AttendanceRosterEntry entry in _roster) {
+      if (entry.status != AttendanceStatus.present) {
+        await _mark(entry, AttendanceStatus.present);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+
+    final int present = _roster
+        .where((AttendanceRosterEntry e) => e.status == AttendanceStatus.present)
+        .length;
+    final int absent = _roster
+        .where((AttendanceRosterEntry e) => e.status == AttendanceStatus.absent)
+        .length;
+    final int late = _roster
+        .where((AttendanceRosterEntry e) => e.status == AttendanceStatus.late)
+        .length;
+    final int marked = _roster
+        .where((AttendanceRosterEntry e) => e.status != null)
+        .length;
+    final int total = _roster.length;
+    final int left = total - present - absent - late;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Attendance')),
       body: SafeArea(
@@ -251,6 +281,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         ?.copyWith(color: theme.colorScheme.error),
                   ),
                 ),
+              if (_roster.isNotEmpty) ...<Widget>[
+                _SummaryHeader(
+                  present: present,
+                  absent: absent,
+                  late: late,
+                  left: left,
+                  total: total,
+                  onMarkAllPresent: _markAllPresent,
+                ),
+                const SizedBox(height: 12),
+              ],
               Expanded(
                 child: _roster.isEmpty
                     ? Center(
@@ -281,13 +322,137 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                             }
                           },
                         ),
-                        separatorBuilder: (_, _) => const Divider(height: 0),
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemCount: _roster.length,
                       ),
               ),
             ],
           ),
         ),
+      ),
+      bottomNavigationBar: _roster.isEmpty
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: FilledButton.icon(
+                  onPressed: marked == 0 ? null : _loadRoster,
+                  icon: const Icon(Icons.check, size: 20),
+                  label: Text('Submit · $marked of $total marked'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.primary,
+                    foregroundColor: cs.onPrimary,
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+/// Counts header with a tri-colour distribution bar + "All present" action.
+class _SummaryHeader extends StatelessWidget {
+  const _SummaryHeader({
+    required this.present,
+    required this.absent,
+    required this.late,
+    required this.left,
+    required this.total,
+    required this.onMarkAllPresent,
+  });
+
+  final int present;
+  final int absent;
+  final int late;
+  final int left;
+  final int total;
+  final VoidCallback onMarkAllPresent;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+    final double denom = total == 0 ? 1 : total.toDouble();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Wrap(
+                    spacing: 14,
+                    runSpacing: 4,
+                    children: <Widget>[
+                      _countLabel('$present present',
+                          _AttendanceScreenState._presentColor),
+                      _countLabel('$absent absent',
+                          _AttendanceScreenState._absentColor),
+                      _countLabel(
+                          '$late late', _AttendanceScreenState._lateColor),
+                      _countLabel('$left left', cs.onSurfaceVariant),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: SizedBox(
+                      height: 8,
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            flex: (present / denom * 1000).round(),
+                            child: const ColoredBox(
+                                color: _AttendanceScreenState._presentColor),
+                          ),
+                          Expanded(
+                            flex: (absent / denom * 1000).round(),
+                            child: const ColoredBox(
+                                color: _AttendanceScreenState._absentColor),
+                          ),
+                          Expanded(
+                            flex: (late / denom * 1000).round(),
+                            child: const ColoredBox(
+                                color: _AttendanceScreenState._lateColor),
+                          ),
+                          Expanded(
+                            flex: (left / denom * 1000).round(),
+                            child: ColoredBox(
+                                color: cs.surfaceContainerHighest),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            OutlinedButton(
+              onPressed: onMarkAllPresent,
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                textStyle: theme.textTheme.labelLarge,
+              ),
+              child: const Text('All present'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _countLabel(String text, Color color) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: color,
       ),
     );
   }
@@ -304,69 +469,155 @@ class _RosterRow extends StatelessWidget {
   final void Function(AttendanceStatus status) onMark;
   final VoidCallback onComment;
 
+  String _initials(String name) {
+    final List<String> parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((String p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+    return (parts.first.substring(0, 1) + parts.last.substring(0, 1))
+        .toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Text(
-                  entry.studentName,
-                  style: theme.textTheme.titleMedium,
-                ),
-              ),
-              if (entry.status != null)
-                Chip(
-                  label: Text(entry.status!.toWire()),
-                  backgroundColor: _statusColor(theme, entry.status!),
-                ),
-              IconButton(
-                icon: const Icon(Icons.comment_outlined),
-                tooltip: 'Add comment',
-                onPressed: onComment,
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 8,
-            children: AttendanceStatus.values.map((AttendanceStatus s) {
-              final bool selected = entry.status == s;
-              return ChoiceChip(
-                label: Text(s.toWire()),
-                selected: selected,
-                onSelected: (_) => onMark(s),
-              );
-            }).toList(growable: false),
-          ),
-          if (entry.comment != null && entry.comment!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
+    final ColorScheme cs = theme.colorScheme;
+    final bool hasComment = entry.comment != null && entry.comment!.isNotEmpty;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: <Widget>[
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: cs.primary.withValues(alpha: 0.12),
               child: Text(
-                'Comment: ${entry.comment}',
-                style: theme.textTheme.bodySmall,
+                _initials(entry.studentName),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: cs.primary,
+                ),
               ),
             ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    entry.studentName,
+                    style: theme.textTheme.titleMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: Text(
+                          entry.status == null
+                              ? 'Not marked'
+                              : entry.synced
+                                  ? 'Synced'
+                                  : 'Saved on device',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (hasComment) ...<Widget>[
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.comment_outlined,
+                          size: 13,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _SegmentedAttendance(
+              status: entry.status,
+              onMark: onMark,
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.comment_outlined, size: 18),
+              tooltip: 'Add comment',
+              onPressed: onComment,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact P / A / L segmented control coloured by the v2.0 status palette.
+class _SegmentedAttendance extends StatelessWidget {
+  const _SegmentedAttendance({required this.status, required this.onMark});
+
+  final AttendanceStatus? status;
+  final void Function(AttendanceStatus status) onMark;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: theme.dividerColor),
+      ),
+      padding: const EdgeInsets.all(2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          _segment('P', AttendanceStatus.present,
+              _AttendanceScreenState._presentColor),
+          _segment(
+              'A', AttendanceStatus.absent, _AttendanceScreenState._absentColor),
+          _segment(
+              'L', AttendanceStatus.late, _AttendanceScreenState._lateColor),
         ],
       ),
     );
   }
 
-  Color _statusColor(ThemeData theme, AttendanceStatus status) {
-    switch (status) {
-      case AttendanceStatus.present:
-        return theme.colorScheme.primaryContainer;
-      case AttendanceStatus.absent:
-        return theme.colorScheme.errorContainer;
-      case AttendanceStatus.late:
-        return theme.colorScheme.tertiaryContainer;
-      case AttendanceStatus.excused:
-        return theme.colorScheme.secondaryContainer;
-    }
+  Widget _segment(String label, AttendanceStatus value, Color color) {
+    final bool selected = status == value;
+    return GestureDetector(
+      onTap: () => onMark(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? color : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: selected ? Colors.white : color,
+          ),
+        ),
+      ),
+    );
   }
 }

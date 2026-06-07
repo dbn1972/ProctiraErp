@@ -83,6 +83,66 @@ class _ExaminationListView extends StatelessWidget {
   }
 }
 
+// ProctiraERP Design System v2.0 status palette.
+const Color _green = Color(0xFF10B981);
+const Color _amber = Color(0xFFF59E0B);
+const Color _red = Color(0xFFEF4444);
+const Color _violet = Color(0xFF8B5CF6);
+
+/// Color for an examination status chip.
+Color _statusColor(ExamStatus status) {
+  switch (status) {
+    case ExamStatus.upcoming:
+      return _violet;
+    case ExamStatus.ongoing:
+      return _amber;
+    case ExamStatus.completed:
+      return _green;
+    case ExamStatus.cancelled:
+      return _red;
+  }
+}
+
+String _statusLabel(ExamStatus status) {
+  switch (status) {
+    case ExamStatus.upcoming:
+      return 'Scheduled';
+    case ExamStatus.ongoing:
+      return 'Ongoing';
+    case ExamStatus.completed:
+      return 'Done';
+    case ExamStatus.cancelled:
+      return 'Cancelled';
+  }
+}
+
+/// Pill-style chip with a colored tint background and a bold colored label.
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class _ExamList extends StatelessWidget {
   const _ExamList({required this.examinations});
 
@@ -98,6 +158,7 @@ class _ExamList extends StatelessWidget {
       itemBuilder: (BuildContext context, int index) {
         final Examination exam = examinations[index];
         final int daysLeft = exam.daysUntil;
+        final Color statusColor = _statusColor(exam.status);
 
         return Semantics(
           label: '${exam.name}, ${exam.subjectName}, '
@@ -105,77 +166,86 @@ class _ExamList extends StatelessWidget {
           child: Card(
             margin: const EdgeInsets.only(bottom: 12),
             child: InkWell(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(18),
               onTap: () {
                 // Show exam details in a bottom sheet.
                 _showExamDetails(context, exam);
               },
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    // Countdown badge
-                    _CountdownBadge(daysLeft: daysLeft, theme: theme),
-                    const SizedBox(width: 16),
-                    // Exam info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            exam.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(14),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            exam.subjectName,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                          child: Icon(
+                            Icons.description_outlined,
+                            size: 22,
+                            color: statusColor,
                           ),
-                          const SizedBox(height: 4),
-                          Row(
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Icon(
-                                Icons.schedule_outlined,
-                                size: 14,
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                              const SizedBox(width: 4),
                               Text(
-                                '${exam.startTime} – ${exam.endTime}',
-                                style: theme.textTheme.bodySmall,
+                                exam.name,
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                exam.subjectName,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                  fontFamily: 'monospace',
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ],
                           ),
-                          if (exam.venue != null) ...<Widget>[
-                            const SizedBox(height: 2),
-                            Row(
-                              children: <Widget>[
-                                Icon(
-                                  Icons.location_on_outlined,
-                                  size: 14,
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Text(
-                                    exam.venue!,
-                                    style: theme.textTheme.bodySmall,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 8),
+                        _StatChip(
+                          label: _statusLabel(exam.status),
+                          color: statusColor,
+                        ),
+                      ],
                     ),
-                    Icon(
-                      Icons.chevron_right,
-                      color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 6,
+                      children: <Widget>[
+                        _MetaRow(
+                          icon: Icons.calendar_today_outlined,
+                          text: exam.examDate,
+                        ),
+                        _MetaRow(
+                          icon: Icons.schedule_outlined,
+                          text: '${exam.startTime} – ${exam.endTime}',
+                        ),
+                        if (daysLeft >= 0)
+                          _MetaRow(
+                            icon: Icons.hourglass_empty_outlined,
+                            text: daysLeft == 0
+                                ? 'Today'
+                                : 'In $daysLeft day${daysLeft == 1 ? "" : "s"}',
+                          ),
+                        if (exam.venue != null)
+                          _MetaRow(
+                            icon: Icons.location_on_outlined,
+                            text: exam.venue!,
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -215,9 +285,26 @@ class _ExamList extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text(exam.name, style: theme.textTheme.headlineSmall),
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(exam.name, style: theme.textTheme.headlineSmall),
+                    ),
+                    const SizedBox(width: 12),
+                    _StatChip(
+                      label: _statusLabel(exam.status),
+                      color: _statusColor(exam.status),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 8),
-                Text(exam.subjectName, style: theme.textTheme.titleMedium),
+                Text(
+                  exam.subjectName,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontFamily: 'monospace',
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _DetailRow(
                   icon: Icons.calendar_today_outlined,
@@ -284,51 +371,27 @@ class _DetailRow extends StatelessWidget {
   }
 }
 
-class _CountdownBadge extends StatelessWidget {
-  const _CountdownBadge({required this.daysLeft, required this.theme});
+class _MetaRow extends StatelessWidget {
+  const _MetaRow({required this.icon, required this.text});
 
-  final int daysLeft;
-  final ThemeData theme;
+  final IconData icon;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    final Color bgColor;
-    final Color textColor;
-
-    if (daysLeft <= 3 && daysLeft >= 0) {
-      bgColor = theme.colorScheme.errorContainer;
-      textColor = theme.colorScheme.onErrorContainer;
-    } else if (daysLeft <= 7 && daysLeft >= 0) {
-      bgColor = theme.colorScheme.tertiaryContainer;
-      textColor = theme.colorScheme.onTertiaryContainer;
-    } else {
-      bgColor = theme.colorScheme.primaryContainer;
-      textColor = theme.colorScheme.onPrimaryContainer;
-    }
-
-    return Container(
-      width: 56,
-      height: 56,
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          Text(
-            daysLeft >= 0 ? '$daysLeft' : '—',
-            style: theme.textTheme.titleLarge?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.w700,
-            ),
+    final ThemeData theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        Icon(icon, size: 14, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 5),
+        Text(
+          text,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
           ),
-          Text(
-            daysLeft >= 0 ? 'days' : 'done',
-            style: theme.textTheme.labelSmall?.copyWith(color: textColor),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

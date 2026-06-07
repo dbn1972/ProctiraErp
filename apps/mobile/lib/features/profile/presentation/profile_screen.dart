@@ -3,7 +3,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_bloc.dart';
+import '../../../core/di/injector.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/tenant/tenant_provider.dart';
 import '../bloc/profile_bloc.dart';
 
 /// User profile screen with personal info and settings navigation.
@@ -38,15 +40,28 @@ class _ProfileView extends StatelessWidget {
             return const _ShimmerLoading();
           }
 
+          final TenantProvider tenant = getIt<TenantProvider>();
+          final String workspace = tenant.displayName ??
+              tenant.tenantId ??
+              'No workspace selected';
+          final String roleLine = state.role.isNotEmpty
+              ? '${state.role[0].toUpperCase()}${state.role.substring(1)}'
+              : '';
+          final String heroSub = <String>[
+            if (roleLine.isNotEmpty) roleLine,
+            if (tenant.displayName != null) tenant.displayName!,
+          ].join(' · ');
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                // Avatar and name
+                // Avatar and identity hero.
                 Semantics(
                   label: 'Profile picture for ${state.displayName}',
                   child: CircleAvatar(
-                    radius: 48,
+                    radius: 44,
                     backgroundColor: theme.colorScheme.primaryContainer,
                     child: Text(
                       state.displayName.isNotEmpty
@@ -54,6 +69,7 @@ class _ProfileView extends StatelessWidget {
                           : '?',
                       style: theme.textTheme.headlineLarge?.copyWith(
                         color: theme.colorScheme.onPrimaryContainer,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ),
@@ -61,57 +77,79 @@ class _ProfileView extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   state.displayName,
+                  textAlign: TextAlign.center,
                   style: theme.textTheme.headlineSmall,
                 ),
-                if (state.role.isNotEmpty)
+                if (heroSub.isNotEmpty) ...<Widget>[
+                  const SizedBox(height: 4),
                   Text(
-                    state.role.toUpperCase(),
-                    style: theme.textTheme.labelMedium?.copyWith(
+                    heroSub,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
+                ],
                 const SizedBox(height: 24),
 
-                // Info cards
-                _InfoCard(
-                  icon: Icons.email_outlined,
-                  label: 'Email',
-                  value: state.email.isNotEmpty ? state.email : 'Not set',
+                // Account group.
+                _SettingsGroup(
+                  title: 'Account',
+                  children: <Widget>[
+                    _SettingsTile(
+                      icon: Icons.person_outline,
+                      color: const Color(0xFF4F46E5),
+                      title: 'My account',
+                      subtitle: state.email.isNotEmpty
+                          ? state.email
+                          : (state.userId.isNotEmpty
+                              ? 'User ID ${state.userId}'
+                              : null),
+                    ),
+                    if (state.phone.isNotEmpty)
+                      _SettingsTile(
+                        icon: Icons.phone_outlined,
+                        color: const Color(0xFF0EA5E9),
+                        title: 'Phone',
+                        subtitle: state.phone,
+                      ),
+                    _SettingsTile(
+                      icon: Icons.account_balance_outlined,
+                      color: const Color(0xFF14B8A6),
+                      title: 'Workspace',
+                      subtitle: '$workspace · tap to switch',
+                      onTap: () => context.go('/tenant'),
+                    ),
+                  ],
                 ),
-                _InfoCard(
-                  icon: Icons.phone_outlined,
-                  label: 'Phone',
-                  value: state.phone.isNotEmpty ? state.phone : 'Not set',
-                ),
-                _InfoCard(
-                  icon: Icons.badge_outlined,
-                  label: 'User ID',
-                  value: state.userId.isNotEmpty ? state.userId : '—',
-                ),
+                const SizedBox(height: 16),
 
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 8),
-
-                // Settings navigation
-                _SettingsTile(
-                  icon: Icons.notifications_outlined,
-                  title: l10n.notificationPreferences,
-                  onTap: () => context.push('/profile/notifications'),
+                // Preferences group.
+                _SettingsGroup(
+                  title: 'Preferences',
+                  children: <Widget>[
+                    _SettingsTile(
+                      icon: Icons.notifications_outlined,
+                      color: const Color(0xFF8B5CF6),
+                      title: l10n.notificationPreferences,
+                      onTap: () => context.push('/profile/notifications'),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.language_outlined,
+                      color: const Color(0xFF0EA5E9),
+                      title: l10n.language,
+                      subtitle: _localeName(state.locale),
+                      onTap: () => context.push('/profile/language'),
+                    ),
+                    _SettingsTile(
+                      icon: Icons.palette_outlined,
+                      color: const Color(0xFFF59E0B),
+                      title: l10n.theme,
+                      subtitle: _themeModeName(state.themeMode, l10n),
+                      onTap: () => context.push('/profile/theme'),
+                    ),
+                  ],
                 ),
-                _SettingsTile(
-                  icon: Icons.language_outlined,
-                  title: l10n.language,
-                  subtitle: _localeName(state.locale),
-                  onTap: () => context.push('/profile/language'),
-                ),
-                _SettingsTile(
-                  icon: Icons.palette_outlined,
-                  title: l10n.theme,
-                  subtitle: _themeModeName(state.themeMode, l10n),
-                  onTap: () => context.push('/profile/theme'),
-                ),
-
                 const SizedBox(height: 24),
 
                 // Logout
@@ -174,30 +212,38 @@ class _ProfileView extends StatelessWidget {
   }
 }
 
-class _InfoCard extends StatelessWidget {
-  const _InfoCard({
-    required this.icon,
-    required this.label,
-    required this.value,
+/// A titled section wrapping a group of settings rows inside a single card.
+class _SettingsGroup extends StatelessWidget {
+  const _SettingsGroup({
+    required this.title,
+    required this.children,
   });
 
-  final IconData icon;
-  final String label;
-  final String value;
+  final String title;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
-    return Semantics(
-      label: '$label: $value',
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        child: ListTile(
-          leading: Icon(icon, color: theme.colorScheme.primary),
-          title: Text(label, style: theme.textTheme.labelMedium),
-          subtitle: Text(value, style: theme.textTheme.bodyLarge),
+    final List<Widget> rows = <Widget>[];
+    for (int i = 0; i < children.length; i++) {
+      if (i > 0) {
+        rows.add(const Divider(height: 1, indent: 64));
+      }
+      rows.add(children[i]);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 0, 8),
+          child: Text(title, style: theme.textTheme.titleMedium),
         ),
-      ),
+        Card(
+          margin: EdgeInsets.zero,
+          child: Column(children: rows),
+        ),
+      ],
     );
   }
 }
@@ -205,30 +251,51 @@ class _InfoCard extends StatelessWidget {
 class _SettingsTile extends StatelessWidget {
   const _SettingsTile({
     required this.icon,
+    required this.color,
     required this.title,
     this.subtitle,
-    required this.onTap,
+    this.onTap,
   });
 
   final IconData icon;
+  final Color color;
   final String title;
   final String? subtitle;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Semantics(
-      button: true,
+      button: onTap != null,
       label: title,
       child: ListTile(
-        leading: Icon(icon, color: theme.colorScheme.onSurfaceVariant),
-        title: Text(title),
-        subtitle: subtitle != null ? Text(subtitle!) : null,
-        trailing: const Icon(Icons.chevron_right),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
+        title: Text(
+          title,
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: subtitle != null
+            ? Text(
+                subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              )
+            : null,
+        trailing:
+            onTap != null ? const Icon(Icons.chevron_right, size: 20) : null,
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-        minVerticalPadding: 12,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       ),
     );
   }

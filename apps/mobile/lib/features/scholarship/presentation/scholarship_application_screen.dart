@@ -89,6 +89,8 @@ class _ScholarshipApplicationScreenState
           final bool isSubmitting =
               state.status == ScholarshipStatus.submitting;
 
+          final ThemeData theme = Theme.of(context);
+
           return SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
@@ -97,68 +99,73 @@ class _ScholarshipApplicationScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    // Personal statement
-                    Semantics(
-                      label: 'Personal statement text field',
-                      child: TextFormField(
-                        controller: _statementCtrl,
-                        maxLines: 5,
-                        decoration: const InputDecoration(
-                          labelText: 'Personal Statement',
-                          hintText:
-                              'Describe why you deserve this scholarship…',
-                          alignLabelWithHint: true,
-                        ),
-                        validator: (String? value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Personal statement is required';
-                          }
-                          if (value.trim().length < 50) {
-                            return 'Please write at least 50 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Family income (optional)
-                    Semantics(
-                      label: 'Annual family income field',
-                      child: TextFormField(
-                        controller: _incomeCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Annual Family Income (optional)',
-                          prefixText: '₹ ',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Document upload placeholder
-                    Semantics(
-                      button: true,
-                      label: 'Upload supporting documents',
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          // TODO: Integrate document picker
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Document upload coming soon'),
+                    // Your statement section.
+                    _SectionCard(
+                      title: 'Your statement',
+                      children: <Widget>[
+                        Semantics(
+                          label: 'Personal statement text field',
+                          child: TextFormField(
+                            controller: _statementCtrl,
+                            maxLines: 5,
+                            decoration: const InputDecoration(
+                              labelText: 'Personal Statement',
+                              hintText:
+                                  'Describe why you deserve this scholarship…',
+                              alignLabelWithHint: true,
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.upload_file_outlined),
-                        label: const Text('Upload Documents'),
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
+                            validator: (String? value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Personal statement is required';
+                              }
+                              if (value.trim().length < 50) {
+                                return 'Please write at least 50 characters';
+                              }
+                              return null;
+                            },
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 16),
+                        Semantics(
+                          label: 'Annual family income field',
+                          child: TextFormField(
+                            controller: _incomeCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Annual Family Income (optional)',
+                              prefixText: '₹ ',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 
-                    // Terms checkbox
+                    // Documents section.
+                    _SectionCard(
+                      title: 'Documents',
+                      children: <Widget>[
+                        Semantics(
+                          button: true,
+                          label: 'Upload supporting documents',
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              // TODO: Integrate document picker
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Document upload coming soon'),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.upload_file_outlined),
+                            label: const Text('Upload Documents'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Terms checkbox.
                     Semantics(
                       label: 'Agree to terms and conditions',
                       child: CheckboxListTile(
@@ -166,25 +173,23 @@ class _ScholarshipApplicationScreenState
                         onChanged: (bool? value) {
                           setState(() => _agreedToTerms = value ?? false);
                         },
-                        title: const Text(
+                        title: Text(
                           'I agree to the terms and conditions and certify '
                           'that all information provided is accurate.',
+                          style: theme.textTheme.bodySmall,
                         ),
                         controlAffinity: ListTileControlAffinity.leading,
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                    // Submit button
+                    // Submit button — full-width FilledButton.
                     Semantics(
                       button: true,
                       label: 'Submit scholarship application',
                       child: FilledButton(
                         onPressed: isSubmitting ? null : () => _submit(context),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                        ),
                         child: isSubmitting
                             ? const SizedBox(
                                 height: 20,
@@ -203,6 +208,35 @@ class _ScholarshipApplicationScreenState
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// A titled section grouped into a bordered card (v2.0).
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.children});
+
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(
+              title,
+              style: theme.textTheme.titleMedium,
+            ),
+            const SizedBox(height: 14),
+            ...children,
+          ],
+        ),
       ),
     );
   }

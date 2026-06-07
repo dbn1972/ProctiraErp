@@ -23,6 +23,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _biometricAvailable = false;
   bool _submitting = false;
+  bool _obscurePassword = true;
 
   @override
   void initState() {
@@ -85,6 +86,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final TenantProvider tenant = getIt<TenantProvider>();
     final ThemeData theme = Theme.of(context);
 
+    final ColorScheme colors = theme.colorScheme;
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -97,31 +100,77 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Icon(Icons.school, size: 56, color: theme.colorScheme.primary),
-                    const SizedBox(height: 16),
-                    Text(
-                      'OpenEMIS',
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: theme.colorScheme.primary,
+                    // Brand mark.
+                    Center(
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: <Color>[
+                              colors.primary,
+                              Color.alphaBlend(
+                                Colors.black.withValues(alpha: 0.28),
+                                colors.primary,
+                              ),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: colors.primary.withValues(alpha: 0.35),
+                              blurRadius: 28,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'P',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                    if (tenant.displayName != null) ...<Widget>[
-                      const SizedBox(height: 4),
-                      Text(
-                        tenant.displayName!,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyMedium,
+                    const SizedBox(height: 16),
+                    Text.rich(
+                      TextSpan(
+                        children: <InlineSpan>[
+                          const TextSpan(text: 'Proctira'),
+                          TextSpan(
+                            text: 'ERP',
+                            style: TextStyle(color: colors.primary),
+                          ),
+                        ],
                       ),
-                    ],
-                    const SizedBox(height: 32),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 24,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      tenant.displayName ?? 'Sign in to your school workspace',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 34),
                     TextFormField(
                       controller: _username,
                       keyboardType: TextInputType.emailAddress,
                       autocorrect: false,
                       decoration: const InputDecoration(
-                        labelText: 'Username or email',
+                        labelText: 'Email or phone',
+                        hintText: 'name@school.gov.in',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
                       validator: (String? value) {
@@ -134,10 +183,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _password,
-                      obscureText: true,
-                      decoration: const InputDecoration(
+                      obscureText: _obscurePassword,
+                      decoration: InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          tooltip: _obscurePassword
+                              ? 'Show password'
+                              : 'Hide password',
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
                       ),
                       validator: (String? value) {
                         if (value == null || value.isEmpty) {
@@ -158,13 +220,72 @@ class _LoginScreenState extends State<LoginScreen> {
                           : const Text('Sign in'),
                     ),
                     if (_biometricAvailable) ...<Widget>[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: <Widget>[
+                          Expanded(child: Divider(color: colors.outlineVariant)),
+                          Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'OR',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: colors.onSurfaceVariant,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(child: Divider(color: colors.outlineVariant)),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
                       OutlinedButton.icon(
                         onPressed: _submitting ? null : _onBiometric,
                         icon: const Icon(Icons.fingerprint),
-                        label: const Text('Use biometrics'),
+                        label: const Text('Unlock with fingerprint'),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        "Biometric unlock uses your device's secure enclave.",
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
                       ),
                     ],
+                    const SizedBox(height: 28),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: <Widget>[
+                            Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: colors.secondary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.wifi_off_outlined,
+                                size: 18,
+                                color: colors.secondary,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Works offline after first sign-in — attendance '
+                                'and marks sync when you\'re back online.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

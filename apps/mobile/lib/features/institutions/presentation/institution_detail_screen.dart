@@ -129,67 +129,90 @@ class _OverviewTab extends StatelessWidget {
   const _OverviewTab({required this.institution});
   final CachedInstitution institution;
 
+  String _initials(String name) {
+    final List<String> parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((String p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts[1].substring(0, 1))
+        .toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: <Widget>[
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
+            child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    CircleAvatar(
-                      radius: 28,
-                      backgroundColor: theme.colorScheme.primaryContainer,
-                      child: Icon(
-                        Icons.school,
-                        size: 28,
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
+                Container(
+                  width: 52,
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: <Color>[
+                        cs.primary,
+                        Color.lerp(cs.primary, Colors.black, 0.25)!,
+                      ],
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            institution.name,
-                            style: theme.textTheme.titleLarge,
-                          ),
-                          if (institution.code != null)
-                            Text(
-                              'Code: ${institution.code}',
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                if (institution.status != null) ...<Widget>[
-                  const SizedBox(height: 12),
-                  Chip(
-                    label: Text(institution.status!),
-                    backgroundColor:
-                        institution.status == 'active'
-                            ? Colors.green.shade50
-                            : Colors.orange.shade50,
                   ),
-                ],
+                  child: Text(
+                    _initials(institution.name),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        institution.name,
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      if (institution.code != null) ...<Widget>[
+                        const SizedBox(height: 3),
+                        Text(
+                          institution.code!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontFeatures: const <FontFeature>[
+                              FontFeature.tabularFigures(),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (institution.status != null) ...<Widget>[
+                        const SizedBox(height: 10),
+                        _StatusChip(status: institution.status!),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ),
         const SizedBox(height: 12),
         _InfoSection(
-          title: 'Classification',
+          title: 'Key facts',
           rows: <_InfoRow>[
             _InfoRow(label: 'Type', value: institution.type),
             _InfoRow(label: 'Sector', value: institution.sector),
@@ -204,6 +227,45 @@ class _OverviewTab extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Status chip using the v2.0 palette: tinted background + bold coloured label.
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.status});
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final String normalized = status.toLowerCase();
+    late final Color color;
+    if (normalized.contains('active') || normalized.contains('open')) {
+      color = const Color(0xFF10B981); // green
+    } else if (normalized.contains('pending') ||
+        normalized.contains('review')) {
+      color = const Color(0xFFF59E0B); // amber
+    } else if (normalized.contains('closed') ||
+        normalized.contains('inactive') ||
+        normalized.contains('suspend')) {
+      color = const Color(0xFFEF4444); // red
+    } else {
+      color = const Color(0xFF64748B); // slate
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }

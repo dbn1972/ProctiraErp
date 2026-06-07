@@ -83,107 +83,181 @@ class _ProgramsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: programs.length,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      itemCount: programs.length + 1,
       itemBuilder: (BuildContext context, int index) {
-        final ScholarshipProgram program = programs[index];
-        final int? daysLeft = program.daysUntilDeadline;
-
-        return Semantics(
-          label: '${program.name} by ${program.provider}'
-              '${daysLeft != null ? ", $daysLeft days until deadline" : ""}',
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () {
-                context.push('/scholarships/apply/${program.id}');
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Row(
-                      children: <Widget>[
-                        Expanded(
-                          child: Text(
-                            program.name,
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        if (program.amount != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primaryContainer,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${program.currency ?? "₹"}${program.amount!.toStringAsFixed(0)}',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: theme.colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      program.provider,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      program.description,
-                      style: theme.textTheme.bodyMedium,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (daysLeft != null) ...<Widget>[
-                      const SizedBox(height: 8),
-                      Row(
-                        children: <Widget>[
-                          Icon(
-                            Icons.timer_outlined,
-                            size: 16,
-                            color: daysLeft <= 7
-                                ? theme.colorScheme.error
-                                : theme.colorScheme.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            daysLeft >= 0
-                                ? '$daysLeft days remaining'
-                                : 'Deadline passed',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: daysLeft <= 7
-                                  ? theme.colorScheme.error
-                                  : theme.colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+        if (index == 0) {
+          return const Padding(
+            padding: EdgeInsets.only(bottom: 16),
+            child: _InfoBanner(
+              icon: Icons.info_outline,
+              message: 'You can apply on behalf of eligible students',
             ),
-          ),
+          );
+        }
+        final ScholarshipProgram program = programs[index - 1];
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _ProgramCard(program: program),
         );
       },
+    );
+  }
+}
+
+class _ProgramCard extends StatelessWidget {
+  const _ProgramCard({required this.program});
+
+  final ScholarshipProgram program;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final int? daysLeft = program.daysUntilDeadline;
+    final bool urgent = daysLeft != null && daysLeft >= 0 && daysLeft <= 7;
+    final bool passed = daysLeft != null && daysLeft < 0;
+
+    // Status chip derived from real model fields.
+    final ({Color color, String label}) chip = !program.isOpen
+        ? (color: const Color(0xFF64748B), label: 'Closed')
+        : urgent
+            ? (color: const Color(0xFFF59E0B), label: 'Closing soon')
+            : (color: const Color(0xFF10B981), label: 'Open');
+
+    final List<String> meta = <String>[
+      program.provider,
+      if (program.amount != null)
+        '${program.currency ?? "₹"}${program.amount!.toStringAsFixed(0)}/yr',
+      if (daysLeft != null)
+        passed
+            ? 'Deadline passed'
+            : daysLeft == 0
+                ? 'Closes today'
+                : 'Apply in $daysLeft days',
+    ];
+
+    return Semantics(
+      label: '${program.name} by ${program.provider}'
+          '${daysLeft != null ? ", $daysLeft days until deadline" : ""}',
+      child: Card(
+        child: InkWell(
+          onTap: () {
+            context.push('/scholarships/apply/${program.id}');
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    Icons.workspace_premium_outlined,
+                    color: theme.colorScheme.primary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        program.name,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        meta.join(' · '),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: urgent
+                              ? const Color(0xFFF59E0B)
+                              : theme.colorScheme.onSurfaceVariant,
+                          fontWeight:
+                              urgent ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _StatusChip(color: chip.color, label: chip.label),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Sky-tinted informational banner (v2.0).
+class _InfoBanner extends StatelessWidget {
+  const _InfoBanner({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    const Color sky = Color(0xFF0EA5E9);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: sky.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: sky.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 16, color: sky),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: sky,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pill chip: tinted background + bold colored label (v2.0 palette).
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
     );
   }
 }

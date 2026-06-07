@@ -183,6 +183,78 @@ class _FilterChip extends StatelessWidget {
   }
 }
 
+// ProctiraERP Design System v2.0 status/grade palette.
+const Color _green = Color(0xFF10B981);
+const Color _amber = Color(0xFFF59E0B);
+const Color _red = Color(0xFFEF4444);
+const Color _sky = Color(0xFF0EA5E9);
+const Color _violet = Color(0xFF8B5CF6);
+
+/// Color for a score percentage by threshold: green >=75, amber >=40, red below.
+Color _percentColor(double percent) {
+  if (percent >= 75) {
+    return _green;
+  }
+  if (percent >= 40) {
+    return _amber;
+  }
+  return _red;
+}
+
+/// Color for a letter/band grade chip.
+Color _gradeColor(String grade) {
+  switch (grade.toUpperCase()) {
+    case 'A+':
+    case 'A':
+    case 'A1':
+    case 'A2':
+      return _green;
+    case 'B+':
+    case 'B':
+    case 'B1':
+    case 'B2':
+      return _sky;
+    case 'C+':
+    case 'C':
+    case 'C1':
+    case 'C2':
+      return _amber;
+    case 'D':
+    case 'F':
+    case 'E':
+      return _red;
+    default:
+      return _violet;
+  }
+}
+
+/// Pill-style chip with a colored background tint and a bold colored label.
+class _StatChip extends StatelessWidget {
+  const _StatChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
 class _ResultsList extends StatelessWidget {
   const _ResultsList({required this.results});
 
@@ -190,119 +262,207 @@ class _ResultsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
+    // Weighted average across results that carry a real max score.
+    double totalScore = 0;
+    double totalMax = 0;
+    for (final AssessmentResult r in results) {
+      if (r.maxScore != null && r.maxScore! > 0) {
+        totalScore += r.score;
+        totalMax += r.maxScore!;
+      }
+    }
+    final bool hasAverage = totalMax > 0;
+    final double averagePercent = hasAverage ? (totalScore / totalMax) * 100 : 0;
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: results.length,
+      itemCount: results.length + (hasAverage ? 1 : 0),
       itemBuilder: (BuildContext context, int index) {
-        final AssessmentResult result = results[index];
-        return Semantics(
-          label:
-              '${result.subjectName}, ${result.periodName}, score ${result.score} '
-              'out of ${result.maxScore ?? "unknown"}, grade ${result.grade ?? "not graded"}',
-          child: Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      Expanded(
-                        child: Text(
-                          result.subjectName,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (result.grade != null)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _gradeColor(theme, result.grade!),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            result.grade!,
-                            style: theme.textTheme.labelLarge?.copyWith(
-                              color: theme.colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    result.periodName,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Score bar
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: result.maxScore != null && result.maxScore! > 0
-                                ? result.score / result.maxScore!
-                                : 0,
-                            minHeight: 8,
-                            backgroundColor:
-                                theme.colorScheme.surfaceContainerHighest,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        '${result.score.toStringAsFixed(1)}'
-                        '${result.maxScore != null ? " / ${result.maxScore!.toStringAsFixed(0)}" : ""}',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (result.remarks != null && result.remarks!.isNotEmpty) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      result.remarks!,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
+        if (hasAverage && index == 0) {
+          return _AverageHeader(
+            percent: averagePercent,
+            totalScore: totalScore,
+            totalMax: totalMax,
+          );
+        }
+        final AssessmentResult result =
+            results[index - (hasAverage ? 1 : 0)];
+        return _ResultCard(result: result);
       },
     );
   }
+}
 
-  Color _gradeColor(ThemeData theme, String grade) {
-    switch (grade.toUpperCase()) {
-      case 'A+':
-      case 'A':
-        return theme.colorScheme.primaryContainer;
-      case 'B+':
-      case 'B':
-        return theme.colorScheme.secondaryContainer;
-      case 'C+':
-      case 'C':
-        return theme.colorScheme.tertiaryContainer;
-      default:
-        return theme.colorScheme.errorContainer;
-    }
+class _AverageHeader extends StatelessWidget {
+  const _AverageHeader({
+    required this.percent,
+    required this.totalScore,
+    required this.totalMax,
+  });
+
+  final double percent;
+  final double totalScore;
+  final double totalMax;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final Color color = _percentColor(percent);
+
+    return Semantics(
+      label: 'Weighted average ${percent.toStringAsFixed(1)} percent',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Weighted average',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${totalScore.toStringAsFixed(0)} / ${totalMax.toStringAsFixed(0)}',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${percent.toStringAsFixed(1)}%',
+                    style: theme.textTheme.headlineSmall?.copyWith(color: color),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: (percent / 100).clamp(0.0, 1.0),
+                  minHeight: 10,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResultCard extends StatelessWidget {
+  const _ResultCard({required this.result});
+
+  final AssessmentResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final bool hasPercent =
+        result.maxScore != null && result.maxScore! > 0;
+    final double percent = hasPercent ? result.percentage : 0;
+
+    return Semantics(
+      label:
+          '${result.subjectName}, ${result.periodName}, score ${result.score} '
+          'out of ${result.maxScore ?? "unknown"}, grade ${result.grade ?? "not graded"}',
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: <Widget>[
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          result.subjectName,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          result.periodName,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (result.grade != null)
+                    _StatChip(
+                      label: result.grade!,
+                      color: _gradeColor(result.grade!),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: <Widget>[
+                  if (hasPercent)
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: (percent / 100).clamp(0.0, 1.0),
+                          minHeight: 8,
+                          backgroundColor:
+                              theme.colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            _percentColor(percent),
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
+                  const SizedBox(width: 12),
+                  Text(
+                    '${result.score.toStringAsFixed(1)}'
+                    '${result.maxScore != null ? " / ${result.maxScore!.toStringAsFixed(0)}" : ""}',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      fontFeatures: const <FontFeature>[
+                        FontFeature.tabularFigures(),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (result.remarks != null && result.remarks!.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 10),
+                Text(
+                  result.remarks!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 

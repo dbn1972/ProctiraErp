@@ -7,6 +7,13 @@ import '../../../core/di/injector.dart';
 import '../../../core/sync/connectivity_monitor.dart';
 import 'reports_screen.dart';
 
+// v2.0 status palette.
+const Color _green = Color(0xFF10B981);
+const Color _amber = Color(0xFFF59E0B);
+const Color _red = Color(0xFFEF4444);
+const Color _sky = Color(0xFF0EA5E9);
+const Color _slate = Color(0xFF64748B);
+
 /// `/reports/:id` route — shows report details with status tracking and
 /// download capability. For pre-configured reports (attendance-summary,
 /// enrollment-summary) it shows a placeholder table. For server-generated
@@ -107,58 +114,35 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: Text(report?.title ?? 'Report')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: report == null
-            ? Center(
-                child: Text(
-                  'Unknown report: ${widget.id}',
-                  style: theme.textTheme.bodyMedium,
-                ),
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: <Widget>[
-                          Icon(report.icon,
-                              size: 36, color: theme.colorScheme.primary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: <Widget>[
-                                Text(report.title,
-                                    style: theme.textTheme.titleMedium),
-                                Text(
-                                  report.description,
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: widget.id == 'attendance-summary'
-                            ? const _AttendanceSummaryPlaceholder()
-                            : const _EnrollmentSummaryPlaceholder(),
-                      ),
-                    ),
-                  ),
-                ],
+      appBar: AppBar(title: const Text('Report')),
+      body: report == null
+          ? Center(
+              child: Text(
+                'Unknown report: ${widget.id}',
+                style: theme.textTheme.bodyMedium,
               ),
-      ),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: <Widget>[
+                _HeaderCard(
+                  icon: report.icon,
+                  iconColor: theme.colorScheme.primary,
+                  title: report.title,
+                  subtitle: report.description,
+                ),
+                const SizedBox(height: 16),
+                Card(
+                  margin: EdgeInsets.zero,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: widget.id == 'attendance-summary'
+                        ? const _AttendanceSummaryPlaceholder()
+                        : const _EnrollmentSummaryPlaceholder(),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -239,62 +223,48 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
 
   Widget _buildReportDetails(ThemeData theme, ReportSummary report) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: <Widget>[
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Icon(
-                      _iconForFormat(report.format),
-                      size: 36,
-                      color: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(report.title,
-                              style: theme.textTheme.titleMedium),
-                          Text(
-                            report.description,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+        _HeaderCard(
+          icon: _iconForFormat(report.format),
+          iconColor: _colorForStatus(report.status),
+          title: report.title,
+          subtitle: report.description,
+          trailing: _StatusPill(status: report.status),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        // Key figures — only the fields the model actually carries.
+        _SectionHeader(title: 'Details'),
+        const SizedBox(height: 8),
         Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text('Status', style: theme.textTheme.titleSmall),
-                const SizedBox(height: 8),
-                _StatusChip(status: report.status),
-                const SizedBox(height: 12),
-                _DetailRow(
-                  label: 'Format',
-                  value: report.format.toUpperCase(),
+          margin: EdgeInsets.zero,
+          child: Column(
+            children: <Widget>[
+              _KeyFigureRow(
+                icon: _iconForFormat(report.format),
+                iconColor: _colorForStatus(report.status),
+                label: 'Format',
+                value: report.format.toUpperCase(),
+              ),
+              if (report.createdAt != null) ...<Widget>[
+                const Divider(height: 1),
+                _KeyFigureRow(
+                  icon: Icons.event_outlined,
+                  iconColor: _sky,
+                  label: 'Created',
+                  value: report.createdAt!,
                 ),
-                if (report.createdAt != null)
-                  _DetailRow(label: 'Created', value: report.createdAt!),
-                if (report.completedAt != null)
-                  _DetailRow(label: 'Completed', value: report.completedAt!),
               ],
-            ),
+              if (report.completedAt != null) ...<Widget>[
+                const Divider(height: 1),
+                _KeyFigureRow(
+                  icon: Icons.check_circle_outline,
+                  iconColor: _green,
+                  label: 'Completed',
+                  value: report.completedAt!,
+                ),
+              ],
+            ],
           ),
         ),
         const SizedBox(height: 16),
@@ -328,6 +298,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
           ),
         if (report.status == 'failed')
           Card(
+            margin: EdgeInsets.zero,
             color: theme.colorScheme.errorContainer,
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -363,55 +334,117 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
         return Icons.insert_drive_file;
     }
   }
+
+  Color _colorForStatus(String status) {
+    switch (status) {
+      case 'completed':
+        return _green;
+      case 'processing':
+        return _sky;
+      case 'pending':
+        return _amber;
+      case 'failed':
+        return _red;
+      default:
+        return _slate;
+    }
+  }
 }
 
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-  final String status;
+/// Uppercase, tracked section label.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
-    Color backgroundColor;
-    Color textColor;
-    IconData icon;
-
-    switch (status) {
-      case 'completed':
-        backgroundColor = Colors.green.shade50;
-        textColor = Colors.green.shade800;
-        icon = Icons.check_circle;
-      case 'processing':
-        backgroundColor = Colors.blue.shade50;
-        textColor = Colors.blue.shade800;
-        icon = Icons.hourglass_top;
-      case 'pending':
-        backgroundColor = Colors.orange.shade50;
-        textColor = Colors.orange.shade800;
-        icon = Icons.schedule;
-      case 'failed':
-        backgroundColor = Colors.red.shade50;
-        textColor = Colors.red.shade800;
-        icon = Icons.cancel;
-      default:
-        backgroundColor = Colors.grey.shade100;
-        textColor = Colors.grey.shade800;
-        icon = Icons.help_outline;
-    }
-
-    return Chip(
-      avatar: Icon(icon, color: textColor, size: 18),
-      label: Text(
-        status[0].toUpperCase() + status.substring(1),
-        style: TextStyle(color: textColor),
+    final ThemeData theme = Theme.of(context);
+    return Text(
+      title.toUpperCase(),
+      style: theme.textTheme.labelSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.6,
+        color: theme.colorScheme.onSurfaceVariant,
       ),
-      backgroundColor: backgroundColor,
-      side: BorderSide.none,
     );
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
+/// Header card: tinted icon square, title + subtitle, optional status pill.
+class _HeaderCard extends StatelessWidget {
+  const _HeaderCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.trailing,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, size: 22, color: iconColor),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    title,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (trailing != null) ...<Widget>[
+              const SizedBox(width: 8),
+              trailing!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A key-figure row: tinted icon circle, label, bold tabular value.
+class _KeyFigureRow extends StatelessWidget {
+  const _KeyFigureRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final Color iconColor;
   final String label;
   final String value;
 
@@ -419,22 +452,76 @@ class _DetailRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         children: <Widget>[
-          SizedBox(
-            width: 90,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
             child: Text(
               label,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              style: theme.textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
-          Expanded(
-            child: Text(value, style: theme.textTheme.bodyMedium),
+          Text(
+            value,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w800,
+              fontFeatures: const <FontFeature>[
+                FontFeature.tabularFigures(),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact status pill using the v2.0 status palette.
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.status});
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    Color color;
+    switch (status) {
+      case 'completed':
+        color = _green;
+      case 'processing':
+        color = _sky;
+      case 'pending':
+        color = _amber;
+      case 'failed':
+        color = _red;
+      default:
+        color = _slate;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status.isEmpty
+            ? status
+            : status[0].toUpperCase() + status.substring(1),
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
       ),
     );
   }
@@ -445,14 +532,16 @@ class _AttendanceSummaryPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Text('Today', style: Theme.of(context).textTheme.titleMedium),
+        Text('Today', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         Table(
           border: TableBorder.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+            color: theme.colorScheme.outlineVariant,
+            borderRadius: BorderRadius.circular(12),
           ),
           columnWidths: const <int, TableColumnWidth>{
             0: FlexColumnWidth(2),
@@ -472,7 +561,9 @@ class _AttendanceSummaryPlaceholder extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           'Live data will populate once the attendance report API is wired up.',
-          style: Theme.of(context).textTheme.bodySmall,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -484,14 +575,16 @@ class _EnrollmentSummaryPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        Text('By grade', style: Theme.of(context).textTheme.titleMedium),
+        Text('By grade', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
         Table(
           border: TableBorder.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
+            color: theme.colorScheme.outlineVariant,
+            borderRadius: BorderRadius.circular(12),
           ),
           columnWidths: const <int, TableColumnWidth>{
             0: FlexColumnWidth(2),
@@ -510,7 +603,9 @@ class _EnrollmentSummaryPlaceholder extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           'Live data will populate once the enrollment report API is wired up.',
-          style: Theme.of(context).textTheme.bodySmall,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -529,7 +624,7 @@ class _Cell extends StatelessWidget {
       child: Text(
         text,
         style: isHeader
-            ? const TextStyle(fontWeight: FontWeight.w600)
+            ? const TextStyle(fontWeight: FontWeight.w700)
             : null,
       ),
     );

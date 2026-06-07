@@ -24,6 +24,8 @@ class _InstitutionsScreenState extends State<InstitutionsScreen> {
   late final TenantProvider _tenant;
 
   late Future<List<CachedInstitution>> _future;
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _query = '';
 
   @override
   void initState() {
@@ -35,6 +37,12 @@ class _InstitutionsScreenState extends State<InstitutionsScreen> {
     _future = _cache.list();
     // Trigger an initial refresh in the background when online.
     _refresh(silent: true);
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _refresh({bool silent = false}) async {
@@ -60,6 +68,7 @@ class _InstitutionsScreenState extends State<InstitutionsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Institutions')),
       body: RefreshIndicator(
@@ -91,24 +100,147 @@ class _InstitutionsScreenState extends State<InstitutionsScreen> {
                 ],
               );
             }
-            return ListView.separated(
-              itemCount: items.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (BuildContext context, int index) {
-                final CachedInstitution institution = items[index];
-                return ListTile(
-                  leading: const Icon(Icons.school_outlined),
-                  title: Text(institution.name),
-                  subtitle: Text(<String>[
-                    if (institution.code != null) 'Code: ${institution.code}',
-                    if (institution.type != null) institution.type!,
-                  ].join(' · ')),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.push('/institutions/${institution.id}'),
-                );
-              },
+            final String q = _query.trim().toLowerCase();
+            final List<CachedInstitution> filtered = q.isEmpty
+                ? items
+                : items.where((CachedInstitution i) {
+                    return i.name.toLowerCase().contains(q) ||
+                        (i.code?.toLowerCase().contains(q) ?? false);
+                  }).toList(growable: false);
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+              children: <Widget>[
+                TextField(
+                  controller: _searchCtrl,
+                  onChanged: (String value) => setState(() => _query = value),
+                  decoration: const InputDecoration(
+                    hintText: 'Search by name or code',
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (filtered.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 80),
+                    child: Center(
+                      child: Text(
+                        'No institutions match "$_query".',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  ...filtered.map((CachedInstitution institution) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _InstitutionCard(
+                          institution: institution,
+                          onTap: () => context
+                              .push('/institutions/${institution.id}'),
+                        ),
+                      )),
+              ],
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+/// v2.0 institution row: gradient icon tile + name + mono code subtitle.
+class _InstitutionCard extends StatelessWidget {
+  const _InstitutionCard({required this.institution, required this.onTap});
+
+  final CachedInstitution institution;
+  final VoidCallback onTap;
+
+  String _initials(String name) {
+    final List<String> parts = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((String p) => p.isNotEmpty)
+        .toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first.substring(0, 1).toUpperCase();
+    return (parts.first.substring(0, 1) + parts[1].substring(0, 1))
+        .toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme cs = theme.colorScheme;
+    final String subtitleText = <String>[
+      if (institution.code != null) institution.code!,
+      if (institution.type != null) institution.type!,
+    ].join(' · ');
+    final String? subtitle = subtitleText.isEmpty ? null : subtitleText;
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: <Widget>[
+              Container(
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: <Color>[
+                      cs.primary,
+                      Color.lerp(cs.primary, Colors.black, 0.25)!,
+                    ],
+                  ),
+                ),
+                child: Text(
+                  _initials(institution.name),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      institution.name,
+                      style: theme.textTheme.titleMedium,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (subtitle != null) ...<Widget>[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontFeatures: const <FontFeature>[
+                            FontFeature.tabularFigures(),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );
