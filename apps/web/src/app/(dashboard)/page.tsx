@@ -1,10 +1,13 @@
 import Link from 'next/link';
 
 import {
+  ArrowRight,
   Briefcase,
   CalendarRange,
   CheckCircle2,
+  ClipboardCheck,
   GraduationCap,
+  Inbox,
   Plus,
   School,
   Upload,
@@ -14,6 +17,7 @@ import { DocumentTitle } from '@/components/DocumentTitle';
 import { listInstitutions } from '@/lib/api/institutions';
 import { listStaff } from '@/lib/api/staff';
 import { listStudents } from '@/lib/api/students';
+import { listPendingApprovals, type WorkflowApproval } from '@/lib/api/workflows';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 
@@ -28,11 +32,12 @@ export const dynamic = 'force-dynamic';
  * day-one workflows.
  */
 export default async function DashboardPage() {
-  const [institutions, students, staff, periods] = await Promise.all([
+  const [institutions, students, staff, periods, approvals] = await Promise.all([
     listInstitutions({ pageSize: 200 }).catch(() => null),
     listStudents({ pageSize: 1 }).catch(() => null),
     listStaff({ pageSize: 1 }).catch(() => null),
     listAcademicPeriods().catch(() => null as AcademicPeriod[] | null),
+    listPendingApprovals().catch(() => null as WorkflowApproval[] | null),
   ]);
 
   const activePeriod = periods?.find((p) => p.status === 'active') ?? null;
@@ -50,7 +55,7 @@ export default async function DashboardPage() {
       <div>
         <h1
           id="dashboard-heading"
-          className="text-2xl font-semibold tracking-tight"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
         >
           Dashboard
         </h1>
@@ -92,24 +97,80 @@ export default async function DashboardPage() {
         />
       </div>
 
-      <div className="rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
-        <h2 className="text-base font-semibold">Quick actions</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <QuickAction href="/students/new" label="Add student">
-            <Plus className="h-4 w-4" aria-hidden="true" />
-          </QuickAction>
-          <QuickAction href="/attendance" label="Mark attendance">
-            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-          </QuickAction>
-          <QuickAction href="/students/import" label="Bulk import students">
-            <Upload className="h-4 w-4" aria-hidden="true" />
-          </QuickAction>
-          <QuickAction href="/assessments/results" label="Enter results">
-            <GraduationCap className="h-4 w-4" aria-hidden="true" />
-          </QuickAction>
+      <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
+        <div className="rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
+          <h2 className="text-base font-semibold">Quick actions</h2>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <QuickAction href="/students/new" label="Add student">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+            </QuickAction>
+            <QuickAction href="/attendance" label="Mark attendance">
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            </QuickAction>
+            <QuickAction href="/students/import" label="Bulk import students">
+              <Upload className="h-4 w-4" aria-hidden="true" />
+            </QuickAction>
+            <QuickAction href="/assessments/results" label="Enter results">
+              <GraduationCap className="h-4 w-4" aria-hidden="true" />
+            </QuickAction>
+          </div>
         </div>
+
+        <ApprovalsPanel approvals={approvals} />
       </div>
     </section>
+  );
+}
+
+function ApprovalsPanel({ approvals }: { approvals: WorkflowApproval[] | null }) {
+  const top = approvals?.slice(0, 5) ?? [];
+  return (
+    <div className="rounded-xl border bg-[hsl(var(--card))] p-5 shadow-sm">
+      <div className="flex items-center justify-between">
+        <h2 className="flex items-center gap-2 text-base font-semibold">
+          <ClipboardCheck className="h-4 w-4 text-[hsl(var(--primary))]" aria-hidden="true" />
+          Pending approvals
+          {approvals && approvals.length > 0 && (
+            <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+              {approvals.length}
+            </span>
+          )}
+        </h2>
+        <Link
+          href="/workflows/approvals"
+          className="inline-flex items-center gap-1 text-xs font-medium text-[hsl(var(--primary))] hover:underline"
+        >
+          View all
+          <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+        </Link>
+      </div>
+
+      {approvals === null ? (
+        <p className="mt-4 text-sm text-[hsl(var(--muted-foreground))]">Currently unavailable</p>
+      ) : top.length === 0 ? (
+        <div className="mt-4 flex flex-col items-center gap-1 py-6 text-center">
+          <Inbox className="h-8 w-8 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
+          <p className="text-sm font-medium">All caught up</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">No approvals waiting on you.</p>
+        </div>
+      ) : (
+        <ul className="mt-3 space-y-2">
+          {top.map((a) => (
+            <li key={a.id}>
+              <Link
+                href="/workflows/approvals"
+                className="block rounded-lg border border-[hsl(var(--border))] px-3 py-2 transition-colors hover:bg-[hsl(var(--muted))]"
+              >
+                <p className="truncate text-sm font-medium text-foreground">{a.definitionName}</p>
+                <p className="truncate text-[11px] text-[hsl(var(--muted-foreground))]">
+                  {a.stepName || '—'} · {a.subjectType}
+                </p>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -21,7 +21,7 @@ export default async function TrackingPage(): Promise<JSX.Element> {
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-8 px-4 py-12 sm:px-6 lg:px-8">
       <DocumentTitle pageTitle={t('title')} />
       <header className="space-y-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
           {t('title')}
         </h1>
         <p className="text-sm text-muted-foreground">{t('subtitle')}</p>
