@@ -47,10 +47,10 @@ export default async function TrackingDetailPage({ params, searchParams }: PageP
       <Header />
       <main className="flex-1">
         <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:px-8">
-          <p className="text-xs uppercase tracking-wide text-gray-500">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
             {t('applicationNumber')}
           </p>
-          <h1 className="mt-1 font-mono text-2xl font-semibold text-gray-900">
+          <h1 className="mt-1 font-mono text-2xl font-bold tracking-tight text-gray-900">
             {trackingNumber}
           </h1>
 

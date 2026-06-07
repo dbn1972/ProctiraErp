@@ -11,6 +11,8 @@ import { CheckCircle2, ClipboardCopy } from 'lucide-react';
  */
 export function SuccessCard() {
   const t = useTranslations('registration');
+  const tCommon = useTranslations('common');
+  const tLanding = useTranslations('landing');
   const [trackingNumber, setTrackingNumber] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -29,43 +31,50 @@ export function SuccessCard() {
 
   return (
     <div className="card text-center">
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-accent-100">
-        <CheckCircle2 className="h-9 w-9 text-accent-600" aria-hidden="true" />
+      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-accent-50 ring-8 ring-accent-50/40">
+        <CheckCircle2 className="h-10 w-10 text-accent-600" aria-hidden="true" />
       </div>
-      <h1 className="mt-4 text-2xl font-bold text-gray-900">{t('submitSuccess')}</h1>
+      <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-gray-900">{t('submitSuccess')}</h1>
+
+      <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-gray-600">
+        {t('keepTrackingNumber')}
+      </p>
 
       {trackingNumber ? (
-        <div className="mt-6 rounded-md border border-primary-100 bg-primary-50 p-4">
-          <p className="text-xs uppercase tracking-wide text-primary-700">
-            {t('trackingNumberLabel')}
-          </p>
-          <div className="mt-2 flex items-center justify-center gap-2">
-            <p className="font-mono text-lg font-semibold text-primary-700">{trackingNumber}</p>
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1 rounded-md border border-primary-200 bg-white px-2 py-1 text-xs text-primary-700 hover:bg-primary-100"
-              aria-label="Copy tracking number"
-            >
-              <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
-              {copied ? '✓' : ''}
-            </button>
+        <div className="mt-6 inline-flex items-center gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
+          <div className="text-start">
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary-700">
+              {t('trackingNumberLabel')}
+            </p>
+            <p className="mt-0.5 font-mono text-lg font-semibold tracking-wide text-gray-900">
+              {trackingNumber}
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+            aria-label="Copy tracking number"
+          >
+            <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
+            {copied ? '✓' : ''}
+          </button>
         </div>
       ) : (
         <p className="mt-6 text-sm text-gray-500">—</p>
       )}
 
-      <p className="mt-6 text-sm text-gray-600">{t('keepTrackingNumber')}</p>
-
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         {trackingNumber && (
-          <Link href={`/track/${encodeURIComponent(trackingNumber)}`} className="btn-primary">
-            Track this application
+          <Link
+            href={`/track/${encodeURIComponent(trackingNumber)}`}
+            className="btn-primary h-11 px-6 text-base"
+          >
+            {tLanding('trackCta')}
           </Link>
         )}
-        <Link href="/" className="btn-secondary">
-          Home
+        <Link href="/" className="btn-secondary h-11 px-6 text-base">
+          {tCommon('home')}
         </Link>
       </div>
     </div>

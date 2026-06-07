@@ -1,5 +1,4 @@
 import { DocumentsStep } from '@/components/registration/documents-step';
-import { StepIndicator } from '@/components/registration/step-indicator';
 import { loadFormConfiguration } from '@/lib/server';
 
 interface PageProps {
@@ -18,7 +17,6 @@ export default async function ApplyDocumentsPage({ params }: PageProps) {
 
   return (
     <div className="space-y-6">
-      <StepIndicator currentStep="documents" />
       <DocumentsStep institutionType={params.institutionType} fileFields={fileFields} />
     </div>
   );

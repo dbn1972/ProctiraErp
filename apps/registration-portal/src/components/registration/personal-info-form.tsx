@@ -81,7 +81,7 @@ export function PersonalInfoForm({ institutionType, customFields }: PersonalInfo
 
   return (
     <form onSubmit={handleSubmit} className="card space-y-6" noValidate>
-      <h2 className="text-lg font-semibold text-gray-900">{t('registration.personalInfo')}</h2>
+      <h2 className="text-lg font-bold tracking-tight text-gray-900">{t('registration.personalInfo')}</h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field

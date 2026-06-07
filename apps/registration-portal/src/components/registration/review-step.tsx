@@ -66,7 +66,7 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
   return (
     <div className="space-y-6">
       <div className="card">
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">{t('registration.review')}</h2>
+        <h2 className="mb-4 text-lg font-bold tracking-tight text-gray-900">{t('registration.review')}</h2>
         <dl className="grid gap-y-3 text-sm sm:grid-cols-2 sm:gap-x-6">
           <Row label={t('registration.firstName')} value={draft.firstName} />
           <Row label={t('registration.lastName')} value={draft.lastName} />

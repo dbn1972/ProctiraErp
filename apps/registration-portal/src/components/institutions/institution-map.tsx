@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
-import { Search } from 'lucide-react';
+import { Search, School, MapPin, Layers } from 'lucide-react';
 import {
   getInstitutions,
   type InstitutionFilters,
@@ -151,17 +151,38 @@ export function InstitutionMap({
       )}
 
       {filteredInstitutions.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="space-y-3">
           {filteredInstitutions.map((institution) => (
-            <li key={institution.id} className="card">
-              <h3 className="font-semibold text-gray-900">{institution.name}</h3>
-              <p className="mt-1 text-xs text-gray-500">{institution.code}</p>
-              {institution.areaName && (
-                <p className="mt-1 text-sm text-gray-600">{institution.areaName}</p>
-              )}
-              {institution.typeName && (
-                <p className="text-sm text-gray-600">{institution.typeName}</p>
-              )}
+            <li
+              key={institution.id}
+              className="card flex items-start gap-4 transition-all hover:border-primary-300 hover:shadow-md"
+            >
+              <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600">
+                <School className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold tracking-tight text-gray-900">{institution.name}</h3>
+                <p className="mt-0.5 font-mono text-xs text-gray-400">{institution.code}</p>
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-600">
+                  {institution.areaName && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                      {institution.areaName}
+                    </span>
+                  )}
+                  {institution.typeName && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Layers className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />
+                      {institution.typeName}
+                    </span>
+                  )}
+                  {institution.availableGrades && institution.availableGrades.length > 0 && (
+                    <span className="inline-flex items-center gap-1.5">
+                      {institution.availableGrades.join(', ')}
+                    </span>
+                  )}
+                </div>
+              </div>
             </li>
           ))}
         </ul>

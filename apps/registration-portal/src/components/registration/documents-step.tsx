@@ -50,7 +50,7 @@ export function DocumentsStep({ institutionType, fileFields }: DocumentsStepProp
   return (
     <div className="space-y-6">
       <div className="card space-y-2">
-        <h2 className="text-lg font-semibold text-gray-900">{t('documents.title')}</h2>
+        <h2 className="text-lg font-bold tracking-tight text-gray-900">{t('documents.title')}</h2>
         <p className="text-sm text-gray-600">{t('documents.subtitle')}</p>
       </div>
 
