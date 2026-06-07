@@ -28,7 +28,7 @@ interface StudentListFiltersProps {
   };
 }
 
-const STATUS_VALUES = ['ALL', 'ENROLLED', 'TRANSFERRED', 'WITHDRAWN', 'GRADUATED'];
+// Status is now handled by StudentStatusTabs — not shown here.
 
 /** Client component that synchronizes filters with the URL query string. */
 export function StudentListFilters({
@@ -66,14 +66,18 @@ export function StudentListFilters({
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto_auto]">
-      <form onSubmit={onSearchSubmit} className="md:col-span-1" role="search">
+    <div className="flex flex-wrap items-center gap-2">
+      <form
+        onSubmit={onSearchSubmit}
+        role="search"
+        className="min-w-[220px] flex-1"
+      >
         <Label htmlFor="student-search" className="sr-only">
           Search students
         </Label>
         <div className="relative">
           <Search
-            className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[hsl(var(--muted-foreground))]"
+            className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden="true"
           />
           <Input
@@ -81,7 +85,7 @@ export function StudentListFilters({
             name="search"
             type="search"
             defaultValue={initialValues.search}
-            placeholder="Search by name or national ID"
+            placeholder="Search by name, national ID, or admission no."
             className="ps-8"
           />
         </div>
@@ -89,7 +93,7 @@ export function StudentListFilters({
 
       <FilterSelect
         id="filter-institution"
-        label="Institution"
+        label="All institutions"
         value={initialValues.institutionId || 'ALL'}
         onChange={(value) => setParam('institutionId', value)}
         options={[
@@ -100,7 +104,7 @@ export function StudentListFilters({
 
       <FilterSelect
         id="filter-grade"
-        label="Grade"
+        label="All grades"
         value={initialValues.gradeId || 'ALL'}
         onChange={(value) => setParam('gradeId', value)}
         options={[
@@ -109,29 +113,17 @@ export function StudentListFilters({
         ]}
       />
 
-      <FilterSelect
-        id="filter-status"
-        label="Status"
-        value={initialValues.status || 'ALL'}
-        onChange={(value) => setParam('status', value)}
-        options={STATUS_VALUES.map((s) => ({
-          value: s,
-          label: s === 'ALL' ? 'All statuses' : titleCase(s),
-        }))}
-      />
-
-      <div className="flex items-end justify-end">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onReset}
-          disabled={isPending}
-        >
-          <RefreshCw className="me-2 h-4 w-4" aria-hidden="true" />
-          Reset
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={onReset}
+        disabled={isPending}
+        className="ms-auto shrink-0"
+      >
+        <RefreshCw className="me-1.5 h-3.5 w-3.5" aria-hidden="true" />
+        Reset
+      </Button>
     </div>
   );
 }
@@ -146,23 +138,18 @@ interface FilterSelectProps {
 
 function FilterSelect({ id, label, value, onChange, options }: FilterSelectProps) {
   return (
-    <div className="space-y-1">
-      <Label htmlFor={id} className="text-xs uppercase text-[hsl(var(--muted-foreground))]">
-        {label}
-      </Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id={id} aria-label={label}>
-          <SelectValue placeholder={label} />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((opt) => (
-            <SelectItem key={opt.value} value={opt.value}>
-              {opt.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger id={id} aria-label={label} className="w-[180px]">
+        <SelectValue placeholder={label} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
