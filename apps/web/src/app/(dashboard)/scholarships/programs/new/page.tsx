@@ -5,11 +5,13 @@
  * amount, slots, and application window.
  */
 import Link from 'next/link';
+import { ArrowLeft, Check } from 'lucide-react';
 
 import {
   Button,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   FormField,
@@ -19,17 +21,30 @@ import {
 
 export default function NewScholarshipProgramPage() {
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">New scholarship program</h1>
-        <p className="text-sm text-muted-foreground">
-          Define eligibility, award amount, and the application window.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+        <Link href="/scholarships">
+          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+          Back to programs
+        </Link>
+      </Button>
 
-      <Card>
+      <div>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          New scholarship program
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Define the award, eligibility rules, and application window. Eligibility checks run
+          automatically against student records when applications come in.
+        </p>
+      </div>
+
+      <Card className="max-w-[860px]">
         <CardHeader>
           <CardTitle className="text-base">Program details</CardTitle>
+          <CardDescription>
+            Set the award amount, eligibility, and the application window.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-5" noValidate>
@@ -73,7 +88,10 @@ export default function NewScholarshipProgramPage() {
               <Button asChild variant="outline" type="button">
                 <Link href="/scholarships">Cancel</Link>
               </Button>
-              <Button type="submit">Create program</Button>
+              <Button type="submit">
+                <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
+                Create program
+              </Button>
             </div>
           </form>
         </CardContent>
