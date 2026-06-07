@@ -1,0 +1,90 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/**
+ * OpenEMIS public website design tokens.
+ *
+ * Tokens are exposed as space-separated HSL channels (without the hsl()
+ * wrapper) so Tailwind can compose them with opacity modifiers like
+ * `bg-primary/10` via the `hsl(var(--primary) / <alpha-value>)` mechanism.
+ */
+@layer base {
+  :root {
+    /* Surfaces */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    /* Brand */
+    --primary: 222 47% 31%; /* OpenEMIS navy */
+    --primary-foreground: 0 0% 100%;
+    --primary-50: 222 47% 96%;
+    --primary-100: 222 47% 90%;
+    --primary-200: 222 47% 80%;
+    --primary-500: 222 47% 50%;
+    --primary-700: 222 47% 31%;
+    --primary-900: 222 47% 15%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 31%;
+
+    --accent: 174 62% 40%; /* OpenEMIS teal */
+    --accent-foreground: 0 0% 100%;
+
+    /* Neutrals */
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 31%;
+
+    /* States */
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Visible focus indicators meet WCAG 2.1 AA. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Honor reduced-motion preferences. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Skip-to-content link, visible only when focused via keyboard. */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50
+           focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground
+           focus:shadow-lg;
+  }
+
+  .container-tight {
+    @apply mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8;
+  }
+}

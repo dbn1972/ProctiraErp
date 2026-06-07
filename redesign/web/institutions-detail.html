@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Saraswati Nodal High School · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .school-hero {
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .school-hero .sh-icon {
+    width: 56px; height: 56px; border-radius: var(--r-lg); flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+    color: #fff; display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--sh-sm);
+  }
+  .school-hero .sh-icon svg { width: 28px; height: 28px; }
+  .bar-chart .bc-row { display: grid; grid-template-columns: 56px 1fr 56px; align-items: center; gap: 12px; padding: 7px 0; }
+  .bar-chart .bc-label { font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); }
+  .bar-chart .bc-val { font-size: var(--fs-sm); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body data-active="institutions">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="institutions-list.html">Institutions</a><span class="sep">/</span>
+        <span class="current">Saraswati Nodal High School</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text school-hero">
+          <span class="sh-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span>
+          <div>
+            <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Saraswati Nodal High School <span class="pill green">Active</span></h1>
+            <p class="page-sub"><span class="mono">UDISE 21180104506</span> · Brahmagiri block · Secondary (VI–X) · Odia medium</p>
+          </div>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="institutions-detail-edit.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit</a>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>School report</button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="institutions-detail-overview.html" role="tab" aria-selected="true">Overview</a>
+        <a class="tab" href="institutions-classes.html" role="tab">Classes <span class="count">14</span></a>
+        <a class="tab" href="institutions-grades.html" role="tab">Grades <span class="count">5</span></a>
+        <a class="tab" href="institutions-infrastructure.html" role="tab">Infrastructure</a>
+        <a class="tab" href="staff-list.html" role="tab">Staff <span class="count">21</span></a>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <!-- KPI row -->
+          <div class="kpi-grid" style="margin-bottom:0">
+            <div class="card kpi">
+              <div class="k-top">
+                <span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+                <span class="k-label">Students</span>
+              </div>
+              <div class="k-value">642</div>
+              <div class="k-foot"><span class="delta up">↑ 14</span> this term</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top">
+                <span class="k-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                <span class="k-label">Staff</span>
+              </div>
+              <div class="k-value">21</div>
+              <div class="k-foot">2 vacancies open</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top">
+                <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+                <span class="k-label">Attendance</span>
+              </div>
+              <div class="k-value">92.4%</div>
+              <div class="k-foot"><span class="delta up">↑ 0.6%</span> vs last week</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top">
+                <span class="k-icon" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span>
+                <span class="k-label">Classrooms</span>
+              </div>
+              <div class="k-value">18</div>
+              <div class="k-foot">2 flagged for repair</div>
+            </div>
+          </div>
+
+          <!-- Enrollment by grade -->
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Enrollment by grade</h3><div class="sub">Academic Year 2026–27 · 642 students across grades VI–X</div></div>
+              <div class="spacer"><a class="btn btn-ghost btn-sm" href="institutions-grades.html">Configure grades →</a></div>
+            </div>
+            <div class="card-pad bar-chart">
+              <div class="bc-row"><span class="bc-label">VI</span><svg viewBox="0 0 400 18" width="100%" height="18" preserveAspectRatio="none" role="img" aria-label="Grade VI: 148 students"><rect x="0" y="3" width="400" height="12" rx="6" fill="var(--bg-subtle)"/><rect x="0" y="3" width="400" height="12" rx="6" fill="var(--brand-500)"/></svg><span class="bc-val">148</span></div>
+              <div class="bc-row"><span class="bc-label">VII</span><svg viewBox="0 0 400 18" width="100%" height="18" preserveAspectRatio="none" role="img" aria-label="Grade VII: 139 students"><rect x="0" y="3" width="400" height="12" rx="6" fill="var(--bg-subtle)"/><rect x="0" y="3" width="376" height="12" rx="6" fill="var(--brand-500)"/></svg><span class="bc-val">139</span></div>
+              <div class="bc-row"><span class="bc-label">VIII</span><svg viewBox="0 0 400 18" width="100%" height="18" preserveAspectRatio="none" role="img" aria-label="Grade VIII: 132 students"><rect x="0" y="3" width="400" height="12" rx="6" fill="var(--bg-subtle)"/><rect x="0" y="3" width="357" height="12" rx="6" fill="var(--brand-400)"/></svg><span class="bc-val">132</span></div>
+              <div class="bc-row"><span class="bc-label">IX</span><svg viewBox="0 0 400 18" width="100%" height="18" preserveAspectRatio="none" role="img" aria-label="Grade IX: 118 students"><rect x="0" y="3" width="400" height="12" rx="6" fill="var(--bg-subtle)"/><rect x="0" y="3" width="319" height="12" rx="6" fill="var(--brand-400)"/></svg><span class="bc-val">118</span></div>
+              <div class="bc-row"><span class="bc-label">X</span><svg viewBox="0 0 400 18" width="100%" height="18" preserveAspectRatio="none" role="img" aria-label="Grade X: 105 students"><rect x="0" y="3" width="400" height="12" rx="6" fill="var(--bg-subtle)"/><rect x="0" y="3" width="284" height="12" rx="6" fill="var(--brand-300)"/></svg><span class="bc-val">105</span></div>
+            </div>
+          </div>
+
+          <!-- Recent activity -->
+          <div class="card">
+            <div class="card-head"><div><h3>Recent activity</h3><div class="sub">Updates from this school in the last 7 days</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <ul class="timeline">
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Attendance synced for all 14 sections</div><div class="tl-meta">Today · 09:42 · by S. C. Pradhan</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">3 students admitted to Grade VI · A</div><div class="tl-meta">Yesterday · Admissions desk</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Classroom 7 flagged: roof leakage reported</div><div class="tl-meta">3 Jun · Infrastructure register</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Anupama Dash joined as TGT Mathematics</div><div class="tl-meta">2 Jun · Staff register</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">42 pre-matric scholarship applications verified</div><div class="tl-meta">1 Jun · Scholarships</div></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <!-- Key facts -->
+          <div class="card">
+            <div class="card-head"><div><h3>Key facts</h3></div></div>
+            <div class="card-pad">
+              <dl class="dl">
+                <dt>UDISE code</dt><dd class="mono">21180104506</dd>
+                <dt>Block</dt><dd>Brahmagiri</dd>
+                <dt>Type</dt><dd>Secondary (VI–X)</dd>
+                <dt>Medium</dt><dd>Odia</dd>
+                <dt>Established</dt><dd>1964</dd>
+                <dt>Shift</dt><dd>Morning · 07:30–13:00</dd>
+                <dt>Headmaster</dt>
+                <dd><div class="person-cell"><span class="avatar sm av-2">SP</span><span>Sarat Chandra Pradhan</span></div></dd>
+              </dl>
+            </div>
+          </div>
+
+          <!-- Contact -->
+          <div class="card">
+            <div class="card-head"><div><h3>Contact</h3></div></div>
+            <div class="card-pad">
+              <div class="stat-row"><span class="sr-label">Phone</span><span class="sr-value">+91 94370 21834</span></div>
+              <div class="stat-row"><span class="sr-label">Email</span><span class="sr-value" style="font-weight:500">snhs.brahmagiri@puri.odisha.gov.in</span></div>
+              <div class="stat-row"><span class="sr-label">Address</span><span class="sr-value" style="font-weight:500;text-align:right">At/Po Brahmagiri, Puri 752011</span></div>
+              <div class="stat-row"><span class="sr-label">Coordinates</span><span class="sr-value mono fs-xs">19.7926, 85.6094</span></div>
+              <button class="btn btn-secondary" style="width:100%;margin-top:12px" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>View on district map</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

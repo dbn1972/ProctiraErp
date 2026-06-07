@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Permission matrix · Administration · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .matrix-wrap { overflow-x: auto; }
+  .matrix { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); min-width: 760px; }
+  .matrix th {
+    text-align: center; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em;
+    text-transform: uppercase; color: var(--text-3); padding: 12px 14px;
+    border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface-2);
+  }
+  .matrix th:first-child, .matrix td:first-child {
+    text-align: left; position: sticky; left: 0; z-index: 1;
+    background: var(--surface); box-shadow: inset -1px 0 0 var(--border);
+    min-width: 200px; padding-left: 20px;
+  }
+  .matrix th:first-child { background: var(--surface-2); }
+  .matrix td { padding: 11px 14px; border-bottom: 1px solid var(--border); text-align: center; vertical-align: middle; }
+  .matrix tbody tr:hover td { background: var(--bg-subtle); }
+  .matrix tbody tr:hover td:first-child { background: var(--bg-subtle); }
+  .matrix tbody tr:last-child td { border-bottom: none; }
+  .module-cell { display: flex; align-items: center; gap: 10px; }
+  .module-cell .m-icon { width: 30px; height: 30px; border-radius: 8px; background: var(--brand-50); color: var(--brand-600); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .module-cell .m-icon svg { width: 14px; height: 14px; }
+  .module-cell .m-name { font-weight: 600; }
+  .module-cell .m-sub { font-size: var(--fs-2xs); color: var(--text-3); }
+  .perm-yes {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--green-50); color: var(--green-600);
+  }
+  .perm-yes svg { width: 13px; height: 13px; }
+  .perm-partial {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--amber-50); color: var(--amber-600);
+  }
+  .perm-partial svg { width: 13px; height: 13px; }
+  .perm-no { display: inline-block; width: 14px; height: 2px; border-radius: 2px; background: var(--border-strong); vertical-align: middle; }
+  .legend { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+</style>
+</head>
+<body data-active="admin">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="admin-overview.html">Administration</a><span class="sep">/</span><span class="current">Permissions</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Permission matrix</h1>
+          <p class="page-sub">Module access by role. Click any cell in edit mode to grant, restrict, or revoke — changes are audit-logged.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="admin-roles.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>Manage roles</a>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit matrix</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3>Access by module</h3>
+            <div class="sub">5 roles · 9 modules · last changed by D. Nayak, today 10:42 IST</div>
+          </div>
+          <div class="spacer">
+            <div class="legend">
+              <span><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>Full access</span>
+              <span><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span>Limited</span>
+              <span><span class="perm-no"></span>No access</span>
+            </div>
+          </div>
+        </div>
+        <div class="matrix-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>Module</th>
+                <th>District Admin</th>
+                <th>Headmaster</th>
+                <th>Teacher</th>
+                <th>Clerk</th>
+                <th>Health Officer</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span><div><div class="m-name">Students</div><div class="m-sub">Records, enrollment, transfers</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span><div><div class="m-name">Staff</div><div class="m-sub">Profiles, assignments, appraisals</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-no"></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><div><div class="m-name">Attendance</div><div class="m-sub">Daily marking, approvals, reports</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></svg></span><div><div class="m-name">Assessments</div><div class="m-sub">Schemes, items, results entry</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-no"></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span><div><div class="m-name">Examinations</div><div class="m-sub">Boards, candidates, hall tickets</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span><div><div class="m-name">Scholarships</div><div class="m-sub">Programs, applications, disbursal</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span><div><div class="m-name">Health &amp; Wellness</div><div class="m-sub">Screenings, counselling, referrals</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span><div><div class="m-name">Workflows</div><div class="m-sub">Approvals, transfers, escalations</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+              </tr>
+              <tr>
+                <td><div class="module-cell"><span class="m-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span><div><div class="m-name">Reports</div><div class="m-sub">Dashboards, exports, UDISE returns</div></div></div></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-yes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-no"></span></td>
+                <td><span class="perm-partial"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg></span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <span class="fs-xs muted-3">Limited access means scoped to the user's own institution or assigned sections. Module-level grants expand into 64 granular permissions.</span>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Live aggregator output is regenerated on every run; keep only the
+# checked-in baseline so PRs can compare against it.
+reports/dod-report.json
+node_modules/

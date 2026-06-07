@@ -1,0 +1,172 @@
+/*
+ * pgloader configuration for ProctiraERP MySQL → PostgreSQL bulk data transfer.
+ *
+ * This transfers raw data into a staging schema (migration_staging) where
+ * subsequent transformation scripts handle renaming, UUID generation, and
+ * tenant assignment before moving data to the final public schema.
+ *
+ * Usage:
+ *   pgloader proctira-migration.load
+ *
+ * Environment variables are substituted at generation time by pgloader-config.ts.
+ */
+
+LOAD DATABASE
+  FROM mysql://{{MYSQL_USER}}:{{MYSQL_PASSWORD}}@{{MYSQL_HOST}}:{{MYSQL_PORT}}/{{MYSQL_DATABASE}}
+  INTO postgresql://{{PG_USER}}:{{PG_PASSWORD}}@{{PG_HOST}}:{{PG_PORT}}/{{PG_DATABASE}}
+
+WITH
+  include drop,
+  create tables,
+  create indexes,
+  reset sequences,
+  workers = 4,
+  concurrency = 2,
+  batch rows = 5000,
+  prefetch rows = 10000,
+  batch size = 20MB
+
+SET PostgreSQL PARAMETERS
+  maintenance_work_mem to '512MB',
+  work_mem to '64MB',
+  search_path to 'migration_staging'
+
+SET MySQL PARAMETERS
+  net_read_timeout = '300',
+  net_write_timeout = '300'
+
+/*
+ * Type casting rules for MySQL → PostgreSQL conversion.
+ * CakePHP uses specific MySQL types that need PostgreSQL equivalents.
+ */
+CAST
+  type int to integer,
+  type bigint to bigint,
+  type tinyint to smallint,
+  type smallint to smallint,
+  type mediumint to integer,
+  type float to real,
+  type double to double precision,
+  type decimal to numeric,
+  type char to varchar,
+  type varchar to varchar,
+  type text to text,
+  type mediumtext to text,
+  type longtext to text,
+  type tinytext to text,
+  type blob to bytea,
+  type mediumblob to bytea,
+  type longblob to bytea,
+  type datetime to timestamp without time zone,
+  type date to date,
+  type time to time without time zone,
+  type timestamp to timestamp without time zone,
+  type year to smallint,
+  type enum to varchar,
+  type set to varchar,
+  type json to jsonb,
+  type bit to boolean,
+  type tinyint when (= precision 1) to boolean using tinyint-to-boolean
+
+/*
+ * Include all core ProctiraERP tables.
+ * Tables are loaded into migration_staging schema for transformation.
+ */
+INCLUDING ONLY TABLE NAMES MATCHING
+  /* Core entity tables */
+  'institutions',
+  'institution_statuses',
+  'institution_types',
+  'institution_sectors',
+  'institution_ownerships',
+  'institution_providers',
+  'institution_localities',
+  'institution_genders',
+  /* Student/Staff (unified security_users table in legacy) */
+  'security_users',
+  'user_identities',
+  'user_contacts',
+  'user_nationalities',
+  /* Enrollment and academic */
+  'institution_students',
+  'institution_staff',
+  'student_statuses',
+  'staff_statuses',
+  'institution_student_admission',
+  'institution_student_transfers',
+  /* Academic structure */
+  'academic_periods',
+  'academic_period_levels',
+  'education_grades',
+  'education_subjects',
+  'education_grades_subjects',
+  'institution_classes',
+  'institution_subjects',
+  'institution_class_students',
+  'institution_subject_students',
+  /* Area hierarchy */
+  'areas',
+  'area_levels',
+  'area_administratives',
+  'area_administrative_levels',
+  /* Assessment */
+  'assessments',
+  'assessment_items',
+  'assessment_grading_types',
+  'assessment_grading_options',
+  'assessment_item_results',
+  'assessment_periods',
+  /* Attendance */
+  'institution_student_absences',
+  'institution_student_absence_details',
+  'institution_staff_absences',
+  'student_absence_reasons',
+  'staff_absence_reasons',
+  /* Infrastructure */
+  'institution_lands',
+  'institution_buildings',
+  'institution_floors',
+  'institution_rooms',
+  'infrastructure_conditions',
+  /* Workflow */
+  'workflows',
+  'workflow_models',
+  'workflow_steps',
+  'workflow_actions',
+  'workflow_transitions',
+  'workflow_statuses',
+  /* Auth and security */
+  'security_roles',
+  'security_role_functions',
+  'security_functions',
+  'security_group_users',
+  'security_group_areas',
+  'security_group_institutions',
+  /* Configuration */
+  'config_items',
+  'custom_field_types',
+  'custom_fields',
+  'custom_field_options',
+  'custom_field_values',
+  'custom_forms',
+  'custom_forms_fields',
+  /* Examinations */
+  'examinations',
+  'examination_centres',
+  'examination_items',
+  'examination_grading_types',
+  /* Scholarships */
+  'scholarships',
+  'scholarship_applications'
+
+/*
+ * Transformation rules applied during load.
+ * Column renames and data transformations happen in the post-load scripts.
+ */
+BEFORE LOAD DO
+  $$ CREATE SCHEMA IF NOT EXISTS migration_staging; $$,
+  $$ CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; $$
+
+AFTER LOAD DO
+  $$ SELECT 'pgloader bulk transfer complete. Run transform-schema next.'; $$
+;

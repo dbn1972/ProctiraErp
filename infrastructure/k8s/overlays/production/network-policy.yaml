@@ -1,0 +1,83 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: proctira-default-deny
+  namespace: proctira
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-services
+  namespace: proctira
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: proctira-platform
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 3001
+        - protocol: TCP
+          port: 3002
+        - protocol: TCP
+          port: 3003
+        - protocol: TCP
+          port: 3004
+        - protocol: TCP
+          port: 3005
+    # Allow intra-namespace communication
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: proctira-platform
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress
+  namespace: proctira
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: proctira-platform
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow intra-namespace communication
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: proctira-platform
+    # Allow external HTTPS (OAuth providers, webhooks, etc.)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

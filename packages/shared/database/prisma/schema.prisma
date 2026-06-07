@@ -1,0 +1,507 @@
+// OpenEMIS Unified Platform - Prisma Schema
+// PostgreSQL with Row-Level Security for multi-tenancy
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema", "postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
+}
+
+// ============================================================================
+// TENANT
+// ============================================================================
+
+/// Represents a deploying organization (Ministry, State Dept, NGO).
+/// NOT a school or board — those are data entities within a tenant.
+model Tenant {
+  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name      String    @db.VarChar(255)
+  slug      String    @unique @db.VarChar(100)
+  config    Json?     @default("{}") @db.JsonB
+  status    String    @default("active") @db.VarChar(20)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  geographicAreas GeographicArea[]
+  boards          Board[]
+  institutions    Institution[]
+  students        Student[]
+  staff           Staff[]
+  enrollments     Enrollment[]
+  academicPeriods AcademicPeriod[]
+  grades          Grade[]
+  classes         Class[]
+  refreshTokens   RefreshToken[]
+  sessions        UserSession[]
+  themeVersions   TenantThemeVersion[]
+  themeDraft      TenantThemeDraft?
+
+  @@map("tenants")
+}
+
+// ============================================================================
+// TENANT THEME VERSIONS (Task 58.2 - branding rollback / append-only)
+// ============================================================================
+
+/// Append-only history of published tenant theme tokens.
+///
+/// Each successful publish (or rollback) appends a new row. Rows are NEVER
+/// updated or deleted — the table is the durable audit trail for theme
+/// changes (Requirement 28 AC 4 / Design §N — "Versioned revisions").
+///
+/// `revision` is monotonically increasing per tenant. The current published
+/// theme is the row with the highest `revision` for the tenant; tenant
+/// settings (`tenants.config.theme`) mirror that row's `tokens` for fast
+/// boot-time reads (Task 58.1).
+///
+/// On rollback, the rollback handler reads the row at the requested
+/// `revision`, copies its `tokens` into `tenants.config.theme`, and APPENDS
+/// a new row carrying the same tokens at the next revision number — so the
+/// rollback itself is a first-class entry in the version history.
+model TenantThemeVersion {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  revision    Int      @db.Integer
+  tokens      Json     @db.JsonB
+  publishedAt DateTime @map("published_at") @db.Timestamptz(6)
+  publishedBy String   @map("published_by") @db.Uuid
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, revision], map: "tenant_theme_versions_tenant_revision_key")
+  @@index([tenantId])
+  @@index([tenantId, publishedAt])
+  @@map("tenant_theme_versions")
+}
+
+// ============================================================================
+// TENANT THEME DRAFTS (Task 58.3 - preview cookie/header path)
+// ============================================================================
+
+/// In-progress branding token edits a tenant administrator is staging in
+/// Settings → Branding before publishing. At most one draft per tenant.
+///
+/// Drafts are surfaced ONLY to requests that present the
+/// `Tenant-Theme-Preview` cookie or `X-Tenant-Theme-Preview` header AND
+/// originate from a user with `branding:preview` permission (Design §N).
+/// Other callers always see the published tokens from
+/// `tenant_theme_versions`.
+model TenantThemeDraft {
+  tenantId String   @id @map("tenant_id") @db.Uuid
+  tokens   Json     @db.JsonB
+  savedAt  DateTime @default(now()) @map("saved_at") @db.Timestamptz(6)
+  savedBy  String   @map("saved_by") @db.Uuid
+
+  // Relations — cascade on tenant delete; the audit trail in
+  // `tenant_theme_versions` is the durable record.
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([savedBy])
+  @@map("tenant_theme_drafts")
+}
+
+// ============================================================================
+// AUTH - REFRESH TOKENS
+// ============================================================================
+
+/// Refresh tokens stored in PostgreSQL with revocation tracking.
+/// Supports token rotation: when a token is used, it's revoked and replaced.
+model RefreshToken {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  token           String    @unique @db.VarChar(255)
+  userId          String    @map("user_id") @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  sessionId       String    @map("session_id") @db.Uuid
+  expiresAt       DateTime  @map("expires_at")
+  revoked         Boolean   @default(false)
+  revokedAt       DateTime? @map("revoked_at")
+  revokedReason   String?   @map("revoked_reason") @db.VarChar(255)
+  replacedByToken String?   @map("replaced_by_token") @db.VarChar(255)
+  createdByIp     String?   @map("created_by_ip") @db.VarChar(45)
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  tenant  Tenant       @relation(fields: [tenantId], references: [id])
+  session UserSession? @relation(fields: [sessionId], references: [id])
+
+  @@index([tenantId, userId])
+  @@index([tenantId, sessionId])
+  @@index([expiresAt])
+  @@index([revoked])
+  @@map("refresh_tokens")
+}
+
+// ============================================================================
+// AUTH - USER SESSIONS
+// ============================================================================
+
+/// User sessions valid across all platform modules.
+/// Sessions track active user sessions with device info and last activity.
+model UserSession {
+  id             String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  tenantId       String    @map("tenant_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at")
+  expiresAt      DateTime  @map("expires_at")
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at")
+  isActive       Boolean   @default(true) @map("is_active")
+  userAgent      String?   @map("user_agent") @db.VarChar(500)
+  ipAddress      String?   @map("ip_address") @db.VarChar(45)
+  invalidatedAt  DateTime? @map("invalidated_at")
+
+  // Relations
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  refreshTokens RefreshToken[]
+
+  @@index([tenantId, userId])
+  @@index([tenantId, isActive])
+  @@index([expiresAt])
+  @@map("user_sessions")
+}
+
+// ============================================================================
+// GEOGRAPHIC AREA HIERARCHY
+// ============================================================================
+
+/// Geographic/administrative hierarchy using nested set model.
+/// Supports: Country → State → District → Sub-District → Block → Village
+model GeographicArea {
+  id       String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId String  @map("tenant_id") @db.Uuid
+  name     String  @db.VarChar(255)
+  code     String  @db.VarChar(50)
+  level    Int     @db.SmallInt
+  parentId String? @map("parent_id") @db.Uuid
+  path     String  @db.Text
+  lft      Int
+  rgt      Int
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  parent       GeographicArea?  @relation("AreaHierarchy", fields: [parentId], references: [id])
+  children     GeographicArea[] @relation("AreaHierarchy")
+  institutions Institution[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, parentId])
+  @@index([tenantId, level])
+  @@index([tenantId, lft, rgt])
+  @@map("geographic_areas")
+}
+
+// ============================================================================
+// BOARD (Education Board - CBSE, ICSE, State Boards)
+// ============================================================================
+
+/// Education board within a tenant. Boards are data entities, not tenants.
+model Board {
+  id       String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId String    @map("tenant_id") @db.Uuid
+  name     String    @db.VarChar(255)
+  code     String    @db.VarChar(50)
+  type     BoardType
+  status   String    @default("active") @db.VarChar(20)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  institutions Institution[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, type])
+  @@map("boards")
+}
+
+enum BoardType {
+  NATIONAL
+  STATE
+  PRIVATE
+
+  @@map("board_type")
+}
+
+// ============================================================================
+// INSTITUTION (School)
+// ============================================================================
+
+/// Educational institution managed within a tenant.
+model Institution {
+  id         String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId   String  @map("tenant_id") @db.Uuid
+  name       String  @db.VarChar(255)
+  code       String  @db.VarChar(50)
+  boardId    String? @map("board_id") @db.Uuid
+  areaId     String  @map("area_id") @db.Uuid
+  type       String  @db.VarChar(50)
+  sector     String  @db.VarChar(50)
+  ownership  String  @db.VarChar(50)
+  status     String  @default("active") @db.VarChar(20)
+  customData Json?   @default("{}") @map("custom_data") @db.JsonB
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant      Tenant         @relation(fields: [tenantId], references: [id])
+  board       Board?         @relation(fields: [boardId], references: [id])
+  area        GeographicArea @relation(fields: [areaId], references: [id])
+  enrollments Enrollment[]
+  classes     Class[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, areaId])
+  @@index([tenantId, boardId])
+  @@index([tenantId, status])
+  @@index([customData], type: Gin)
+  @@map("institutions")
+}
+
+// ============================================================================
+// STUDENT
+// ============================================================================
+
+/// Student record with full-text search support.
+model Student {
+  id           String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId     String                   @map("tenant_id") @db.Uuid
+  firstName    String                   @map("first_name") @db.VarChar(100)
+  lastName     String                   @map("last_name") @db.VarChar(100)
+  dateOfBirth  DateTime                 @map("date_of_birth") @db.Date
+  gender       String                   @db.VarChar(20)
+  nationalId   String?                  @map("national_id") @db.VarChar(50)
+  customData   Json?                    @default("{}") @map("custom_data") @db.JsonB
+  searchVector Unsupported("tsvector")? @map("search_vector")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  enrollments Enrollment[]
+
+  @@unique([tenantId, nationalId])
+  @@index([tenantId, lastName, firstName])
+  @@index([customData], type: Gin)
+  @@index([searchVector], type: Gin)
+  @@map("students")
+}
+
+// ============================================================================
+// STAFF
+// ============================================================================
+
+/// Staff record with full-text search support.
+model Staff {
+  id             String                   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId       String                   @map("tenant_id") @db.Uuid
+  firstName      String                   @map("first_name") @db.VarChar(100)
+  lastName       String                   @map("last_name") @db.VarChar(100)
+  dateOfBirth    DateTime                 @map("date_of_birth") @db.Date
+  identityNumber String                   @map("identity_number") @db.VarChar(50)
+  customData     Json?                    @default("{}") @map("custom_data") @db.JsonB
+  searchVector   Unsupported("tsvector")? @map("search_vector")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, identityNumber])
+  @@index([tenantId, lastName, firstName])
+  @@index([customData], type: Gin)
+  @@index([searchVector], type: Gin)
+  @@map("staff")
+}
+
+// ============================================================================
+// ENROLLMENT
+// ============================================================================
+
+/// Tracks student enrollment at an institution for an academic period.
+model Enrollment {
+  id               String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  studentId        String           @map("student_id") @db.Uuid
+  institutionId    String           @map("institution_id") @db.Uuid
+  gradeId          String           @map("grade_id") @db.Uuid
+  classId          String?          @map("class_id") @db.Uuid
+  academicPeriodId String           @map("academic_period_id") @db.Uuid
+  status           EnrollmentStatus @default(ENROLLED)
+  enrolledAt       DateTime         @map("enrolled_at") @db.Date
+  exitedAt         DateTime?        @map("exited_at") @db.Date
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  student        Student        @relation(fields: [studentId], references: [id])
+  institution    Institution    @relation(fields: [institutionId], references: [id])
+  grade          Grade          @relation(fields: [gradeId], references: [id])
+  class          Class?         @relation(fields: [classId], references: [id])
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, institutionId, academicPeriodId])
+  @@index([tenantId, status])
+  @@map("enrollments")
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  TRANSFERRED
+  WITHDRAWN
+  GRADUATED
+
+  @@map("enrollment_status")
+}
+
+// ============================================================================
+// ACADEMIC PERIOD
+// ============================================================================
+
+/// Configurable time boundary (year, semester, term) that scopes institutional data.
+model AcademicPeriod {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name      String   @db.VarChar(100)
+  code      String   @db.VarChar(50)
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  status    String   @default("active") @db.VarChar(20)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  enrollments Enrollment[]
+  classes     Class[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+  @@map("academic_periods")
+}
+
+// ============================================================================
+// GRADE
+// ============================================================================
+
+/// Education grade level within a tenant.
+model Grade {
+  id       String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  name     String @db.VarChar(100)
+  code     String @db.VarChar(50)
+  order    Int    @db.SmallInt
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  enrollments Enrollment[]
+  classes     Class[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, order])
+  @@map("grades")
+}
+
+// ============================================================================
+// CLASS
+// ============================================================================
+
+/// A class within an institution, assigned to a grade and academic period.
+model Class {
+  id               String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String @map("tenant_id") @db.Uuid
+  institutionId    String @map("institution_id") @db.Uuid
+  gradeId          String @map("grade_id") @db.Uuid
+  academicPeriodId String @map("academic_period_id") @db.Uuid
+  name             String @db.VarChar(100)
+  capacity         Int?   @db.SmallInt
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  institution    Institution    @relation(fields: [institutionId], references: [id])
+  grade          Grade          @relation(fields: [gradeId], references: [id])
+  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  enrollments    Enrollment[]
+
+  @@index([tenantId, institutionId, academicPeriodId])
+  @@index([tenantId, gradeId])
+  @@map("classes")
+}
+
+// ============================================================================
+// SUBJECT
+// ============================================================================
+
+/// A subject offered within a tenant, linked to grades via SubjectGrade.
+model Subject {
+  id       String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  name     String @db.VarChar(255)
+  code     String @db.VarChar(50)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  // Relations
+  grades InstitutionSubject[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("subjects")
+}
+
+// ============================================================================
+// INSTITUTION SUBJECT (links subjects to grades within an institution)
+// ============================================================================
+
+/// Links a subject to a grade within a specific institution.
+/// Each subject must be linked to at least one grade within the institution.
+model InstitutionSubject {
+  id            String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId      String @map("tenant_id") @db.Uuid
+  institutionId String @map("institution_id") @db.Uuid
+  subjectId     String @map("subject_id") @db.Uuid
+  gradeId       String @map("grade_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  subject Subject @relation(fields: [subjectId], references: [id])
+
+  @@unique([tenantId, institutionId, subjectId, gradeId])
+  @@index([tenantId, institutionId, gradeId])
+  @@map("institution_subjects")
+}

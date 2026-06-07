@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Apply · Scholarships · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  .steps { display: flex; padding: 2px 4px; }
+  .step { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; font-size: var(--fs-2xs); font-weight: 700; color: var(--text-3); }
+  .step .dot {
+    width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 2px solid var(--border); font-size: 11px; font-weight: 800; color: var(--text-3); z-index: 1;
+  }
+  .step .dot svg { width: 12px; height: 12px; }
+  .step::before { content: ''; position: absolute; top: 13px; left: -50%; right: 50%; height: 2px; background: var(--border); }
+  .step:first-child::before { display: none; }
+  .step.done .dot { background: var(--green-500); border-color: var(--green-500); color: #fff; }
+  .step.done::before { background: var(--green-500); }
+  .step.cur .dot { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
+  .step.cur { color: var(--brand-700); }
+  .step.cur::before { background: var(--green-500); }
+  .hint { font-size: var(--fs-xs); color: var(--text-3); }
+</style>
+</head>
+<body data-tab="services">
+<div class="phone">
+  <header class="appbar">
+    <button class="ab-back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    <div class="ab-title">
+      <h1>Apply · NMMS</h1>
+      <div class="ab-sub">National Means-cum-Merit Scholarship</div>
+    </div>
+  </header>
+  <div class="screen">
+
+    <div class="steps" aria-label="Application progress">
+      <div class="step done"><span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>Student</div>
+      <div class="step cur"><span class="dot">2</span>Details</div>
+      <div class="step"><span class="dot">3</span>Documents</div>
+      <div class="step"><span class="dot">4</span>Submit</div>
+    </div>
+
+    <div class="m-card pad" style="display:flex;align-items:center;gap:12px">
+      <span class="avatar lg av-2">SP</span>
+      <span style="flex:1;min-width:0">
+        <span style="display:block;font-size:var(--fs-md);font-weight:700">Sasmita Pradhan</span>
+        <span style="display:block;font-size:var(--fs-xs);color:var(--text-3)">Grade VIII A · Roll 02 · DOB 14 Mar 2013</span>
+      </span>
+      <span class="pill green plain">✓ Eligible</span>
+    </div>
+
+    <div class="m-field">
+      <label for="income">Guardian annual income (₹)</label>
+      <input class="input" id="income" inputmode="numeric" value="1,18,000">
+      <span class="hint">Must be below ₹3,50,000 as per income certificate</span>
+    </div>
+
+    <div class="m-field">
+      <label for="acct">Guardian bank account</label>
+      <input class="input" id="acct" value="•••• •••• 4823" readonly>
+      <span class="hint">From verified student record · tap to change</span>
+    </div>
+
+    <div class="m-field">
+      <label for="ifsc">IFSC code</label>
+      <input class="input" id="ifsc" value="SBIN0001083" style="font-family:var(--font-mono);letter-spacing:.04em">
+      <span class="hint">State Bank of India · Puri Main Branch</span>
+    </div>
+
+    <h2 class="sec">Documents</h2>
+    <div class="m-list">
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Income certificate</span><span class="mi-sub">Scanned 5 Jun · uploaded</span></span>
+        <span class="mi-end"><span class="pill green plain">✓ Uploaded</span></span>
+      </div>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Bank passbook (first page)</span><span class="mi-sub">Scanned today · uploads when online</span></span>
+        <span class="mi-end"><span class="pill amber plain">Queued</span></span>
+      </div>
+    </div>
+
+  </div>
+  <div class="m-cta" style="bottom:78px">
+    <button class="m-btn primary">Continue<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+  </div>
+</div>
+<script src="mobile.js"></script>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Transfer request · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .school-card {
+    display: flex; align-items: center; gap: 12px; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-subtle);
+  }
+  .school-card .sc-icon {
+    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+    background: var(--slate-200); color: var(--slate-600);
+    display: flex; align-items: center; justify-content: center;
+  }
+  [data-theme="dark"] .school-card .sc-icon { background: var(--surface-2); color: var(--text-2); }
+  .school-card .sc-icon svg { width: 17px; height: 17px; }
+  .check-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; font-size: var(--fs-sm); border-bottom: 1px dashed var(--border); }
+  .check-item:last-child { border-bottom: none; }
+  .check-item svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+  .check-item.ok svg { color: var(--green-600); }
+  .check-item.pending svg { color: var(--amber-600); }
+</style>
+</head>
+<body data-active="students">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="students-list.html">Students</a><span class="sep">/</span>
+        <a href="students-detail.html">Aarav Sharma</a><span class="sep">/</span>
+        <span class="current">Transfer</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Transfer request</h1>
+          <p class="page-sub">Move a student to another institution. The current enrollment stays active until the transfer is approved by the district office.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="students-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to profile</a>
+        </div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+          <form class="card card-pad">
+            <div class="form-grid">
+
+              <div class="form-section-title">Student</div>
+              <div class="field span-2">
+                <label>Student <span class="req">*</span></label>
+                <button class="entity-picker" type="button">
+                  <span class="ep-icon" style="background:transparent;padding:0"><span class="avatar sm av-1">AS</span></span>
+                  <span class="ep-text">
+                    <span class="ep-value">Aarav Sharma</span>
+                    <span class="ep-meta">IDN-10000 · Grade VIII · A · Adm. 2024/0117</span>
+                  </span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+              </div>
+
+              <div class="form-section-title">Movement</div>
+              <div class="field span-2">
+                <label>From (current enrollment)</label>
+                <div class="school-card">
+                  <span class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+                  <div style="flex:1;min-width:0">
+                    <div class="fw-6 fs-sm">Govt. Sr. Sec. School, Puri</div>
+                    <div class="fs-xs muted-3">UDISE 21180100101 · Block: Puri Sadar · Grade VIII · A</div>
+                  </div>
+                  <span class="tag">Read-only</span>
+                </div>
+              </div>
+              <div class="field span-2">
+                <label>To (destination institution) <span class="req">*</span></label>
+                <button class="entity-picker" type="button">
+                  <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+                  <span class="ep-text">
+                    <span class="ep-value">Nodal High School, Gop Sadar</span>
+                    <span class="ep-meta">UDISE 21180501118 · Block: Gop · Grade VIII has 9 open seats</span>
+                  </span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+              </div>
+
+              <div class="form-section-title">Reason &amp; timing</div>
+              <div class="field">
+                <label>Reason category <span class="req">*</span></label>
+                <select class="select"><option>Select reason</option><option selected>Family relocation</option><option>Medical grounds</option><option>Hostel admission</option><option>Disciplinary</option><option>Parent request — other</option></select>
+              </div>
+              <div class="field">
+                <label>Effective date <span class="req">*</span></label>
+                <input class="input" type="text" value="01 / 07 / 2026" inputmode="numeric">
+                <span class="hint">First working day at the destination school</span>
+              </div>
+              <div class="field span-2">
+                <label>Details <span class="req">*</span></label>
+                <textarea class="input" rows="4" placeholder="Explain the circumstances of the transfer…">Family is relocating from Puri town to Gop block in July 2026 due to a change in the father's posting. Guardian has requested admission at the nearest nodal school; sibling already studies at Nodal HS, Gop Sadar.</textarea>
+              </div>
+              <div class="field span-2">
+                <label class="checkbox-row"><input type="checkbox" checked> Guardian consent letter received and attached to the student's documents</label>
+              </div>
+
+            </div>
+          </form>
+        </div>
+
+        <div class="layout-side">
+          <div class="card">
+            <div class="card-head"><div><h3>Transfer checklist</h3><div class="sub">Completed automatically where possible</div></div></div>
+            <div class="card-pad" style="padding-top:10px">
+              <div class="check-item ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Fee dues cleared — Term 1 paid 02 Jun 2026</span></div>
+              <div class="check-item ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Library books returned (2 of 2)</span></div>
+              <div class="check-item ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Guardian consent letter on file</span></div>
+              <div class="check-item pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>Transfer certificate — generated on approval</span></div>
+              <div class="check-item pending"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>Seat confirmation from destination school</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Approval chain</h3><div class="sub">Estimated 3–5 working days</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <ul class="timeline">
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Headmaster — releasing school</div><div class="tl-meta">P. K. Senapati · Govt. Sr. Sec. School, Puri</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M8 10h.01M16 10h.01M12 10h.01"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Block Education Officer</div><div class="tl-meta">Gop block · seat verification</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">District Education Office, Puri</div><div class="tl-meta">Final approval · TC issued</div></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <button class="btn btn-primary btn-lg" type="submit" style="width:100%"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Submit for approval</button>
+            <p class="fs-xs muted-3" style="margin:10px 0 0;text-align:center">The guardian receives an SMS at each approval stage</p>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Academic Periods · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .period-cell { display: flex; align-items: center; gap: 11px; min-width: 0; }
+  .period-cell .p-icon {
+    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .period-cell .p-icon svg { width: 17px; height: 17px; }
+  .p-icon.live { background: var(--green-50); color: var(--green-600); }
+  .p-icon.next { background: var(--sky-50); color: var(--sky-600); }
+  .p-icon.past { background: var(--bg-subtle); color: var(--text-3); }
+</style>
+</head>
+<body data-active="academic-periods">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Academic Periods</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Academic periods</h1>
+          <p class="page-sub">Academic years and terms drive enrollment, attendance, assessments, and promotions across all 142 institutions.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export calendar</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New period</button>
+        </div>
+      </div>
+
+      <div class="alert info mb-20">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div class="a-body"><b>AY 2026–27 · Term 1 is the active period</b>New admissions, attendance registers, and assessment schedules are recorded against this term until 31 Oct 2026.</div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">8</span></a>
+        <a class="tab" href="#" role="tab">Active <span class="count">1</span></a>
+        <a class="tab" href="#" role="tab">Scheduled <span class="count">2</span></a>
+        <a class="tab" href="#" role="tab">Archived <span class="count">5</span></a>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">Period <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Academic year</th>
+                <th>Date range</th>
+                <th>Working days</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                    <div><div class="cell-main">Term 1</div><div class="cell-sub">Summative Assessment I · ends in 146 days</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2026–27</td>
+                <td data-label="Date range">16 Jun 2026 – 31 Oct 2026</td>
+                <td data-label="Working days" class="num">112</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                    <div><div class="cell-main">Term 2</div><div class="cell-sub">Summative Assessment II · annual exams in March</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2026–27</td>
+                <td data-label="Date range">16 Nov 2026 – 30 Apr 2027</td>
+                <td data-label="Working days" class="num">118</td>
+                <td data-label="Status"><span class="pill sky">Scheduled</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-secondary btn-sm" type="button">Set active</button>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                    <div><div class="cell-main">Summer Bridge Course</div><div class="cell-sub">Remedial programme for Grades VI–VIII</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2027–28</td>
+                <td data-label="Date range">04 May 2027 – 12 Jun 2027</td>
+                <td data-label="Working days" class="num">32</td>
+                <td data-label="Status"><span class="pill sky">Scheduled</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-secondary btn-sm" type="button">Set active</button>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon past"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+                    <div><div class="cell-main">Term 2</div><div class="cell-sub">Annual exams concluded 18 Apr 2026</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2025–26</td>
+                <td data-label="Date range">17 Nov 2025 – 30 Apr 2026</td>
+                <td data-label="Working days" class="num">117</td>
+                <td data-label="Status"><span class="pill slate">Archived</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon past"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+                    <div><div class="cell-main">Term 1</div><div class="cell-sub">Summative Assessment I</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2025–26</td>
+                <td data-label="Date range">17 Jun 2025 – 31 Oct 2025</td>
+                <td data-label="Working days" class="num">110</td>
+                <td data-label="Status"><span class="pill slate">Archived</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon past"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+                    <div><div class="cell-main">Summer Bridge Course</div><div class="cell-sub">312 students completed remediation</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2026–27</td>
+                <td data-label="Date range">05 May 2026 – 13 Jun 2026</td>
+                <td data-label="Working days" class="num">33</td>
+                <td data-label="Status"><span class="pill slate">Archived</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon past"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+                    <div><div class="cell-main">Term 2</div><div class="cell-sub">Annual exams concluded 19 Apr 2025</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2024–25</td>
+                <td data-label="Date range">18 Nov 2024 – 30 Apr 2025</td>
+                <td data-label="Working days" class="num">115</td>
+                <td data-label="Status"><span class="pill slate">Archived</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="period-cell">
+                    <span class="p-icon past"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg></span>
+                    <div><div class="cell-main">Term 1</div><div class="cell-sub">Summative Assessment I</div></div>
+                  </div>
+                </td>
+                <td data-label="Academic year">AY 2024–25</td>
+                <td data-label="Date range">18 Jun 2024 – 31 Oct 2024</td>
+                <td data-label="Working days" class="num">109</td>
+                <td data-label="Status"><span class="pill slate">Archived</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–8</b> of <b>8</b> periods</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

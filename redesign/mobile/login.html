@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+</head>
+<body>
+<div class="phone">
+  <div class="screen" style="padding-top:38px;gap:0">
+
+    <div style="display:flex;flex-direction:column;align-items:center;gap:14px;margin-bottom:34px">
+      <div style="width:72px;height:72px;border-radius:24px;background:linear-gradient(135deg,var(--brand-500),var(--brand-700));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:32px;box-shadow:0 12px 28px color-mix(in srgb,var(--brand-600) 35%,transparent)">P</div>
+      <div style="text-align:center">
+        <div style="font-size:24px;font-weight:800;letter-spacing:-.02em">Proctira<span style="color:var(--brand-600)">ERP</span></div>
+        <div style="font-size:var(--fs-sm);color:var(--text-2);margin-top:3px">Sign in to your school workspace</div>
+      </div>
+    </div>
+
+    <form style="display:flex;flex-direction:column;gap:16px">
+      <div class="m-field">
+        <label for="em">Email or phone</label>
+        <input class="input" id="em" type="text" inputmode="email" placeholder="name@school.gov.in" value="minati.behera@puri.gov.in">
+      </div>
+      <div class="m-field">
+        <div style="display:flex;align-items:center;justify-content:space-between"><label for="pw">Password</label><a href="#" style="font-size:var(--fs-xs);font-weight:700;color:var(--link);text-decoration:none">Forgot?</a></div>
+        <div style="position:relative">
+          <input class="input" id="pw" type="password" placeholder="••••••••••" style="width:100%;padding-right:46px">
+          <button type="button" aria-label="Show password" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;color:var(--text-3);width:36px;height:36px;cursor:pointer"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+      </div>
+      <button class="m-btn primary" type="submit">Sign in</button>
+    </form>
+
+    <div class="m-divider-label" style="margin:24px 0">OR</div>
+
+    <button class="m-btn secondary" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></svg>
+      Unlock with fingerprint
+    </button>
+    <p class="m-note" style="margin-top:10px">Biometric unlock uses your device's secure enclave.<br>Last signed in as Minati Behera · TGT Mathematics</p>
+
+    <div style="flex:1"></div>
+
+    <div class="m-card pad" style="display:flex;gap:10px;align-items:center;margin-top:22px">
+      <span class="mi-icon" style="width:36px;height:36px;border-radius:12px;background:var(--teal-50);color:var(--teal-600);display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23" opacity="0"/><path d="M5 12.55a10.94 10.94 0 0 1 14 0"/><path d="M1.42 9a15.91 15.91 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><path d="M12 20h.01"/></svg></span>
+      <span style="font-size:var(--fs-xs);color:var(--text-2)">Works offline after first sign-in — attendance and marks sync when you're back online.</span>
+    </div>
+
+  </div>
+</div>
+<script src="mobile.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+name: proctira_api_client
+description: >-
+  Typed Dart HTTP clients for the ProctiraERP backend services.
+  Wraps a shared Dio instance so callers can compose with the mobile app's
+  tenant + auth interceptors. Models mirror the Typebox schemas that the
+  backend exposes via OpenAPI.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  dio: ^5.4.3
+  meta: ^1.15.0
+
+dev_dependencies:
+  test: ^1.25.0
+  flutter_lints: ^6.0.0

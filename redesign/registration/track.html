@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Track Application · Student Registration Portal · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  /* ---- Public shell ---- */
+  .pub-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .pub-header-in { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 24px; }
+  .pub-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .pub-logo .logo-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .pub-logo b { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+  .pub-logo b span { color: var(--brand-600); }
+  .pub-nav { display: flex; gap: 2px; }
+  .pub-nav a { padding: 8px 12px; border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); text-decoration: none; transition: background var(--t-fast), color var(--t-fast); }
+  .pub-nav a:hover { background: var(--bg-subtle); color: var(--text); }
+  .pub-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  .pub-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .pub-burger { display: none; }
+  .pub-mobile-nav { display: none; }
+  @media (max-width: 767px) {
+    .pub-header-in { padding: 0 16px; gap: 12px; }
+    .pub-nav { display: none; }
+    .pub-burger { display: inline-flex; }
+    .pub-mobile-nav.open { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .pub-mobile-nav a { padding: 13px 14px; border-radius: var(--r-md); font-size: var(--fs-md); font-weight: 600; color: var(--text-2); text-decoration: none; }
+    .pub-mobile-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  }
+  .pub-main { flex: 1; }
+  .pub-footer { background: var(--navy-900); color: #AEB9D6; }
+  .pub-footer-bottom { max-width: 1120px; margin: 0 auto; padding: 22px 24px calc(22px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; font-size: var(--fs-xs); color: #8B97B8; }
+  .pub-footer-bottom b { color: #fff; font-size: var(--fs-md); letter-spacing: .02em; }
+  .pub-footer-bottom .helpline { display: inline-flex; align-items: center; gap: 8px; }
+  .pub-footer-bottom .helpline svg { width: 14px; height: 14px; color: var(--brand-300); }
+  .pub-footer-bottom a { color: #8B97B8; text-decoration: none; }
+  .pub-footer-bottom a:hover { color: #fff; }
+  .pub-footer-bottom .fb-links { margin-left: auto; display: flex; gap: 18px; }
+  @media (max-width: 767px) { .pub-footer-bottom .fb-links { margin-left: 0; } }
+
+  /* ---- Track page ---- */
+  .track-wrap { max-width: 680px; margin: 0 auto; padding: 40px 24px 72px; width: 100%; }
+  @media (max-width: 767px) { .track-wrap { padding: 28px 16px 56px; } }
+  .track-head { text-align: center; margin-bottom: 24px; }
+  .track-head h1 { margin: 0 0 6px; font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -.02em; }
+  .track-head p { margin: 0; color: var(--text-2); font-size: var(--fs-md); }
+  .track-form { display: flex; gap: 10px; margin-bottom: 28px; }
+  .track-form .input { font-family: var(--font-mono); letter-spacing: .04em; }
+  @media (max-width: 767px) { .track-form { flex-direction: column; } }
+  .status-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .status-head .ref { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-3); }
+  .sms-note { display: flex; align-items: center; gap: 9px; font-size: var(--fs-xs); color: var(--text-2); padding-top: 14px; margin-top: 16px; border-top: 1px dashed var(--border); }
+  .sms-note svg { width: 15px; height: 15px; color: var(--brand-500); flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header class="pub-header">
+  <div class="pub-header-in">
+    <a class="pub-logo" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="pub-nav" aria-label="Main">
+      <a href="home.html">Home</a>
+      <a href="schools.html">Find Schools</a>
+      <a href="apply-school.html">Register</a>
+      <a href="track.html" class="active" aria-current="page">Track Application</a>
+    </nav>
+    <div class="pub-right">
+      <button class="btn btn-secondary btn-sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English ▾</button>
+      <button class="icon-btn pub-burger" type="button" aria-label="Open menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', document.getElementById('mnav').classList.toggle('open'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+  </div>
+  <nav class="pub-mobile-nav" id="mnav" aria-label="Mobile">
+    <a href="home.html">Home</a>
+    <a href="schools.html">Find Schools</a>
+    <a href="apply-school.html">Register</a>
+    <a href="track.html" class="active" aria-current="page">Track Application</a>
+  </nav>
+</header>
+
+<main class="pub-main">
+  <div class="track-wrap">
+    <div class="track-head">
+      <h1>Track your application</h1>
+      <p>Enter the reference number from your SMS or acknowledgement slip.</p>
+    </div>
+
+    <form class="track-form" role="search">
+      <div class="input-icon" style="flex:1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="input" type="text" value="REG-PUR-26-04318" aria-label="Reference number" placeholder="REG-PUR-26-00000">
+      </div>
+      <button class="btn btn-primary" type="submit">Track</button>
+    </form>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>Application status</h3>
+          <div class="sub ref">REG-PUR-26-04318 · submitted 2 Jun 2026</div>
+        </div>
+        <span class="pill sky" style="margin-left:auto">School review</span>
+      </div>
+      <div class="card-pad">
+        <ul class="timeline">
+          <li>
+            <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Application submitted</div>
+              <div class="tl-meta">2 Jun 2026, 11:42 am · Acknowledgement SMS sent</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Documents verified</div>
+              <div class="tl-meta">4 Jun 2026 · Birth certificate and address proof accepted by the Block Education Office, Puri Sadar</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">School review — in progress</div>
+              <div class="tl-meta">The head teacher is confirming seat allocation for Class 1. Usually completed within 5 working days.</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Decision pending</div>
+              <div class="tl-meta">You will be informed by SMS as soon as the school confirms the admission.</div>
+            </div>
+          </li>
+        </ul>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0">
+
+        <dl class="dl">
+          <dt>Child</dt><dd>Ananya Pradhan · Girl · Class 1</dd>
+          <dt>Guardian</dt><dd>Sasmita Pradhan · +91 94370 21184</dd>
+          <dt>School</dt><dd>Government Upper Primary School, Baliapanda</dd>
+          <dt>UDISE</dt><dd class="mono" style="font-size:var(--fs-xs)">21180100412</dd>
+          <dt>Block</dt><dd>Puri Sadar, Puri district</dd>
+        </dl>
+
+        <div class="sms-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg>
+          You don't need to keep checking — we send a free SMS to +91 94370 21184 every time the status changes.
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="pub-footer">
+  <div class="pub-footer-bottom">
+    <span class="helpline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Helpline <b>155335</b> · toll-free, Mon–Sat 8 am–8 pm</span>
+    <span>© 2026 ProctiraERP · Student Registration Portal</span>
+    <div class="fb-links">
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#terms">Terms of Service</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,326 @@
+# =============================================================================
+# ProctiraERP — Local Development Stack
+# =============================================================================
+# This compose file launches the full local stack used for development and
+# integration testing. Backend domain services (auth, institution, student,
+# staff, etc.) are still authored as Fastify plugins and consumed by the
+# api-gateway in this iteration; per-service launchers will be added as the
+# microservice split lands. Until then, all backend logic runs inside the
+# api-gateway container.
+#
+# Configuration is driven entirely by the `.env` file at the repo root —
+# copy `.env.example` and override values as needed before running:
+#     docker compose up
+# =============================================================================
+
+name: proctira-erp
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-proctira}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proctira_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-proctira}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proctira} -d ${POSTGRES_DB:-proctira}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proctira
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proctira
+
+  kafka:
+    # Confluent Platform Kafka in KRaft mode — no Zookeeper required.
+    image: confluentinc/cp-kafka:7.6.1
+    restart: unless-stopped
+    environment:
+      CLUSTER_ID: proctira-kraft-cluster
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    ports:
+      - "${KAFKA_PORT:-9092}:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - proctira
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-proctira}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-proctira_dev_password}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - proctira
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-proctira}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-proctira_dev_password}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    networks:
+      - proctira
+
+  # ---------------------------------------------------------------------------
+  # Application services
+  # ---------------------------------------------------------------------------
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-proctira-api}
+      JWT_ACCESS_TOKEN_EXPIRES_IN: ${JWT_ACCESS_TOKEN_EXPIRES_IN:-15m}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-60000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      TENANT_BASE_DOMAIN: ${TENANT_BASE_DOMAIN:-proctira.localhost}
+      TENANT_HEADER_NAME: ${TENANT_HEADER_NAME:-x-tenant-id}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    networks:
+      - proctira
+
+  etl-worker:
+    build:
+      context: .
+      dockerfile: apps/etl-worker/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      ETL_WORKER_PORT: 3010
+      ETL_WORKER_HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+    ports:
+      - "${ETL_WORKER_PORT:-3010}:3010"
+    networks:
+      - proctira
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      GATEWAY_URL: ${GATEWAY_URL}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    networks:
+      - proctira
+
+  registration-portal:
+    build:
+      context: .
+      dockerfile: apps/registration-portal/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3002
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      GATEWAY_URL: ${GATEWAY_URL}
+    ports:
+      - "${REGISTRATION_PORTAL_PORT:-3002}:3002"
+    networks:
+      - proctira
+
+  public-website:
+    build:
+      context: .
+      dockerfile: apps/public-website/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3003
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    ports:
+      - "${PUBLIC_WEBSITE_PORT:-3003}:3003"
+    networks:
+      - proctira
+
+  admin-console:
+    build:
+      context: .
+      dockerfile: apps/admin-console/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3004
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      AUTH_SERVICE_URL: ${AUTH_SERVICE_URL}
+      GATEWAY_URL: ${GATEWAY_URL}
+      COOKIE_SECRET: ${COOKIE_SECRET}
+    ports:
+      - "${ADMIN_CONSOLE_PORT:-3004}:3004"
+    networks:
+      - proctira
+
+  developer-portal:
+    build:
+      context: .
+      dockerfile: apps/developer-portal/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3005
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      GATEWAY_URL: ${GATEWAY_URL}
+    ports:
+      - "${DEVELOPER_PORTAL_PORT:-3005}:3005"
+    networks:
+      - proctira
+
+  install-wizard:
+    build:
+      context: .
+      dockerfile: apps/install-wizard/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3100
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GATEWAY_URL: ${GATEWAY_URL}
+    ports:
+      - "${INSTALL_WIZARD_PORT:-3100}:3100"
+    networks:
+      - proctira
+
+volumes:
+  postgres-data:
+  redis-data:
+  kafka-data:
+  rabbitmq-data:
+  minio-data:
+
+networks:
+  proctira:
+    driver: bridge

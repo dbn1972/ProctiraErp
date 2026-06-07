@@ -1,0 +1,301 @@
+# =============================================================================
+# Deploy Pipeline - ProctiraERP Unified Platform
+# =============================================================================
+# Triggered on push to main (production) or develop (staging).
+# Builds container images for affected services and pushes to registry.
+# Deploys to the appropriate environment via Helm.
+# =============================================================================
+
+name: Deploy
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      services:
+        description: 'Comma-separated services to deploy (empty = affected only)'
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY }}
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.33.2'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Determine environment and affected services
+  # ---------------------------------------------------------------------------
+  prepare:
+    name: Prepare Deployment
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.env.outputs.environment }}
+      services: ${{ steps.affected.outputs.services }}
+      image-tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "main" ]; then
+            echo "environment=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate image tag
+        id: meta
+        run: |
+          SHA_SHORT=$(git rev-parse --short HEAD)
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          echo "tag=${SHA_SHORT}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+      - name: Detect affected services
+        id: affected
+        run: |
+          if [ -n "${{ inputs.services }}" ]; then
+            echo "services=${{ inputs.services }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SERVICES=""
+
+          # Check each service directory for changes
+          declare -A SERVICE_MAP=(
+            ["apps/api-gateway"]="api-gateway"
+            ["apps/web"]="web"
+            ["apps/registration-portal"]="registration-portal"
+            ["apps/etl-worker"]="etl-worker"
+            ["packages/backend/institution"]="institution"
+            ["packages/backend/student"]="student"
+            ["packages/backend/staff"]="staff"
+            ["packages/backend/assessment"]="assessment"
+            ["packages/backend/attendance"]="attendance"
+            ["packages/backend/examination"]="examination"
+            ["packages/backend/workflow"]="workflow"
+            ["packages/backend/notification"]="notification"
+            ["packages/backend/report"]="report"
+          )
+
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+
+          # If shared packages changed, rebuild all services
+          if echo "$CHANGED_FILES" | grep -q "^packages/shared/"; then
+            SERVICES="api-gateway,web,registration-portal,etl-worker,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
+            echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for path in "${!SERVICE_MAP[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "^${path}/"; then
+              if [ -n "$SERVICES" ]; then
+                SERVICES="${SERVICES},${SERVICE_MAP[$path]}"
+              else
+                SERVICES="${SERVICE_MAP[$path]}"
+              fi
+            fi
+          done
+
+          echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Convert services string to JSON array for matrix
+  # ---------------------------------------------------------------------------
+  matrix-prep:
+    name: Prepare Matrix
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.services != ''
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Convert services to matrix JSON
+        id: set-matrix
+        run: |
+          SERVICES="${{ needs.prepare.outputs.services }}"
+          # Convert comma-separated to JSON array
+          JSON=$(echo "$SERVICES" | jq -R -c 'split(",")')
+          echo "matrix={\"service\":${JSON}}" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Build and push container images
+  # ---------------------------------------------------------------------------
+  build-images:
+    name: Build Images
+    runs-on: ubuntu-latest
+    needs: [prepare, matrix-prep]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Determine Dockerfile and build args
+        id: docker-config
+        run: |
+          SERVICE="${{ matrix.service }}"
+
+          case "$SERVICE" in
+            api-gateway)
+              echo "dockerfile=infrastructure/docker/Dockerfile.api-gateway" >> "$GITHUB_OUTPUT"
+              echo "build-args=" >> "$GITHUB_OUTPUT"
+              ;;
+            web)
+              echo "dockerfile=infrastructure/docker/Dockerfile.web" >> "$GITHUB_OUTPUT"
+              echo "build-args=" >> "$GITHUB_OUTPUT"
+              ;;
+            registration-portal)
+              echo "dockerfile=infrastructure/docker/Dockerfile.nextjs-app" >> "$GITHUB_OUTPUT"
+              printf 'build-args=APP_NAME=registration-portal\nAPP_PORT=3002\n' >> "$GITHUB_OUTPUT"
+              ;;
+            etl-worker)
+              echo "dockerfile=infrastructure/docker/Dockerfile.etl-worker" >> "$GITHUB_OUTPUT"
+              echo "build-args=" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              # Backend services use the generic Dockerfile
+              echo "dockerfile=infrastructure/docker/Dockerfile.backend-service" >> "$GITHUB_OUTPUT"
+              # Map service name to port
+              declare -A PORT_MAP=(
+                ["institution"]="3020"
+                ["student"]="3021"
+                ["staff"]="3022"
+                ["assessment"]="3023"
+                ["attendance"]="3024"
+                ["examination"]="3025"
+                ["workflow"]="3026"
+                ["notification"]="3027"
+                ["report"]="3028"
+              )
+              PORT="${PORT_MAP[$SERVICE]:-3000}"
+              printf "build-args=SERVICE_NAME=%s\nSERVICE_PORT=%s\n" "$SERVICE" "$PORT" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ steps.docker-config.outputs.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/proctira/${{ matrix.service }}:${{ needs.prepare.outputs.image-tag }}
+            ${{ env.REGISTRY }}/proctira/${{ matrix.service }}:latest
+          build-args: ${{ steps.docker-config.outputs.build-args }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  # ---------------------------------------------------------------------------
+  # Deploy to target environment via Helm
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to ${{ needs.prepare.outputs.environment }}
+    runs-on: ubuntu-latest
+    needs: [prepare, build-images]
+    environment: ${{ needs.prepare.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Set Kubernetes context
+        uses: azure/k8s-set-context@v4
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Deploy services via Helm
+        run: |
+          ENVIRONMENT="${{ needs.prepare.outputs.environment }}"
+          IMAGE_TAG="${{ needs.prepare.outputs.image-tag }}"
+          SERVICES="${{ needs.prepare.outputs.services }}"
+          NAMESPACE="proctira-${ENVIRONMENT}"
+
+          IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICES"
+
+          for SERVICE in "${SERVICE_ARRAY[@]}"; do
+            echo "Deploying ${SERVICE} to ${ENVIRONMENT}..."
+
+            helm upgrade --install "proctira-${SERVICE}" \
+              ./infrastructure/helm/proctira-service \
+              --namespace "${NAMESPACE}" \
+              --create-namespace \
+              --set image.repository="${{ env.REGISTRY }}/proctira/${SERVICE}" \
+              --set image.tag="${IMAGE_TAG}" \
+              --set environment="${ENVIRONMENT}" \
+              --set service.name="${SERVICE}" \
+              --values "./infrastructure/helm/proctira-service/values-${ENVIRONMENT}.yaml" \
+              --wait \
+              --timeout 300s
+          done
+
+      - name: Verify deployment health
+        run: |
+          ENVIRONMENT="${{ needs.prepare.outputs.environment }}"
+          NAMESPACE="proctira-${ENVIRONMENT}"
+          SERVICES="${{ needs.prepare.outputs.services }}"
+
+          IFS=',' read -ra SERVICE_ARRAY <<< "$SERVICES"
+
+          for SERVICE in "${SERVICE_ARRAY[@]}"; do
+            echo "Checking rollout status for ${SERVICE}..."
+            kubectl rollout status deployment/"proctira-${SERVICE}" \
+              --namespace "${NAMESPACE}" \
+              --timeout=120s
+          done
+
+      - name: Post deployment notification
+        if: always()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "Deployment to ${{ needs.prepare.outputs.environment }}: ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*ProctiraERP Deploy*\n• Environment: `${{ needs.prepare.outputs.environment }}`\n• Services: `${{ needs.prepare.outputs.services }}`\n• Tag: `${{ needs.prepare.outputs.image-tag }}`\n• Status: ${{ job.status }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

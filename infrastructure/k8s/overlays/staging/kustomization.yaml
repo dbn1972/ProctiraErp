@@ -1,0 +1,40 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: proctira-staging
+
+resources:
+  - ../../base
+
+namePrefix: staging-
+
+patches:
+  # Moderate replicas for staging
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  - target:
+      kind: Deployment
+      name: web
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 2
+  # Staging ConfigMap overrides
+  - target:
+      kind: ConfigMap
+      name: proctira-config
+    patch: |
+      - op: replace
+        path: /data/NODE_ENV
+        value: staging
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: info
+      - op: replace
+        path: /data/TENANT_BASE_DOMAIN
+        value: staging.proctira.io

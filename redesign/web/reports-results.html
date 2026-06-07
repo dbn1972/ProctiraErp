@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Block-wise Enrollment &amp; Attendance · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .table tfoot td {
+    font-weight: 700; background: var(--surface-2); border-top: 2px solid var(--border-strong);
+    border-bottom: none; padding: 12px 16px;
+  }
+  .table tfoot td:first-child { padding-left: 20px; }
+  @media (max-width: 767px) {
+    .table tfoot, .table tfoot tr, .table tfoot td { display: block; width: 100%; }
+    .table tfoot tr { padding: 14px 16px; }
+    .table tfoot td { padding: 3px 0; background: transparent; border-top: none; }
+    .table tfoot td[data-label]::before {
+      content: attr(data-label); display: block; font-size: var(--fs-2xs); font-weight: 700;
+      letter-spacing: .06em; text-transform: uppercase; color: var(--text-3);
+    }
+  }
+</style>
+</head>
+<body data-active="reports">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="reports-list.html">Reports</a><span class="sep">/</span>
+        <span class="current">Block-wise Enrollment &amp; Attendance</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <div class="flex aic g8 wrap">
+            <h1 class="page-title">Block-wise Enrollment &amp; Attendance</h1>
+            <span class="pill green">Ready</span>
+          </div>
+          <p class="page-sub">Generated 7 Jun 2026, 14:32 · by D. Nayak · Puri district, all 11 blocks · period 01 Apr – 07 Jun 2026</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>Re-run</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download PDF</button>
+        </div>
+      </div>
+
+      <!-- KPI summary -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+            <span class="k-label">Total enrollment</span>
+          </div>
+          <div class="k-value">24,812</div>
+          <div class="k-foot"><span class="delta up">↑ 1.8%</span> vs AY 2025–26</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <span class="k-label">Avg attendance</span>
+          </div>
+          <div class="k-value">94.3%</div>
+          <div class="k-foot"><span class="delta up">↑ 0.6%</span> vs previous term</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+            <span class="k-label">Schools reporting</span>
+          </div>
+          <div class="k-value">142</div>
+          <div class="k-foot"><span class="delta flat">— 100%</span> coverage, 11 blocks</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <span class="k-label">Blocks below 93%</span>
+          </div>
+          <div class="k-value">2</div>
+          <div class="k-foot">Brahmagiri 91.6% · Krushnaprasad 92.3%</div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <section class="card mb-20">
+        <div class="card-head">
+          <div><h3>Attendance by block</h3><div class="sub">Average daily attendance, 01 Apr – 07 Jun 2026 · district mean 94.3%</div></div>
+        </div>
+        <div class="card-pad">
+          <svg viewBox="0 0 640 210" width="100%" role="img" aria-label="Bar chart of attendance percentage by block">
+            <g stroke="var(--border)" stroke-width="1">
+              <line x1="46" y1="20" x2="632" y2="20"/><line x1="46" y1="55" x2="632" y2="55"/>
+              <line x1="46" y1="90" x2="632" y2="90"/><line x1="46" y1="125" x2="632" y2="125"/><line x1="46" y1="160" x2="632" y2="160"/>
+            </g>
+            <line x1="46" y1="49.5" x2="632" y2="49.5" stroke="var(--green-500)" stroke-width="1.5" stroke-dasharray="5 4"/>
+            <g fill="var(--text-3)" font-size="10" font-family="Inter,sans-serif">
+              <text x="14" y="24">96%</text><text x="14" y="59">94%</text><text x="14" y="94">92%</text><text x="14" y="129">90%</text><text x="14" y="164">88%</text>
+            </g>
+            <g>
+              <rect x="50" y="34" width="34" height="126" rx="5" fill="var(--brand-400)"/>
+              <rect x="103" y="43" width="34" height="117" rx="5" fill="var(--brand-400)"/>
+              <rect x="156" y="29" width="34" height="131" rx="5" fill="var(--brand-400)"/>
+              <rect x="209" y="59" width="34" height="101" rx="5" fill="var(--brand-400)"/>
+              <rect x="262" y="39" width="34" height="121" rx="5" fill="var(--brand-400)"/>
+              <rect x="315" y="97" width="34" height="63" rx="5" fill="var(--red-500)"/>
+              <rect x="368" y="53" width="34" height="107" rx="5" fill="var(--brand-400)"/>
+              <rect x="421" y="85" width="34" height="75" rx="5" fill="var(--amber-500)"/>
+              <rect x="474" y="38" width="34" height="122" rx="5" fill="var(--brand-400)"/>
+              <rect x="527" y="48" width="34" height="112" rx="5" fill="var(--brand-400)"/>
+              <rect x="580" y="69" width="34" height="91" rx="5" fill="var(--brand-400)"/>
+            </g>
+            <g fill="var(--text-2)" font-size="9.5" font-weight="600" font-family="Inter,sans-serif" text-anchor="middle">
+              <text x="67" y="28">95.2</text><text x="120" y="37">94.7</text><text x="173" y="23">95.5</text><text x="226" y="53">93.8</text>
+              <text x="279" y="33">94.9</text><text x="332" y="91">91.6</text><text x="385" y="47">94.1</text><text x="438" y="79">92.3</text>
+              <text x="491" y="32">95.0</text><text x="544" y="42">94.4</text><text x="597" y="63">93.2</text>
+            </g>
+            <g fill="var(--text-3)" font-size="9" font-family="Inter,sans-serif" text-anchor="middle">
+              <text x="67" y="176">Puri Sdr</text><text x="120" y="176">Nimapara</text><text x="173" y="176">Pipili</text><text x="226" y="176">Gop</text>
+              <text x="279" y="176">Satyabadi</text><text x="332" y="176">Brahmagiri</text><text x="385" y="176">Kakatpur</text><text x="438" y="176">K.prasad</text>
+              <text x="491" y="176">Delanga</text><text x="544" y="176">Kanas</text><text x="597" y="176">Astaranga</text>
+            </g>
+            <g font-size="9.5" font-family="Inter,sans-serif">
+              <text x="50" y="200" fill="var(--green-600)">— — district mean 94.3%</text>
+              <text x="500" y="200" fill="var(--text-3)">■ below 93% flagged</text>
+            </g>
+          </svg>
+        </div>
+      </section>
+
+      <!-- Results table -->
+      <section class="card">
+        <div class="card-head">
+          <div><h3>Results</h3><div class="sub">11 blocks · grouped by block, gender split shown · figures as on 7 Jun 2026</div></div>
+          <div class="spacer"><span class="tag">Run RPT-2026-1148</span></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Block</th>
+                <th class="num">Schools</th>
+                <th class="num">Enrollment</th>
+                <th class="num">Boys</th>
+                <th class="num">Girls</th>
+                <th>Avg attendance</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Puri Sadar</div></td>
+                <td data-label="Schools" class="num">18</td>
+                <td data-label="Enrollment" class="num">3,412</td>
+                <td data-label="Boys" class="num">1,742</td>
+                <td data-label="Girls" class="num">1,670</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:95.2%"></span></div></div><span class="fs-xs fw-7">95.2%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Nimapara</div></td>
+                <td data-label="Schools" class="num">15</td>
+                <td data-label="Enrollment" class="num">2,866</td>
+                <td data-label="Boys" class="num">1,471</td>
+                <td data-label="Girls" class="num">1,395</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:94.7%"></span></div></div><span class="fs-xs fw-7">94.7%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Pipili</div></td>
+                <td data-label="Schools" class="num">14</td>
+                <td data-label="Enrollment" class="num">2,604</td>
+                <td data-label="Boys" class="num">1,329</td>
+                <td data-label="Girls" class="num">1,275</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:95.5%"></span></div></div><span class="fs-xs fw-7">95.5%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Gop</div></td>
+                <td data-label="Schools" class="num">15</td>
+                <td data-label="Enrollment" class="num">2,738</td>
+                <td data-label="Boys" class="num">1,402</td>
+                <td data-label="Girls" class="num">1,336</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:93.8%"></span></div></div><span class="fs-xs fw-7">93.8%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Satyabadi</div></td>
+                <td data-label="Schools" class="num">12</td>
+                <td data-label="Enrollment" class="num">2,214</td>
+                <td data-label="Boys" class="num">1,128</td>
+                <td data-label="Girls" class="num">1,086</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:94.9%"></span></div></div><span class="fs-xs fw-7">94.9%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Brahmagiri</div></td>
+                <td data-label="Schools" class="num">12</td>
+                <td data-label="Enrollment" class="num">2,106</td>
+                <td data-label="Boys" class="num">1,078</td>
+                <td data-label="Girls" class="num">1,028</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress red"><span style="width:91.6%"></span></div></div><span class="fs-xs fw-7" style="color:var(--red-600)">91.6%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Kakatpur</div></td>
+                <td data-label="Schools" class="num">11</td>
+                <td data-label="Enrollment" class="num">1,984</td>
+                <td data-label="Boys" class="num">1,012</td>
+                <td data-label="Girls" class="num">972</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:94.1%"></span></div></div><span class="fs-xs fw-7">94.1%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Krushnaprasad</div></td>
+                <td data-label="Schools" class="num">13</td>
+                <td data-label="Enrollment" class="num">2,312</td>
+                <td data-label="Boys" class="num">1,184</td>
+                <td data-label="Girls" class="num">1,128</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress amber"><span style="width:92.3%"></span></div></div><span class="fs-xs fw-7" style="color:var(--amber-600)">92.3%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Delanga</div></td>
+                <td data-label="Schools" class="num">11</td>
+                <td data-label="Enrollment" class="num">1,742</td>
+                <td data-label="Boys" class="num">888</td>
+                <td data-label="Girls" class="num">854</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:95%"></span></div></div><span class="fs-xs fw-7">95.0%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Kanas</div></td>
+                <td data-label="Schools" class="num">11</td>
+                <td data-label="Enrollment" class="num">1,648</td>
+                <td data-label="Boys" class="num">842</td>
+                <td data-label="Girls" class="num">806</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:94.4%"></span></div></div><span class="fs-xs fw-7">94.4%</span></td>
+              </tr>
+              <tr>
+                <td data-label="Block"><div class="cell-main">Astaranga</div></td>
+                <td data-label="Schools" class="num">10</td>
+                <td data-label="Enrollment" class="num">1,186</td>
+                <td data-label="Boys" class="num">607</td>
+                <td data-label="Girls" class="num">579</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:140px"><div class="progress green"><span style="width:93.2%"></span></div></div><span class="fs-xs fw-7">93.2%</span></td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr>
+                <td data-label="Block">District total</td>
+                <td data-label="Schools" class="num">142</td>
+                <td data-label="Enrollment" class="num">24,812</td>
+                <td data-label="Boys" class="num">12,683</td>
+                <td data-label="Girls" class="num">12,129</td>
+                <td data-label="Attendance">94.3% weighted avg</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div class="card-foot" style="justify-content:flex-end;flex-wrap:wrap">
+          <span class="fs-xs muted-3" style="margin-right:auto">Source: ProctiraERP data warehouse · synced 7 Jun 2026 06:00 · run RPT-2026-1148 completed in 47 s</span>
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download Excel</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download PDF</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

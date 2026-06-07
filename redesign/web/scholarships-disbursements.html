@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Disbursements · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="scholarships">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="scholarships-list.html">Scholarships</a><span class="sep">/</span>
+        <span class="current">Disbursements</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Disbursements</h1>
+          <p class="page-sub">DBT payment batches to student bank accounts. Each batch is reconciled against PFMS within 48 hours of processing.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Reconciliation report</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New batch</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="k-label">Disbursed this quarter</span></div>
+          <div class="k-value">₹74,28,500</div>
+          <div class="k-foot"><span class="delta up">↑ 22%</span> vs Q4 FY 2025–26</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><span class="k-label">Transfer success rate</span></div>
+          <div class="k-value">98.6%</div>
+          <div class="k-foot"><span class="delta up">↑ 0.8%</span> after Aadhaar re-seeding drive</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span><span class="k-label">Failed transfers</span></div>
+          <div class="k-value">23</div>
+          <div class="k-foot">₹1,12,500 pending retry</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="k-label">Processing now</span></div>
+          <div class="k-value">1 batch</div>
+          <div class="k-foot">218 beneficiaries · ETA today 17:00</div>
+        </div>
+      </div>
+
+      <div class="alert error mb-16" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="a-body" style="flex:1"><b>23 failed transfers in batch DBT-2026-0142</b>Most common cause: account not Aadhaar-seeded (17) or dormant account (6). Affected schools have been asked to update bank details by 12 Jun.</div>
+        <button class="btn btn-danger btn-sm" type="button" style="align-self:center;flex-shrink:0">Retry failed transfers</button>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search by batch ID" aria-label="Search batches">
+        </div>
+        <select class="select" aria-label="Program"><option>All programs</option><option>Pre-Matric SC/ST</option><option>NMMS</option><option>PM-YASASVI</option><option>Banishree (CwSN)</option><option>Medhabruti</option></select>
+        <select class="select" aria-label="Status"><option>All statuses</option><option>Processing</option><option>Completed</option><option>Failed</option></select>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Payment batches</h3><div class="sub">FY 2026–27 · all transfers via DBT / PFMS</div></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Batch ID</th><th>Program</th><th class="num">Beneficiaries</th><th class="num">Amount</th><th>Mode</th><th>Status</th><th>Date</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label="Batch ID" class="mono">DBT-2026-0145</td>
+                <td data-label="Program"><div class="cell-main">Pre-Matric SC/ST</div><div class="cell-sub">PM-SC-2026</div></td>
+                <td data-label="Beneficiaries" class="num">218</td>
+                <td data-label="Amount" class="num fw-7">₹9,81,000</td>
+                <td data-label="Mode"><span class="tag">DBT</span></td>
+                <td data-label="Status"><span class="pill sky">Processing</span></td>
+                <td data-label="Date">07 Jun 2026</td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Download statement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Batch ID" class="mono">DBT-2026-0142</td>
+                <td data-label="Program"><div class="cell-main">Pre-Matric SC/ST</div><div class="cell-sub">PM-SC-2026</div></td>
+                <td data-label="Beneficiaries" class="num">225</td>
+                <td data-label="Amount" class="num fw-7">₹10,12,500</td>
+                <td data-label="Mode"><span class="tag">DBT</span></td>
+                <td data-label="Status"><span class="pill red">23 failed</span></td>
+                <td data-label="Date">03 Jun 2026</td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Retry failed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Batch ID" class="mono">DBT-2026-0138</td>
+                <td data-label="Program"><div class="cell-main">NMMS</div><div class="cell-sub">NMMS-2026</div></td>
+                <td data-label="Beneficiaries" class="num">96</td>
+                <td data-label="Amount" class="num fw-7">₹11,52,000</td>
+                <td data-label="Mode"><span class="tag">DBT</span></td>
+                <td data-label="Status"><span class="pill green">Completed</span></td>
+                <td data-label="Date">28 May 2026</td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Download statement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Batch ID" class="mono">DBT-2026-0131</td>
+                <td data-label="Program"><div class="cell-main">Banishree (CwSN)</div><div class="cell-sub">BAN-2026</div></td>
+                <td data-label="Beneficiaries" class="num">58</td>
+                <td data-label="Amount" class="num fw-7">₹3,48,000</td>
+                <td data-label="Mode"><span class="tag">DBT</span></td>
+                <td data-label="Status"><span class="pill green">Completed</span></td>
+                <td data-label="Date">21 May 2026</td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Download statement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Batch ID" class="mono">DBT-2026-0127</td>
+                <td data-label="Program"><div class="cell-main">PM-YASASVI</div><div class="cell-sub">YAS-2026</div></td>
+                <td data-label="Beneficiaries" class="num">34</td>
+                <td data-label="Amount" class="num fw-7">₹25,50,000</td>
+                <td data-label="Mode"><span class="tag">DBT</span></td>
+                <td data-label="Status"><span class="pill green">Completed</span></td>
+                <td data-label="Date">14 May 2026</td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Download statement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Batch ID" class="mono">DBT-2026-0119</td>
+                <td data-label="Program"><div class="cell-main">Medhabruti (Junior Merit)</div><div class="cell-sub">MED-2025</div></td>
+                <td data-label="Beneficiaries" class="num">388</td>
+                <td data-label="Amount" class="num fw-7">₹11,64,000</td>
+                <td data-label="Mode"><span class="tag">DBT</span></td>
+                <td data-label="Status"><span class="pill green">Completed</span></td>
+                <td data-label="Date">30 Apr 2026</td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Download statement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Batch ID" class="mono">DBT-2026-0112</td>
+                <td data-label="Program"><div class="cell-main">Pathani Samanta Talent</div><div class="cell-sub">PSM-2025</div></td>
+                <td data-label="Beneficiaries" class="num">42</td>
+                <td data-label="Amount" class="num fw-7">₹2,10,000</td>
+                <td data-label="Mode"><span class="tag">DBT</span></td>
+                <td data-label="Status"><span class="pill green">Completed</span></td>
+                <td data-label="Date">18 Apr 2026</td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View batch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Download statement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–7</b> of <b>46</b> batches</span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <span class="page-btn" style="cursor:default">…</span>
+              <button class="page-btn">7</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

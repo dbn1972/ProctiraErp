@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: proctira-dev
+
+resources:
+  - ../../base
+
+namePrefix: dev-
+
+patches:
+  # Reduce replicas for development
+  - target:
+      kind: Deployment
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  # Disable HPA in development
+  - target:
+      kind: HorizontalPodAutoscaler
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+  # Lower resource limits for development
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: 100m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 128Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: 500m
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 256Mi
+  # Development ConfigMap overrides
+  - target:
+      kind: ConfigMap
+      name: proctira-config
+    patch: |
+      - op: replace
+        path: /data/NODE_ENV
+        value: development
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: debug
+      - op: replace
+        path: /data/TENANT_BASE_DOMAIN
+        value: proctira.localhost

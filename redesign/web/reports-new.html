@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New report · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .choice-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .choice-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 13px;
+    border-radius: var(--r-full); border: 1px solid var(--border-strong);
+    background: var(--surface); color: var(--text-2); font: inherit; font-size: var(--fs-xs);
+    font-weight: 600; cursor: pointer; transition: all var(--t-fast);
+  }
+  .choice-chip svg { width: 12px; height: 12px; }
+  .choice-chip:hover { border-color: var(--brand-400); }
+  .choice-chip.on { background: var(--brand-50); border-color: var(--brand-400); color: var(--brand-700); }
+  .segmented {
+    display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--r-md);
+    background: var(--bg-subtle); border: 1px solid var(--border);
+  }
+  .segmented .seg {
+    padding: 6px 18px; border: none; border-radius: 8px; background: transparent;
+    font: inherit; font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); cursor: pointer;
+    transition: all var(--t-fast);
+  }
+  .segmented .seg.on { background: var(--surface); color: var(--text); box-shadow: var(--sh-xs); }
+  .preview-box {
+    border: 2px dashed var(--border-strong); border-radius: var(--r-md);
+    padding: 18px 16px; text-align: center; color: var(--text-3); font-size: var(--fs-xs);
+    background: var(--surface-2); margin-bottom: 14px;
+  }
+  .preview-box svg { width: 26px; height: 26px; margin-bottom: 6px; color: var(--brand-400); }
+</style>
+</head>
+<body data-active="reports">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="reports-list.html">Reports</a><span class="sep">/</span>
+        <span class="current">New report</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">New report</h1>
+          <p class="page-sub">Pick the data, set the scope and grouping, choose a format — the run usually finishes in under a minute</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="reports-list.html">Cancel</a>
+        </div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <form class="card">
+            <div class="card-head"><div><h3>Report builder</h3><div class="sub">All fields apply instantly to the preview on the right</div></div></div>
+            <div class="card-pad">
+              <div class="form-grid">
+
+                <div class="form-section-title">What to report</div>
+                <div class="field span-2">
+                  <label for="rep-type">Report type <span class="req">*</span></label>
+                  <select class="select" id="rep-type">
+                    <option selected>Block-wise Enrollment &amp; Attendance</option>
+                    <option>Daily Attendance Summary</option>
+                    <option>Chronic Absenteeism Register</option>
+                    <option>Transfer &amp; Dropout Report</option>
+                    <option>Scholarship Disbursement Ledger</option>
+                    <option>Board Exam Results Analysis</option>
+                  </select>
+                </div>
+
+                <div class="form-section-title">Scope</div>
+                <div class="field">
+                  <label>District <span class="req">*</span></label>
+                  <button class="entity-picker" type="button">
+                    <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></span>
+                    <span class="ep-text"><span class="ep-value">Puri</span><span class="ep-meta">District · Odisha · 11 blocks</span></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+                <div class="field">
+                  <label>Blocks</label>
+                  <button class="entity-picker" type="button">
+                    <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span>
+                    <span class="ep-text"><span class="ep-value">All 11 blocks</span><span class="ep-meta">Puri Sadar, Gop, Brahmagiri, Krushnaprasad +7</span></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+                <div class="field span-2">
+                  <label>Schools</label>
+                  <button class="entity-picker" type="button">
+                    <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+                    <span class="ep-text"><span class="ep-value">All 142 schools in scope</span><span class="ep-meta">Filtered by selected blocks · tap to pick individual schools</span></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+
+                <div class="form-section-title">Period &amp; grouping</div>
+                <div class="field">
+                  <label for="rep-from">From <span class="req">*</span></label>
+                  <input class="input" id="rep-from" type="date" value="2026-04-01">
+                </div>
+                <div class="field">
+                  <label for="rep-to">To <span class="req">*</span></label>
+                  <input class="input" id="rep-to" type="date" value="2026-06-07">
+                </div>
+                <div class="field span-2">
+                  <label>Group results by</label>
+                  <div class="choice-chips" role="group" aria-label="Group by">
+                    <button class="choice-chip on" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Block</button>
+                    <button class="choice-chip" type="button">School</button>
+                    <button class="choice-chip on" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Grade</button>
+                    <button class="choice-chip" type="button">Gender</button>
+                    <button class="choice-chip" type="button">Month</button>
+                  </div>
+                  <span class="hint">Pick up to three — the first becomes the row grouping, the rest become columns.</span>
+                </div>
+
+                <div class="form-section-title">Output</div>
+                <div class="field">
+                  <label>Format</label>
+                  <div class="segmented" role="radiogroup" aria-label="Output format">
+                    <button class="seg on" type="button" role="radio" aria-checked="true">PDF</button>
+                    <button class="seg" type="button" role="radio" aria-checked="false">Excel</button>
+                    <button class="seg" type="button" role="radio" aria-checked="false">CSV</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Schedule</label>
+                  <label class="checkbox-row" style="gap:10px;margin-top:6px">
+                    <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Email me monthly"></button>
+                    Email me this report monthly (1st, 07:00)
+                  </label>
+                  <span class="hint">Sent to dnayak@digitalindia.gov.in</span>
+                </div>
+
+              </div>
+            </div>
+            <div class="card-foot" style="justify-content:flex-end">
+              <button class="btn btn-secondary" type="button">Save as template</button>
+              <a class="btn btn-primary btn-lg" href="reports-results.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Generate report</a>
+            </div>
+          </form>
+
+        </div>
+
+        <div class="layout-side">
+          <div class="card card-pad">
+            <h3 style="margin:0 0 12px;font-size:var(--fs-lg)">Preview</h3>
+            <div class="preview-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
+              <div><b>Block-wise Enrollment &amp; Attendance</b></div>
+              <div>Layout preview renders after the first generate</div>
+            </div>
+            <dl class="dl" style="grid-template-columns:130px 1fr">
+              <dt>Scope</dt><dd>Puri · 11 blocks · 142 schools</dd>
+              <dt>Period</dt><dd>01 Apr – 07 Jun 2026</dd>
+              <dt>Grouping</dt><dd>Block, then grade</dd>
+              <dt>Est. rows</dt><dd>~132 (11 blocks × 12 grades)</dd>
+              <dt>Est. run time</dt><dd>40–60 seconds</dd>
+              <dt>Format</dt><dd>PDF · A4 landscape</dd>
+            </dl>
+          </div>
+
+          <div class="alert info">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <div class="a-body"><b>Data freshness</b>Attendance figures include marks synced up to today 06:00 from the data warehouse.</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Edit scheme · CBSE Continuous Assessment VIII · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .weight-row { display: grid; grid-template-columns: 1fr 110px 110px 40px; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+  .weight-row:last-of-type { border-bottom: none; }
+  .weight-head { display: grid; grid-template-columns: 1fr 110px 110px 40px; gap: 12px; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+  .total-bar { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: var(--r-md); background: var(--bg-subtle); margin-top: 16px; }
+  .total-bar .progress { flex: 1; height: 8px; }
+  .total-bar .tb-value { font-weight: 800; font-variant-numeric: tabular-nums; font-size: var(--fs-lg); }
+  @media (max-width: 767px) {
+    .weight-head { display: none; }
+    .weight-row { grid-template-columns: 1fr 1fr; }
+    .weight-row .wr-name { grid-column: span 2; }
+  }
+</style>
+</head>
+<body data-active="assessments">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="assessments-list.html">Assessments</a><span class="sep">/</span>
+        <a href="assessments-items.html">CBSE Continuous Assessment VIII</a><span class="sep">/</span>
+        <span class="current">Edit</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Edit scheme: CBSE Continuous Assessment VIII</h1>
+          <p class="page-sub">Grade VIII · AY 2026–27 Term 1 · last edited 28 May 2026 by S. Mohapatra (DEO Office, Puri)</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="assessments-items.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to items</a>
+        </div>
+      </div>
+
+      <div class="alert warn mb-20" style="max-width:880px" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="a-body"><b>This scheme is live for Term 1</b>Weightage and scale changes saved now will apply from <strong>Term 2 (1 Oct 2026)</strong>. Results already recorded against Term 1 items are not recalculated.</div>
+      </div>
+
+      <div class="card" style="max-width:880px">
+        <div class="card-head">
+          <div>
+            <h3>Scheme details</h3>
+            <div class="sub">Applies to all 3 sections of Grade VIII · 114 students</div>
+          </div>
+          <div class="spacer"><span class="pill green">Active</span></div>
+        </div>
+        <div class="card-pad">
+          <div class="form-grid">
+            <div class="field span-2">
+              <label for="scheme-name">Scheme name <span class="req">*</span></label>
+              <input class="input" id="scheme-name" type="text" value="CBSE Continuous Assessment VIII">
+              <span class="hint">Shown on report cards and result sheets</span>
+            </div>
+            <div class="field">
+              <label>Grade <span class="req">*</span></label>
+              <button class="entity-picker" type="button">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+                <span class="ep-text"><span class="ep-value">Grade VIII</span><span class="ep-meta">3 sections · 114 students enrolled</span></span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="field">
+              <label>Academic term <span class="req">*</span></label>
+              <button class="entity-picker" type="button">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+                <span class="ep-text"><span class="ep-value">AY 2026–27 · Term 1</span><span class="ep-meta">1 Apr – 30 Sep 2026 · active</span></span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="field">
+              <label for="grading-scale">Grading scale <span class="req">*</span></label>
+              <select class="select" id="grading-scale">
+                <option selected>CBSE 8-point (A1–E)</option>
+                <option>Odisha BSE letter grades (O–D)</option>
+                <option>Percentage only (0–100)</option>
+                <option>Competency rubric (L1–L4)</option>
+              </select>
+              <span class="hint">Marks validated against the scale range 0–100</span>
+            </div>
+            <div class="field">
+              <label for="subjects-count">Subjects covered</label>
+              <select class="select" id="subjects-count">
+                <option selected>All 6 core subjects</option>
+                <option>Core 5 (excl. third language)</option>
+                <option>Custom selection…</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-section-title" style="display:block;margin-top:24px">Components &amp; weightages</div>
+          <p class="fs-xs muted-3" style="margin:6px 0 14px">Each component becomes an assessment item per subject. The total weight must equal 100% before changes can be saved.</p>
+
+          <div class="weight-head"><span>Component</span><span>Max marks</span><span>Weight %</span><span></span></div>
+          <div id="weight-rows">
+            <div class="weight-row">
+              <input class="input wr-name" type="text" value="Unit Test 1" aria-label="Component name">
+              <input class="input" type="number" value="20" min="1" max="200" aria-label="Max marks">
+              <input class="input wr-weight" type="number" value="10" min="0" max="100" aria-label="Weight percent">
+              <button class="icon-btn" type="button" aria-label="Remove row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="weight-row">
+              <input class="input wr-name" type="text" value="Unit Test 2" aria-label="Component name">
+              <input class="input" type="number" value="20" min="1" max="200" aria-label="Max marks">
+              <input class="input wr-weight" type="number" value="10" min="0" max="100" aria-label="Weight percent">
+              <button class="icon-btn" type="button" aria-label="Remove row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="weight-row">
+              <input class="input wr-name" type="text" value="Project Work" aria-label="Component name">
+              <input class="input" type="number" value="50" min="1" max="200" aria-label="Max marks">
+              <input class="input wr-weight" type="number" value="10" min="0" max="100" aria-label="Weight percent">
+              <button class="icon-btn" type="button" aria-label="Remove row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="weight-row">
+              <input class="input wr-name" type="text" value="Class Participation & Notebook" aria-label="Component name">
+              <input class="input" type="number" value="10" min="1" max="200" aria-label="Max marks">
+              <input class="input wr-weight" type="number" value="10" min="0" max="100" aria-label="Weight percent">
+              <button class="icon-btn" type="button" aria-label="Remove row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="weight-row">
+              <input class="input wr-name" type="text" value="Half-Yearly Examination" aria-label="Component name">
+              <input class="input" type="number" value="100" min="1" max="200" aria-label="Max marks">
+              <input class="input wr-weight" type="number" value="30" min="0" max="100" aria-label="Weight percent">
+              <button class="icon-btn" type="button" aria-label="Remove row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="weight-row">
+              <input class="input wr-name" type="text" value="Annual Examination" aria-label="Component name">
+              <input class="input" type="number" value="100" min="1" max="200" aria-label="Max marks">
+              <input class="input wr-weight" type="number" value="25" min="0" max="100" aria-label="Weight percent">
+              <button class="icon-btn" type="button" aria-label="Remove row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+            <div class="weight-row">
+              <input class="input wr-name" type="text" value="Practical / Activity Assessment" aria-label="Component name">
+              <input class="input" type="number" value="30" min="1" max="200" aria-label="Max marks">
+              <input class="input wr-weight" type="number" value="5" min="0" max="100" aria-label="Weight percent">
+              <button class="icon-btn" type="button" aria-label="Remove row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+            </div>
+          </div>
+
+          <button class="btn btn-secondary btn-sm mt-16" type="button" id="add-row"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add component</button>
+
+          <div class="total-bar" aria-live="polite">
+            <span class="fs-sm fw-6 muted">Total weight</span>
+            <div class="progress" id="total-progress"><span id="total-fill" style="width:100%"></span></div>
+            <span class="tb-value" id="total-value">100%</span>
+            <span class="pill green" id="total-pill">Balanced</span>
+          </div>
+        </div>
+        <div class="card-foot" style="justify-content:flex-end;gap:8px">
+          <span class="fs-xs muted-3" style="margin-right:auto">Changes take effect from Term 2 · audit trail recorded</span>
+          <a class="btn btn-secondary" href="assessments-items.html">Cancel</a>
+          <button class="btn btn-primary" type="button" id="save-btn">Save changes</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+<script>
+  (function () {
+    const rows = document.getElementById('weight-rows');
+    const fill = document.getElementById('total-fill');
+    const value = document.getElementById('total-value');
+    const pill = document.getElementById('total-pill');
+    const progress = document.getElementById('total-progress');
+    const save = document.getElementById('save-btn');
+    function recalc() {
+      let total = 0;
+      rows.querySelectorAll('.wr-weight').forEach(i => total += Number(i.value) || 0);
+      fill.style.width = Math.min(total, 100) + '%';
+      value.textContent = total + '%';
+      progress.className = 'progress ' + (total === 100 ? 'green' : total > 100 ? 'red' : 'amber');
+      pill.className = 'pill ' + (total === 100 ? 'green' : total > 100 ? 'red' : 'amber');
+      pill.textContent = total === 100 ? 'Balanced' : total > 100 ? (total - 100) + '% over' : (100 - total) + '% remaining';
+      save.disabled = total !== 100;
+    }
+    rows.addEventListener('input', recalc);
+    rows.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[aria-label="Remove row"]');
+      if (btn) { btn.closest('.weight-row').remove(); recalc(); }
+    });
+    document.getElementById('add-row').addEventListener('click', () => {
+      const row = rows.querySelector('.weight-row').cloneNode(true);
+      row.querySelector('.wr-name').value = '';
+      row.querySelectorAll('input[type=number]')[0].value = 20;
+      row.querySelector('.wr-weight').value = 0;
+      rows.appendChild(row);
+      recalc();
+    });
+    recalc();
+  })();
+</script>
+</body>
+</html>

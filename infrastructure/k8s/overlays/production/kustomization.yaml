@@ -1,0 +1,110 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: proctira
+
+resources:
+  - ../../base
+  - network-policy.yaml
+  - pod-disruption-budget.yaml
+
+patches:
+  # Production replicas — frontend
+  - target:
+      kind: Deployment
+      name: api-gateway
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: Deployment
+      name: web
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  # Production replicas — backend services
+  - target:
+      kind: Deployment
+      name: institution-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: Deployment
+      name: student-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: Deployment
+      name: staff-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: Deployment
+      name: attendance-service
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  # Production HPA settings
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: api-gateway
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: institution-service
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 12
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: student-service
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 12
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: attendance-service
+    patch: |
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 12
+  # Production ConfigMap overrides
+  - target:
+      kind: ConfigMap
+      name: proctira-config
+    patch: |
+      - op: replace
+        path: /data/NODE_ENV
+        value: production
+      - op: replace
+        path: /data/LOG_LEVEL
+        value: warn
+      - op: replace
+        path: /data/TENANT_BASE_DOMAIN
+        value: proctira.io

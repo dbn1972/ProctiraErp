@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notifications · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  .m-item.unread { background: var(--brand-50); }
+  .m-item.unread:active { background: var(--brand-100); }
+  .un-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-500); flex-shrink: 0; }
+  .mark-read { border: none; background: none; cursor: pointer; font-family: var(--font-sans); font-size: var(--fs-xs); font-weight: 700; color: var(--brand-600); padding: 10px 4px; flex-shrink: 0; }
+</style>
+</head>
+<body data-tab="home">
+<div class="phone">
+  <header class="appbar">
+    <a class="ab-back" href="home.html" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></a>
+    <div class="ab-title">
+      <h1>Notifications</h1>
+      <div class="ab-sub">3 unread</div>
+    </div>
+    <button class="mark-read">Mark all read</button>
+  </header>
+  <div class="screen">
+
+    <h2 class="sec">Today</h2>
+    <div class="m-list">
+      <button class="m-item unread">
+        <span class="mi-icon" style="background:var(--brand-100);color:var(--brand-700)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Leave request approved</span><span class="mi-sub">CL on 12 Jun approved by headmaster · 09:24</span></span>
+        <span class="mi-end"><span class="un-dot"></span></span>
+      </button>
+      <button class="m-item unread">
+        <span class="mi-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Attendance reminder · Grade IX B</span><span class="mi-sub">Class starts 09:05 — mark within first 15 min · 08:50</span></span>
+        <span class="mi-end"><span class="un-dot"></span></span>
+      </button>
+      <button class="m-item unread">
+        <span class="mi-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span>
+        <span class="mi-body"><span class="mi-title">2 items waiting to sync</span><span class="mi-sub">TC.pdf and one attendance record · 08:12</span></span>
+        <span class="mi-end"><span class="un-dot"></span></span>
+      </button>
+    </div>
+
+    <h2 class="sec">Yesterday</h2>
+    <div class="m-list">
+      <button class="m-item">
+        <span class="mi-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Half-Yearly timetable published</span><span class="mi-sub">Mathematics paper on Tue 9 Jun, 09:00 · 16:40</span></span>
+      </button>
+      <button class="m-item">
+        <span class="mi-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Scholarship verification assigned</span><span class="mi-sub">4 pre-matric applications need your review · 14:05</span></span>
+      </button>
+      <button class="m-item">
+        <span class="mi-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Attendance submitted · Grade VIII A</span><span class="mi-sub">36 of 38 present · synced successfully · 07:46</span></span>
+      </button>
+      <button class="m-item">
+        <span class="mi-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Sync completed after 3 retries</span><span class="mi-sub">All queued items uploaded · 07:02</span></span>
+      </button>
+    </div>
+
+  </div>
+</div>
+<script src="mobile.js"></script>
+</body>
+</html>

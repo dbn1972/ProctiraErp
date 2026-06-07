@@ -1,0 +1,64 @@
+# Availability alerts.
+#
+# Definitions
+#  - SLI: fraction of HTTP requests answered without a 5xx in the last 5m.
+#  - SLO: 99.9% successful responses over a 30-day window.
+#  - Hard down: scrape `up` reports 0 for more than 2 minutes.
+groups:
+  - name: availability
+    interval: 30s
+    rules:
+      - alert: ServiceErrorRateHigh
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          team: engineering
+          slo: availability
+        annotations:
+          summary: "{{ $labels.service }} 5xx rate above 1% over 5m"
+          description: |
+            Service {{ $labels.service }} has returned 5xx responses for more than 1%
+            of requests during the last 5 minutes (current: {{ $value | humanizePercentage }}).
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-rate-high"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"
+
+      - alert: ServiceDown
+        expr: up{job!~"prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: ops
+          slo: availability
+        annotations:
+          summary: "{{ $labels.service }} is down"
+          description: |
+            Prometheus has been unable to scrape {{ $labels.service }} for at least
+            2 minutes. The service may be crashed, deadlocked, or unreachable.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#service-down"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"
+
+      - alert: ServiceErrorRateCritical
+        expr: |
+          (
+            sum by (service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum by (service) (rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: engineering
+          slo: availability
+        annotations:
+          summary: "{{ $labels.service }} 5xx rate above 5% over 5m"
+          description: |
+            Service {{ $labels.service }} is failing more than 5% of requests
+            (current: {{ $value | humanizePercentage }}). Page on-call.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-rate-critical"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"

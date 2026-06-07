@@ -1,0 +1,24 @@
+{
+  "generatedAt": "2026-05-26T06:26:45.774Z",
+  "threshold": 512000,
+  "routes": [
+    {
+      "canonical": "/auth/signin",
+      "present": true,
+      "totalGzipBytes": 221236,
+      "chunkCount": 12
+    },
+    {
+      "canonical": "/app/dashboard",
+      "present": true,
+      "totalGzipBytes": 128395,
+      "chunkCount": 10
+    },
+    {
+      "canonical": "/app/attendance",
+      "present": true,
+      "totalGzipBytes": 242689,
+      "chunkCount": 14
+    }
+  ]
+}

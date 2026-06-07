@@ -1,0 +1,17 @@
+apiVersion: v2
+name: proctira-platform
+description: Helm chart for deploying the ProctiraERP Unified Platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - proctira
+  - education
+  - management
+  - multi-tenant
+home: https://proctira.io
+sources:
+  - https://github.com/proctira/proctira-unified
+maintainers:
+  - name: ProctiraERP Team
+    email: devops@proctira.io

@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Minati Behera · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .assignment-card {
+    display: flex; align-items: center; gap: 14px; padding: 14px 16px;
+    border: 1px solid var(--border); border-radius: var(--r-md);
+    background: var(--surface-2);
+  }
+  .assignment-card + .assignment-card { margin-top: 10px; }
+  .assignment-card .ac-chip {
+    min-width: 64px; padding: 6px 10px; border-radius: var(--r-md); text-align: center;
+    background: var(--brand-50); color: var(--brand-700); font-weight: 700; font-size: var(--fs-sm);
+    flex-shrink: 0;
+  }
+  .assignment-card .ac-main { flex: 1; min-width: 0; }
+  .assignment-card .ac-title { font-weight: 600; font-size: var(--fs-sm); }
+  .assignment-card .ac-meta { font-size: var(--fs-xs); color: var(--text-3); margin-top: 1px; }
+  .assignment-card .ac-load { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); white-space: nowrap; }
+</style>
+</head>
+<body data-active="staff">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="staff-list.html">Staff</a><span class="sep">/</span>
+        <span class="current">Minati Behera</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+          <span class="avatar xl av-1">MB</span>
+          <div>
+            <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Minati Behera <span class="pill green">Active</span></h1>
+            <p class="page-sub"><span class="mono">EMP-2261</span> · TGT, Mathematics &amp; Science · Saraswati Nodal High School, Brahmagiri · 12 yrs service</p>
+          </div>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="staff-appraisal-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>New appraisal</a>
+          <a class="btn btn-secondary" href="staff-assignment-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>New assignment</a>
+          <a class="btn btn-primary" href="staff-detail-edit.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit</a>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">Overview</a>
+        <a class="tab" href="#" role="tab">Assignments <span class="count">3</span></a>
+        <a class="tab" href="#" role="tab">Appraisals <span class="count">4</span></a>
+        <a class="tab" href="#" role="tab">Leaves <span class="count">2</span></a>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <!-- Teaching assignments -->
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Teaching assignments</h3><div class="sub">Academic Year 2026–27 · 17 of 24 weekly periods allocated</div></div>
+              <div class="spacer"><a class="btn btn-ghost btn-sm" href="staff-assignment-new.html">+ Add</a></div>
+            </div>
+            <div class="card-pad">
+              <div class="assignment-card">
+                <span class="ac-chip">VIII · A</span>
+                <div class="ac-main">
+                  <div class="ac-title">Mathematics</div>
+                  <div class="ac-meta">Class teacher · effective 1 Apr 2026 · Room 7</div>
+                </div>
+                <span class="ac-load">6 periods/wk</span>
+              </div>
+              <div class="assignment-card">
+                <span class="ac-chip">IX · A</span>
+                <div class="ac-main">
+                  <div class="ac-title">Mathematics</div>
+                  <div class="ac-meta">Effective 1 Apr 2026 · Room 11</div>
+                </div>
+                <span class="ac-load">6 periods/wk</span>
+              </div>
+              <div class="assignment-card">
+                <span class="ac-chip">VII · B</span>
+                <div class="ac-main">
+                  <div class="ac-title">Science</div>
+                  <div class="ac-meta">Effective 1 Apr 2026 · Lab on Wed &amp; Fri</div>
+                </div>
+                <span class="ac-load">5 periods/wk</span>
+              </div>
+              <div style="margin-top:14px">
+                <div class="flex aic jcsb fs-xs muted" style="margin-bottom:6px"><span>Weekly workload</span><span class="fw-7">17 / 24 periods</span></div>
+                <div class="progress green"><span style="width:71%"></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Service history -->
+          <div class="card">
+            <div class="card-head"><div><h3>Service history</h3><div class="sub">Postings, promotions, and milestones</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <ul class="timeline">
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Appointed class teacher, Grade VIII · A</div><div class="tl-meta">1 Apr 2026 · Saraswati Nodal HS, Brahmagiri</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Appraisal AY 2025–26 — rated Very Good (4.4/5)</div><div class="tl-meta">18 Mar 2026 · approved by BEO, Brahmagiri</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Completed FLN training, NISHTHA 3.0</div><div class="tl-meta">Oct 2024 · DIET Puri · 40 hours</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Transferred from Govt. UP School, Satapada</div><div class="tl-meta">Jun 2019 · district transfer order DT-1907/2019</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Joined service as TGT Mathematics</div><div class="tl-meta">12 Jun 2014 · Govt. UP School, Satapada</div></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <!-- Facts -->
+          <div class="card">
+            <div class="card-head"><div><h3>Details</h3></div></div>
+            <div class="card-pad">
+              <dl class="dl">
+                <dt>Employee ID</dt><dd class="mono">EMP-2261</dd>
+                <dt>Designation</dt><dd>TGT — Trained Graduate</dd>
+                <dt>Subjects</dt><dd><span class="tag">Mathematics</span> <span class="tag">Science</span></dd>
+                <dt>School</dt><dd>Saraswati Nodal HS, Brahmagiri</dd>
+                <dt>Joining date</dt><dd>12 Jun 2014</dd>
+                <dt>Qualification</dt><dd>M.Sc. (Math), B.Ed.</dd>
+                <dt>Mobile</dt><dd>+91 94372 55810</dd>
+                <dt>Email</dt><dd style="word-break:break-all">minati.behera@odisha.gov.in</dd>
+              </dl>
+            </div>
+          </div>
+
+          <!-- Leave balance -->
+          <div class="card">
+            <div class="card-head"><div><h3>Leave balance</h3><div class="sub">Calendar year 2026</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <div class="stat-row"><span class="sr-label">Casual leave</span><span class="sr-value">9 of 12 left</span></div>
+              <div class="stat-row"><span class="sr-label">Earned leave</span><span class="sr-value">14 of 15 left</span></div>
+              <div class="stat-row"><span class="sr-label">Medical leave</span><span class="sr-value">10 of 10 left</span></div>
+              <div class="stat-row"><span class="sr-label">On duty</span><span class="sr-value">2 used</span></div>
+              <button class="btn btn-secondary" style="width:100%;margin-top:12px" type="button">Apply for leave</button>
+            </div>
+          </div>
+
+          <!-- Latest appraisal -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 8px;font-size:var(--fs-lg)">Latest appraisal</h3>
+            <div class="flex aic g12">
+              <span class="pill green plain" style="font-size:var(--fs-sm);padding:4px 12px">4.4 / 5</span>
+              <div class="fs-xs muted">AY 2025–26 · Very Good<br>Approved 18 Mar 2026</div>
+            </div>
+            <a class="btn btn-ghost btn-sm" style="margin-top:12px" href="staff-appraisal-new.html">Start AY 2026–27 appraisal →</a>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

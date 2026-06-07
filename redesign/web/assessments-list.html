@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Assessments · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .weight-split { display: inline-flex; align-items: center; gap: 8px; }
+  .weight-split .ws-bar { display: flex; width: 96px; height: 7px; border-radius: var(--r-full); overflow: hidden; background: var(--bg-subtle); }
+  .weight-split .ws-bar i { display: block; height: 100%; }
+  .weight-split .ws-label { font-size: var(--fs-2xs); font-weight: 600; color: var(--text-2); white-space: nowrap; }
+</style>
+</head>
+<body data-active="assessments">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Assessments</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Assessment schemes</h1>
+          <p class="page-sub">Grading schemes and weightages applied across 142 institutions · AY 2026–27</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="assessments-results.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Enter results</a>
+          <a class="btn btn-primary" href="assessments-scheme-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New scheme</a>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">Active <span class="count">14</span></a>
+        <a class="tab" href="#" role="tab">Draft <span class="count">3</span></a>
+        <a class="tab" href="#" role="tab">Archived <span class="count">9</span></a>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search schemes by name or grade" aria-label="Search schemes">
+        </div>
+        <select class="select" aria-label="Grade"><option>All grades</option><option>Grade V</option><option>Grade VI</option><option>Grade VII</option><option>Grade VIII</option><option>Grade IX</option><option>Grade X</option></select>
+        <select class="select" aria-label="Term"><option>All terms</option><option>AY 2026–27 · Term 1</option><option>AY 2026–27 · Term 2</option><option>AY 2025–26 · Term 2</option></select>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">Scheme <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Grade</th>
+                <th class="num">Subjects</th>
+                <th>Weightage</th>
+                <th>Term</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="assessments-items.html" style="color:inherit;text-decoration:none">CBSE Continuous Assessment VIII</a></div><div class="cell-sub">7 assessment items · grading scale A1–E</div></td>
+                <td data-label="Grade">Grade VIII</td>
+                <td data-label="Subjects" class="num">6</td>
+                <td data-label="Weightage"><span class="weight-split"><span class="ws-bar"><i style="width:40%;background:var(--brand-500)"></i><i style="width:60%;background:var(--teal-500)"></i></span><span class="ws-label">FA 40 · SA 60</span></span></td>
+                <td data-label="Term">AY 2026–27 · T1</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="assessments-items.html" aria-label="View items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="assessments-scheme-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="assessments-items.html" style="color:inherit;text-decoration:none">Board Pattern Class X</a></div><div class="cell-sub">5 assessment items · grading scale A1–E</div></td>
+                <td data-label="Grade">Grade X</td>
+                <td data-label="Subjects" class="num">5</td>
+                <td data-label="Weightage"><span class="weight-split"><span class="ws-bar"><i style="width:20%;background:var(--brand-500)"></i><i style="width:80%;background:var(--teal-500)"></i></span><span class="ws-label">Int 20 · Theory 80</span></span></td>
+                <td data-label="Term">AY 2026–27 · T1</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="assessments-items.html" aria-label="View items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="assessments-scheme-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="assessments-items.html" style="color:inherit;text-decoration:none">Odisha SCERT Scheme VI</a></div><div class="cell-sub">6 assessment items · grading scale O–D</div></td>
+                <td data-label="Grade">Grade VI</td>
+                <td data-label="Subjects" class="num">6</td>
+                <td data-label="Weightage"><span class="weight-split"><span class="ws-bar"><i style="width:50%;background:var(--brand-500)"></i><i style="width:50%;background:var(--teal-500)"></i></span><span class="ws-label">FA 50 · SA 50</span></span></td>
+                <td data-label="Term">AY 2026–27 · T1</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="assessments-items.html" aria-label="View items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="assessments-scheme-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="assessments-items.html" style="color:inherit;text-decoration:none">Odisha SCERT Scheme VII</a></div><div class="cell-sub">6 assessment items · grading scale O–D</div></td>
+                <td data-label="Grade">Grade VII</td>
+                <td data-label="Subjects" class="num">6</td>
+                <td data-label="Weightage"><span class="weight-split"><span class="ws-bar"><i style="width:50%;background:var(--brand-500)"></i><i style="width:50%;background:var(--teal-500)"></i></span><span class="ws-label">FA 50 · SA 50</span></span></td>
+                <td data-label="Term">AY 2026–27 · T1</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="assessments-items.html" aria-label="View items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="assessments-scheme-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="assessments-items.html" style="color:inherit;text-decoration:none">Competency-Based Assessment IX</a></div><div class="cell-sub">8 assessment items · competency rubric L1–L4</div></td>
+                <td data-label="Grade">Grade IX</td>
+                <td data-label="Subjects" class="num">5</td>
+                <td data-label="Weightage"><span class="weight-split"><span class="ws-bar"><i style="width:60%;background:var(--brand-500)"></i><i style="width:40%;background:var(--teal-500)"></i></span><span class="ws-label">CA 60 · Exam 40</span></span></td>
+                <td data-label="Term">AY 2026–27 · T2</td>
+                <td data-label="Status"><span class="pill amber">Draft</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="assessments-items.html" aria-label="View items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="assessments-scheme-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="assessments-items.html" style="color:inherit;text-decoration:none">Foundational Literacy &amp; Numeracy V</a></div><div class="cell-sub">4 assessment items · descriptive bands</div></td>
+                <td data-label="Grade">Grade V</td>
+                <td data-label="Subjects" class="num">4</td>
+                <td data-label="Weightage"><span class="weight-split"><span class="ws-bar"><i style="width:70%;background:var(--brand-500)"></i><i style="width:30%;background:var(--teal-500)"></i></span><span class="ws-label">FA 70 · SA 30</span></span></td>
+                <td data-label="Term">AY 2026–27 · T1</td>
+                <td data-label="Status"><span class="pill amber">Draft</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="assessments-items.html" aria-label="View items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="assessments-scheme-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="assessments-items.html" style="color:inherit;text-decoration:none">Annual Pattern VII (2025–26)</a></div><div class="cell-sub">3 assessment items · superseded by SCERT scheme</div></td>
+                <td data-label="Grade">Grade VII</td>
+                <td data-label="Subjects" class="num">6</td>
+                <td data-label="Weightage"><span class="weight-split"><span class="ws-bar"><i style="width:25%;background:var(--brand-500)"></i><i style="width:75%;background:var(--teal-500)"></i></span><span class="ws-label">UT 25 · Annual 75</span></span></td>
+                <td data-label="Term">AY 2025–26 · T2</td>
+                <td data-label="Status"><span class="pill slate">Archived</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="assessments-items.html" aria-label="View items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="assessments-scheme-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–7</b> of <b>26</b> schemes</span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <button class="page-btn">4</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

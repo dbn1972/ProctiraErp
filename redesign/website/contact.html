@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Contact sales &amp; support · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="site.css">
+<style>
+  .contact-split { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: start; }
+  .contact-form-card { padding: 34px; }
+  .contact-form-card h2 { margin: 0 0 6px; font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -.02em; }
+  .contact-form-card .sub { margin: 0 0 26px; color: var(--text-2); font-size: var(--fs-sm); }
+  .office-card { padding: 22px 24px; display: flex; gap: 16px; align-items: flex-start; }
+  .office-card .o-body b { display: block; font-size: var(--fs-md); font-weight: 700; }
+  .office-card .o-body span { display: block; margin-top: 4px; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.6; }
+  .side-stack { display: flex; flex-direction: column; gap: 18px; }
+  .map-card { overflow: hidden; }
+  .map-card svg { display: block; width: 100%; height: auto; }
+  @media (max-width: 1023px) { .contact-split { grid-template-columns: 1fr; } }
+  @media (max-width: 767px) { .contact-form-card { padding: 22px 18px; } }
+</style>
+</head>
+<body class="site">
+
+<header class="site-header">
+  <div class="container nav-row">
+    <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="product.html">Product</a>
+      <a href="home.html#levels">Solutions</a>
+      <a href="installation.html">Developers</a>
+      <a href="contact.html" class="active">Pricing</a>
+      <a href="about.html">Company</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+    <button class="hamburger" type="button" aria-label="Toggle menu" aria-expanded="false" onclick="toggleNav(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+  <div class="mobile-menu">
+    <a href="product.html">Product</a>
+    <a href="home.html#levels">Solutions</a>
+    <a href="installation.html">Developers</a>
+    <a href="contact.html">Pricing</a>
+    <a href="about.html">Company</a>
+    <div class="mm-actions">
+      <a class="btn btn-secondary" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <span class="chip"><span class="dot"></span>Talk to us</span>
+      <h1>Let's plan your <span class="grad">rollout</span></h1>
+      <p class="lead">Whether you are deploying for a single school or a whole ministry, we would love to hear about your plans — pricing, pilots, training, and migration included.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container contact-split">
+
+      <!-- FORM -->
+      <div class="card contact-form-card">
+        <h2>Send us a message</h2>
+        <p class="sub">Fill in the form and the right team will respond within two business days.</p>
+        <form style="display:flex;flex-direction:column;gap:18px" onsubmit="event.preventDefault(); this.querySelector('button[type=submit]').textContent='Message sent ✓';">
+          <div class="form-grid">
+            <div class="field">
+              <label for="cf-name">Full name<span class="req">*</span></label>
+              <input class="input" id="cf-name" type="text" placeholder="e.g. Debabrata Nayak" autocomplete="name" required>
+            </div>
+            <div class="field">
+              <label for="cf-email">Work email<span class="req">*</span></label>
+              <input class="input" id="cf-email" type="email" placeholder="name@dept.gov.in" autocomplete="email" required>
+            </div>
+            <div class="field span-2">
+              <label for="cf-org">Organization type<span class="req">*</span></label>
+              <select class="select" id="cf-org" required>
+                <option value="">Select your organization…</option>
+                <option>School</option>
+                <option>District</option>
+                <option>Ministry</option>
+                <option>Partner</option>
+              </select>
+            </div>
+            <div class="field span-2">
+              <label for="cf-msg">How can we help?<span class="req">*</span></label>
+              <textarea class="input" id="cf-msg" rows="5" placeholder="Tell us about your schools, timeline, and what you'd like to achieve…" required></textarea>
+              <span class="hint">Mention student count and number of schools if you can — it helps us route you faster.</span>
+            </div>
+          </div>
+          <button class="btn btn-grad btn-lg" type="submit" style="align-self:flex-start;padding:12px 28px">Send message</button>
+          <span class="fs-xs muted-3">By sending, you agree to our <a href="privacy.html" style="color:var(--link);font-weight:600;text-decoration:none">Privacy Policy</a>. We never share your details with third parties.</span>
+        </form>
+      </div>
+
+      <!-- SIDE -->
+      <div class="side-stack">
+        <div class="card office-card">
+          <span class="icon-sq iq-brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/></svg></span>
+          <div class="o-body">
+            <b>Bhubaneswar — HQ</b>
+            <span>4th Floor, Tech Tower, Infocity Square,<br>Chandrasekharpur, Bhubaneswar 751024, Odisha</span>
+          </div>
+        </div>
+        <div class="card office-card">
+          <span class="icon-sq iq-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8h.01M15 8h.01M9 12h.01M15 12h.01M9 16h.01M15 16h.01"/></svg></span>
+          <div class="o-body">
+            <b>New Delhi</b>
+            <span>2nd Floor, Workspace One, Aerocity Business Park,<br>New Delhi 110037</span>
+          </div>
+        </div>
+        <div class="card office-card">
+          <span class="icon-sq iq-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+          <div class="o-body">
+            <b>Deployment helpline</b>
+            <span>1800-572-0142 (toll-free, Mon–Sat 9:00–18:00 IST)<br>hello@proctira.org</span>
+          </div>
+        </div>
+
+        <div class="alert info">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          <div class="a-body"><b>Response times</b>Sales enquiries within 2 business days · live-deployment incidents within 4 hours via the helpline.</div>
+        </div>
+
+        <!-- MAP PLACEHOLDER -->
+        <div class="card map-card" aria-hidden="true">
+          <svg viewBox="0 0 420 240" xmlns="http://www.w3.org/2000/svg">
+            <rect width="420" height="240" fill="var(--sky-50)"/>
+            <!-- stylized land mass -->
+            <path d="M60 -20 C 120 30, 90 70, 130 100 S 110 170, 160 200 S 230 230, 290 250 L 420 250 L 420 -20 Z" fill="var(--green-50)" stroke="var(--slate-200)"/>
+            <!-- roads -->
+            <g stroke="#fff" stroke-width="7" fill="none" opacity=".9">
+              <path d="M0 150 C 90 140, 160 170, 250 150 S 380 110, 420 120"/>
+              <path d="M180 0 C 190 70, 160 140, 200 240"/>
+              <path d="M300 0 C 280 80, 330 160, 310 240"/>
+            </g>
+            <g stroke="var(--slate-200)" stroke-width="2" fill="none">
+              <path d="M0 150 C 90 140, 160 170, 250 150 S 380 110, 420 120"/>
+              <path d="M180 0 C 190 70, 160 140, 200 240"/>
+              <path d="M300 0 C 280 80, 330 160, 310 240"/>
+            </g>
+            <!-- blocks -->
+            <g fill="var(--slate-100)" stroke="var(--slate-200)">
+              <rect x="36" y="48" width="58" height="38" rx="5"/>
+              <rect x="226" y="42" width="48" height="34" rx="5"/>
+              <rect x="336" y="160" width="56" height="40" rx="5"/>
+              <rect x="60" y="186" width="64" height="34" rx="5"/>
+            </g>
+            <!-- HQ pin -->
+            <g transform="translate(238 108)">
+              <circle r="22" fill="var(--brand-500)" opacity=".15"/>
+              <path d="M0 -16 C 9 -16, 14 -9, 14 -2 C 14 7, 0 18, 0 18 S -14 7, -14 -2 C -14 -9, -9 -16, 0 -16 Z" fill="var(--brand-600)"/>
+              <circle cy="-3" r="5" fill="#fff"/>
+            </g>
+            <rect x="160" y="138" width="158" height="26" rx="13" fill="#fff" stroke="var(--slate-200)"/>
+            <text x="176" y="155" font-family="Inter, sans-serif" font-size="11.5" font-weight="700" fill="var(--slate-700)">ProctiraERP HQ · Infocity</text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="band-navy cta-band">
+    <div class="container">
+      <h2>Prefer to start <span class="grad-dark">hands-on?</span></h2>
+      <p>Self-host the open-source platform today — most teams have a working evaluation stack in under an hour.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad btn-xl" href="installation.html">Read the installation guide</a>
+        <a class="btn btn-onnavy btn-xl" href="product.html">Take the product tour</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+        <p>Open-source education infrastructure for schools, districts, and ministries — built in India, for the world.</p>
+        <span class="foot-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17l-6.2 3.9 1.6-7L2 9.2l7.1-.6z"/></svg>Apache-2.0 · Open source</span>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="product.html">Product tour</a>
+        <a href="installation.html">Installation</a>
+        <a href="security.html">Security</a>
+        <a href="status.html">System status</a>
+        <a href="compliance.html">Compliance</a>
+      </div>
+      <div class="foot-col">
+        <h4>Solutions</h4>
+        <a href="home.html#levels">For schools</a>
+        <a href="home.html#levels">For districts</a>
+        <a href="home.html#levels">For ministries</a>
+        <a href="about.html">Odisha pilot</a>
+      </div>
+      <div class="foot-col">
+        <h4>Developers</h4>
+        <a href="installation.html">Documentation</a>
+        <a href="installation.html#architecture">Architecture</a>
+        <a href="product.html#integrations">Integrations</a>
+        <a href="about.html#opensource">GitHub</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="about.html#careers">Careers</a>
+        <a href="legal.html">Legal</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="foot-locale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English (India) · हिन्दी · ଓଡ଼ିଆ</span>
+      <div class="legal-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="cookies.html">Cookies</a>
+        <a href="status.html">Status</a>
+      </div>
+      <div class="foot-copy">© 2026 ProctiraERP · open source under <a href="legal.html">Apache-2.0</a></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleNav(btn){
+  document.body.classList.toggle('nav-open');
+  btn.setAttribute('aria-expanded', document.body.classList.contains('nav-open'));
+}
+</script>
+</body>
+</html>

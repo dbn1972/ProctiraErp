@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aarav Sharma · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  .att-strip { display: flex; gap: 8px; }
+  .att-day { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .att-day .ad-dot { width: 34px; height: 34px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 800; }
+  .att-day .ad-dot.p { background: var(--green-50); color: var(--green-700); }
+  .att-day .ad-dot.a { background: var(--red-50); color: var(--red-700); }
+  .att-day .ad-lbl { font-size: var(--fs-2xs); font-weight: 600; color: var(--text-3); }
+</style>
+</head>
+<body data-tab="students">
+<div class="phone">
+  <header class="appbar">
+    <a class="ab-back" href="students.html" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></a>
+    <div class="ab-title">
+      <h1>Student profile</h1>
+      <div class="ab-sub">Grade VIII · A</div>
+    </div>
+    <a class="ab-action" href="enrollment-history.html" aria-label="Enrollment history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></a>
+  </header>
+  <div class="screen">
+
+    <div class="m-hero" style="padding-top:6px">
+      <span class="avatar xl av-5">AS</span>
+      <h2>Aarav Sharma</h2>
+      <div class="hero-sub">Grade VIII · A · Roll 01 · IDN-10000</div>
+    </div>
+
+    <div class="m-kpis">
+      <div class="m-kpi">
+        <div class="mk-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+        <div class="mk-value">97%</div>
+        <div class="mk-label">Attendance</div>
+      </div>
+      <div class="m-kpi">
+        <div class="mk-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></div>
+        <div class="mk-value">81%</div>
+        <div class="mk-label">Avg score</div>
+      </div>
+      <div class="m-kpi">
+        <div class="mk-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        <div class="mk-value">Paid</div>
+        <div class="mk-label">Fee status</div>
+      </div>
+      <div class="m-kpi">
+        <div class="mk-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21 1.18.54 2.03 2.03 2.03 3.79"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></div>
+        <div class="mk-value">Top 10</div>
+        <div class="mk-label">Rank band</div>
+      </div>
+    </div>
+
+    <h2 class="sec">Guardian</h2>
+    <div class="m-list">
+      <div class="m-item">
+        <span class="avatar av-3">RS</span>
+        <span class="mi-body"><span class="mi-title">Rajesh Sharma</span><span class="mi-sub">Father · +91 94370 21564</span></span>
+        <span class="mi-end">
+          <button class="ab-action" aria-label="Call guardian" style="width:38px;height:38px;border-radius:12px;border:1px solid var(--border);background:var(--green-50);color:var(--green-600);display:inline-flex;align-items:center;justify-content:center;cursor:pointer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
+          <button class="ab-action" aria-label="Send SMS" style="width:38px;height:38px;border-radius:12px;border:1px solid var(--border);background:var(--brand-50);color:var(--brand-600);display:inline-flex;align-items:center;justify-content:center;cursor:pointer"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+        </span>
+      </div>
+    </div>
+
+    <h2 class="sec">Recent attendance</h2>
+    <div class="m-card pad">
+      <div class="att-strip">
+        <div class="att-day"><span class="ad-dot p">P</span><span class="ad-lbl">Mon 1</span></div>
+        <div class="att-day"><span class="ad-dot p">P</span><span class="ad-lbl">Tue 2</span></div>
+        <div class="att-day"><span class="ad-dot a">A</span><span class="ad-lbl">Wed 3</span></div>
+        <div class="att-day"><span class="ad-dot p">P</span><span class="ad-lbl">Thu 4</span></div>
+        <div class="att-day"><span class="ad-dot p">P</span><span class="ad-lbl">Fri 5</span></div>
+      </div>
+    </div>
+
+    <h2 class="sec">Recent marks</h2>
+    <div class="m-list">
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/><path d="M9 15h3l8.5-8.5a1.5 1.5 0 0 0-3-3L9 12v3"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Mathematics · Unit Test 2</span><span class="mi-sub">28 May 2026 · out of 50</span></span>
+        <span class="mi-end"><span style="font-weight:800;font-variant-numeric:tabular-nums">44</span></span>
+      </div>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V1.99"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Science · Unit Test 2</span><span class="mi-sub">26 May 2026 · out of 50</span></span>
+        <span class="mi-end"><span style="font-weight:800;font-variant-numeric:tabular-nums">39</span></span>
+      </div>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg></span>
+        <span class="mi-body"><span class="mi-title">English · Unit Test 2</span><span class="mi-sub">24 May 2026 · out of 50</span></span>
+        <span class="mi-end"><span style="font-weight:800;font-variant-numeric:tabular-nums">41</span></span>
+      </div>
+    </div>
+
+    <a class="m-btn secondary" href="enrollment-history.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      View full record
+    </a>
+
+  </div>
+</div>
+<script src="mobile.js"></script>
+</body>
+</html>

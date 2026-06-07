@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New appraisal · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .criteria-row {
+    display: flex; align-items: center; gap: 16px; padding: 14px 0;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  .criteria-row:last-child { border-bottom: none; }
+  .criteria-row .cr-text { flex: 1; min-width: 220px; }
+  .criteria-row .cr-name { font-weight: 600; font-size: var(--fs-sm); }
+  .criteria-row .cr-desc { font-size: var(--fs-xs); color: var(--text-3); margin-top: 1px; }
+  .rating {
+    display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--r-md);
+    overflow: hidden; flex-shrink: 0;
+  }
+  .rating button {
+    width: 42px; height: 36px; border: none; background: var(--surface); cursor: pointer;
+    font-family: var(--font-sans); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2);
+    border-right: 1px solid var(--border); transition: background var(--t-fast), color var(--t-fast);
+  }
+  .rating button:last-child { border-right: none; }
+  .rating button:hover { background: var(--bg-subtle); }
+  .rating button[aria-pressed="true"] { background: var(--brand-600); color: #fff; }
+</style>
+</head>
+<body data-active="staff">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="staff-list.html">Staff</a><span class="sep">/</span>
+        <a href="staff-detail.html">Minati Behera</a><span class="sep">/</span>
+        <span class="current">New appraisal</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">New appraisal</h1>
+          <p class="page-sub">Rate each criterion from 1 (needs improvement) to 5 (outstanding). On submit the appraisal is routed to the BEO, Brahmagiri for approval.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="staff-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to profile</a>
+        </div>
+      </div>
+
+      <form class="card" style="max-width:860px">
+        <div class="card-pad">
+          <div class="form-grid">
+            <div class="form-section-title">Appraisal details</div>
+            <div class="field span-2">
+              <label>Staff member<span class="req">*</span></label>
+              <button class="entity-picker" type="button" aria-haspopup="listbox">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                <span class="ep-text"><span class="ep-value">Minati Behera</span><span class="ep-meta">EMP-2261 · TGT · Saraswati Nodal HS, Brahmagiri</span></span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="field">
+              <label for="f-cycle">Appraisal cycle<span class="req">*</span></label>
+              <select class="select" id="f-cycle">
+                <option selected>Annual — AY 2026–27</option>
+                <option>Mid-term — AY 2026–27</option>
+                <option>Probation review</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-date">Appraisal date<span class="req">*</span></label>
+              <input class="input" id="f-date" type="date" value="2026-06-07">
+            </div>
+          </div>
+
+          <div class="form-section-title" style="display:block;margin-top:24px;padding-top:16px;border-top:1px dashed var(--border)">Rating criteria</div>
+          <p class="fs-xs muted" style="margin:6px 0 0">1 — Needs improvement · 3 — Meets expectations · 5 — Outstanding</p>
+
+          <div class="criteria-row">
+            <div class="cr-text">
+              <div class="cr-name">Teaching effectiveness</div>
+              <div class="cr-desc">Lesson planning, learning outcomes, and use of TLM</div>
+            </div>
+            <div class="rating" role="radiogroup" aria-label="Teaching effectiveness">
+              <button type="button" aria-pressed="false">1</button><button type="button" aria-pressed="false">2</button><button type="button" aria-pressed="false">3</button><button type="button" aria-pressed="true">4</button><button type="button" aria-pressed="false">5</button>
+            </div>
+          </div>
+          <div class="criteria-row">
+            <div class="cr-text">
+              <div class="cr-name">Student engagement</div>
+              <div class="cr-desc">Classroom participation, remedial support, attendance follow-up</div>
+            </div>
+            <div class="rating" role="radiogroup" aria-label="Student engagement">
+              <button type="button" aria-pressed="false">1</button><button type="button" aria-pressed="false">2</button><button type="button" aria-pressed="false">3</button><button type="button" aria-pressed="false">4</button><button type="button" aria-pressed="true">5</button>
+            </div>
+          </div>
+          <div class="criteria-row">
+            <div class="cr-text">
+              <div class="cr-name">Classroom management</div>
+              <div class="cr-desc">Discipline, inclusive practices, learning environment</div>
+            </div>
+            <div class="rating" role="radiogroup" aria-label="Classroom management">
+              <button type="button" aria-pressed="false">1</button><button type="button" aria-pressed="false">2</button><button type="button" aria-pressed="false">3</button><button type="button" aria-pressed="true">4</button><button type="button" aria-pressed="false">5</button>
+            </div>
+          </div>
+          <div class="criteria-row">
+            <div class="cr-text">
+              <div class="cr-name">Professional development</div>
+              <div class="cr-desc">Training completed, DIKSHA courses, peer mentoring</div>
+            </div>
+            <div class="rating" role="radiogroup" aria-label="Professional development">
+              <button type="button" aria-pressed="false">1</button><button type="button" aria-pressed="false">2</button><button type="button" aria-pressed="false">3</button><button type="button" aria-pressed="true">4</button><button type="button" aria-pressed="false">5</button>
+            </div>
+          </div>
+          <div class="criteria-row">
+            <div class="cr-text">
+              <div class="cr-name">Punctuality &amp; conduct</div>
+              <div class="cr-desc">Attendance, timeliness of records, professional conduct</div>
+            </div>
+            <div class="rating" role="radiogroup" aria-label="Punctuality and conduct">
+              <button type="button" aria-pressed="false">1</button><button type="button" aria-pressed="false">2</button><button type="button" aria-pressed="false">3</button><button type="button" aria-pressed="false">4</button><button type="button" aria-pressed="true">5</button>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:20px">
+            <label for="f-comments">Overall comments</label>
+            <textarea class="input" id="f-comments" rows="4" placeholder="Strengths observed, areas for growth, and recommended training…">Consistently strong results in Mathematics — VIII·A scored 12 points above district mean in SA-1. Recommend advanced FLN mentoring role for the Brahmagiri cluster.</textarea>
+          </div>
+        </div>
+        <div class="card-foot" style="justify-content:space-between">
+          <span class="fs-xs muted">Provisional score <b style="color:var(--text)">4.4 / 5 — Very Good</b></span>
+          <div class="flex g8">
+            <a class="btn btn-ghost" href="staff-detail.html">Cancel</a>
+            <button class="btn btn-secondary" type="button">Save draft</button>
+            <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Submit for approval</button>
+          </div>
+        </div>
+      </form>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

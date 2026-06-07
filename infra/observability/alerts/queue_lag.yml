@@ -1,0 +1,93 @@
+# Queue lag alerts.
+#
+# Definitions
+#  - SLI: consumer lag (messages behind) for Kafka consumer groups and RabbitMQ queues.
+#  - SLO: lag below service-specific thresholds (default 1000 messages).
+#  - Services with queue-based processing (notification, workflow, etl, examination)
+#    have tighter or looser thresholds defined in their SLO catalog entries.
+groups:
+  - name: queue_lag
+    interval: 30s
+    rules:
+      - alert: KafkaConsumerLagHigh
+        expr: |
+          kafka_consumergroup_lag > 1000
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+          slo: queue_lag
+        annotations:
+          summary: "Kafka consumer group {{ $labels.consumergroup }} lag above 1000"
+          description: |
+            Consumer group {{ $labels.consumergroup }} on topic {{ $labels.topic }}
+            has a lag of {{ $value }} messages for more than 10 minutes.
+            This may indicate a slow consumer or processing backlog.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#queue-lag"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+
+      - alert: KafkaConsumerLagCritical
+        expr: |
+          kafka_consumergroup_lag > 5000
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+          slo: queue_lag
+        annotations:
+          summary: "Kafka consumer group {{ $labels.consumergroup }} lag above 5000"
+          description: |
+            Consumer group {{ $labels.consumergroup }} on topic {{ $labels.topic }}
+            has a critical lag of {{ $value }} messages. Processing is severely
+            behind. Page on-call.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#queue-lag-critical"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+
+      - alert: RabbitMQQueueDepthHigh
+        expr: |
+          rabbitmq_queue_messages_ready > 5000
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+          slo: queue_lag
+        annotations:
+          summary: "RabbitMQ queue {{ $labels.queue }} depth above 5000"
+          description: |
+            Queue {{ $labels.queue }} has {{ $value }} messages ready for
+            consumption. Consumers may be down or processing too slowly.
+          runbook_url: "https://runbooks.proctira.org/services/notification.md#queue-depth"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+
+      - alert: RabbitMQQueueDepthCritical
+        expr: |
+          rabbitmq_queue_messages_ready > 20000
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+          slo: queue_lag
+        annotations:
+          summary: "RabbitMQ queue {{ $labels.queue }} depth above 20000"
+          description: |
+            Queue {{ $labels.queue }} has {{ $value }} messages. Risk of
+            memory exhaustion on the broker. Page on-call immediately.
+          runbook_url: "https://runbooks.proctira.org/services/notification.md#queue-depth-critical"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"
+
+      - alert: RabbitMQDeadLetterGrowing
+        expr: |
+          increase(rabbitmq_queue_messages_ready{queue=~".*\\.dlx"}[30m]) > 100
+        for: 15m
+        labels:
+          severity: warning
+          team: engineering
+          slo: queue_lag
+        annotations:
+          summary: "Dead letter queue {{ $labels.queue }} growing"
+          description: |
+            Dead letter queue {{ $labels.queue }} has received {{ $value }}
+            messages in the last 30 minutes. Messages are failing processing
+            and being routed to DLX. Investigate consumer errors.
+          runbook_url: "https://runbooks.proctira.org/services/notification.md#dead-letter-queue"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-dependencies"

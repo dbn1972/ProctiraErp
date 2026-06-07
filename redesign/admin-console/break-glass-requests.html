@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Break-glass requests · Proctira Platform Admin</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="console.css">
+</head>
+<body data-active="break-glass">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <div class="breadcrumbs"><a href="overview.html">Platform</a><span class="sep">/</span><a href="break-glass.html">Break-glass</a><span class="sep">/</span><span class="current">Requests</span></div>
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Break-glass requests</h1>
+          <p class="page-sub">Pending approvals require a second operator (four-eyes) and, for data-write scopes, explicit customer sign-off.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="break-glass.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Active sessions</a>
+        </div>
+      </div>
+
+      <div class="alert info mb-20" role="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div class="a-body"><b>Approval policy</b>You cannot approve your own request. Write-scope requests additionally require customer approval recorded on the linked support case. Approvals are valid for 24 hours — unused grants lapse automatically.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:16px">
+
+        <!-- Request 1 -->
+        <div class="card review-card">
+          <div class="rc-head">
+            <div class="person-cell" style="flex:1;min-width:200px">
+              <span class="avatar av-1">RV</span>
+              <div><div class="cell-main">R. Venkatesan</div><div class="cell-sub">r.venkatesan@proctira.com · SRE</div></div>
+            </div>
+            <span class="pill green">Customer approved</span>
+            <span class="tag mono">bg_req_2031</span>
+          </div>
+          <div class="rc-body">
+            <div class="dl" style="grid-template-columns:140px 1fr">
+              <dt>Tenant</dt><dd>Ganjam DEO · case #4421 (INC-2114)</dd>
+              <dt>Scopes</dt><dd><span class="tag mono">attendance:read</span> <span class="tag mono">queues:replay</span></dd>
+              <dt>Duration requested</dt><dd>2 hours</dd>
+              <dt>Requested</dt><dd class="mono fs-xs" style="align-self:center">2026-06-07 07:58 IST</dd>
+            </div>
+            <blockquote class="quote">"Attendance events for 12 schools stuck since the RabbitMQ backlog began. Need to verify replay ordering before re-enqueueing — read access plus queue replay only."</blockquote>
+          </div>
+          <div class="rc-foot">
+            <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
+            <button class="btn btn-danger-soft"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Deny</button>
+            <span class="fs-xs muted-3" style="margin-left:auto">Second approver required · you are eligible</span>
+          </div>
+        </div>
+
+        <!-- Request 2 -->
+        <div class="card review-card">
+          <div class="rc-head">
+            <div class="person-cell" style="flex:1;min-width:200px">
+              <span class="avatar av-6">PM</span>
+              <div><div class="cell-main">P. Mehta</div><div class="cell-sub">p.mehta@proctira.com · Support engineering</div></div>
+            </div>
+            <span class="pill amber">Awaiting customer approval</span>
+            <span class="tag mono">bg_req_2032</span>
+          </div>
+          <div class="rc-body">
+            <div class="dl" style="grid-template-columns:140px 1fr">
+              <dt>Tenant</dt><dd>Khordha DEO · case #4430</dd>
+              <dt>Scopes</dt><dd><span class="tag mono">students:read</span> <span class="tag mono" style="color:var(--amber-700);background:var(--amber-50);border-color:color-mix(in srgb,var(--amber-500) 45%,transparent)">students:write</span></dd>
+              <dt>Duration requested</dt><dd>1 hour</dd>
+              <dt>Requested</dt><dd class="mono fs-xs" style="align-self:center">2026-06-06 18:21 IST</dd>
+            </div>
+            <blockquote class="quote">"214 students were merged into wrong sections by a bulk import. Tenant admin has asked us to run the correction script — needs a write scope on the students module."</blockquote>
+          </div>
+          <div class="rc-foot">
+            <button class="btn btn-primary" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
+            <button class="btn btn-danger-soft"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Deny</button>
+            <span class="fs-xs muted-3" style="margin-left:auto">Blocked: write scope needs customer sign-off on case #4430</span>
+          </div>
+        </div>
+
+        <!-- Request 3 -->
+        <div class="card review-card">
+          <div class="rc-head">
+            <div class="person-cell" style="flex:1;min-width:200px">
+              <span class="avatar av-2">NB</span>
+              <div><div class="cell-main">N. Banerjee</div><div class="cell-sub">n.banerjee@proctira.com · Platform engineering</div></div>
+            </div>
+            <span class="pill green">Customer approved</span>
+            <span class="tag mono">bg_req_2033</span>
+          </div>
+          <div class="rc-body">
+            <div class="dl" style="grid-template-columns:140px 1fr">
+              <dt>Tenant</dt><dd>Sambalpur DEO · case #4433</dd>
+              <dt>Scopes</dt><dd><span class="tag mono">storage:read</span> <span class="tag mono">config:read</span></dd>
+              <dt>Duration requested</dt><dd>30 minutes</dd>
+              <dt>Requested</dt><dd class="mono fs-xs" style="align-self:center">2026-06-07 09:02 IST</dd>
+            </div>
+            <blockquote class="quote">"Trial tenant reports photo uploads failing on slow links. Want to confirm bucket CORS and multipart settings match the ap-south-1 baseline before we ship a fix."</blockquote>
+          </div>
+          <div class="rc-foot">
+            <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
+            <button class="btn btn-danger-soft"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Deny</button>
+            <span class="fs-xs muted-3" style="margin-left:auto">Second approver required · you are eligible</span>
+          </div>
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="console.js"></script>
+</body>
+</html>

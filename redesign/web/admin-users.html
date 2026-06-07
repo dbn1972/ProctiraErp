@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Users · Administration · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .mfa-cell { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 600; }
+  .mfa-cell svg { width: 14px; height: 14px; }
+  .mfa-on { color: var(--green-600); }
+  .mfa-off { color: var(--text-3); }
+</style>
+</head>
+<body data-active="admin">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="admin-overview.html">Administration</a><span class="sep">/</span><span class="current">Users</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Users</h1>
+          <p class="page-sub">38 active accounts across Puri district institutions · invites, roles, and security status.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export CSV</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Invite user</button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">38</span></a>
+        <a class="tab" href="#" role="tab">Active <span class="count">33</span></a>
+        <a class="tab" href="#" role="tab">Invited <span class="count">2</span></a>
+        <a class="tab" href="#" role="tab">Suspended <span class="count">3</span></a>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search by name or email" aria-label="Search users">
+        </div>
+        <select class="select" aria-label="Role"><option>All roles</option><option>District Administrator</option><option>Headmaster</option><option>Teacher</option><option>Clerk</option><option>Health Officer</option></select>
+        <select class="select" aria-label="MFA"><option>MFA: any</option><option>MFA enabled</option><option>MFA disabled</option></select>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">User <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Role</th>
+                <th>Institution</th>
+                <th>MFA</th>
+                <th>Last active</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-1">DN</span><div><div class="cell-main">Debabrata Nayak</div><div class="cell-sub">dnayak@digitalindia.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill brand plain">District Administrator</span></td>
+                <td data-label="Institution">District Education Office, Puri</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>On</span></td>
+                <td data-label="Last active">2 minutes ago</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-2">SM</span><div><div class="cell-main">Sasmita Mohanty</div><div class="cell-sub">sasmita.mohanty@puri.odisha.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill violet plain">Headmaster</span></td>
+                <td data-label="Institution">Govt. Sr. Sec. School, Puri</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>On</span></td>
+                <td data-label="Last active">Today, 10:42</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-3">PB</span><div><div class="cell-main">Pritam Behera</div><div class="cell-sub">pritam.behera@puri.odisha.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill sky plain">Teacher</span></td>
+                <td data-label="Institution">Nodal HS, Gop Sadar</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>On</span></td>
+                <td data-label="Last active">Today, 09:18</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-4">RP</span><div><div class="cell-main">Rashmi Pradhan</div><div class="cell-sub">rashmi.pradhan@puri.odisha.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill green plain">Health Officer</span></td>
+                <td data-label="Institution">Block Office, Satapada</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>Off</span></td>
+                <td data-label="Last active">Yesterday, 17:55</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-5">AS</span><div><div class="cell-main">Anjali Swain</div><div class="cell-sub">anjali.swain@puri.odisha.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill amber plain">Clerk</span></td>
+                <td data-label="Institution">Govt. Sr. Sec. School, Puri</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>Off</span></td>
+                <td data-label="Last active">Never signed in</td>
+                <td data-label="Status"><span class="pill sky">Invited</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-secondary btn-sm" type="button">Resend invite</button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-6">BJ</span><div><div class="cell-main">Bijay Jena</div><div class="cell-sub">bijay.jena@puri.odisha.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill sky plain">Teacher</span></td>
+                <td data-label="Institution">Govt. UP School, Satapada</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>On</span></td>
+                <td data-label="Last active">3 days ago</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-2">LS</span><div><div class="cell-main">Lipsa Sahoo</div><div class="cell-sub">lipsa.sahoo@puri.odisha.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill sky plain">Teacher</span></td>
+                <td data-label="Institution">Nodal HS, Gop Sadar</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>On</span></td>
+                <td data-label="Last active">12 May 2026</td>
+                <td data-label="Status"><span class="pill red">Suspended</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-secondary btn-sm" type="button">Reactivate</button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-3">MD</span><div><div class="cell-main">Manas Das</div><div class="cell-sub">manas.das@puri.odisha.gov.in</div></div></div>
+                </td>
+                <td data-label="Role"><span class="pill amber plain">Clerk</span></td>
+                <td data-label="Institution">Govt. Girls HS, Pipili</td>
+                <td data-label="MFA"><span class="mfa-cell mfa-on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>On</span></td>
+                <td data-label="Last active">Today, 08:05</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="#view" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="#edit" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–8</b> of <b>38</b> users</span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <button class="page-btn">4</button>
+              <button class="page-btn">5</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

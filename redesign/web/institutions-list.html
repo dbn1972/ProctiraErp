@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Institutions · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .school-avatar {
+    width: 36px; height: 36px; border-radius: var(--r-md); flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .school-avatar svg { width: 18px; height: 18px; }
+  .sa-1 { background: var(--brand-50); color: var(--brand-600); }
+  .sa-2 { background: var(--teal-50); color: var(--teal-600); }
+  .sa-3 { background: var(--amber-50); color: var(--amber-600); }
+  .sa-4 { background: var(--violet-50); color: var(--violet-600); }
+  .sa-5 { background: var(--sky-50); color: var(--sky-600); }
+</style>
+</head>
+<body data-active="institutions">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Institutions</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Institutions</h1>
+          <p class="page-sub">142 schools across 4 blocks of Puri district · profiles, classes, and infrastructure</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export UDISE</button>
+          <a class="btn btn-primary" href="institutions-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Register institution</a>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+            <span class="k-label">Schools</span>
+          </div>
+          <div class="k-value">142</div>
+          <div class="k-foot"><span class="delta up">↑ 3</span> registered this term</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></span>
+            <span class="k-label">Blocks</span>
+          </div>
+          <div class="k-value">4</div>
+          <div class="k-foot">Brahmagiri · Gop · Krushnaprasad · Satyabadi</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+            <span class="k-label">Students enrolled</span>
+          </div>
+          <div class="k-value">24,812</div>
+          <div class="k-foot"><span class="delta up">↑ 1.8%</span> vs last term</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <span class="k-label">Reporting today</span>
+          </div>
+          <div class="k-value">96%</div>
+          <div class="k-foot">136 of 142 schools synced by 10:00</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search by school name or UDISE code" aria-label="Search institutions">
+        </div>
+        <select class="select" aria-label="Block"><option>All blocks</option><option>Brahmagiri</option><option>Gop</option><option>Krushnaprasad</option><option>Satyabadi</option></select>
+        <select class="select" aria-label="Type"><option>All types</option><option>Primary</option><option>Upper Primary</option><option>Secondary</option><option>Sr. Secondary</option></select>
+        <select class="select" aria-label="Status"><option>All statuses</option><option>Active</option><option>Under review</option><option>Reporting overdue</option></select>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">School <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Block</th>
+                <th>Type</th>
+                <th class="num">Students</th>
+                <th class="num">Staff</th>
+                <th>Attendance</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Saraswati Nodal High School</div><div class="cell-sub mono">UDISE 21180104506</div></div></div>
+                </td>
+                <td data-label="Block">Brahmagiri</td>
+                <td data-label="Type"><span class="tag">Secondary</span></td>
+                <td data-label="Students" class="num">642</td>
+                <td data-label="Staff" class="num">21</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:92%"></span></div></div><span class="fs-xs fw-6">92%</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Bira Pratap Sr. Sec. School</div><div class="cell-sub mono">UDISE 21180401809</div></div></div>
+                </td>
+                <td data-label="Block">Satyabadi</td>
+                <td data-label="Type"><span class="tag">Sr. Sec.</span></td>
+                <td data-label="Students" class="num">918</td>
+                <td data-label="Staff" class="num">32</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:95%"></span></div></div><span class="fs-xs fw-6">95%</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Nodal High School, Gop Sadar</div><div class="cell-sub mono">UDISE 21180501118</div></div></div>
+                </td>
+                <td data-label="Block">Gop</td>
+                <td data-label="Type"><span class="tag">Secondary</span></td>
+                <td data-label="Students" class="num">704</td>
+                <td data-label="Staff" class="num">24</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress amber"><span style="width:87%"></span></div></div><span class="fs-xs fw-6" style="color:var(--amber-600)">87%</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Govt. Girls High School</div><div class="cell-sub mono">UDISE 21180302417</div></div></div>
+                </td>
+                <td data-label="Block">Krushnaprasad</td>
+                <td data-label="Type"><span class="tag">Secondary</span></td>
+                <td data-label="Students" class="num">486</td>
+                <td data-label="Staff" class="num">17</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:91%"></span></div></div><span class="fs-xs fw-6">91%</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Govt. UP School, Satapada</div><div class="cell-sub mono">UDISE 21180300214</div></div></div>
+                </td>
+                <td data-label="Block">Krushnaprasad</td>
+                <td data-label="Type"><span class="tag">Upper Primary</span></td>
+                <td data-label="Students" class="num">318</td>
+                <td data-label="Staff" class="num">11</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress amber"><span style="width:85%"></span></div></div><span class="fs-xs fw-6" style="color:var(--amber-600)">85%</span></td>
+                <td data-label="Status"><span class="pill amber">Under review</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Sakhigopal UP School</div><div class="cell-sub mono">UDISE 21180402115</div></div></div>
+                </td>
+                <td data-label="Block">Satyabadi</td>
+                <td data-label="Type"><span class="tag">Upper Primary</span></td>
+                <td data-label="Students" class="num">274</td>
+                <td data-label="Staff" class="num">9</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:89%"></span></div></div><span class="fs-xs fw-6">89%</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Govt. Primary School, Rebana Nuagaon</div><div class="cell-sub mono">UDISE 21180102203</div></div></div>
+                </td>
+                <td data-label="Block">Brahmagiri</td>
+                <td data-label="Type"><span class="tag">Primary</span></td>
+                <td data-label="Students" class="num">186</td>
+                <td data-label="Staff" class="num">6</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:94%"></span></div></div><span class="fs-xs fw-6">94%</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="school-avatar sa-3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span><div><div class="cell-main">Govt. Primary School, Arakhakuda</div><div class="cell-sub mono">UDISE 21180301506</div></div></div>
+                </td>
+                <td data-label="Block">Krushnaprasad</td>
+                <td data-label="Type"><span class="tag">Primary</span></td>
+                <td data-label="Students" class="num">142</td>
+                <td data-label="Staff" class="num">5</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress red"><span style="width:78%"></span></div></div><span class="fs-xs fw-6" style="color:var(--red-600)">78%</span></td>
+                <td data-label="Status"><span class="pill red">Reporting overdue</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="institutions-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="institutions-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–8</b> of <b>142</b></span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <span class="page-btn" style="cursor:default">…</span>
+              <button class="page-btn">18</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

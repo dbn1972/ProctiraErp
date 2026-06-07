@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Marks Entry · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  .marks-wrap { display: flex; align-items: center; gap: 6px; }
+  .marks {
+    width: 64px; padding: 10px 10px; border: 1px solid var(--border-strong); border-radius: 12px;
+    font-family: var(--font-sans); font-size: 15px; font-weight: 700; text-align: right;
+    background: var(--surface); color: var(--text); font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+  }
+  .marks::-webkit-outer-spin-button, .marks::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .marks:focus { outline: none; border-color: var(--brand-500); box-shadow: var(--sh-focus); }
+  .marks.err { border-color: var(--red-500); background: var(--red-50); color: var(--red-700); }
+  .marks-max { font-size: var(--fs-xs); color: var(--text-3); font-weight: 600; }
+  .mi-sub.err { color: var(--red-600); font-weight: 600; }
+</style>
+</head>
+<body data-tab="services">
+<div class="phone">
+  <header class="appbar">
+    <button class="ab-back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    <div class="ab-title">
+      <h1>Marks entry</h1>
+      <div class="ab-sub">Mathematics · Unit Test 2 · VIII A</div>
+    </div>
+    <button class="ab-action" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+  </header>
+  <div class="screen">
+
+    <div class="offline-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+      Offline — marks save on device and sync automatically
+    </div>
+
+    <div class="m-card pad">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">
+        <div style="font-size:var(--fs-md);font-weight:700">28 of 38 entered</div>
+        <div style="font-size:var(--fs-xs);color:var(--text-3);font-weight:600">Max marks 40</div>
+      </div>
+      <div class="progress" style="margin-top:10px"><span style="width:74%"></span></div>
+    </div>
+
+    <div class="m-list">
+      <div class="m-item">
+        <span class="avatar av-1">RB</span>
+        <span class="mi-body"><span class="mi-title">Rohan Behera</span><span class="mi-sub">Roll 01</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" value="34" aria-label="Marks for Rohan Behera"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-2">SP</span>
+        <span class="mi-body"><span class="mi-title">Sasmita Pradhan</span><span class="mi-sub">Roll 02</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" value="38" aria-label="Marks for Sasmita Pradhan"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-3">KM</span>
+        <span class="mi-body"><span class="mi-title">Kabir Mohanty</span><span class="mi-sub err">44 exceeds max marks 40</span></span>
+        <span class="mi-end marks-wrap"><input class="marks err" type="number" inputmode="numeric" value="44" aria-label="Marks for Kabir Mohanty" aria-invalid="true"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-4">PD</span>
+        <span class="mi-body"><span class="mi-title">Priya Das</span><span class="mi-sub">Roll 04</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" value="29" aria-label="Marks for Priya Das"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-5">AJ</span>
+        <span class="mi-body"><span class="mi-title">Arjun Jena</span><span class="mi-sub">Roll 05</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" value="31" aria-label="Marks for Arjun Jena"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-6">LS</span>
+        <span class="mi-body"><span class="mi-title">Lipsa Sahoo</span><span class="mi-sub">Roll 06</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" value="40" aria-label="Marks for Lipsa Sahoo"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-1">BN</span>
+        <span class="mi-body"><span class="mi-title">Biswajit Nayak</span><span class="mi-sub">Roll 07 · absent on test day</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" placeholder="—" aria-label="Marks for Biswajit Nayak"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-2">TM</span>
+        <span class="mi-body"><span class="mi-title">Tanmay Mishra</span><span class="mi-sub">Roll 08</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" placeholder="—" aria-label="Marks for Tanmay Mishra"><span class="marks-max">/40</span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-3">AS</span>
+        <span class="mi-body"><span class="mi-title">Ankita Swain</span><span class="mi-sub">Roll 09</span></span>
+        <span class="mi-end marks-wrap"><input class="marks" type="number" inputmode="numeric" placeholder="—" aria-label="Marks for Ankita Swain"><span class="marks-max">/40</span></span>
+      </div>
+    </div>
+
+  </div>
+  <div class="m-cta" style="bottom:78px">
+    <button class="m-btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Save · syncs when online</button>
+  </div>
+</div>
+<script src="mobile.js"></script>
+</body>
+</html>

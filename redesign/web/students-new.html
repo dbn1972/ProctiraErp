@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Add student · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .photo-drop {
+    display: flex; align-items: center; gap: 16px; padding: 16px;
+    border: 2px dashed var(--border-strong); border-radius: var(--r-lg);
+    background: var(--surface-2); transition: border-color var(--t-fast);
+  }
+  .photo-drop:hover { border-color: var(--brand-400); }
+  .photo-drop .pd-art {
+    width: 64px; height: 64px; border-radius: var(--r-full); flex-shrink: 0;
+    background: var(--brand-50); color: var(--brand-500);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .photo-drop .pd-art svg { width: 26px; height: 26px; }
+  .save-footer {
+    position: sticky; bottom: 0; z-index: 20; margin-top: 24px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 12px 20px; display: flex; align-items: center; gap: 10px;
+    box-shadow: var(--sh-md);
+  }
+  .save-footer .sf-note { font-size: var(--fs-xs); color: var(--text-3); margin-right: auto; }
+  @media (max-width: 767px) {
+    .save-footer { flex-wrap: wrap; }
+    .save-footer .btn { flex: 1; }
+  }
+</style>
+</head>
+<body data-active="students">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="students-list.html">Students</a><span class="sep">/</span>
+        <span class="current">Add student</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Add student</h1>
+          <p class="page-sub">Capture personal details, guardian information, and the first enrollment. National ID is used for duplicate detection across the district.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="students-list.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to students</a>
+          <a class="btn btn-secondary" href="students-import.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Bulk import instead</a>
+        </div>
+      </div>
+
+      <form>
+        <div class="card card-pad" style="max-width:880px">
+          <div class="form-grid">
+
+            <div class="form-section-title">Personal details</div>
+
+            <div class="field span-2">
+              <label>Photograph</label>
+              <div class="photo-drop">
+                <span class="pd-art"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                <div style="flex:1">
+                  <div class="fw-6 fs-sm">Drop a passport-size photo here, or browse</div>
+                  <div class="fs-xs muted-3">JPG or PNG, up to 2 MB · plain background preferred</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" type="button">Browse files</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>First name <span class="req">*</span></label>
+              <input class="input" type="text" placeholder="e.g. Aarav">
+            </div>
+            <div class="field">
+              <label>Last name <span class="req">*</span></label>
+              <input class="input" type="text" placeholder="e.g. Sharma">
+            </div>
+            <div class="field">
+              <label>Date of birth <span class="req">*</span></label>
+              <input class="input" type="text" placeholder="DD / MM / YYYY" inputmode="numeric">
+              <span class="hint">As per the birth certificate or school record</span>
+            </div>
+            <div class="field">
+              <label>Gender <span class="req">*</span></label>
+              <select class="select"><option>Select gender</option><option>Female</option><option>Male</option><option>Other</option></select>
+            </div>
+            <div class="field">
+              <label>National ID</label>
+              <input class="input" type="text" placeholder="e.g. IDN-10248">
+              <span class="hint">Used to detect duplicate records across all 142 institutions</span>
+            </div>
+            <div class="field">
+              <label>Nationality</label>
+              <select class="select"><option>India</option><option>Nepal</option><option>Bangladesh</option><option>Other</option></select>
+            </div>
+
+            <div class="form-section-title">Guardian</div>
+
+            <div class="field">
+              <label>Guardian name <span class="req">*</span></label>
+              <input class="input" type="text" placeholder="e.g. Rajesh Sharma">
+            </div>
+            <div class="field">
+              <label>Relation <span class="req">*</span></label>
+              <select class="select"><option>Select relation</option><option>Father</option><option>Mother</option><option>Grandparent</option><option>Sibling</option><option>Legal guardian</option></select>
+            </div>
+            <div class="field">
+              <label>Phone <span class="req">*</span></label>
+              <input class="input" type="tel" placeholder="+91 98765 43210">
+              <span class="hint">Attendance and fee alerts are sent to this number</span>
+            </div>
+            <div class="field">
+              <label>Email</label>
+              <input class="input" type="email" placeholder="guardian@example.com">
+            </div>
+
+            <div class="form-section-title">Enrollment</div>
+
+            <div class="field span-2">
+              <label>Institution <span class="req">*</span></label>
+              <button class="entity-picker" type="button">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+                <span class="ep-text">
+                  <span class="ep-value">Govt. Sr. Sec. School, Puri</span>
+                  <span class="ep-meta">UDISE 21180100101 · Block: Puri Sadar · 1,248 students</span>
+                </span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="field">
+              <label>Grade <span class="req">*</span></label>
+              <select class="select"><option>Select grade</option><option>Grade VI</option><option>Grade VII</option><option selected>Grade VIII</option><option>Grade IX</option><option>Grade X</option></select>
+            </div>
+            <div class="field">
+              <label>Section</label>
+              <select class="select"><option selected>Section A · 38 of 45 seats filled</option><option>Section B · 41 of 45 seats filled</option><option>Section C · 36 of 45 seats filled</option></select>
+            </div>
+            <div class="field">
+              <label>Admission date <span class="req">*</span></label>
+              <input class="input" type="text" value="07 / 06 / 2026" inputmode="numeric">
+              <span class="hint">Academic Year 2026–27 · Term 1</span>
+            </div>
+            <div class="field">
+              <label>Admission number</label>
+              <input class="input mono" type="text" value="2026/0249" readonly style="background:var(--bg-subtle)">
+              <span class="hint">Auto-generated on save</span>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="save-footer" style="max-width:880px">
+          <span class="sf-note">Fields marked <span style="color:var(--red-500)">*</span> are required · all changes are recorded in the audit trail</span>
+          <a class="btn btn-ghost" href="students-list.html">Cancel</a>
+          <button class="btn btn-secondary" type="button">Save &amp; add another</button>
+          <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Save student</button>
+        </div>
+      </form>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

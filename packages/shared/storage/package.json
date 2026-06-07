@@ -1,0 +1,32 @@
+{
+  "name": "@proctira/storage",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./s3": "./src/adapters/s3-adapter.ts",
+    "./minio": "./src/adapters/minio-adapter.ts",
+    "./factory": "./src/factory.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.540.0",
+    "@aws-sdk/s3-request-presigner": "^3.540.0",
+    "@aws-sdk/lib-storage": "^3.540.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "fast-check": "^3.17.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

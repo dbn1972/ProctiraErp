@@ -1,0 +1,39 @@
+# =============================================================================
+# Workflow Linting - ProctiraERP Unified Platform
+# =============================================================================
+# Validates GitHub Actions workflow syntax using actionlint. Runs on PRs that
+# touch workflow files and on push to main/develop. Catches issues like
+# undefined secrets/variables, invalid expressions, and shellcheck warnings
+# in run blocks before they hit the queue.
+# =============================================================================
+
+name: Workflow Lint
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+  push:
+    branches: [main, develop]
+    paths:
+      - '.github/workflows/**'
+      - '.github/actionlint.yaml'
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run actionlint
+        uses: raven-actions/actionlint@v2
+        with:
+          # Pin to a known-good version so workflow lint output is reproducible.
+          version: '1.7.7'
+          # shellcheck is bundled and runs against `run:` blocks automatically.
+          shellcheck: true

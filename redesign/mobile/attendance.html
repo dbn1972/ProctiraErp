@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Attendance · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+</head>
+<body data-tab="attendance">
+<div class="phone">
+  <header class="appbar">
+    <button class="ab-back" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    <div class="ab-title">
+      <h1>Attendance</h1>
+      <div class="ab-sub">Grade IX · B · Sun 7 Jun 2026</div>
+    </div>
+    <button class="ab-action" aria-label="Change class"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg></button>
+  </header>
+  <div class="screen">
+
+    <div class="geo in">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+      You're at school — location verified (42 m from gate)
+    </div>
+
+    <div class="offline-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.58 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>
+      Offline — marks save on device and sync automatically
+    </div>
+
+    <div class="m-card pad" style="display:flex;align-items:center;gap:14px">
+      <div style="flex:1">
+        <div style="display:flex;gap:14px;font-size:var(--fs-xs);font-weight:700">
+          <span style="color:var(--green-600)">31 present</span>
+          <span style="color:var(--red-600)">2 absent</span>
+          <span style="color:var(--amber-600)">1 late</span>
+          <span style="color:var(--text-3)">2 left</span>
+        </div>
+        <div class="progress" style="margin-top:8px;height:8px;display:flex;overflow:hidden">
+          <span style="width:86%;background:var(--green-500);border-radius:0"></span><span style="width:6%;background:var(--red-500);border-radius:0"></span><span style="width:3%;background:var(--amber-500);border-radius:0"></span>
+        </div>
+      </div>
+      <button class="m-btn secondary" style="width:auto;padding:9px 12px;font-size:var(--fs-xs)">All present</button>
+    </div>
+
+    <div class="m-list">
+      <div class="m-item">
+        <span class="avatar av-1">RB</span>
+        <span class="mi-body"><span class="mi-title">Rohan Behera</span><span class="mi-sub">Roll 01 · 96% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p on">P</button><button class="a">A</button><button class="l">L</button></span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-2">SP</span>
+        <span class="mi-body"><span class="mi-title">Sasmita Pradhan</span><span class="mi-sub">Roll 02 · 98% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p on">P</button><button class="a">A</button><button class="l">L</button></span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-3">KM</span>
+        <span class="mi-body"><span class="mi-title">Kabir Mohanty</span><span class="mi-sub">Roll 03 · 88% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p">P</button><button class="a on">A</button><button class="l">L</button></span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-4">PD</span>
+        <span class="mi-body"><span class="mi-title">Priya Das</span><span class="mi-sub">Roll 04 · 94% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p">P</button><button class="a">A</button><button class="l on">L</button></span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-5">AJ</span>
+        <span class="mi-body"><span class="mi-title">Arjun Jena</span><span class="mi-sub">Roll 05 · 91% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p on">P</button><button class="a">A</button><button class="l">L</button></span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-6">LS</span>
+        <span class="mi-body"><span class="mi-title">Lipsa Sahoo</span><span class="mi-sub">Roll 06 · 99% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p on">P</button><button class="a">A</button><button class="l">L</button></span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-1">BN</span>
+        <span class="mi-body"><span class="mi-title">Biswajit Nayak</span><span class="mi-sub">Roll 07 · 85% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p">P</button><button class="a">A</button><button class="l">L</button></span></span>
+      </div>
+      <div class="m-item">
+        <span class="avatar av-2">TM</span>
+        <span class="mi-body"><span class="mi-title">Tanmay Mishra</span><span class="mi-sub">Roll 08 · 93% this term</span></span>
+        <span class="mi-end"><span class="m-att"><button class="p">P</button><button class="a">A</button><button class="l">L</button></span></span>
+      </div>
+    </div>
+
+  </div>
+  <div class="m-cta" style="bottom:78px">
+    <button class="m-btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Submit · 34 of 36 marked</button>
+  </div>
+</div>
+<script src="mobile.js"></script>
+<script>
+  document.querySelectorAll('.m-att').forEach(g => g.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    g.querySelectorAll('button').forEach(x => x.classList.remove('on'));
+    b.classList.add('on');
+  }));
+</script>
+</body>
+</html>

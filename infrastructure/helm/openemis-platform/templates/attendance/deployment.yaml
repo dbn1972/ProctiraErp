@@ -1,0 +1,69 @@
+{{- if .Values.attendanceService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "proctira.fullname" . }}-attendance-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: attendance-service
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.attendanceService.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: attendance-service
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    {{- toYaml .Values.attendanceService.strategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: attendance-service
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/part-of: proctira-platform
+        app.kubernetes.io/component: backend
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 30
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: attendance-service
+          image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.attendanceService.image "appVersion" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.attendanceService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.attendanceService.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.attendanceService.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "proctira.configmapName" . }}
+            - secretRef:
+                name: {{ include "proctira.secretName" . }}
+          resources:
+            {{- toYaml .Values.attendanceService.resources | nindent 12 }}
+          {{- with .Values.attendanceService.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.attendanceService.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.attendanceService.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

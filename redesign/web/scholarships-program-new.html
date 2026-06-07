@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New scholarship program · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .doc-checklist { display: flex; flex-direction: column; gap: 2px; }
+  .doc-checklist .checkbox-row { padding: 8px 10px; border-radius: var(--r-md); }
+  .doc-checklist .checkbox-row:hover { background: var(--bg-subtle); }
+  .save-footer {
+    position: sticky; bottom: 0; z-index: 20; margin-top: 24px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 12px 20px; display: flex; align-items: center; gap: 10px; justify-content: flex-end;
+    box-shadow: var(--sh-md);
+  }
+  @media (max-width: 767px) { .save-footer .btn { flex: 1; } }
+</style>
+</head>
+<body data-active="scholarships">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="scholarships-list.html">Scholarships</a><span class="sep">/</span>
+        <span class="current">New program</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">New scholarship program</h1>
+          <p class="page-sub">Define the award, eligibility rules, and application window. Eligibility checks run automatically against student records when applications come in.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="scholarships-list.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to programs</a>
+        </div>
+      </div>
+
+      <form>
+        <div class="card card-pad" style="max-width:880px">
+          <div class="form-grid">
+
+            <div class="form-section-title">Program details</div>
+            <div class="field">
+              <label>Program name <span class="req">*</span></label>
+              <input class="input" type="text" placeholder="e.g. Pre-Matric Scholarship (SC/ST)">
+            </div>
+            <div class="field">
+              <label>Program code <span class="req">*</span></label>
+              <input class="input mono" type="text" placeholder="e.g. PM-SC-2026">
+            </div>
+            <div class="field">
+              <label>Sponsor <span class="req">*</span></label>
+              <select class="select"><option>Select sponsor</option><option>Govt. of India</option><option selected>Govt. of Odisha</option><option>NCERT</option><option>CSR / Private trust</option></select>
+            </div>
+            <div class="field">
+              <label>Award amount (per year) <span class="req">*</span></label>
+              <div class="input-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12M6 8h12M6 13l8.5 8M6 13h3a6 6 0 0 0 6-6"/></svg>
+                <input class="input" type="text" placeholder="12,000" inputmode="numeric">
+              </div>
+              <span class="hint">Disbursed via DBT to the student's bank account</span>
+            </div>
+
+            <div class="form-section-title">Eligibility criteria</div>
+            <div class="field">
+              <label>Social category</label>
+              <select class="select"><option>Any category</option><option>SC / ST</option><option>OBC / EBC / DNT</option><option>Minority</option><option>Students with special needs</option></select>
+            </div>
+            <div class="field">
+              <label>Family income ceiling (₹/yr)</label>
+              <select class="select"><option>No ceiling</option><option>₹1,00,000</option><option selected>₹2,50,000</option><option>₹3,50,000</option><option>₹6,00,000</option></select>
+            </div>
+            <div class="field">
+              <label>Minimum attendance</label>
+              <select class="select"><option>Not required</option><option>60%</option><option selected>75%</option><option>85%</option></select>
+            </div>
+            <div class="field">
+              <label>Eligible grades</label>
+              <select class="select"><option>All grades</option><option selected>Grades VI–X</option><option>Grades VI–VIII</option><option>Grades IX–X</option><option>Grade VIII only</option></select>
+            </div>
+            <div class="field span-2">
+              <label>Additional criteria</label>
+              <textarea class="input" rows="3" placeholder="e.g. Minimum 55% aggregate in the previous grade; one scholarship per student per year…"></textarea>
+            </div>
+
+            <div class="form-section-title">Application window</div>
+            <div class="field">
+              <label>Opens on <span class="req">*</span></label>
+              <input class="input" type="text" value="01 / 07 / 2026" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label>Closes on <span class="req">*</span></label>
+              <input class="input" type="text" value="31 / 08 / 2026" inputmode="numeric">
+              <span class="hint">Schools get a reminder 7 days before the window closes</span>
+            </div>
+
+            <div class="form-section-title">Documents required from applicants</div>
+            <div class="field span-2">
+              <div class="doc-checklist">
+                <label class="checkbox-row"><input type="checkbox" checked> Caste / category certificate</label>
+                <label class="checkbox-row"><input type="checkbox" checked> Income certificate (Tahasildar, within 1 year)</label>
+                <label class="checkbox-row"><input type="checkbox" checked> Bank passbook (student or joint account)</label>
+                <label class="checkbox-row"><input type="checkbox" checked> Aadhaar card</label>
+                <label class="checkbox-row"><input type="checkbox"> Previous year mark sheet</label>
+                <label class="checkbox-row"><input type="checkbox"> Disability certificate (if applicable)</label>
+                <label class="checkbox-row"><input type="checkbox"> Domicile certificate</label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="save-footer" style="max-width:880px">
+          <a class="btn btn-ghost" href="scholarships-list.html">Cancel</a>
+          <button class="btn btn-secondary" type="button">Save as draft</button>
+          <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Create program</button>
+        </div>
+      </form>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

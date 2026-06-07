@@ -1,0 +1,11 @@
+# actionlint configuration for ProctiraERP Unified Platform.
+# https://github.com/rhysd/actionlint/blob/main/docs/config.md
+
+self-hosted-runner:
+  labels: []
+
+# Configurable runner labels are not in use; default GitHub-hosted runners only.
+config-variables:
+  - TURBO_TEAM
+  - CONTAINER_REGISTRY
+  - IMAGE_NAMESPACE

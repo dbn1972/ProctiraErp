@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Register — Step 2 of 3: Documents · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  /* ---- Public shell ---- */
+  .pub-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .pub-header-in { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 24px; }
+  .pub-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .pub-logo .logo-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .pub-logo b { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+  .pub-logo b span { color: var(--brand-600); }
+  .pub-nav { display: flex; gap: 2px; }
+  .pub-nav a { padding: 8px 12px; border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); text-decoration: none; transition: background var(--t-fast), color var(--t-fast); }
+  .pub-nav a:hover { background: var(--bg-subtle); color: var(--text); }
+  .pub-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  .pub-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .pub-burger { display: none; }
+  .pub-mobile-nav { display: none; }
+  @media (max-width: 767px) {
+    .pub-header-in { padding: 0 16px; gap: 12px; }
+    .pub-nav { display: none; }
+    .pub-burger { display: inline-flex; }
+    .pub-mobile-nav.open { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .pub-mobile-nav a { padding: 13px 14px; border-radius: var(--r-md); font-size: var(--fs-md); font-weight: 600; color: var(--text-2); text-decoration: none; }
+    .pub-mobile-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  }
+  .pub-main { flex: 1; }
+  .pub-footer { background: var(--navy-900); color: #AEB9D6; }
+  .pub-footer-bottom { max-width: 1120px; margin: 0 auto; padding: 22px 24px calc(22px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; font-size: var(--fs-xs); color: #8B97B8; }
+  .pub-footer-bottom b { color: #fff; font-size: var(--fs-md); letter-spacing: .02em; }
+  .pub-footer-bottom .helpline { display: inline-flex; align-items: center; gap: 8px; }
+  .pub-footer-bottom .helpline svg { width: 14px; height: 14px; color: var(--brand-300); }
+  .pub-footer-bottom a { color: #8B97B8; text-decoration: none; }
+  .pub-footer-bottom a:hover { color: #fff; }
+  .pub-footer-bottom .fb-links { margin-left: auto; display: flex; gap: 18px; }
+  @media (max-width: 767px) { .pub-footer-bottom .fb-links { margin-left: 0; } }
+
+  /* ---- Wizard page ---- */
+  .wiz { max-width: 760px; margin: 0 auto; padding: 36px 24px 72px; width: 100%; }
+  @media (max-width: 767px) { .wiz { padding: 24px 16px 56px; } }
+  .wiz-head { text-align: center; margin-bottom: 26px; }
+  .wiz-head h1 { margin: 0 0 4px; font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -.02em; }
+  .wiz-head p { margin: 0; color: var(--text-2); font-size: var(--fs-sm); }
+  .stepper { justify-content: center; }
+
+  .doc-card { padding: 18px 20px; margin-bottom: 14px; }
+  .doc-head { display: flex; align-items: flex-start; gap: 14px; }
+  .doc-head .d-ic { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--brand-50); color: var(--brand-600); }
+  .doc-head .d-ic svg { width: 18px; height: 18px; }
+  .doc-head h3 { margin: 0; font-size: var(--fs-md); font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .doc-head .d-hint { font-size: var(--fs-xs); color: var(--text-3); margin-top: 2px; }
+  .file-chip { display: flex; align-items: center; gap: 11px; margin-top: 13px; padding: 10px 13px; border: 1px solid color-mix(in srgb, var(--green-500) 35%, transparent); background: var(--green-50); border-radius: var(--r-md); }
+  .file-chip .fc-ic { width: 30px; height: 30px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--text-2); }
+  .file-chip .fc-ic svg { width: 14px; height: 14px; }
+  .file-chip .fc-name { flex: 1; min-width: 0; font-size: var(--fs-sm); font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-chip .fc-size { font-size: var(--fs-xs); color: var(--text-3); white-space: nowrap; }
+  .file-chip .fc-check { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); font-weight: 700; color: var(--green-700); white-space: nowrap; }
+  .file-chip .fc-check svg { width: 15px; height: 15px; }
+  .file-chip .fc-remove { color: var(--text-3); background: none; border: none; cursor: pointer; padding: 4px; border-radius: 6px; display: inline-flex; }
+  .file-chip .fc-remove:hover { color: var(--red-600); background: var(--surface); }
+  .file-chip .fc-remove svg { width: 14px; height: 14px; }
+  .dropzone { margin-top: 13px; border: 2px dashed var(--border-strong); border-radius: var(--r-md); padding: 26px 16px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; cursor: pointer; transition: border-color var(--t-fast), background var(--t-fast); }
+  .dropzone:hover { border-color: var(--brand-400); background: var(--brand-50); }
+  .dropzone svg { width: 22px; height: 22px; color: var(--text-3); }
+  .dropzone b { font-size: var(--fs-sm); color: var(--text); }
+  .dropzone b u { color: var(--brand-600); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  .dropzone span { font-size: var(--fs-xs); color: var(--text-3); }
+  .wiz-foot { display: flex; gap: 10px; margin-top: 22px; }
+  .wiz-foot .btn-primary { margin-left: auto; }
+  @media (max-width: 767px) { .wiz-foot .btn { flex: 1; } .wiz-foot .btn-primary { margin-left: 0; } }
+</style>
+</head>
+<body>
+
+<header class="pub-header">
+  <div class="pub-header-in">
+    <a class="pub-logo" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="pub-nav" aria-label="Main">
+      <a href="home.html">Home</a>
+      <a href="schools.html">Find Schools</a>
+      <a href="apply-school.html" class="active" aria-current="page">Register</a>
+      <a href="track.html">Track Application</a>
+    </nav>
+    <div class="pub-right">
+      <button class="btn btn-secondary btn-sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English ▾</button>
+      <button class="icon-btn pub-burger" type="button" aria-label="Open menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', document.getElementById('mnav').classList.toggle('open'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+  </div>
+  <nav class="pub-mobile-nav" id="mnav" aria-label="Mobile">
+    <a href="home.html">Home</a>
+    <a href="schools.html">Find Schools</a>
+    <a href="apply-school.html" class="active" aria-current="page">Register</a>
+    <a href="track.html">Track Application</a>
+  </nav>
+</header>
+
+<main class="pub-main">
+  <div class="wiz">
+    <div class="wiz-head">
+      <h1>Upload documents</h1>
+      <p>Clear phone-camera photos are fine. Each file can be PDF or JPG, up to 5 MB.</p>
+    </div>
+
+    <div class="stepper" aria-label="Application progress">
+      <div class="step done"><span class="s-dot"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span><span class="s-label">Personal</span></div>
+      <span class="step-line done"></span>
+      <div class="step active"><span class="s-dot">2</span><span class="s-label">Documents</span></div>
+      <span class="step-line"></span>
+      <div class="step"><span class="s-dot">3</span><span class="s-label">Review</span></div>
+    </div>
+
+    <!-- Birth certificate — uploaded -->
+    <div class="card doc-card">
+      <div class="doc-head">
+        <span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <div>
+          <h3>Birth certificate <span class="pill red plain">Required</span></h3>
+          <div class="d-hint">Issued by the municipality, panchayat, or hospital · PDF or JPG, up to 5 MB</div>
+        </div>
+      </div>
+      <div class="file-chip">
+        <span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+        <span class="fc-name">ananya-birth-certificate.pdf</span>
+        <span class="fc-size">1.2 MB</span>
+        <span class="fc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Uploaded</span>
+        <button class="fc-remove" type="button" aria-label="Remove birth certificate file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Address proof — uploaded -->
+    <div class="card doc-card">
+      <div class="doc-head">
+        <span class="d-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5"/><path d="M5 11v9h14v-9"/><path d="M10 20v-6h4v6"/></svg></span>
+        <div>
+          <h3>Address proof <span class="pill red plain">Required</span></h3>
+          <div class="d-hint">Ration card, voter ID, electricity bill, or Aadhaar of the guardian · PDF or JPG, up to 5 MB</div>
+        </div>
+      </div>
+      <div class="file-chip">
+        <span class="fc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span>
+        <span class="fc-name">ration-card-front.jpg</span>
+        <span class="fc-size">2.8 MB</span>
+        <span class="fc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>Uploaded</span>
+        <button class="fc-remove" type="button" aria-label="Remove address proof file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+    </div>
+
+    <!-- Caste certificate — optional, empty -->
+    <div class="card doc-card">
+      <div class="doc-head">
+        <span class="d-ic" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.5 13 17 22l-5-3-5 3 1.5-9"/></svg></span>
+        <div>
+          <h3>Caste certificate <span class="pill slate plain">Optional</span></h3>
+          <div class="d-hint">Only needed for SC/ST/SEBC scholarship benefits — you can also add it later · PDF or JPG, up to 5 MB</div>
+        </div>
+      </div>
+      <button class="dropzone" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <b>Drag a file here or <u>browse</u></b>
+        <span>PDF or JPG · up to 5 MB</span>
+      </button>
+    </div>
+
+    <!-- Photo — empty -->
+    <div class="card doc-card">
+      <div class="doc-head">
+        <span class="d-ic" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3"/></svg></span>
+        <div>
+          <h3>Child's photo <span class="pill red plain">Required</span></h3>
+          <div class="d-hint">A recent passport-style photo — a plain-background phone photo works · JPG, up to 5 MB</div>
+        </div>
+      </div>
+      <button class="dropzone" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <b>Drag a file here or <u>browse</u></b>
+        <span>JPG · up to 5 MB</span>
+      </button>
+    </div>
+
+    <div class="wiz-foot">
+      <a class="btn btn-secondary" href="apply-school.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</a>
+      <a class="btn btn-primary" href="apply-school-review.html">Next: Review<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+    </div>
+  </div>
+</main>
+
+<footer class="pub-footer">
+  <div class="pub-footer-bottom">
+    <span class="helpline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Helpline <b>155335</b> · toll-free, Mon–Sat 8 am–8 pm</span>
+    <span>© 2026 ProctiraERP · Student Registration Portal</span>
+    <div class="fb-links">
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#terms">Terms of Service</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

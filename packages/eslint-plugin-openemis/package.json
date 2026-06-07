@@ -1,0 +1,15 @@
+{
+  "name": "eslint-plugin-proctira",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Custom ESLint rules for the ProctiraERP platform",
+  "main": "src/index.js",
+  "files": ["src", "test"],
+  "keywords": ["eslint", "eslintplugin", "proctira"],
+  "scripts": {
+    "test": "node src/rules/no-physical-margin-padding.test.js && node src/rules/error-envelope.test.js && node src/rules/no-hardcoded-i18n-message.test.js && node test/rules/icon-only-button-requires-aria-label.test.js && node test/rules/no-hardcoded-brand-strings.test.js && node src/rules/img-requires-dimensions.test.js"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}

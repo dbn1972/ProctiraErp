@@ -1,0 +1,41 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "noEmit": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@proctira/auth": ["../../packages/shared/auth/src"],
+      "@proctira/i18n": ["../../packages/shared/i18n/src"],
+      "@proctira/tenant": ["../../packages/shared/tenant/src"],
+      "@proctira/common": ["../../packages/shared/common/src"],
+      "@proctira/ui/area-picker": ["../../packages/ui/area-picker/src"],
+      "@proctira/ui/components": ["../../packages/ui/components/src"],
+      "@proctira/ui/dashboards": ["../../packages/ui/dashboards/src"],
+      "@proctira/ui-dashboards": ["../../packages/ui/dashboards/src"],
+      "@proctira/ui/data-grid": ["../../packages/ui/data-grid/src"],
+      "@proctira/ui/file-upload": ["../../packages/ui/file-upload/src"],
+      "@proctira/ui/form-builder": ["../../packages/ui/form-builder/src"],
+      "@proctira/ui/bulk-import": ["../../packages/ui/bulk-import/src"],
+      "@proctira/ui/motion-gate": ["../../packages/ui/motion-gate/src"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

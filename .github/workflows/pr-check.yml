@@ -1,0 +1,85 @@
+# =============================================================================
+# PR Check - ProctiraERP Unified Platform
+# =============================================================================
+# Lightweight checks that run on every PR to provide fast feedback.
+# Validates commit messages, PR size, and runs affected-only checks.
+# =============================================================================
+
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Validate PR metadata
+  # ---------------------------------------------------------------------------
+  pr-validation:
+    name: PR Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check PR size
+        run: |
+          ADDITIONS=$(gh pr view ${{ github.event.pull_request.number }} --json additions -q '.additions')
+          DELETIONS=$(gh pr view ${{ github.event.pull_request.number }} --json deletions -q '.deletions')
+          TOTAL=$((ADDITIONS + DELETIONS))
+
+          if [ "$TOTAL" -gt 1000 ]; then
+            echo "::warning::Large PR detected (${TOTAL} lines changed). Consider splitting into smaller PRs."
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  # ---------------------------------------------------------------------------
+  # Affected module summary
+  # ---------------------------------------------------------------------------
+  affected-summary:
+    name: Affected Modules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.33.2'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: List affected packages
+        id: affected
+        run: |
+          {
+            echo "## Affected Packages"
+            echo ""
+            echo "The following packages will be rebuilt:"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Use turbo dry run to show affected packages
+          if ! pnpm turbo run build --filter='...[origin/main]' --dry=json 2>/dev/null | \
+            jq -r '.packages[]' | while IFS= read -r pkg; do
+              echo "- \`${pkg}\`" >> "$GITHUB_STEP_SUMMARY"
+            done; then
+            echo "- Unable to determine affected packages" >> "$GITHUB_STEP_SUMMARY"
+          fi

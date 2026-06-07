@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Installation — Run it yourself · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="site.css">
+<style>
+  .install-card { display: flex; flex-direction: column; }
+  .install-card .code-card { margin-top: 18px; }
+  .install-card .ic-head { display: flex; align-items: center; gap: 14px; }
+  .install-card .ic-head h3 { margin: 0; font-size: var(--fs-xl); font-weight: 700; letter-spacing: -.015em; }
+  .install-card .ic-head .pill { margin-left: auto; }
+  .install-card > p { margin: 12px 0 0; font-size: var(--fs-md); line-height: 1.65; color: var(--text-2); flex: 0; }
+  .req-table th, .req-table td { font-size: var(--fs-sm); }
+</style>
+</head>
+<body class="site">
+
+<header class="site-header">
+  <div class="container nav-row">
+    <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="product.html">Product</a>
+      <a href="home.html#levels">Solutions</a>
+      <a href="installation.html" class="active">Developers</a>
+      <a href="contact.html">Pricing</a>
+      <a href="about.html">Company</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+    <button class="hamburger" type="button" aria-label="Toggle menu" aria-expanded="false" onclick="toggleNav(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+  <div class="mobile-menu">
+    <a href="product.html">Product</a>
+    <a href="home.html#levels">Solutions</a>
+    <a href="installation.html">Developers</a>
+    <a href="contact.html">Pricing</a>
+    <a href="about.html">Company</a>
+    <div class="mm-actions">
+      <a class="btn btn-secondary" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <span class="chip"><span class="dot"></span>Self-hosting · Apache-2.0</span>
+      <h1>Run it <span class="grad">yourself</span></h1>
+      <p class="lead">ProctiraERP is fully self-hostable on your own infrastructure — your servers, your data centre, your sovereignty. Choose cloud-managed for a turnkey experience, or follow this guide for full control.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad btn-xl" href="#options">Choose a deployment</a>
+        <a class="btn btn-secondary btn-xl" href="about.html#opensource">Browse the source on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- REQUIREMENTS -->
+  <section class="section" style="padding-bottom:40px">
+    <div class="container">
+      <div class="section-head left">
+        <span class="kicker">Before you start</span>
+        <h2 class="section-title">System requirements</h2>
+        <p class="section-sub">Sized for a district of ~150 schools and 30,000 students. Smaller pilots run comfortably on half of this.</p>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table req-table">
+            <thead>
+              <tr><th>Component</th><th>Minimum</th><th>Recommended</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Component"><span class="cell-main">Compute</span></td>
+                <td data-label="Minimum">4 vCPU · 8 GB RAM</td>
+                <td data-label="Recommended">8 vCPU · 16 GB RAM</td>
+                <td data-label="Notes" class="muted">Containerized via Docker or Kubernetes</td>
+              </tr>
+              <tr>
+                <td data-label="Component"><span class="cell-main">Database</span></td>
+                <td data-label="Minimum">PostgreSQL 16+</td>
+                <td data-label="Recommended">PostgreSQL 16 with streaming replica</td>
+                <td data-label="Notes" class="muted">Redis 7 required for cache and queues</td>
+              </tr>
+              <tr>
+                <td data-label="Component"><span class="cell-main">Storage</span></td>
+                <td data-label="Minimum">50 GB SSD</td>
+                <td data-label="Recommended">200 GB SSD + S3-compatible object store</td>
+                <td data-label="Notes" class="muted">Documents, photos, and report exports</td>
+              </tr>
+              <tr>
+                <td data-label="Component"><span class="cell-main">Network</span></td>
+                <td data-label="Minimum">TLS 1.2 termination</td>
+                <td data-label="Recommended">TLS 1.3, reverse proxy, private DB subnet</td>
+                <td data-label="Notes" class="muted">Outbound SMS gateway and eKYC access</td>
+              </tr>
+              <tr>
+                <td data-label="Component"><span class="cell-main">Operating system</span></td>
+                <td data-label="Minimum">Ubuntu 22.04 / Debian 12</td>
+                <td data-label="Recommended">Any OCI-compatible container host</td>
+                <td data-label="Notes" class="muted">Air-gapped installs supported</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSTALL OPTIONS -->
+  <section class="section alt" id="options">
+    <div class="container">
+      <div class="section-head">
+        <span class="kicker">Deployment options</span>
+        <h2 class="section-title">Four ways to deploy</h2>
+        <p class="section-sub">From a single-server pilot to a state-scale cluster — pick the path that matches your team.</p>
+      </div>
+      <div class="cards-2">
+
+        <div class="f-card install-card">
+          <div class="ic-head">
+            <span class="icon-sq iq-sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><circle cx="7.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="7.5" cy="16.5" r="1" fill="currentColor" stroke="none"/></svg></span>
+            <h3>Docker Compose</h3>
+            <span class="pill brand plain">Fastest start</span>
+          </div>
+          <p>Single-server evaluation and small-school production. Everything — web, API, PostgreSQL, Redis — in one stack.</p>
+          <div class="code-card">
+            <div class="code-head"><span class="b-dot" style="background:#FC5F57"></span><span class="b-dot" style="background:#FDBC2E"></span><span class="b-dot" style="background:#28C840"></span>terminal</div>
+            <pre><span class="c"># Clone and boot the full stack</span>
+<span class="p">$</span> git clone https://github.com/proctira/proctira-erp.git
+<span class="p">$</span> cd proctira-erp
+<span class="p">$</span> cp .env.example .env
+<span class="p">$</span> docker compose up <span class="k">-d</span>
+<span class="c"># → https://localhost:8443 in about 4 minutes</span></pre>
+          </div>
+        </div>
+
+        <div class="f-card install-card">
+          <div class="ic-head">
+            <span class="icon-sq iq-brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/></svg></span>
+            <h3>Kubernetes Helm</h3>
+            <span class="pill violet plain">District &amp; state scale</span>
+          </div>
+          <p>Production-grade, horizontally scalable deployment with managed PostgreSQL and Redis. The Odisha pilot runs this chart.</p>
+          <div class="code-card">
+            <div class="code-head"><span class="b-dot" style="background:#FC5F57"></span><span class="b-dot" style="background:#FDBC2E"></span><span class="b-dot" style="background:#28C840"></span>terminal</div>
+            <pre><span class="p">$</span> helm repo add proctira https://charts.proctira.org
+<span class="p">$</span> helm install erp proctira/proctira-erp \
+    <span class="k">--namespace</span> education <span class="k">--create-namespace</span> \
+    <span class="k">--set</span> tenancy.mode=<span class="s">"multi"</span> \
+    <span class="k">--set</span> region=<span class="s">"ap-south-1"</span>
+<span class="c"># HPA, PodDisruptionBudgets, and probes included</span></pre>
+          </div>
+        </div>
+
+        <div class="f-card install-card">
+          <div class="ic-head">
+            <span class="icon-sq iq-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19a4.5 4.5 0 1 0-1-8.9A6 6 0 1 0 5.6 13 3.5 3.5 0 0 0 6.5 19Z"/></svg></span>
+            <h3>Managed cloud</h3>
+            <span class="pill green plain">Zero ops</span>
+          </div>
+          <p>We run upgrades, backups, and monitoring; you keep admin control and Indian data residency. SLA-backed for ministries.</p>
+          <div class="code-card">
+            <div class="code-head"><span class="b-dot" style="background:#FC5F57"></span><span class="b-dot" style="background:#FDBC2E"></span><span class="b-dot" style="background:#28C840"></span>provisioning</div>
+            <pre><span class="c"># No installation required — request a tenant</span>
+<span class="c"># and receive your workspace within one business day:</span>
+
+  https://cloud.proctira.org/request
+
+<span class="c"># Data hosted in MeitY-empanelled Indian regions</span></pre>
+          </div>
+        </div>
+
+        <div class="f-card install-card">
+          <div class="ic-head">
+            <span class="icon-sq iq-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="14" width="20" height="8" rx="2"/><path d="M6.01 18h.01M10 18h.01"/><path d="M5 14V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v7"/></svg></span>
+            <h3>Bare metal</h3>
+            <span class="pill amber plain">Air-gapped ready</span>
+          </div>
+          <p>For data centres without container platforms, or fully offline installations in restricted networks.</p>
+          <div class="code-card">
+            <div class="code-head"><span class="b-dot" style="background:#FC5F57"></span><span class="b-dot" style="background:#FDBC2E"></span><span class="b-dot" style="background:#28C840"></span>terminal</div>
+            <pre><span class="p">$</span> curl <span class="k">-fsSL</span> https://get.proctira.org | sudo bash
+<span class="p">$</span> proctira setup <span class="k">--offline-bundle</span> ./erp-bundle.tar
+<span class="p">$</span> proctira migrate &amp;&amp; proctira start
+<span class="c"># systemd units, log rotation, and nightly</span>
+<span class="c"># pg_dump backups configured automatically</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section class="section" id="architecture" style="scroll-margin-top:80px">
+    <div class="container">
+      <div class="section-head">
+        <span class="kicker">Under the hood</span>
+        <h2 class="section-title">A boring, dependable architecture</h2>
+        <p class="section-sub">Stateless web and API layers in front of PostgreSQL, Redis, and a background queue. Nothing exotic — by design.</p>
+      </div>
+      <div class="mock-frame" style="max-width:880px;margin:0 auto">
+        <svg viewBox="0 0 800 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture diagram: browsers connect to the web app, which calls the API, which uses PostgreSQL, Redis, and a job queue">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="var(--slate-400)"/>
+            </marker>
+          </defs>
+          <rect width="800" height="360" rx="14" fill="#fff" stroke="var(--slate-200)"/>
+
+          <!-- Clients -->
+          <g>
+            <rect x="40" y="130" width="150" height="100" rx="12" fill="var(--slate-50)" stroke="var(--slate-300)"/>
+            <text x="115" y="172" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="var(--slate-800)">Browsers &amp;</text>
+            <text x="115" y="192" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" font-weight="800" fill="var(--slate-800)">mobile devices</text>
+            <text x="115" y="212" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--slate-500)">teachers · admins · parents</text>
+          </g>
+
+          <!-- Web -->
+          <g>
+            <rect x="250" y="130" width="150" height="100" rx="12" fill="var(--brand-50)" stroke="var(--brand-300)"/>
+            <text x="325" y="176" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="800" fill="var(--brand-700)">Web app</text>
+            <text x="325" y="198" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--brand-600)">Next.js · SSR · PWA</text>
+          </g>
+
+          <!-- API -->
+          <g>
+            <rect x="460" y="130" width="150" height="100" rx="12" fill="var(--brand-50)" stroke="var(--brand-300)"/>
+            <text x="535" y="176" text-anchor="middle" font-family="Inter, sans-serif" font-size="15" font-weight="800" fill="var(--brand-700)">API</text>
+            <text x="535" y="198" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--brand-600)">Fastify · REST + webhooks</text>
+          </g>
+
+          <!-- Data services -->
+          <g>
+            <rect x="670" y="36" width="110" height="76" rx="12" fill="var(--sky-50)" stroke="var(--sky-500)"/>
+            <text x="725" y="70" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="800" fill="var(--sky-700)">PostgreSQL</text>
+            <text x="725" y="90" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--sky-600)">system of record</text>
+          </g>
+          <g>
+            <rect x="670" y="142" width="110" height="76" rx="12" fill="var(--red-50)" stroke="var(--red-500)"/>
+            <text x="725" y="176" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="800" fill="var(--red-700)">Redis</text>
+            <text x="725" y="196" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--red-600)">cache · sessions</text>
+          </g>
+          <g>
+            <rect x="670" y="248" width="110" height="76" rx="12" fill="var(--amber-50)" stroke="var(--amber-500)"/>
+            <text x="725" y="282" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" font-weight="800" fill="var(--amber-700)">Queue</text>
+            <text x="725" y="302" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--amber-600)">SMS · reports · sync</text>
+          </g>
+
+          <!-- arrows -->
+          <g stroke="var(--slate-400)" stroke-width="2" fill="none" marker-end="url(#arrow)">
+            <line x1="190" y1="180" x2="244" y2="180"/>
+            <line x1="400" y1="180" x2="454" y2="180"/>
+            <line x1="610" y1="160" x2="664" y2="84"/>
+            <line x1="610" y1="180" x2="664" y2="180"/>
+            <line x1="610" y1="200" x2="664" y2="278"/>
+          </g>
+          <g font-family="Inter, sans-serif" font-size="9.5" font-weight="700" fill="var(--slate-400)">
+            <text x="196" y="170">HTTPS</text>
+            <text x="408" y="170">REST</text>
+          </g>
+        </svg>
+      </div>
+      <div style="text-align:center;margin-top:36px">
+        <a class="btn btn-secondary btn-lg" href="about.html#opensource">Read the full deployment docs
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="band-navy cta-band">
+    <div class="container">
+      <h2>Need help with a <span class="grad-dark">large rollout?</span></h2>
+      <p>Our deployment engineers have taken districts from kick-off to live attendance in under six weeks. We can do the same for you.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad btn-xl" href="contact.html">Talk to deployment engineering</a>
+        <a class="btn btn-onnavy btn-xl" href="status.html">Check platform status</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+        <p>Open-source education infrastructure for schools, districts, and ministries — built in India, for the world.</p>
+        <span class="foot-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17l-6.2 3.9 1.6-7L2 9.2l7.1-.6z"/></svg>Apache-2.0 · Open source</span>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="product.html">Product tour</a>
+        <a href="installation.html">Installation</a>
+        <a href="security.html">Security</a>
+        <a href="status.html">System status</a>
+        <a href="compliance.html">Compliance</a>
+      </div>
+      <div class="foot-col">
+        <h4>Solutions</h4>
+        <a href="home.html#levels">For schools</a>
+        <a href="home.html#levels">For districts</a>
+        <a href="home.html#levels">For ministries</a>
+        <a href="about.html">Odisha pilot</a>
+      </div>
+      <div class="foot-col">
+        <h4>Developers</h4>
+        <a href="installation.html">Documentation</a>
+        <a href="installation.html#architecture">Architecture</a>
+        <a href="product.html#integrations">Integrations</a>
+        <a href="about.html#opensource">GitHub</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="about.html#careers">Careers</a>
+        <a href="legal.html">Legal</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="foot-locale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English (India) · हिन्दी · ଓଡ଼ିଆ</span>
+      <div class="legal-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="cookies.html">Cookies</a>
+        <a href="status.html">Status</a>
+      </div>
+      <div class="foot-copy">© 2026 ProctiraERP · open source under <a href="legal.html">Apache-2.0</a></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleNav(btn){
+  document.body.classList.toggle('nav-open');
+  btn.setAttribute('aria-expanded', document.body.classList.contains('nav-open'));
+}
+</script>
+</body>
+</html>

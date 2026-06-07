@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New teaching assignment · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="staff">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="staff-list.html">Staff</a><span class="sep">/</span>
+        <a href="staff-detail.html">Minati Behera</a><span class="sep">/</span>
+        <span class="current">New assignment</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">New teaching assignment</h1>
+          <p class="page-sub">Allocate a class, section, and subject. The timetable is checked for clashes and the weekly workload cap of 24 periods is enforced on save.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="staff-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to profile</a>
+        </div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+          <form class="card">
+            <div class="card-pad">
+              <div class="form-grid">
+
+                <div class="form-section-title">Assignment</div>
+                <div class="field span-2">
+                  <label>Staff member<span class="req">*</span></label>
+                  <button class="entity-picker" type="button" aria-haspopup="listbox">
+                    <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                    <span class="ep-text"><span class="ep-value">Minati Behera</span><span class="ep-meta">EMP-2261 · TGT · Mathematics, Science</span></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+                <div class="field span-2">
+                  <label>School<span class="req">*</span></label>
+                  <button class="entity-picker" type="button" aria-haspopup="listbox">
+                    <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span>
+                    <span class="ep-text"><span class="ep-value">Saraswati Nodal High School</span><span class="ep-meta">UDISE 21180104506 · Brahmagiri block</span></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+                <div class="field">
+                  <label>Class &amp; section<span class="req">*</span></label>
+                  <button class="entity-picker" type="button" aria-haspopup="listbox">
+                    <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                    <span class="ep-text"><span class="ep-value">Grade VIII · Section B</span><span class="ep-meta">44 students · Room 8 · Morning shift</span></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+                <div class="field">
+                  <label>Subject<span class="req">*</span></label>
+                  <button class="entity-picker" type="button" aria-haspopup="listbox">
+                    <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+                    <span class="ep-text"><span class="ep-value">Mathematics</span><span class="ep-meta">SCERT syllabus · code MTH-08</span></span>
+                    <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                  </button>
+                </div>
+
+                <div class="form-section-title">Schedule</div>
+                <div class="field">
+                  <label for="f-periods">Periods per week<span class="req">*</span></label>
+                  <input class="input" id="f-periods" type="number" min="1" max="12" value="6">
+                  <span class="hint">Maximum 12 per subject-section</span>
+                </div>
+                <div class="field">
+                  <label for="f-role">Role</label>
+                  <select class="select" id="f-role"><option selected>Subject teacher</option><option>Class teacher</option><option>Substitute</option></select>
+                </div>
+                <div class="field">
+                  <label for="f-from">Effective from<span class="req">*</span></label>
+                  <input class="input" id="f-from" type="date" value="2026-06-15">
+                </div>
+                <div class="field">
+                  <label for="f-to">Effective to</label>
+                  <input class="input" id="f-to" type="date" value="2027-03-31">
+                  <span class="hint">Defaults to end of Academic Year 2026–27</span>
+                </div>
+
+              </div>
+            </div>
+            <div class="card-foot" style="justify-content:flex-end">
+              <a class="btn btn-ghost" href="staff-detail.html">Cancel</a>
+              <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Create assignment</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="layout-side">
+          <div class="card">
+            <div class="card-head"><div><h3>Current workload</h3><div class="sub">Minati Behera · AY 2026–27</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <div class="stat-row"><span class="sr-label">VIII · A — Mathematics</span><span class="sr-value">6 /wk</span></div>
+              <div class="stat-row"><span class="sr-label">IX · A — Mathematics</span><span class="sr-value">6 /wk</span></div>
+              <div class="stat-row"><span class="sr-label">VII · B — Science</span><span class="sr-value">5 /wk</span></div>
+              <div class="stat-row"><span class="sr-label" style="font-weight:600;color:var(--text)">This assignment</span><span class="sr-value" style="color:var(--brand-600)">+6 /wk</span></div>
+              <div style="margin-top:14px">
+                <div class="flex aic jcsb fs-xs muted" style="margin-bottom:6px"><span>After saving</span><span class="fw-7" style="color:var(--amber-600)">23 / 24 periods</span></div>
+                <div class="progress amber"><span style="width:96%"></span></div>
+              </div>
+              <div class="alert warn" style="margin-top:14px">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <div class="a-body"><b>Near weekly cap</b>Only 1 free period will remain. Substitution duty cannot be auto-assigned beyond 24 periods.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <h3 style="margin:0 0 6px;font-size:var(--fs-lg)">Section coverage</h3>
+            <p class="fs-xs muted" style="margin:0 0 8px">Grade VIII · B currently has no Mathematics teacher assigned — this assignment closes that gap.</p>
+            <div class="stat-row"><span class="sr-label">Subjects covered</span><span class="sr-value">7 of 8</span></div>
+            <div class="stat-row"><span class="sr-label">Vacant since</span><span class="sr-value">1 Jun 2026</span></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

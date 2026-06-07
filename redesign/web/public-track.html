@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Track application · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .pub { min-height: 100vh; display: flex; flex-direction: column; background: var(--bg); }
+  .pub-header {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 16px 28px; border-bottom: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .pub-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .pub-logo .logo-mark {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 15px;
+  }
+  .pub-logo b { font-size: 15px; font-weight: 700; } .pub-logo b span { color: var(--brand-600); }
+  .pub-main { flex: 1; width: 100%; max-width: 640px; margin: 0 auto; padding: 48px 20px 72px; }
+  .pub-hero { text-align: center; margin-bottom: 28px; }
+  .pub-hero .ph-icon {
+    width: 56px; height: 56px; border-radius: 18px; margin: 0 auto 16px;
+    background: var(--brand-50); color: var(--brand-600);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .pub-hero .ph-icon svg { width: 26px; height: 26px; }
+  .pub-hero h1 { margin: 0 0 8px; font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -.02em; }
+  .pub-hero p { margin: 0 auto; color: var(--text-2); font-size: var(--fs-md); max-width: 46ch; }
+  .track-form { display: flex; gap: 10px; }
+  .track-form .input-icon { flex: 1; }
+  .result-meta { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+  .result-meta .rm-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: var(--green-50); color: var(--green-600);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .result-meta .rm-icon svg { width: 21px; height: 21px; }
+  .result-meta h2 { margin: 0; font-size: var(--fs-lg); font-weight: 700; letter-spacing: -.01em; }
+  .result-meta .rm-sub { font-size: var(--fs-xs); color: var(--text-2); margin-top: 2px; }
+  .pub-foot { text-align: center; padding: 20px; font-size: var(--fs-xs); color: var(--text-3); border-top: 1px solid var(--border); }
+  .pub-foot a { color: var(--link); text-decoration: none; font-weight: 600; }
+  @media (max-width: 767px) { .track-form { flex-direction: column; } .pub-main { padding-top: 32px; } }
+</style>
+</head>
+<body>
+<div class="pub">
+  <header class="pub-header">
+    <a class="pub-logo" href="#home">
+      <span class="logo-mark">P</span><b>Proctira<span>ERP</span></b>
+    </a>
+    <a class="btn btn-ghost btn-sm" href="auth-login.html">Staff sign in</a>
+  </header>
+
+  <main class="pub-main">
+    <div class="pub-hero">
+      <span class="ph-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+      <h1>Track your application</h1>
+      <p>Enter the reference number from your SMS or acknowledgement slip to see where your school registration application stands.</p>
+    </div>
+
+    <form class="track-form" style="margin-bottom:24px">
+      <div class="input-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <input class="input" type="text" value="REG-PUR-26-04318" aria-label="Reference number" placeholder="e.g. REG-PUR-26-04318" style="font-family:var(--font-mono)">
+      </div>
+      <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Check status</button>
+    </form>
+
+    <div class="card">
+      <div class="card-head">
+        <div class="result-meta">
+          <span class="rm-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+          <div>
+            <h2>Admission application — Grade VI</h2>
+            <div class="rm-sub">Ref <b class="mono" style="color:var(--text)">REG-PUR-26-04318</b> · Ananya Mishra · Govt. Sr. Sec. School, Puri</div>
+          </div>
+        </div>
+        <div class="spacer"><span class="pill green">Approved</span></div>
+      </div>
+      <div class="card-pad">
+        <ul class="timeline">
+          <li>
+            <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Application submitted</div>
+              <div class="tl-meta">28 May 2026, 11:24 IST · via registration portal · 4 documents attached</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Documents verified</div>
+              <div class="tl-meta">30 May 2026, 15:02 IST · birth certificate &amp; Aadhaar matched by school clerk</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Under review by headmaster</div>
+              <div class="tl-meta">02 Jun 2026, 10:15 IST · seat availability confirmed for Grade VI, Section B</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Approved — admission confirmed</div>
+              <div class="tl-meta">05 Jun 2026, 13:40 IST · admission no. 2026/0412 · SMS sent to +91 94••• ••284</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Next step: report to school</div>
+              <div class="tl-meta">Bring the original documents on <b style="color:var(--text)">16 Jun 2026, 9:00 IST</b> — first day of Term 1</div>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="card-foot">
+        <span class="fs-xs muted">Questions about this application?</span>
+        <a class="btn btn-secondary btn-sm" href="#help" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Contact school office</a>
+      </div>
+    </div>
+
+    <div class="alert info mt-20">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div class="a-body"><b>Lost your reference number?</b>Call the district helpline 1800-345-6770 (Mon–Sat, 10:00–17:00) with the applicant's name and date of birth.</div>
+    </div>
+  </main>
+
+  <footer class="pub-foot">
+    Department of School &amp; Mass Education, Government of Odisha · <a href="#privacy">Privacy</a> · <a href="#accessibility">Accessibility</a> · Helpline 1800-345-6770
+  </footer>
+</div>
+</body>
+</html>

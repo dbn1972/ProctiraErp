@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Workflows · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="workflows">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Workflows</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Workflow definitions</h1>
+          <p class="page-sub">Approval flows for transfers, leaves, disbursements and other district actions · 8 definitions, 73 running instances</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="workflows-instances.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>View instances</a>
+          <a class="btn btn-secondary" href="workflows-approvals.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>My approvals<span class="count" style="font-size:var(--fs-2xs);font-weight:700;background:var(--brand-50);color:var(--brand-700);border-radius:var(--r-full);padding:1px 7px">4</span></a>
+          <a class="btn btn-primary" href="workflows-definition-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New definition</a>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">8</span></a>
+        <a class="tab" href="#" role="tab">Active <span class="count">5</span></a>
+        <a class="tab" href="#" role="tab">Draft <span class="count">2</span></a>
+        <a class="tab" href="#" role="tab">Paused <span class="count">1</span></a>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search workflow definitions" aria-label="Search workflows">
+        </div>
+        <select class="select" aria-label="Module"><option>All modules</option><option>Students</option><option>Staff</option><option>Scholarships</option><option>Examinations</option><option>Institutions</option></select>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">Workflow <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Module</th>
+                <th class="num">Steps</th>
+                <th class="num">Avg completion</th>
+                <th class="num">Active instances</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">Student Transfer Approval</a></div><div class="cell-sub">v4 · updated 28 May 2026 by D. Nayak</div></td>
+                <td data-label="Module"><span class="tag">Students</span></td>
+                <td data-label="Steps" class="num">3</td>
+                <td data-label="Avg completion" class="num">2.4 days</td>
+                <td data-label="Active" class="num fw-7">18</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">Staff Leave Approval</a></div><div class="cell-sub">v2 · updated 12 May 2026 by R. Senapati</div></td>
+                <td data-label="Module"><span class="tag">Staff</span></td>
+                <td data-label="Steps" class="num">2</td>
+                <td data-label="Avg completion" class="num">1.1 days</td>
+                <td data-label="Active" class="num fw-7">9</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">Scholarship Disbursement Sign-off</a></div><div class="cell-sub">v6 · updated 02 Jun 2026 by D. Nayak</div></td>
+                <td data-label="Module"><span class="tag">Scholarships</span></td>
+                <td data-label="Steps" class="num">4</td>
+                <td data-label="Avg completion" class="num">5.8 days</td>
+                <td data-label="Active" class="num fw-7">12</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">Exam Centre Allocation</a></div><div class="cell-sub">v3 · updated 19 Apr 2026 by P. Mishra</div></td>
+                <td data-label="Module"><span class="tag">Examinations</span></td>
+                <td data-label="Steps" class="num">3</td>
+                <td data-label="Avg completion" class="num">3.2 days</td>
+                <td data-label="Active" class="num fw-7">4</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">New Admission Verification</a></div><div class="cell-sub">v1 · updated 06 Jun 2026 by S. Behera</div></td>
+                <td data-label="Module"><span class="tag">Students</span></td>
+                <td data-label="Steps" class="num">2</td>
+                <td data-label="Avg completion" class="num">1.6 days</td>
+                <td data-label="Active" class="num fw-7">23</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">Staff Transfer Request</a></div><div class="cell-sub">v5 · updated 22 May 2026 by R. Senapati</div></td>
+                <td data-label="Module"><span class="tag">Staff</span></td>
+                <td data-label="Steps" class="num">4</td>
+                <td data-label="Avg completion" class="num">7.4 days</td>
+                <td data-label="Active" class="num fw-7">6</td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">Mid-Day Meal Vendor Change</a></div><div class="cell-sub">v2 · paused 30 May 2026 pending state circular</div></td>
+                <td data-label="Module"><span class="tag">Administration</span></td>
+                <td data-label="Steps" class="num">4</td>
+                <td data-label="Avg completion" class="num">8.5 days</td>
+                <td data-label="Active" class="num fw-7">1</td>
+                <td data-label="Status"><span class="pill amber">Paused</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="workflows-definition-detail.html" style="color:inherit;text-decoration:none">Infrastructure Repair Request</a></div><div class="cell-sub">Draft · created 05 Jun 2026 by D. Nayak</div></td>
+                <td data-label="Module"><span class="tag">Institutions</span></td>
+                <td data-label="Steps" class="num">3</td>
+                <td data-label="Avg completion" class="num muted-3">Not yet run</td>
+                <td data-label="Active" class="num fw-7">0</td>
+                <td data-label="Status"><span class="pill slate">Draft</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="workflows-definition-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–8</b> of <b>8</b> definitions</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

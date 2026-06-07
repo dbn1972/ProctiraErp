@@ -1,0 +1,68 @@
+name: proctira_mobile
+description: "ProctiraERP Unified Platform mobile application."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Routing & DI
+  go_router: ^14.0.0
+  get_it: ^7.7.0
+
+  # State management
+  flutter_bloc: ^8.1.6
+  equatable: ^2.0.5
+
+  # Secure storage / biometrics
+  flutter_secure_storage: ^9.2.2
+  local_auth: ^2.2.0
+
+  # Local storage / paths
+  sqflite: ^2.3.0
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # Networking
+  dio: ^5.4.3
+
+  # Push notifications
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
+  flutter_local_notifications: ^17.0.0
+
+  # Offline-first sync
+  connectivity_plus: ^6.0.0
+  uuid: ^4.4.0
+
+  # Device capabilities for mobile features
+  geolocator: ^13.0.0          # GPS for attendance geofence validation
+  image_picker: ^1.1.0          # Camera + gallery for document capture
+  permission_handler: ^11.3.0   # Runtime permissions (location, camera)
+
+  # Workspace packages
+  proctira_api_client:
+    path: ../../packages/flutter-core/api-client
+
+  # Formatting / fonts
+  intl: ^0.20.2
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  sqflite_common_ffi: ^2.3.3
+
+flutter:
+  uses-material-design: true

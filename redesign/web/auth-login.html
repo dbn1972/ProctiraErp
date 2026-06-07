@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .auth { display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh; }
+  .auth-brand {
+    position: relative; overflow: hidden; color: #fff; padding: 48px;
+    background: radial-gradient(1200px 800px at -10% 110%, #1E2B66 0%, var(--navy-900) 55%), var(--navy-900);
+    display: flex; flex-direction: column;
+  }
+  .auth-brand::after {
+    content: ''; position: absolute; right: -120px; top: -120px; width: 420px; height: 420px;
+    border-radius: 50%; background: radial-gradient(circle, rgba(99,102,241,.25), transparent 65%);
+  }
+  .ab-logo { display: flex; align-items: center; gap: 10px; }
+  .ab-logo .logo-mark { width: 36px; height: 36px; border-radius: 10px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; }
+  .ab-logo b { font-size: 17px; } .ab-logo b span { color: var(--brand-400); }
+  .ab-center { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 460px; position: relative; z-index: 1; }
+  .ab-center h2 { font-size: var(--fs-4xl); font-weight: 800; letter-spacing: -.03em; line-height: 1.15; margin: 0 0 14px; }
+  .ab-center h2 em { font-style: normal; color: var(--brand-400); }
+  .ab-center p { color: #AEB9D6; font-size: var(--fs-lg); line-height: 1.6; margin: 0 0 32px; }
+  .ab-points { display: flex; flex-direction: column; gap: 14px; }
+  .ab-point { display: flex; gap: 12px; align-items: flex-start; }
+  .ab-point .pt-ic { width: 34px; height: 34px; border-radius: 10px; background: rgba(99,102,241,.18); border: 1px solid rgba(99,102,241,.3); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ab-point .pt-ic svg { width: 16px; height: 16px; color: var(--brand-300); }
+  .ab-point b { display: block; font-size: var(--fs-md); }
+  .ab-point span { font-size: var(--fs-sm); color: #8B97B8; }
+  .ab-foot { display: flex; gap: 28px; position: relative; z-index: 1; }
+  .ab-stat b { display: block; font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -.02em; }
+  .ab-stat span { font-size: var(--fs-xs); color: #8B97B8; }
+  .auth-form-col { display: flex; flex-direction: column; background: var(--bg); }
+  .af-top { display: flex; justify-content: flex-end; padding: 20px 28px 0; }
+  .af-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .af-card { width: 100%; max-width: 400px; }
+  .af-card h1 { font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -.02em; margin: 0 0 6px; }
+  .af-card .sub { color: var(--text-2); margin: 0 0 28px; }
+  .or { display: flex; align-items: center; gap: 12px; color: var(--text-3); font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .08em; margin: 22px 0; }
+  .or::before, .or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .sso { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .af-help { text-align: center; margin-top: 26px; font-size: var(--fs-sm); color: var(--text-2); }
+  .af-help a { color: var(--link); font-weight: 600; text-decoration: none; }
+  @media (max-width: 1023px) { .auth { grid-template-columns: 1fr; } .auth-brand { display: none; } }
+</style>
+</head>
+<body>
+<div class="auth">
+  <aside class="auth-brand">
+    <div class="ab-logo"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></div>
+    <div class="ab-center">
+      <h2>Every school, every student, <em>one platform.</em></h2>
+      <p>Unified administration for enrollment, attendance, assessments, scholarships, and analytics — from a single classroom to an entire state.</p>
+      <div class="ab-points">
+        <div class="ab-point">
+          <span class="pt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span>
+          <div><b>Secure by design</b><span>Role-based access, audit trails, and data residency.</span></div>
+        </div>
+        <div class="ab-point">
+          <span class="pt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span>
+          <div><b>Decisions backed by data</b><span>Live dashboards across districts, blocks, and schools.</span></div>
+        </div>
+        <div class="ab-point">
+          <span class="pt-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg></span>
+          <div><b>Built for low bandwidth</b><span>Works on shared devices and rural connectivity.</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="ab-foot">
+      <div class="ab-stat"><b>142</b><span>schools onboard</span></div>
+      <div class="ab-stat"><b>24.8k</b><span>students managed</span></div>
+      <div class="ab-stat"><b>99.95%</b><span>uptime this year</span></div>
+    </div>
+  </aside>
+
+  <div class="auth-form-col">
+    <div class="af-top">
+      <button class="btn btn-ghost btn-sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English (India)</button>
+    </div>
+    <div class="af-wrap">
+      <div class="af-card">
+        <h1>Welcome back</h1>
+        <p class="sub">Sign in to your ProctiraERP workspace.</p>
+        <form style="display:flex;flex-direction:column;gap:16px">
+          <div class="field">
+            <label for="email">Email address</label>
+            <input class="input" id="email" type="email" placeholder="name@school.gov.in" autocomplete="email">
+          </div>
+          <div class="field">
+            <div class="flex aic jcsb"><label for="pwd">Password</label><a href="auth-forgot-password.html" class="fs-xs" style="color:var(--link);font-weight:600;text-decoration:none">Forgot password?</a></div>
+            <div class="input-icon" style="position:relative">
+              <input class="input" id="pwd" type="password" placeholder="••••••••••" autocomplete="current-password" style="padding-left:12px;padding-right:40px">
+              <button type="button" class="icon-btn" aria-label="Show password" style="position:absolute;right:4px;top:50%;transform:translateY(-50%)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+            </div>
+          </div>
+          <label class="checkbox-row"><input type="checkbox" checked>Keep me signed in on this device</label>
+          <button class="btn btn-primary btn-lg" type="submit" style="width:100%">Sign in</button>
+        </form>
+        <div class="or">OR CONTINUE WITH</div>
+        <div class="sso">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" width="15" height="15"><rect x="2" y="2" width="9" height="9" fill="#F25022"/><rect x="13" y="2" width="9" height="9" fill="#7FBA00"/><rect x="2" y="13" width="9" height="9" fill="#00A4EF"/><rect x="13" y="13" width="9" height="9" fill="#FFB900"/></svg>Microsoft</button>
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" width="15" height="15"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.84 14.1A6.6 6.6 0 0 1 5.5 12c0-.73.13-1.44.34-2.1V7.06H2.18a11 11 0 0 0 0 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.16-3.16A11 11 0 0 0 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>Google</button>
+        </div>
+        <p class="af-help">Don't have an account? <a href="#contact">Contact your administrator</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,66 @@
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+# Dockerfile for the @proctira/web Next.js application (standalone output)
+# =============================================================================
+# Optimized multi-stage production build for the main web application.
+# Uses Next.js standalone output mode for minimal image size.
+# Build context: monorepo root.
+#
+# Example:
+#   docker build -f infrastructure/docker/Dockerfile.web -t proctira/web .
+# =============================================================================
+
+ARG NODE_VERSION=20-alpine
+
+# ---------- 1. base ----------
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache libc6-compat curl
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+WORKDIR /app
+
+# ---------- 2. deps ----------
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY turbo.json tsconfig.base.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY plugins ./plugins
+COPY themes ./themes
+COPY tools ./tools
+RUN pnpm install --frozen-lockfile
+
+# ---------- 3. builder ----------
+FROM deps AS builder
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN pnpm --filter "@proctira/web..." run build
+
+# ---------- 4. runner ----------
+FROM node:${NODE_VERSION} AS runner
+RUN apk add --no-cache curl
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3001
+ENV HOSTNAME=0.0.0.0
+
+# Run as non-root
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 --ingroup nodejs nextjs
+
+# Copy the standalone server output (Next.js bundles all dependencies)
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
+
+USER nextjs
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl --fail "http://127.0.0.1:${PORT}/api/health" || exit 1
+
+WORKDIR /app/apps/web
+CMD ["node", "server.js"]

@@ -1,0 +1,56 @@
+
+ProctiraERP Unified Platform has been deployed!
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Environment: {{ .Values.global.environment }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is enabled. Access the platform at:
+  - API Gateway: https://{{ .Values.ingress.hosts.api }}
+  - Web App:     https://{{ .Values.ingress.hosts.web }}
+  - Registration: https://{{ .Values.ingress.hosts.register }}
+  - Public Site: https://{{ .Values.ingress.hosts.public }}
+  - Admin:       https://{{ .Values.ingress.hosts.admin }}
+  - Developers:  https://{{ .Values.ingress.hosts.developers }}
+{{- else }}
+
+Ingress is disabled. Use port-forwarding to access services:
+  kubectl port-forward svc/{{ include "proctira.fullname" . }}-api-gateway 3000:80 -n {{ .Release.Namespace }}
+  kubectl port-forward svc/{{ include "proctira.fullname" . }}-web 3001:80 -n {{ .Release.Namespace }}
+{{- end }}
+
+Services deployed:
+{{- if .Values.apiGateway.enabled }}
+  ✓ API Gateway (replicas: {{ .Values.apiGateway.replicaCount }}{{- if .Values.apiGateway.autoscaling.enabled }}, HPA: {{ .Values.apiGateway.autoscaling.minReplicas }}-{{ .Values.apiGateway.autoscaling.maxReplicas }}{{- end }})
+{{- end }}
+{{- if .Values.web.enabled }}
+  ✓ Web Frontend (replicas: {{ .Values.web.replicaCount }}{{- if .Values.web.autoscaling.enabled }}, HPA: {{ .Values.web.autoscaling.minReplicas }}-{{ .Values.web.autoscaling.maxReplicas }}{{- end }})
+{{- end }}
+{{- if .Values.etlWorker.enabled }}
+  ✓ ETL Worker (replicas: {{ .Values.etlWorker.replicaCount }}{{- if .Values.etlWorker.autoscaling.enabled }}, HPA: {{ .Values.etlWorker.autoscaling.minReplicas }}-{{ .Values.etlWorker.autoscaling.maxReplicas }}{{- end }})
+{{- end }}
+{{- if .Values.registrationPortal.enabled }}
+  ✓ Registration Portal (replicas: {{ .Values.registrationPortal.replicaCount }})
+{{- end }}
+{{- if .Values.publicWebsite.enabled }}
+  ✓ Public Website (replicas: {{ .Values.publicWebsite.replicaCount }})
+{{- end }}
+{{- if .Values.adminConsole.enabled }}
+  ✓ Admin Console (replicas: {{ .Values.adminConsole.replicaCount }})
+{{- end }}
+{{- if .Values.developerPortal.enabled }}
+  ✓ Developer Portal (replicas: {{ .Values.developerPortal.replicaCount }})
+{{- end }}
+
+Deployment strategy: Rolling Update (zero-downtime)
+  maxUnavailable: 0, maxSurge: 1
+
+{{- if not .Values.secrets.existingSecret }}
+
+⚠️  WARNING: Secrets are managed inline. For production, use:
+  - external-secrets-operator
+  - sealed-secrets
+  Set secrets.existingSecret to reference a pre-created Secret.
+{{- end }}

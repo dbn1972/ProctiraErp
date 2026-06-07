@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Product tour — One platform, every education workflow · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="site.css">
+<style>
+  .int-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+  .int-chip {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-full);
+    padding: 10px 20px; font-size: var(--fs-md); font-weight: 700; color: var(--text-2);
+    box-shadow: var(--sh-xs);
+  }
+  .int-chip .i-dot { width: 9px; height: 9px; border-radius: 3px; }
+</style>
+</head>
+<body class="site">
+
+<header class="site-header">
+  <div class="container nav-row">
+    <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="product.html" class="active">Product</a>
+      <a href="home.html#levels">Solutions</a>
+      <a href="installation.html">Developers</a>
+      <a href="contact.html">Pricing</a>
+      <a href="about.html">Company</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+    <button class="hamburger" type="button" aria-label="Toggle menu" aria-expanded="false" onclick="toggleNav(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+  <div class="mobile-menu">
+    <a href="product.html">Product</a>
+    <a href="home.html#levels">Solutions</a>
+    <a href="installation.html">Developers</a>
+    <a href="contact.html">Pricing</a>
+    <a href="about.html">Company</a>
+    <div class="mm-actions">
+      <a class="btn btn-secondary" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <span class="chip"><span class="dot"></span>Product tour</span>
+      <h1>One platform, every <span class="grad">education workflow</span></h1>
+      <p class="lead">ProctiraERP combines proven modules for students, staff, institutions, finance, and reporting — with the integrations and governance you need to run education at scale.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad btn-xl" href="contact.html">Request a demo</a>
+        <a class="btn btn-secondary btn-xl" href="installation.html">Self-host it instead</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Sticky module sub-nav -->
+  <nav class="sub-nav" aria-label="Modules">
+    <div class="container">
+      <a href="#students" class="active">Students</a>
+      <a href="#attendance">Attendance</a>
+      <a href="#assessments">Assessments</a>
+      <a href="#scholarships">Scholarships</a>
+      <a href="#analytics">Analytics</a>
+      <a href="#integrations">Integrations</a>
+    </div>
+  </nav>
+
+  <section class="section" style="padding-top:28px">
+    <div class="container">
+
+      <!-- STUDENTS -->
+      <div class="feat-row" id="students" style="scroll-margin-top:130px">
+        <div class="feat-copy">
+          <span class="kicker">Student lifecycle</span>
+          <h3>Every student record, complete and current</h3>
+          <p>Admissions, enrolment, section allocation, transfers, and graduation live in one timeline per student. Aadhaar-linked identity, guardian details, and document vault included.</p>
+          <ul class="check-list">
+            <li><b>Online admissions</b> with merit lists and seat matrices</li>
+            <li><b>Bulk promotion</b> and inter-school transfer certificates</li>
+            <li><b>Special education</b> and inclusion program tagging</li>
+          </ul>
+        </div>
+        <div class="feat-visual mock-frame" aria-hidden="true">
+          <svg viewBox="0 0 460 280" xmlns="http://www.w3.org/2000/svg">
+            <rect width="460" height="280" rx="12" fill="#fff" stroke="var(--slate-200)"/>
+            <rect x="20" y="18" width="150" height="13" rx="6.5" fill="var(--slate-300)"/>
+            <rect x="350" y="14" width="90" height="22" rx="11" fill="var(--brand-600)"/>
+            <g font-family="Inter, sans-serif">
+              <g><circle cx="40" cy="72" r="14" fill="var(--brand-100)"/><text x="34" y="77" font-size="11" font-weight="700" fill="var(--brand-700)">AP</text>
+                <rect x="64" y="60" width="130" height="9" rx="4.5" fill="var(--slate-300)"/><rect x="64" y="76" width="86" height="7" rx="3.5" fill="var(--slate-200)"/>
+                <rect x="300" y="63" width="64" height="16" rx="8" fill="var(--green-50)"/><rect x="390" y="63" width="50" height="16" rx="8" fill="var(--slate-100)"/></g>
+              <g><circle cx="40" cy="118" r="14" fill="var(--teal-50)"/><text x="33" y="123" font-size="11" font-weight="700" fill="var(--teal-600)">SM</text>
+                <rect x="64" y="106" width="118" height="9" rx="4.5" fill="var(--slate-300)"/><rect x="64" y="122" width="92" height="7" rx="3.5" fill="var(--slate-200)"/>
+                <rect x="300" y="109" width="64" height="16" rx="8" fill="var(--green-50)"/><rect x="390" y="109" width="50" height="16" rx="8" fill="var(--slate-100)"/></g>
+              <g><circle cx="40" cy="164" r="14" fill="var(--amber-50)"/><text x="34" y="169" font-size="11" font-weight="700" fill="var(--amber-600)">RK</text>
+                <rect x="64" y="152" width="140" height="9" rx="4.5" fill="var(--slate-300)"/><rect x="64" y="168" width="80" height="7" rx="3.5" fill="var(--slate-200)"/>
+                <rect x="300" y="155" width="64" height="16" rx="8" fill="var(--amber-50)"/><rect x="390" y="155" width="50" height="16" rx="8" fill="var(--slate-100)"/></g>
+              <g><circle cx="40" cy="210" r="14" fill="var(--violet-50)"/><text x="35" y="215" font-size="11" font-weight="700" fill="var(--violet-600)">DJ</text>
+                <rect x="64" y="198" width="124" height="9" rx="4.5" fill="var(--slate-300)"/><rect x="64" y="214" width="96" height="7" rx="3.5" fill="var(--slate-200)"/>
+                <rect x="300" y="201" width="64" height="16" rx="8" fill="var(--green-50)"/><rect x="390" y="201" width="50" height="16" rx="8" fill="var(--slate-100)"/></g>
+              <g><circle cx="40" cy="248" r="14" fill="var(--sky-50)"/><text x="34" y="253" font-size="11" font-weight="700" fill="var(--sky-600)">LB</text>
+                <rect x="64" y="240" width="112" height="9" rx="4.5" fill="var(--slate-300)"/>
+                <rect x="300" y="240" width="64" height="16" rx="8" fill="var(--green-50)"/><rect x="390" y="240" width="50" height="16" rx="8" fill="var(--slate-100)"/></g>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ATTENDANCE -->
+      <div class="feat-row flip" id="attendance" style="scroll-margin-top:130px">
+        <div class="feat-copy">
+          <span class="kicker">Attendance</span>
+          <h3>Attendance that works offline-first</h3>
+          <p>Teachers mark a full class in under a minute — on shared tablets, low-end phones, or paper-sync mode for no-network days. Data reconciles automatically when connectivity returns.</p>
+          <ul class="check-list">
+            <li><b>One-tap class marking</b> with biometric and RFID options</li>
+            <li><b>SMS alerts to guardians</b> for unexplained absences</li>
+            <li><b>Mid-day meal counts</b> generated from the same register</li>
+          </ul>
+        </div>
+        <div class="feat-visual mock-frame" aria-hidden="true">
+          <svg viewBox="0 0 460 280" xmlns="http://www.w3.org/2000/svg">
+            <rect width="460" height="280" rx="12" fill="#fff" stroke="var(--slate-200)"/>
+            <rect x="20" y="18" width="170" height="13" rx="6.5" fill="var(--slate-300)"/>
+            <text x="356" y="32" font-family="Inter, sans-serif" font-size="18" font-weight="800" fill="var(--green-600)">96.4%</text>
+            <!-- month grid: 7 x 5 -->
+            <g>
+              <!-- generated grid of day cells -->
+              <g fill="var(--green-500)" opacity=".85">
+                <rect x="24" y="56" width="52" height="34" rx="7"/><rect x="86" y="56" width="52" height="34" rx="7"/><rect x="148" y="56" width="52" height="34" rx="7"/><rect x="210" y="56" width="52" height="34" rx="7"/><rect x="272" y="56" width="52" height="34" rx="7"/>
+                <rect x="24" y="100" width="52" height="34" rx="7"/><rect x="86" y="100" width="52" height="34" rx="7"/><rect x="210" y="100" width="52" height="34" rx="7"/><rect x="334" y="100" width="52" height="34" rx="7"/><rect x="396" y="100" width="44" height="34" rx="7"/>
+                <rect x="24" y="144" width="52" height="34" rx="7"/><rect x="86" y="144" width="52" height="34" rx="7"/><rect x="148" y="144" width="52" height="34" rx="7"/><rect x="272" y="144" width="52" height="34" rx="7"/><rect x="334" y="144" width="52" height="34" rx="7"/>
+                <rect x="86" y="188" width="52" height="34" rx="7"/><rect x="148" y="188" width="52" height="34" rx="7"/><rect x="210" y="188" width="52" height="34" rx="7"/><rect x="272" y="188" width="52" height="34" rx="7"/><rect x="396" y="188" width="44" height="34" rx="7"/>
+              </g>
+              <g fill="var(--amber-500)" opacity=".8">
+                <rect x="334" y="56" width="52" height="34" rx="7"/><rect x="148" y="100" width="52" height="34" rx="7"/><rect x="210" y="144" width="52" height="34" rx="7"/><rect x="24" y="188" width="52" height="34" rx="7"/>
+              </g>
+              <g fill="var(--slate-100)">
+                <rect x="396" y="56" width="44" height="34" rx="7"/><rect x="272" y="100" width="52" height="34" rx="7"/><rect x="396" y="144" width="44" height="34" rx="7"/><rect x="334" y="188" width="52" height="34" rx="7"/>
+              </g>
+            </g>
+            <g font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="var(--slate-500)">
+              <circle cx="32" cy="248" r="5" fill="var(--green-500)"/><text x="44" y="252">Present</text>
+              <circle cx="116" cy="248" r="5" fill="var(--amber-500)"/><text x="128" y="252">Late</text>
+              <circle cx="184" cy="248" r="5" fill="var(--slate-200)"/><text x="196" y="252">Holiday</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ASSESSMENTS -->
+      <div class="feat-row" id="assessments" style="scroll-margin-top:130px">
+        <div class="feat-copy">
+          <span class="kicker">Assessments</span>
+          <h3>From question paper to report card</h3>
+          <p>Plan exams across boards and terms, capture marks in bulk, moderate grades with full audit history, and publish report cards parents can actually read — in English, Hindi, or Odia.</p>
+          <ul class="check-list">
+            <li><b>CBSE, ICSE, and state-board</b> grading schemes built in</li>
+            <li><b>Continuous assessment (FA/SA)</b> with weighted aggregation</li>
+            <li><b>Result analytics</b> by subject, section, and teacher</li>
+          </ul>
+        </div>
+        <div class="feat-visual mock-frame" aria-hidden="true">
+          <svg viewBox="0 0 460 280" xmlns="http://www.w3.org/2000/svg">
+            <rect width="460" height="280" rx="12" fill="#fff" stroke="var(--slate-200)"/>
+            <rect x="20" y="18" width="180" height="13" rx="6.5" fill="var(--slate-300)"/>
+            <rect x="20" y="40" width="110" height="8" rx="4" fill="var(--slate-200)"/>
+            <g stroke="var(--slate-100)" stroke-width="1">
+              <line x1="40" y1="220" x2="430" y2="220"/><line x1="40" y1="175" x2="430" y2="175"/>
+              <line x1="40" y1="130" x2="430" y2="130"/><line x1="40" y1="85" x2="430" y2="85"/>
+            </g>
+            <!-- grade distribution bars -->
+            <g rx="6">
+              <rect x="55"  y="150" width="44" height="70"  rx="7" fill="var(--brand-300)"/>
+              <rect x="119" y="100" width="44" height="120" rx="7" fill="var(--brand-500)"/>
+              <rect x="183" y="76"  width="44" height="144" rx="7" fill="var(--brand-600)"/>
+              <rect x="247" y="112" width="44" height="108" rx="7" fill="var(--brand-500)"/>
+              <rect x="311" y="160" width="44" height="60"  rx="7" fill="var(--brand-300)"/>
+              <rect x="375" y="190" width="44" height="30"  rx="7" fill="var(--brand-200)"/>
+            </g>
+            <g font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="var(--slate-500)">
+              <text x="70" y="242">A1</text><text x="134" y="242">A2</text><text x="198" y="242">B1</text>
+              <text x="262" y="242">B2</text><text x="326" y="242">C1</text><text x="390" y="242">C2</text>
+            </g>
+            <rect x="276" y="14" width="164" height="24" rx="12" fill="var(--green-50)"/>
+            <text x="290" y="30" font-family="Inter, sans-serif" font-size="11" font-weight="700" fill="var(--green-700)">Class X · Maths · Term 2</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- SCHOLARSHIPS -->
+      <div class="feat-row flip" id="scholarships" style="scroll-margin-top:130px">
+        <div class="feat-copy">
+          <span class="kicker">Scholarships &amp; DBT</span>
+          <h3>Scholarships that reach the right students</h3>
+          <p>Eligibility engines match students to central and state schemes automatically. Applications, verification, sanction, and DBT disbursal are tracked end to end — with zero duplicate payouts.</p>
+          <ul class="check-list">
+            <li><b>Pre-Matric, Post-Matric, and state schemes</b> pre-configured</li>
+            <li><b>Aadhaar eKYC and bank seeding</b> validation before sanction</li>
+            <li><b>PFMS-ready disbursal files</b> and reconciliation reports</li>
+          </ul>
+        </div>
+        <div class="feat-visual mock-frame" aria-hidden="true">
+          <svg viewBox="0 0 460 280" xmlns="http://www.w3.org/2000/svg">
+            <rect width="460" height="280" rx="12" fill="#fff" stroke="var(--slate-200)"/>
+            <rect x="20" y="18" width="200" height="13" rx="6.5" fill="var(--slate-300)"/>
+            <g font-family="Inter, sans-serif" font-size="11" font-weight="600">
+              <text x="24" y="68" fill="var(--slate-600)">Applied</text>
+              <rect x="130" y="56" width="250" height="16" rx="8" fill="var(--slate-100)"/>
+              <rect x="130" y="56" width="250" height="16" rx="8" fill="var(--brand-500)"/>
+              <text x="392" y="69" fill="var(--slate-700)" font-weight="800">3,482</text>
+
+              <text x="24" y="110" fill="var(--slate-600)">Verified</text>
+              <rect x="130" y="98" width="250" height="16" rx="8" fill="var(--slate-100)"/>
+              <rect x="130" y="98" width="216" height="16" rx="8" fill="var(--brand-400)"/>
+              <text x="392" y="111" fill="var(--slate-700)" font-weight="800">3,011</text>
+
+              <text x="24" y="152" fill="var(--slate-600)">Sanctioned</text>
+              <rect x="130" y="140" width="250" height="16" rx="8" fill="var(--slate-100)"/>
+              <rect x="130" y="140" width="196" height="16" rx="8" fill="var(--teal-500)"/>
+              <text x="392" y="153" fill="var(--slate-700)" font-weight="800">2,730</text>
+
+              <text x="24" y="194" fill="var(--slate-600)">Disbursed</text>
+              <rect x="130" y="182" width="250" height="16" rx="8" fill="var(--slate-100)"/>
+              <rect x="130" y="182" width="184" height="16" rx="8" fill="var(--green-500)"/>
+              <text x="392" y="195" fill="var(--slate-700)" font-weight="800">2,564</text>
+            </g>
+            <rect x="20" y="222" width="420" height="38" rx="10" fill="var(--green-50)"/>
+            <text x="36" y="246" font-family="Inter, sans-serif" font-size="12" font-weight="700" fill="var(--green-700)">₹4.62 crore disbursed via DBT this term · 0 duplicates detected</text>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ANALYTICS -->
+      <div class="feat-row" id="analytics" style="scroll-margin-top:130px">
+        <div class="feat-copy">
+          <span class="kicker">Analytics</span>
+          <h3>Decisions backed by live data</h3>
+          <p>Pre-built dashboards roll attendance, results, and finance up from classroom to ministry. Slice by district, block, gender, or scheme — and export everything to UDISE+ formats.</p>
+          <ul class="check-list">
+            <li><b>Drop-out risk signals</b> from attendance and result trends</li>
+            <li><b>District league boards</b> with drill-down to each school</li>
+            <li><b>Scheduled email and PDF reports</b> for review meetings</li>
+          </ul>
+        </div>
+        <div class="feat-visual mock-frame" aria-hidden="true">
+          <svg viewBox="0 0 460 280" xmlns="http://www.w3.org/2000/svg">
+            <rect width="460" height="280" rx="12" fill="#fff" stroke="var(--slate-200)"/>
+            <rect x="20" y="18" width="160" height="13" rx="6.5" fill="var(--slate-300)"/>
+            <!-- donut -->
+            <g transform="translate(96 150)">
+              <circle r="58" fill="none" stroke="var(--slate-100)" stroke-width="22"/>
+              <circle r="58" fill="none" stroke="var(--brand-500)" stroke-width="22" stroke-dasharray="218 364" transform="rotate(-90)" stroke-linecap="round"/>
+              <circle r="58" fill="none" stroke="var(--teal-500)" stroke-width="22" stroke-dasharray="80 364" transform="rotate(126)" stroke-linecap="round"/>
+              <text x="-22" y="2" font-family="Inter, sans-serif" font-size="20" font-weight="800" fill="var(--slate-900)">68%</text>
+              <text x="-26" y="20" font-family="Inter, sans-serif" font-size="9" fill="var(--slate-500)">on track</text>
+            </g>
+            <!-- trend lines -->
+            <g stroke="var(--slate-100)" stroke-width="1">
+              <line x1="200" y1="210" x2="436" y2="210"/><line x1="200" y1="165" x2="436" y2="165"/>
+              <line x1="200" y1="120" x2="436" y2="120"/><line x1="200" y1="75" x2="436" y2="75"/>
+            </g>
+            <path d="M200 200 C 232 188, 250 160, 278 152 S 330 162, 356 132 S 408 92, 436 84" fill="none" stroke="var(--brand-500)" stroke-width="3.5" stroke-linecap="round"/>
+            <path d="M200 212 C 240 208, 268 192, 296 188 S 352 188, 380 170 S 416 152, 436 146" fill="none" stroke="var(--amber-500)" stroke-width="3.5" stroke-linecap="round"/>
+            <circle cx="356" cy="132" r="5.5" fill="#fff" stroke="var(--brand-500)" stroke-width="3"/>
+            <g font-family="Inter, sans-serif" font-size="10" font-weight="600" fill="var(--slate-500)">
+              <circle cx="208" cy="246" r="5" fill="var(--brand-500)"/><text x="220" y="250">Attendance</text>
+              <circle cx="304" cy="246" r="5" fill="var(--amber-500)"/><text x="316" y="250">Learning outcomes</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTEGRATIONS -->
+  <section class="section alt" id="integrations" style="scroll-margin-top:70px">
+    <div class="container">
+      <div class="section-head">
+        <span class="kicker">Integrations</span>
+        <h2 class="section-title">Plays well with India's digital public infrastructure</h2>
+        <p class="section-sub">First-class connectors keep ProctiraERP in sync with the systems your government already runs.</p>
+      </div>
+      <div class="int-row">
+        <span class="int-chip"><span class="i-dot" style="background:var(--brand-500)"></span>UDISE+</span>
+        <span class="int-chip"><span class="i-dot" style="background:var(--teal-500)"></span>DigiLocker</span>
+        <span class="int-chip"><span class="i-dot" style="background:var(--amber-500)"></span>Aadhaar eKYC</span>
+        <span class="int-chip"><span class="i-dot" style="background:var(--sky-500)"></span>SMS gateways</span>
+        <span class="int-chip"><span class="i-dot" style="background:var(--violet-500)"></span>PFMS / DBT</span>
+        <span class="int-chip"><span class="i-dot" style="background:var(--green-500)"></span>DIKSHA content</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="band-navy cta-band">
+    <div class="container">
+      <h2>See the full platform <span class="grad-dark">in action</span></h2>
+      <p>Get a guided walkthrough tailored to your schools, district, or ministry — or spin up your own instance from the installation guide.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad btn-xl" href="contact.html">Request a demo</a>
+        <a class="btn btn-onnavy btn-xl" href="installation.html">Read the installation guide</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+        <p>Open-source education infrastructure for schools, districts, and ministries — built in India, for the world.</p>
+        <span class="foot-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17l-6.2 3.9 1.6-7L2 9.2l7.1-.6z"/></svg>Apache-2.0 · Open source</span>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="product.html">Product tour</a>
+        <a href="installation.html">Installation</a>
+        <a href="security.html">Security</a>
+        <a href="status.html">System status</a>
+        <a href="compliance.html">Compliance</a>
+      </div>
+      <div class="foot-col">
+        <h4>Solutions</h4>
+        <a href="home.html#levels">For schools</a>
+        <a href="home.html#levels">For districts</a>
+        <a href="home.html#levels">For ministries</a>
+        <a href="about.html">Odisha pilot</a>
+      </div>
+      <div class="foot-col">
+        <h4>Developers</h4>
+        <a href="installation.html">Documentation</a>
+        <a href="installation.html#architecture">Architecture</a>
+        <a href="product.html#integrations">Integrations</a>
+        <a href="about.html#opensource">GitHub</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="about.html#careers">Careers</a>
+        <a href="legal.html">Legal</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="foot-locale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English (India) · हिन्दी · ଓଡ଼ିଆ</span>
+      <div class="legal-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="cookies.html">Cookies</a>
+        <a href="status.html">Status</a>
+      </div>
+      <div class="foot-copy">© 2026 ProctiraERP · open source under <a href="legal.html">Apache-2.0</a></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleNav(btn){
+  document.body.classList.toggle('nav-open');
+  btn.setAttribute('aria-expanded', document.body.classList.contains('nav-open'));
+}
+// highlight sub-nav link on scroll
+const links = document.querySelectorAll('.sub-nav a');
+const ids = [...links].map(a => a.getAttribute('href').slice(1));
+window.addEventListener('scroll', () => {
+  let current = ids[0];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < 180) current = id;
+  }
+  links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current));
+}, { passive: true });
+</script>
+</body>
+</html>

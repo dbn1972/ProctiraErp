@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "incremental": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "paths": {
+      "@proctira/common": ["./packages/shared/common/src"],
+      "@proctira/database": ["./packages/shared/database/src"],
+      "@proctira/auth": ["./packages/shared/auth/src"],
+      "@proctira/validation": ["./packages/shared/validation/src"],
+      "@proctira/logging": ["./packages/shared/logging/src"],
+      "@proctira/i18n": ["./packages/shared/i18n/src"],
+      "@proctira/events": ["./packages/shared/events/src"],
+      "@proctira/queue-abstraction": ["./packages/shared/queue-abstraction/src"],
+      "@proctira/observability": ["./packages/shared/observability/src"],
+      "@proctira/tenant": ["./packages/shared/tenant/src"],
+      "@proctira/testing": ["./packages/shared/testing/src"],
+      "@proctira/cdn": ["./packages/shared/cdn/src"],
+      "@proctira/storage": ["./packages/shared/storage/src"],
+      "@proctira/secrets": ["./packages/shared/secrets/src"],
+      "@proctira/cache": ["./packages/shared/cache/src"],
+      "@proctira/ui/*": ["./packages/ui/*/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist", ".next", "coverage"]
+}

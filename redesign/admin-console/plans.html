@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plans · Proctira Platform Admin</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="console.css">
+</head>
+<body data-active="plans">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <div class="breadcrumbs"><a href="overview.html">Platform</a><span class="sep">/</span><span class="current">Plans</span></div>
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Plan management</h1>
+          <p class="page-sub">Pricing and entitlements for all tenants. Changes apply at the next billing cycle and are recorded as <span class="tag mono">plan.update</span> events.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Change history</button>
+        </div>
+      </div>
+
+      <div class="grid-3 mb-20">
+        <!-- Trial -->
+        <div class="card plan-card">
+          <div class="plan-head">
+            <div class="plan-name">Trial <span class="pill amber plain">6 tenants</span></div>
+            <div class="plan-price">₹0 <small>/ school / month · 45 days</small></div>
+          </div>
+          <div class="plan-body">
+            <ul class="plan-feats">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Up to 75 schools, 15,000 students</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Attendance, students &amp; staff modules</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>UDISE+ school registry seeding</li>
+              <li class="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Examinations &amp; scholarships</li>
+              <li class="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Marketplace plugins</li>
+              <li class="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Data warehouse exports</li>
+            </ul>
+          </div>
+          <div class="card-foot">
+            <span class="fs-xs muted-3 mono">plan_trial · v7</span>
+            <button class="btn btn-secondary btn-sm" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit</button>
+          </div>
+        </div>
+
+        <!-- Standard -->
+        <div class="card plan-card featured">
+          <div class="plan-head">
+            <div class="plan-name">Standard <span class="pill sky plain">21 tenants</span></div>
+            <div class="plan-price">₹1,800 <small>/ school / month</small></div>
+          </div>
+          <div class="plan-body">
+            <ul class="plan-feats">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Unlimited schools and students</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>All academic modules incl. examinations</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>LMS entitlement <span class="tag">new · Jun 2026</span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Marketplace plugins (approved catalogue)</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Business-hours support · 8 h first response</li>
+              <li class="off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Custom themes &amp; white-labelling</li>
+            </ul>
+          </div>
+          <div class="card-foot">
+            <span class="fs-xs muted-3 mono">plan_standard · v12</span>
+            <button class="btn btn-secondary btn-sm" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit</button>
+          </div>
+        </div>
+
+        <!-- Premium -->
+        <div class="card plan-card">
+          <div class="plan-head">
+            <div class="plan-name">Premium <span class="pill violet plain">11 tenants</span></div>
+            <div class="plan-price">₹3,500 <small>/ school / month</small></div>
+          </div>
+          <div class="plan-body">
+            <ul class="plan-feats">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Everything in Standard</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Custom themes &amp; full white-labelling</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Data warehouse exports + BI connectors</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Private plugins (tenant-scoped)</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>24×7 support · 1 h P1 response SLA</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>99.9% uptime SLA with service credits</li>
+            </ul>
+          </div>
+          <div class="card-foot">
+            <span class="fs-xs muted-3 mono">plan_premium · v9</span>
+            <button class="btn btn-secondary btn-sm" style="margin-left:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Entitlement comparison -->
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Entitlement comparison</h3><div class="sub">Feature flags resolved per plan · effective 2026-06-01</div></div>
+          <div class="spacer"><button class="btn btn-ghost btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export matrix</button></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table dense">
+            <thead><tr><th>Entitlement</th><th>Key</th><th>Trial</th><th>Standard</th><th>Premium</th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Attendance &amp; academics</div></td>
+                <td data-label="Key" class="mono">core.academics</td>
+                <td data-label="Trial" class="td-flex"><span class="pill green plain">Included</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill green plain">Included</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">Included</span></td>
+              </tr>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Examinations &amp; board prep</div></td>
+                <td data-label="Key" class="mono">exams.full</td>
+                <td data-label="Trial" class="td-flex"><span class="pill slate plain">Not included</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill green plain">Included</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">Included</span></td>
+              </tr>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Scholarships &amp; DBT sync</div></td>
+                <td data-label="Key" class="mono">scholarships.dbt</td>
+                <td data-label="Trial" class="td-flex"><span class="pill slate plain">Not included</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill green plain">Included</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">Included</span></td>
+              </tr>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Learning management (LMS)</div></td>
+                <td data-label="Key" class="mono">lms.core</td>
+                <td data-label="Trial" class="td-flex"><span class="pill slate plain">Not included</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill green plain">Included</span> <span class="tag">since v12</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">Included</span></td>
+              </tr>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Marketplace plugins</div></td>
+                <td data-label="Key" class="mono">marketplace.install</td>
+                <td data-label="Trial" class="td-flex"><span class="pill slate plain">Not included</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill green plain">Approved only</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">Incl. private</span></td>
+              </tr>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Custom themes</div></td>
+                <td data-label="Key" class="mono">themes.custom</td>
+                <td data-label="Trial" class="td-flex"><span class="pill slate plain">Not included</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill slate plain">Not included</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">Included</span></td>
+              </tr>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Data warehouse exports</div></td>
+                <td data-label="Key" class="mono">dw.exports</td>
+                <td data-label="Trial" class="td-flex"><span class="pill slate plain">Not included</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill amber plain">Add-on ₹40,000/mo</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">Included</span></td>
+              </tr>
+              <tr>
+                <td data-label="Entitlement"><div class="cell-main">Uptime SLA with credits</div></td>
+                <td data-label="Key" class="mono">sla.uptime</td>
+                <td data-label="Trial" class="td-flex"><span class="pill slate plain">Best effort</span></td>
+                <td data-label="Standard" class="td-flex"><span class="pill sky plain">99.5%</span></td>
+                <td data-label="Premium" class="td-flex"><span class="pill green plain">99.9%</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="console.js"></script>
+</body>
+</html>

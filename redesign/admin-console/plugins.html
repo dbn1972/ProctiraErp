@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plugins · Proctira Platform Admin</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="console.css">
+</head>
+<body data-active="plugins">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <div class="breadcrumbs"><a href="overview.html">Platform</a><span class="sep">/</span><span class="current">Plugins</span></div>
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Plugin marketplace</h1>
+          <p class="page-sub">Third-party submissions are sandboxed, statically analysed and manually reviewed before any tenant can install them.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Review guidelines</button>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#queue" role="tab" aria-selected="true">Review queue <span class="count">2</span></a>
+        <a class="tab" href="#published" role="tab" aria-selected="false">Published <span class="count">14</span></a>
+        <a class="tab" href="#rejected" role="tab" aria-selected="false">Rejected <span class="count">5</span></a>
+      </div>
+
+      <div class="grid-2 mb-20">
+        <!-- Review card 1 -->
+        <div class="card review-card">
+          <div class="rc-head">
+            <span class="avatar lg av-2" style="border-radius:12px">PP</span>
+            <div style="flex:1;min-width:160px">
+              <div class="fw-7" style="font-size:var(--fs-lg)">Parent Portal Lite <span class="mono fs-xs muted-3">v1.4.2</span></div>
+              <div class="fs-xs muted">EduBridge Technologies · developer@edubridge.in</div>
+            </div>
+            <span class="pill green">Static analysis passed</span>
+          </div>
+          <div class="rc-body">
+            <p class="fs-sm muted" style="margin:0 0 10px">Read-only mobile portal for guardians: attendance, report cards and fee receipts. No write paths into tenant data.</p>
+            <div class="fs-xs fw-7 muted-3" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Requested scopes</div>
+            <div class="scope-tags">
+              <span class="tag mono">students:read</span>
+              <span class="tag mono">guardians:read</span>
+              <span class="tag mono">attendance:read</span>
+              <span class="tag mono">notifications:send</span>
+            </div>
+            <div class="stat-row" style="margin-top:10px"><span class="sr-label">Submitted</span><span class="sr-value mono fs-xs">2026-06-04 14:22 IST</span></div>
+            <div class="stat-row"><span class="sr-label">Bundle size / sandbox run</span><span class="sr-value">2.1 MB · 0 violations</span></div>
+          </div>
+          <div class="rc-foot">
+            <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve &amp; publish</button>
+            <button class="btn btn-danger-soft"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
+            <button class="btn btn-ghost" style="margin-left:auto">View manifest →</button>
+          </div>
+        </div>
+
+        <!-- Review card 2 -->
+        <div class="card review-card">
+          <div class="rc-head">
+            <span class="avatar lg av-3" style="border-radius:12px">MM</span>
+            <div style="flex:1;min-width:160px">
+              <div class="fw-7" style="font-size:var(--fs-lg)">Midday Meal Tracker <span class="mono fs-xs muted-3">v0.9.1</span></div>
+              <div class="fs-xs muted">Annapurna Labs · ops@annapurnalabs.co.in</div>
+            </div>
+            <span class="pill amber">2 analysis warnings</span>
+          </div>
+          <div class="rc-body">
+            <p class="fs-sm muted" style="margin:0 0 10px">Daily meal-count reporting against attendance, with photo evidence upload and block-level dashboards for the MDM scheme.</p>
+            <div class="fs-xs fw-7 muted-3" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Requested scopes</div>
+            <div class="scope-tags">
+              <span class="tag mono">students:read</span>
+              <span class="tag mono">attendance:read</span>
+              <span class="tag mono">storage:write</span>
+              <span class="tag mono" style="color:var(--amber-700);border-color:color-mix(in srgb,var(--amber-500) 45%,transparent);background:var(--amber-50)">network:external</span>
+            </div>
+            <div class="stat-row" style="margin-top:10px"><span class="sr-label">Submitted</span><span class="sr-value mono fs-xs">2026-06-02 10:05 IST</span></div>
+            <div class="stat-row"><span class="sr-label">Warnings</span><span class="sr-value" style="color:var(--amber-700)">outbound call to mdm.gov.in · unpinned dependency</span></div>
+          </div>
+          <div class="rc-foot">
+            <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve &amp; publish</button>
+            <button class="btn btn-danger-soft"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
+            <button class="btn btn-ghost" style="margin-left:auto">View manifest →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Published plugins -->
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Published plugins</h3><div class="sub">Live in the marketplace · 14 total</div></div>
+          <div class="spacer">
+            <select class="select" style="width:auto" aria-label="Sort"><option>Most installs</option><option>Recently published</option><option>Name A–Z</option></select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table dense">
+            <thead><tr><th>Plugin</th><th>Developer</th><th>Version</th><th class="num">Installs</th><th>Last reviewed</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label="Plugin"><div class="cell-main">SMS Notifier Pro</div><div class="cell-sub">Guardian alerts over DLT-registered SMS</div></td>
+                <td data-label="Developer">MsgWala Communications</td>
+                <td data-label="Version" class="mono">v3.2.0</td>
+                <td data-label="Installs" class="num">31</td>
+                <td data-label="Last reviewed" class="mono">2026-05-12</td>
+                <td data-label="Status" class="td-flex"><span class="pill green">Published</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Plugin"><div class="cell-main">Odia Language Pack</div><div class="cell-sub">Full UI translation incl. report cards</div></td>
+                <td data-label="Developer">Bhasha Soft</td>
+                <td data-label="Version" class="mono">v2.8.1</td>
+                <td data-label="Installs" class="num">28</td>
+                <td data-label="Last reviewed" class="mono">2026-04-30</td>
+                <td data-label="Status" class="td-flex"><span class="pill green">Published</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Plugin"><div class="cell-main">Scholarship Sync</div><div class="cell-sub">NSP application status reconciliation</div></td>
+                <td data-label="Developer">NSP Connect</td>
+                <td data-label="Version" class="mono">v1.9.4</td>
+                <td data-label="Installs" class="num">22</td>
+                <td data-label="Last reviewed" class="mono">2026-05-28</td>
+                <td data-label="Status" class="td-flex"><span class="pill green">Published</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Plugin"><div class="cell-main">Bus Route Optimizer</div><div class="cell-sub">GPS-aware route planning for school buses</div></td>
+                <td data-label="Developer">TransitWorks India</td>
+                <td data-label="Version" class="mono">v4.0.2</td>
+                <td data-label="Installs" class="num">17</td>
+                <td data-label="Last reviewed" class="mono">2026-03-21</td>
+                <td data-label="Status" class="td-flex"><span class="pill green">Published</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Plugin"><div class="cell-main">Exam Hall Planner</div><div class="cell-sub">Seat allocation and invigilator rosters</div></td>
+                <td data-label="Developer">GradeWise Systems</td>
+                <td data-label="Version" class="mono">v2.1.0</td>
+                <td data-label="Installs" class="num">14</td>
+                <td data-label="Last reviewed" class="mono">2026-05-02</td>
+                <td data-label="Status" class="td-flex"><span class="pill green">Published</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Plugin"><div class="cell-main">Library Manager</div><div class="cell-sub">Catalogue, issue/return and fine tracking</div></td>
+                <td data-label="Developer">Pustak Labs</td>
+                <td data-label="Version" class="mono">v1.6.3</td>
+                <td data-label="Installs" class="num">11</td>
+                <td data-label="Last reviewed" class="mono">2026-02-17</td>
+                <td data-label="Status" class="td-flex"><span class="pill amber">Update pending</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Plugin"><div class="cell-main">Health Camp Scheduler</div><div class="cell-sub">RBSK screening camps and follow-ups</div></td>
+                <td data-label="Developer">Swasthya Setu</td>
+                <td data-label="Version" class="mono">v1.2.7</td>
+                <td data-label="Installs" class="num">9</td>
+                <td data-label="Last reviewed" class="mono">2026-04-09</td>
+                <td data-label="Status" class="td-flex"><span class="pill green">Published</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <span class="fs-xs muted">Showing 7 of 14 published plugins</span>
+          <a class="btn btn-ghost btn-sm" style="margin-left:auto" href="#all">View all →</a>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="console.js"></script>
+</body>
+</html>

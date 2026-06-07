@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Services · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  .svc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .svc {
+    display: flex; flex-direction: column; gap: 10px; padding: 16px 14px;
+    border-radius: 18px; background: var(--surface); border: 1px solid var(--border);
+    box-shadow: var(--sh-xs); text-decoration: none; color: inherit;
+  }
+  .svc:active { background: var(--bg-subtle); }
+  .svc .svc-ic { width: 44px; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+  .svc .svc-ic svg { width: 20px; height: 20px; }
+  .svc .svc-title { font-size: var(--fs-md); font-weight: 700; letter-spacing: -.01em; }
+  .svc .svc-sub { font-size: var(--fs-xs); color: var(--text-3); margin-top: 1px; line-height: 1.35; }
+</style>
+</head>
+<body data-tab="services">
+<div class="phone">
+  <header class="appbar">
+    <div class="ab-title">
+      <h1>Services</h1>
+      <div class="ab-sub">Govt. Sr. Sec. School, Puri</div>
+    </div>
+    <button class="ab-action" aria-label="Search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+  </header>
+  <div class="screen">
+
+    <span class="sync-pill ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Synced 2 min ago · online</span>
+
+    <div class="svc-grid">
+      <a class="svc" href="assessment-results.html">
+        <span class="svc-ic" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></svg></span>
+        <span><span class="svc-title">Assessments</span><span class="svc-sub">Enter unit test &amp; CCE marks</span></span>
+      </a>
+      <a class="svc" href="examination-list.html">
+        <span class="svc-ic" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15h6M9 11h2"/></svg></span>
+        <span><span class="svc-title">Examinations</span><span class="svc-sub">Schedules, halls &amp; results</span></span>
+      </a>
+      <a class="svc" href="scholarship-programs.html">
+        <span class="svc-ic" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.79 13.88 17 23l-5-3-5 3 1.21-9.12"/></svg></span>
+        <span><span class="svc-title">Scholarships</span><span class="svc-sub">Apply &amp; track for students</span></span>
+      </a>
+      <a class="svc" href="health-records.html">
+        <span class="svc-ic" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
+        <span><span class="svc-title">Health records</span><span class="svc-sub">Screenings &amp; immunization</span></span>
+      </a>
+      <a class="svc" href="document-capture.html">
+        <span class="svc-ic" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span>
+        <span><span class="svc-title">Documents scan</span><span class="svc-sub">Capture certificates offline</span></span>
+      </a>
+      <a class="svc" href="institutions.html">
+        <span class="svc-ic" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-6h6v6"/><path d="M9 10h.01M15 10h.01"/></svg></span>
+        <span><span class="svc-title">Institutions</span><span class="svc-sub">School profile &amp; cluster info</span></span>
+      </a>
+      <a class="svc" href="reports.html">
+        <span class="svc-ic" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span>
+        <span><span class="svc-title">Reports</span><span class="svc-sub">Attendance &amp; exam PDFs</span></span>
+      </a>
+      <a class="svc" href="enrollment-history.html">
+        <span class="svc-ic" style="background:var(--bg-subtle);color:var(--text-2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><polyline points="12 7 12 12 15 15"/></svg></span>
+        <span><span class="svc-title">Enrollment history</span><span class="svc-sub">Admissions &amp; transfers</span></span>
+      </a>
+    </div>
+
+  </div>
+</div>
+<script src="mobile.js"></script>
+</body>
+</html>

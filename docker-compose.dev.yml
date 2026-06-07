@@ -1,0 +1,113 @@
+# =============================================================================
+# ProctiraERP Unified Platform — Local Development Overrides
+# =============================================================================
+# Apply this file together with `docker-compose.yml` for an HMR-friendly local
+# development workflow:
+#
+#     docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Behaviour:
+#   * Application services run from a `node:20-alpine` image with the source
+#     tree mounted as a volume — no image build required.
+#   * Each app starts via `pnpm dev` (Next.js / tsx watch mode).
+#   * `node_modules` is shadowed by an anonymous volume so the host platform's
+#     binary modules don't leak into the container.
+# =============================================================================
+
+services:
+  api-gateway:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/api-gateway dev"
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+  etl-worker:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/etl-worker dev"
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+  web:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/web dev"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+  registration-portal:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/registration-portal dev"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+  public-website:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/public-website dev"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+  admin-console:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/admin-console dev"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+  developer-portal:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/developer-portal dev"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+  install-wizard:
+    image: node:20-alpine
+    build: !reset null
+    working_dir: /app
+    command: sh -c "corepack enable && corepack prepare pnpm@10.33.2 --activate && pnpm install --frozen-lockfile && pnpm --filter @proctira/install-wizard dev"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./:/app
+      - proctira-node-modules:/app/node_modules
+
+volumes:
+  proctira-node-modules:

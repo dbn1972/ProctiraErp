@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* OpenEMIS Platform Admin Console — navy primary, teal accent.
+     * Charter: Section 41 (Support, Break-Glass, Internal Access) */
+
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary — OpenEMIS navy hsl(222, 47%, 31%) */
+    --primary: 222 47% 31%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary — soft slate */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 31%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent — OpenEMIS teal hsl(174, 62%, 40%) */
+    --accent: 174 62% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 222 47% 31%;
+
+    --radius: 0.5rem;
+
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 222 47% 70%;
+    --primary-foreground: 222 47% 10%;
+    --secondary: 222 47% 14%;
+    --secondary-foreground: 210 40% 90%;
+    --muted: 222 47% 14%;
+    --muted-foreground: 215 16% 65%;
+    --accent: 174 62% 55%;
+    --accent-foreground: 174 62% 10%;
+    --destructive: 0 72% 65%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 71% 55%;
+    --success-foreground: 222 47% 10%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 222 47% 10%;
+    --border: 222 47% 20%;
+    --input: 222 47% 20%;
+    --ring: 222 47% 70%;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+  }
+}

@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-console
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: admin-console
+    app.kubernetes.io/part-of: proctira-platform
+    app.kubernetes.io/component: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: admin-console
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP

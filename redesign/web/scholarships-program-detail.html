@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pre-Matric Scholarship (SC/ST) · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .funnel-row { display: grid; grid-template-columns: 150px 1fr 90px; align-items: center; gap: 12px; padding: 9px 0; }
+  .funnel-row .f-label { font-size: var(--fs-sm); color: var(--text-2); }
+  .funnel-row .f-count { font-size: var(--fs-sm); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+  .funnel-bar { height: 22px; border-radius: 6px; background: var(--bg-subtle); overflow: hidden; }
+  .funnel-bar > span { display: block; height: 100%; border-radius: 6px; }
+  .countdown { display: flex; align-items: baseline; gap: 8px; }
+  .countdown .cd-num { font-size: var(--fs-4xl); font-weight: 800; letter-spacing: -.03em; color: var(--brand-600); line-height: 1; }
+  @media (max-width: 767px) { .funnel-row { grid-template-columns: 110px 1fr 60px; } }
+</style>
+</head>
+<body data-active="scholarships">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="scholarships-list.html">Scholarships</a><span class="sep">/</span>
+        <span class="current">Pre-Matric Scholarship (SC/ST)</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Pre-Matric Scholarship (SC/ST)</h1>
+          <p class="page-sub"><span class="mono">PM-SC-2026</span> · Govt. of India · ₹4,500 per student per year · Grades VI–X · <span class="pill green" style="vertical-align:1px">Window open</span></p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="scholarships-applications.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>View applications</a>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit program</button>
+        </div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <div class="grid-3">
+            <div class="card kpi">
+              <div class="k-top"><span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span><span class="k-label">Applications</span></div>
+              <div class="k-value">1,184</div>
+              <div class="k-foot"><span class="delta up">↑ 96</span> this week</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top"><span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><span class="k-label">Approved</span></div>
+              <div class="k-value">693</div>
+              <div class="k-foot">58.5% of applications</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top"><span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="k-label">Disbursed</span></div>
+              <div class="k-value">₹19,93,500</div>
+              <div class="k-foot">443 of 693 awards paid</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Application funnel</h3><div class="sub">From submission to disbursement · AY 2026–27</div></div>
+            </div>
+            <div class="card-pad" style="padding-top:8px">
+              <div class="funnel-row">
+                <span class="f-label">Submitted</span>
+                <div class="funnel-bar"><span style="width:100%;background:var(--brand-300)"></span></div>
+                <span class="f-count">1,184</span>
+              </div>
+              <div class="funnel-row">
+                <span class="f-label">Verified</span>
+                <div class="funnel-bar"><span style="width:74%;background:var(--brand-400)"></span></div>
+                <span class="f-count">876</span>
+              </div>
+              <div class="funnel-row">
+                <span class="f-label">Approved</span>
+                <div class="funnel-bar"><span style="width:59%;background:var(--brand-500)"></span></div>
+                <span class="f-count">693</span>
+              </div>
+              <div class="funnel-row">
+                <span class="f-label">Disbursed</span>
+                <div class="funnel-bar"><span style="width:37%;background:var(--green-500)"></span></div>
+                <span class="f-count">443</span>
+              </div>
+              <div class="funnel-row" style="border-top:1px dashed var(--border)">
+                <span class="f-label">Rejected</span>
+                <div class="funnel-bar"><span style="width:9%;background:var(--red-500)"></span></div>
+                <span class="f-count">112</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Recent applications</h3><div class="sub">Latest submissions from schools in Puri district</div></div>
+              <div class="spacer"><a class="btn btn-ghost btn-sm" href="scholarships-applications.html">View all →</a></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Student</th><th>School</th><th>Applied</th><th>Verification</th><th>Stage</th><th style="text-align:right">Actions</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td data-label=""><div class="person-cell"><span class="avatar av-2">SD</span><div><div class="cell-main">Sai Das</div><div class="cell-sub">F · Grade VIII · C</div></div></div></td>
+                    <td data-label="School">Nodal HS, Gop Sadar</td>
+                    <td data-label="Applied">06 Jun 2026</td>
+                    <td data-label="Verification"><span class="pill amber">Pending</span></td>
+                    <td data-label="Stage"><span class="pill sky">Document check</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="scholarships-application-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label=""><div class="person-cell"><span class="avatar av-1">AB</span><div><div class="cell-main">Arjun Barik</div><div class="cell-sub">M · Grade VI · C</div></div></div></td>
+                    <td data-label="School">Govt. UP School, Satapada</td>
+                    <td data-label="Applied">05 Jun 2026</td>
+                    <td data-label="Verification"><span class="pill green">Verified</span></td>
+                    <td data-label="Stage"><span class="pill brand">Awaiting approval</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="scholarships-application-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label=""><div class="person-cell"><span class="avatar av-4">LN</span><div><div class="cell-main">Lipsa Nayak</div><div class="cell-sub">F · Grade VIII · C</div></div></div></td>
+                    <td data-label="School">Govt. Sr. Sec. School, Puri</td>
+                    <td data-label="Applied">05 Jun 2026</td>
+                    <td data-label="Verification"><span class="pill green">Verified</span></td>
+                    <td data-label="Stage"><span class="pill green">Approved</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="scholarships-application-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label=""><div class="person-cell"><span class="avatar av-5">HS</span><div><div class="cell-main">Harish Swain</div><div class="cell-sub">M · Grade VI · B</div></div></div></td>
+                    <td data-label="School">Govt. UP School, Satapada</td>
+                    <td data-label="Applied">04 Jun 2026</td>
+                    <td data-label="Verification"><span class="pill red">Rejected</span></td>
+                    <td data-label="Stage"><span class="pill red">Income proof invalid</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="scholarships-application-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label=""><div class="person-cell"><span class="avatar av-3">TJ</span><div><div class="cell-main">Tara Jena</div><div class="cell-sub">F · Grade X · A</div></div></div></td>
+                    <td data-label="School">Nodal HS, Gop Sadar</td>
+                    <td data-label="Applied">04 Jun 2026</td>
+                    <td data-label="Verification"><span class="pill green">Verified</span></td>
+                    <td data-label="Stage"><span class="pill green">Approved</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="scholarships-application-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label=""><div class="person-cell"><span class="avatar av-6">RJ</span><div><div class="cell-main">Rakesh Jena</div><div class="cell-sub">M · Grade VI · A</div></div></div></td>
+                    <td data-label="School">Govt. UP School, Satapada</td>
+                    <td data-label="Applied">03 Jun 2026</td>
+                    <td data-label="Verification"><span class="pill amber">Pending</span></td>
+                    <td data-label="Stage"><span class="pill sky">Document check</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="scholarships-application-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <div class="card card-pad" style="text-align:center">
+            <div class="fs-xs fw-7 muted-3" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Window closes in</div>
+            <div class="countdown" style="justify-content:center">
+              <span class="cd-num">23</span><span class="muted fw-6">days</span>
+            </div>
+            <div class="fs-xs muted-3" style="margin-top:6px">01 May – 30 Jun 2026</div>
+            <div class="progress" style="margin-top:12px"><span style="width:62%"></span></div>
+            <div class="fs-2xs muted-3" style="margin-top:6px;text-align:right">62% of window elapsed</div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Program facts</h3></div></div>
+            <div class="card-pad">
+              <dl class="dl">
+                <dt>Code</dt><dd class="mono">PM-SC-2026</dd>
+                <dt>Sponsor</dt><dd>Govt. of India (MoSJE)</dd>
+                <dt>Award</dt><dd>₹4,500 per year</dd>
+                <dt>Mode</dt><dd>DBT — Aadhaar-seeded account</dd>
+                <dt>Grades</dt><dd>VI – X</dd>
+                <dt>Budget allotted</dt><dd>₹53,10,000</dd>
+                <dt>Coordinator</dt><dd>B. Mahapatra, DEO Puri</dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Eligibility</h3><div class="sub">Checked automatically on application</div></div></div>
+            <div class="card-pad" style="padding-top:10px">
+              <div class="stat-row"><span class="sr-label">Category</span><span class="sr-value">SC / ST</span></div>
+              <div class="stat-row"><span class="sr-label">Income ceiling</span><span class="sr-value">₹2,50,000 / yr</span></div>
+              <div class="stat-row"><span class="sr-label">Min. attendance</span><span class="sr-value">75%</span></div>
+              <div class="stat-row"><span class="sr-label">Other awards</span><span class="sr-value">None concurrent</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,163 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ProctiraERP Design System v2.0 — indigo brand, slate neutrals,
+     * deep-navy chrome. Mirrors redesign/shared/tokens.css. */
+
+    /* Surface */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary — indigo #4F46E5 */
+    --primary: 243 75% 59%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary — soft slate */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 245 58% 51%;
+
+    /* Muted */
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent — teal (data viz / highlights) */
+    --accent: 173 80% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Borders, inputs, focus */
+    --border: 214 32% 91%;
+    --input: 213 27% 84%;
+    --ring: 243 75% 59%;
+
+    /* Radius — v2.0 (10px base) */
+    --radius: 0.625rem;
+
+    /* Deep navy — sidebar / hero surfaces */
+    --color-navy-800: #131a36;
+    --color-navy-900: #0e142b;
+    --color-navy-950: #0a0f21;
+
+    /* Legacy primary palette retained for sidebar/breadcrumb components.
+     * Mapped to the v2.0 indigo brand scale. */
+    --color-primary-50: #eef2ff;
+    --color-primary-100: #e0e7ff;
+    --color-primary-200: #c7d2fe;
+    --color-primary-300: #a5b4fc;
+    --color-primary-400: #818cf8;
+    --color-primary-500: #6366f1;
+    --color-primary-600: #4f46e5;
+    --color-primary-700: #4338ca;
+    --color-primary-800: #3730a3;
+    --color-primary-900: #312e81;
+
+    --color-accent-50: #f0fdfa;
+    --color-accent-100: #ccfbf1;
+    --color-accent-200: #99f6e4;
+    --color-accent-500: #14b8a6;
+    --color-accent-600: #0d9488;
+    --color-accent-700: #0f766e;
+
+    /* Typography — system-font fallback first per Requirement 39.3.
+     * Inter is loaded asynchronously via <link rel="stylesheet"> with
+     * font-display: swap (see app/layout.tsx). The leading native fonts
+     * keep first paint readable while Inter is in flight (Requirement 39.4).
+     * Order matches Design §J: -apple-system, BlinkMacSystemFont, "Segoe UI",
+     * Roboto, sans-serif, with Inter listed AFTER the system fonts so the
+     * UA paints with system fonts first and only swaps to Inter when ready. */
+    --font-sans:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter',
+      system-ui, sans-serif;
+  }
+
+  .dark {
+    --background: 221 50% 8%;
+    --foreground: 220 36% 93%;
+
+    --card: 221 46% 12%;
+    --card-foreground: 220 36% 93%;
+
+    --popover: 221 46% 12%;
+    --popover-foreground: 220 36% 93%;
+
+    --primary: 234 89% 74%;
+    --primary-foreground: 242 47% 14%;
+
+    --secondary: 221 45% 16%;
+    --secondary-foreground: 220 36% 90%;
+
+    --muted: 221 45% 16%;
+    --muted-foreground: 220 25% 69%;
+
+    --accent: 172 66% 50%;
+    --accent-foreground: 175 84% 10%;
+
+    --destructive: 0 72% 65%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 221 40% 23%;
+    --input: 221 40% 23%;
+    --ring: 234 89% 74%;
+  }
+
+  /* RTL-specific adjustments — keep the system-font fallback first and
+   * fall through to a script-appropriate Noto face if Inter has not loaded. */
+  [dir='rtl'] {
+    --font-sans:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic',
+      'Inter', system-ui, sans-serif;
+  }
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  /* Sidebar links — designed for the deep-navy sidebar (Design System v2.0) */
+  .sidebar-link {
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors;
+  }
+
+  .sidebar-link-active {
+    @apply font-semibold text-white;
+    background: rgba(99, 102, 241, 0.18);
+  }
+
+  .sidebar-link-active::before {
+    content: '';
+    position: absolute;
+    inset-inline-start: -12px;
+    top: 6px;
+    bottom: 6px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--color-primary-400);
+  }
+
+  .sidebar-link-inactive {
+    @apply text-slate-400 hover:bg-white/5 hover:text-white;
+  }
+
+  .breadcrumb-separator {
+    @apply mx-2 text-gray-400;
+  }
+}

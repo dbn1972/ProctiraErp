@@ -1,0 +1,21 @@
+{{- if .Values.studentService.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "proctira.fullname" . }}-student-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: student-service
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.studentService.service.type }}
+  selector:
+    app.kubernetes.io/name: student-service
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.studentService.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}

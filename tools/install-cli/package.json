@@ -1,0 +1,33 @@
+{
+  "name": "@proctira/install-cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CLI tool for headless/automated ProctiraERP platform installation",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "bin": {
+    "proctira-install": "./bin/proctira-install.mjs"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "start": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@proctira/backend-install": "workspace:*",
+    "@proctira/common": "workspace:*",
+    "@sinclair/typebox": "^0.32.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "@types/uuid": "^9.0.8",
+    "fast-check": "^3.17.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

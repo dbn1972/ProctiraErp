@@ -1,0 +1,61 @@
+{
+  "globalDependencies": ["**/.env.*local", "tsconfig.base.json"],
+  "globalEnv": ["NODE_ENV", "CI"],
+  "remoteCache": {
+    "signature": true
+  },
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"],
+      "env": ["NODE_ENV"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "inputs": [
+        "src/**/*.tsx",
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "vitest.config.*"
+      ],
+      "env": ["CI", "DATABASE_URL", "REDIS_URL"]
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "outputs": ["playwright-report/**", "test-results/**"],
+      "env": ["DATABASE_URL", "REDIS_URL"]
+    },
+    "lint": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "inputs": [
+        "src/**/*.tsx",
+        "src/**/*.ts",
+        "**/*.js",
+        "**/*.mjs",
+        ".eslintrc*",
+        "eslint.config.*"
+      ]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "inputs": [
+        "src/**/*.tsx",
+        "src/**/*.ts",
+        "tsconfig*.json"
+      ]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

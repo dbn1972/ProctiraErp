@@ -1,0 +1,30 @@
+{
+  "app": {
+    "title": "بوابة مطوري ProctiraERP",
+    "description": "بناء التكاملات والإضافات لمنصة ProctiraERP"
+  },
+  "nav": {
+    "dashboard": "لوحة التحكم",
+    "apiReference": "مرجع API",
+    "plugins": "الإضافات",
+    "marketplace": "السوق",
+    "documentation": "التوثيق",
+    "webhooks": "الويب هوك",
+    "sandbox": "بيئة الاختبار",
+    "apiKeys": "مفاتيح API",
+    "settings": "الإعدادات"
+  },
+  "dashboard": {
+    "title": "لوحة تحكم المطور",
+    "welcome": "مرحباً بك في بوابة مطوري ProctiraERP",
+    "apiKeys": "مفاتيح API",
+    "plugins": "الإضافات",
+    "webhooks": "الويب هوك",
+    "sandboxes": "بيئات الاختبار",
+    "recentActivity": "النشاط الأخير",
+    "quickStart": "البدء السريع",
+    "createApiKey": "إنشاء مفتاح API",
+    "submitPlugin": "تقديم إضافة",
+    "viewDocs": "عرض التوثيق"
+  }
+}

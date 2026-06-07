@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Support · Proctira Platform Admin</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="console.css">
+</head>
+<body data-active="support">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <div class="breadcrumbs"><a href="overview.html">Platform</a><span class="sep">/</span><span class="current">Support</span></div>
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Support dashboard</h1>
+          <p class="page-sub">Tenant-raised tickets across all districts. P1 pages the on-call rotation automatically.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
+          <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New ticket</button>
+        </div>
+      </div>
+
+      <!-- Escalations alert -->
+      <div class="alert error mb-20" role="alert">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="a-body"><b>1 active escalation</b>SUP-50412 (Ganjam DEO, attendance sync) breached its 1-hour P1 response target at 09:18 IST and was escalated to the SRE on-call. Incident INC-2114 is linked; break-glass session active.</div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="4.93" y1="4.93" x2="9.17" y2="9.17"/><line x1="14.83" y1="14.83" x2="19.07" y2="19.07"/><line x1="14.83" y1="9.17" x2="19.07" y2="4.93"/><line x1="4.93" y1="19.07" x2="9.17" y2="14.83"/></svg></span><span class="k-label">Open tickets</span></div>
+          <div class="k-value">23</div>
+          <div class="k-foot"><span class="delta down">↓ 4</span> vs last week</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="k-label">SLA at risk</span></div>
+          <div class="k-value">3</div>
+          <div class="k-foot">closest breach in <span class="countdown">01:12:40</span></div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span><span class="k-label">Avg first response</span></div>
+          <div class="k-value">38m</div>
+          <div class="k-foot"><span class="delta up">↑ better</span> target 60m</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span><span class="k-label">CSAT (30 days)</span></div>
+          <div class="k-value">4.6<span style="font-size:var(--fs-lg);color:var(--text-3)">/5</span></div>
+          <div class="k-foot">212 survey responses</div>
+        </div>
+      </div>
+
+      <!-- Tickets table -->
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Open tickets</h3><div class="sub">Sorted by priority, then age</div></div>
+          <div class="spacer">
+            <select class="select" style="width:auto" aria-label="Priority"><option>All priorities</option><option>P1</option><option>P2</option><option>P3</option></select>
+            <select class="select" style="width:auto" aria-label="Assignee"><option>All assignees</option><option>S. Iyer</option><option>P. Mehta</option><option>N. Banerjee</option><option>R. Venkatesan</option></select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table dense">
+            <thead><tr><th>Ticket</th><th>Tenant</th><th>Subject</th><th>Priority</th><th>Assignee</th><th>Age</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label="Ticket" class="mono">SUP-50412</td>
+                <td data-label="Tenant">Ganjam DEO</td>
+                <td data-label="Subject"><div class="cell-main">Attendance events not syncing for 12 schools</div><div class="cell-sub">Linked: INC-2114 · break-glass active</div></td>
+                <td data-label="Priority" class="td-flex"><span class="pill red plain">P1</span></td>
+                <td data-label="Assignee"><div class="person-cell"><span class="avatar sm av-5">SI</span><span>S. Iyer</span></div></td>
+                <td data-label="Age" class="mono">2h 14m</td>
+                <td data-label="Status" class="td-flex"><span class="pill red">Escalated</span></td>
+              </tr>
+              <tr>
+                <td data-label="Ticket" class="mono">SUP-50408</td>
+                <td data-label="Tenant">Cuttack DEO</td>
+                <td data-label="Subject"><div class="cell-main">SMS notifications failing for guardian alerts</div><div class="cell-sub">Vendor incident OEM-1421</div></td>
+                <td data-label="Priority" class="td-flex"><span class="pill red plain">P1</span></td>
+                <td data-label="Assignee"><div class="person-cell"><span class="avatar sm av-1">RV</span><span>R. Venkatesan</span></div></td>
+                <td data-label="Age" class="mono">5h 02m</td>
+                <td data-label="Status" class="td-flex"><span class="pill amber">Waiting on vendor</span></td>
+              </tr>
+              <tr>
+                <td data-label="Ticket" class="mono">SUP-50401</td>
+                <td data-label="Tenant">Khordha DEO</td>
+                <td data-label="Subject"><div class="cell-main">Bulk import merged 214 students into wrong sections</div><div class="cell-sub">Break-glass request bg_req_2032 pending</div></td>
+                <td data-label="Priority" class="td-flex"><span class="pill amber plain">P2</span></td>
+                <td data-label="Assignee"><div class="person-cell"><span class="avatar sm av-6">PM</span><span>P. Mehta</span></div></td>
+                <td data-label="Age" class="mono">18h 40m</td>
+                <td data-label="Status" class="td-flex"><span class="pill sky">In progress</span></td>
+              </tr>
+              <tr>
+                <td data-label="Ticket" class="mono">SUP-50396</td>
+                <td data-label="Tenant">Sambalpur DEO</td>
+                <td data-label="Subject"><div class="cell-main">Photo uploads time out on low-bandwidth links</div><div class="cell-sub">Trial tenant · onboarding blocker</div></td>
+                <td data-label="Priority" class="td-flex"><span class="pill amber plain">P2</span></td>
+                <td data-label="Assignee"><div class="person-cell"><span class="avatar sm av-2">NB</span><span>N. Banerjee</span></div></td>
+                <td data-label="Age" class="mono">1d 3h</td>
+                <td data-label="Status" class="td-flex"><span class="pill sky">In progress</span></td>
+              </tr>
+              <tr>
+                <td data-label="Ticket" class="mono">SUP-50389</td>
+                <td data-label="Tenant">Mayurbhanj DEO</td>
+                <td data-label="Subject"><div class="cell-main">Custom theme submission failing contrast audit</div><div class="cell-sub">Saffron Trail · themes pipeline</div></td>
+                <td data-label="Priority" class="td-flex"><span class="pill slate plain">P3</span></td>
+                <td data-label="Assignee"><div class="person-cell"><span class="avatar sm av-3">AK</span><span>A. Kulkarni</span></div></td>
+                <td data-label="Age" class="mono">2d 5h</td>
+                <td data-label="Status" class="td-flex"><span class="pill amber">Waiting on tenant</span></td>
+              </tr>
+              <tr>
+                <td data-label="Ticket" class="mono">SUP-50384</td>
+                <td data-label="Tenant">Puri District Education Office</td>
+                <td data-label="Subject"><div class="cell-main">Request: enable data-warehouse exports add-on</div><div class="cell-sub">Commercial approval received</div></td>
+                <td data-label="Priority" class="td-flex"><span class="pill slate plain">P3</span></td>
+                <td data-label="Assignee"><div class="person-cell"><span class="avatar sm av-6">PM</span><span>P. Mehta</span></div></td>
+                <td data-label="Age" class="mono">3d 1h</td>
+                <td data-label="Status" class="td-flex"><span class="pill sky">In progress</span></td>
+              </tr>
+              <tr>
+                <td data-label="Ticket" class="mono">SUP-50377</td>
+                <td data-label="Tenant">Balasore DEO</td>
+                <td data-label="Subject"><div class="cell-main">Exam hall planner plugin shows stale invigilator list</div><div class="cell-sub">Plugin: Exam Hall Planner v2.1.0</div></td>
+                <td data-label="Priority" class="td-flex"><span class="pill slate plain">P3</span></td>
+                <td data-label="Assignee"><div class="person-cell"><span class="avatar sm av-5">SI</span><span>S. Iyer</span></div></td>
+                <td data-label="Age" class="mono">4d 6h</td>
+                <td data-label="Status" class="td-flex"><span class="pill amber">Waiting on developer</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing 7 of 23 open tickets</span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button><button class="page-btn">2</button><button class="page-btn">3</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="console.js"></script>
+</body>
+</html>

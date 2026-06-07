@@ -1,0 +1,75 @@
+# Multi-window, multi-burn-rate error budget alerts.
+#
+# Reference: SRE Workbook, Chapter 5.
+# We track availability against a 99.9% SLO (4 nines = 0.1% error budget).
+# A burn rate of 14.4x for 1h consumes 2% of a 30-day budget — page.
+# A burn rate of 6x for 6h consumes 5% of the budget — ticket / Slack.
+groups:
+  - name: error_budget_burn
+    interval: 30s
+    rules:
+      # Helper: error ratio over different windows.
+      - record: service:http_error_ratio:rate1h
+        expr: |
+          sum by (service) (rate(http_requests_total{status_code=~"5.."}[1h]))
+          /
+          sum by (service) (rate(http_requests_total[1h]))
+
+      - record: service:http_error_ratio:rate5m
+        expr: |
+          sum by (service) (rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          sum by (service) (rate(http_requests_total[5m]))
+
+      - record: service:http_error_ratio:rate6h
+        expr: |
+          sum by (service) (rate(http_requests_total{status_code=~"5.."}[6h]))
+          /
+          sum by (service) (rate(http_requests_total[6h]))
+
+      - record: service:http_error_ratio:rate30m
+        expr: |
+          sum by (service) (rate(http_requests_total{status_code=~"5.."}[30m]))
+          /
+          sum by (service) (rate(http_requests_total[30m]))
+
+      - alert: ErrorBudgetBurnFast
+        # Fast burn: page when both 5m and 1h windows exceed 14.4x of the
+        # 0.001 error budget (i.e. >= 1.44%).
+        expr: |
+          service:http_error_ratio:rate5m > (14.4 * 0.001)
+          and
+          service:http_error_ratio:rate1h > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: critical
+          team: engineering
+          slo: availability
+          burn_rate: "14.4x"
+        annotations:
+          summary: "{{ $labels.service }} burning error budget at 14.4x"
+          description: |
+            Service {{ $labels.service }} is consuming the 30-day availability error
+            budget at 14.4x. At this rate the budget is exhausted in ~2 days.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-budget-burn"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-slo-tracking"
+
+      - alert: ErrorBudgetBurnSlow
+        # Slow burn: alert (not page) when both 30m and 6h windows exceed 6x.
+        expr: |
+          service:http_error_ratio:rate30m > (6 * 0.001)
+          and
+          service:http_error_ratio:rate6h > (6 * 0.001)
+        for: 15m
+        labels:
+          severity: warning
+          team: engineering
+          slo: availability
+          burn_rate: "6x"
+        annotations:
+          summary: "{{ $labels.service }} burning error budget at 6x"
+          description: |
+            Service {{ $labels.service }} is consuming error budget at 6x for the
+            last 6 hours. At this rate budget is exhausted in ~5 days.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#error-budget-burn"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-slo-tracking"

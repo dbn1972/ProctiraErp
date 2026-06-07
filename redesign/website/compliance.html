@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Compliance — DPDP, GDPR, FERPA &amp; WCAG · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="site.css">
+<style>
+  .comp-card { display: flex; flex-direction: column; }
+  .comp-card .cc-top { display: flex; align-items: center; gap: 14px; }
+  .comp-card h3 { margin: 0; font-size: var(--fs-xl); font-weight: 800; letter-spacing: -.015em; }
+  .comp-card .cc-status { margin-left: auto; }
+  .comp-card > p { margin: 16px 0 0; font-size: var(--fs-md); line-height: 1.7; color: var(--text-2); }
+  .means {
+    margin-top: 18px; padding: 13px 16px; border-radius: var(--r-md);
+    background: var(--brand-50); border: 1px solid var(--brand-200);
+    font-size: var(--fs-sm); color: var(--brand-900); line-height: 1.6;
+  }
+  .means b { color: var(--brand-700); display: block; font-size: var(--fs-2xs); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+</style>
+</head>
+<body class="site">
+
+<header class="site-header">
+  <div class="container nav-row">
+    <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="product.html" class="active">Product</a>
+      <a href="home.html#levels">Solutions</a>
+      <a href="installation.html">Developers</a>
+      <a href="contact.html">Pricing</a>
+      <a href="about.html">Company</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+    <button class="hamburger" type="button" aria-label="Toggle menu" aria-expanded="false" onclick="toggleNav(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+  <div class="mobile-menu">
+    <a href="product.html">Product</a>
+    <a href="home.html#levels">Solutions</a>
+    <a href="installation.html">Developers</a>
+    <a href="contact.html">Pricing</a>
+    <a href="about.html">Company</a>
+    <div class="mm-actions">
+      <a class="btn btn-secondary" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="page-hero">
+    <div class="container">
+      <span class="chip"><span class="dot"></span>Trust &amp; compliance</span>
+      <h1>Compliance, in <span class="grad">plain language</span></h1>
+      <p class="lead">ProctiraERP is built to operate inside the privacy and accountability frameworks that govern education data around the world — and we explain what each one actually means for you.</p>
+    </div>
+  </section>
+
+  <!-- FRAMEWORK CARDS -->
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <span class="kicker">Frameworks &amp; standards</span>
+        <h2 class="section-title">What we comply with — and why it matters</h2>
+      </div>
+      <div class="cards-2">
+
+        <div class="f-card comp-card">
+          <div class="cc-top">
+            <span class="icon-sq iq-brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <h3>DPDP Act 2023</h3>
+            <span class="pill green cc-status">Aligned</span>
+          </div>
+          <p>India's Digital Personal Data Protection Act sets the rules for collecting and processing personal data, with special safeguards for children. ProctiraERP implements verifiable consent capture, purpose limitation, breach notification workflows, and Data Principal request handling out of the box.</p>
+          <div class="means"><b>What this means for you</b>Parents and students can see, correct, and erase their data on request — and your institution can prove it acted lawfully, with consent records and audit trails ready for the Data Protection Board.</div>
+        </div>
+
+        <div class="f-card comp-card">
+          <div class="cc-top">
+            <span class="icon-sq iq-sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+            <h3>GDPR</h3>
+            <span class="pill green cc-status">Ready</span>
+          </div>
+          <p>For deployments that touch EU residents, the platform supports GDPR's lawful-basis model: data minimisation, the full set of data-subject rights, processor agreements, and Standard Contractual Clauses for any cross-border transfer.</p>
+          <div class="means"><b>What this means for you</b>If your institution serves international students or partners with EU organisations, you can deploy ProctiraERP without building a parallel privacy programme — export, rectification, and erasure tooling is built in.</div>
+        </div>
+
+        <div class="f-card comp-card">
+          <div class="cc-top">
+            <span class="icon-sq iq-teal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+            <h3>FERPA-aligned</h3>
+            <span class="pill sky cc-status">Aligned</span>
+          </div>
+          <p>The US Family Educational Rights and Privacy Act shapes global best practice for student records. ProctiraERP mirrors its core ideas: education records belong to students and parents, disclosure requires consent or a legitimate educational interest, and every access is logged.</p>
+          <div class="means"><b>What this means for you</b>Teachers see only their classes. Clerks see only their modules. Guardians see only their children. Nobody — including platform operators — browses student records without an audited reason.</div>
+        </div>
+
+        <div class="f-card comp-card">
+          <div class="cc-top">
+            <span class="icon-sq iq-violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8" r="1.6" fill="currentColor" stroke="none"/><path d="M7 11c1.6.6 3.3 1 5 1s3.4-.4 5-1"/><path d="M12 12v3l-2 5M12 15l2 5"/></svg></span>
+            <h3>WCAG 2.2 AA</h3>
+            <span class="pill green cc-status">Tested</span>
+          </div>
+          <p>All public-facing and teacher-facing screens are designed and tested against WCAG 2.2 Level AA: keyboard navigation, screen-reader semantics, 4.5:1 contrast, visible focus, and reduced-motion support. Accessibility regressions block releases.</p>
+          <div class="means"><b>What this means for you</b>Staff and students with disabilities can use the platform independently — and government deployments meet GIGW and Rights of Persons with Disabilities Act obligations without retrofitting.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA PROCESSING TABLE -->
+  <section class="section alt">
+    <div class="container">
+      <div class="section-head">
+        <span class="kicker">Transparency</span>
+        <h2 class="section-title">What we process, and for how long</h2>
+        <p class="section-sub">A summary of the default data-processing register. Self-hosted operators can adjust retention to local policy.</p>
+      </div>
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Data category</th><th>Purpose</th><th>Retention</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Data category"><span class="cell-main">Student identity &amp; enrolment</span><div class="cell-sub">Name, date of birth, guardian details, admission records</div></td>
+                <td data-label="Purpose">Enrolment, academic administration, statutory reporting</td>
+                <td data-label="Retention">Duration of enrolment + 7 years (statutory)</td>
+              </tr>
+              <tr>
+                <td data-label="Data category"><span class="cell-main">Attendance records</span><div class="cell-sub">Daily presence, late marks, leave records</div></td>
+                <td data-label="Purpose">Attendance monitoring, mid-day meal counts, scheme eligibility</td>
+                <td data-label="Retention">Academic year + 3 years</td>
+              </tr>
+              <tr>
+                <td data-label="Data category"><span class="cell-main">Assessment results</span><div class="cell-sub">Marks, grades, report cards</div></td>
+                <td data-label="Purpose">Academic progression, board submissions, transcripts</td>
+                <td data-label="Retention">Permanent (academic record)</td>
+              </tr>
+              <tr>
+                <td data-label="Data category"><span class="cell-main">Scholarship &amp; bank data</span><div class="cell-sub">Scheme applications, Aadhaar-seeded account references</div></td>
+                <td data-label="Purpose">Eligibility verification and DBT disbursal</td>
+                <td data-label="Retention">Scheme closure + 5 years (audit)</td>
+              </tr>
+              <tr>
+                <td data-label="Data category"><span class="cell-main">Staff employment records</span><div class="cell-sub">Appointments, transfers, qualifications</div></td>
+                <td data-label="Purpose">HR administration and payroll integration</td>
+                <td data-label="Retention">Employment + 8 years</td>
+              </tr>
+              <tr>
+                <td data-label="Data category"><span class="cell-main">System &amp; audit logs</span><div class="cell-sub">Access logs, change history, security events</div></td>
+                <td data-label="Purpose">Security monitoring, incident response, accountability</td>
+                <td data-label="Retention">18 months (rolling)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="band-navy cta-band">
+    <div class="container">
+      <h2>Need evidence for a <span class="grad-dark">procurement review?</span></h2>
+      <p>Customers and prospects can request our trust pack — security overview, DPA template, control narratives, and accessibility conformance report.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad btn-xl" href="contact.html">Request the trust pack</a>
+        <a class="btn btn-onnavy btn-xl" href="security.html">Read the security page</a>
+      </div>
+      <p class="fine">Or email trust@proctira.org directly</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+        <p>Open-source education infrastructure for schools, districts, and ministries — built in India, for the world.</p>
+        <span class="foot-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17l-6.2 3.9 1.6-7L2 9.2l7.1-.6z"/></svg>Apache-2.0 · Open source</span>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="product.html">Product tour</a>
+        <a href="installation.html">Installation</a>
+        <a href="security.html">Security</a>
+        <a href="status.html">System status</a>
+        <a href="compliance.html">Compliance</a>
+      </div>
+      <div class="foot-col">
+        <h4>Solutions</h4>
+        <a href="home.html#levels">For schools</a>
+        <a href="home.html#levels">For districts</a>
+        <a href="home.html#levels">For ministries</a>
+        <a href="about.html">Odisha pilot</a>
+      </div>
+      <div class="foot-col">
+        <h4>Developers</h4>
+        <a href="installation.html">Documentation</a>
+        <a href="installation.html#architecture">Architecture</a>
+        <a href="product.html#integrations">Integrations</a>
+        <a href="about.html#opensource">GitHub</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="about.html#careers">Careers</a>
+        <a href="legal.html">Legal</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="foot-locale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English (India) · हिन्दी · ଓଡ଼ିଆ</span>
+      <div class="legal-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="cookies.html">Cookies</a>
+        <a href="status.html">Status</a>
+      </div>
+      <div class="foot-copy">© 2026 ProctiraERP · open source under <a href="legal.html">Apache-2.0</a></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleNav(btn){
+  document.body.classList.toggle('nav-open');
+  btn.setAttribute('aria-expanded', document.body.classList.contains('nav-open'));
+}
+</script>
+</body>
+</html>

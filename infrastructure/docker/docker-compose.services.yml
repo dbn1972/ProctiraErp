@@ -1,0 +1,260 @@
+# =============================================================================
+# ProctiraERP Unified Platform — Microservices Deployment Compose
+# =============================================================================
+# This compose file deploys backend services as independent microservices.
+# Use this when running the platform in a distributed/microservice topology
+# rather than the monolithic api-gateway mode.
+#
+# Usage:
+#   docker compose -f infrastructure/docker/docker-compose.services.yml up
+#
+# Prerequisites:
+#   - Infrastructure services (postgres, redis, kafka, rabbitmq) must be running
+#     via the root docker-compose.yml or externally provisioned.
+#
+# All configuration is driven by environment variables. Copy .env.example to
+# .env at the monorepo root and override values as needed.
+# =============================================================================
+
+name: proctira-services
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend Domain Services (independently deployable)
+  # ---------------------------------------------------------------------------
+  institution-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: institution
+        SERVICE_PORT: 3020
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3020
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+    ports:
+      - "3020:3020"
+    networks:
+      - proctira
+
+  student-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: student
+        SERVICE_PORT: 3021
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3021
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+    ports:
+      - "3021:3021"
+    networks:
+      - proctira
+
+  staff-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: staff
+        SERVICE_PORT: 3022
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3022
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+    ports:
+      - "3022:3022"
+    networks:
+      - proctira
+
+  assessment-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: assessment
+        SERVICE_PORT: 3023
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3023
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+    ports:
+      - "3023:3023"
+    networks:
+      - proctira
+
+  attendance-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: attendance
+        SERVICE_PORT: 3024
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3024
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+    ports:
+      - "3024:3024"
+    networks:
+      - proctira
+
+  examination-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: examination
+        SERVICE_PORT: 3025
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3025
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+    ports:
+      - "3025:3025"
+    networks:
+      - proctira
+
+  workflow-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: workflow
+        SERVICE_PORT: 3026
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3026
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+    ports:
+      - "3026:3026"
+    networks:
+      - proctira
+
+  notification-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: notification
+        SERVICE_PORT: 3027
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3027
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@proctira.localhost}
+      FCM_PROJECT_ID: ${FCM_PROJECT_ID}
+    ports:
+      - "3027:3027"
+    networks:
+      - proctira
+
+  report-service:
+    build:
+      context: ../../
+      dockerfile: infrastructure/docker/Dockerfile.backend-service
+      args:
+        SERVICE_NAME: report
+        SERVICE_PORT: 3028
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3028
+      HOST: 0.0.0.0
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      KAFKA_BROKERS: ${KAFKA_BROKERS}
+      RABBITMQ_URL: ${RABBITMQ_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_REGION: ${S3_REGION}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET}
+    ports:
+      - "3028:3028"
+    networks:
+      - proctira
+
+networks:
+  proctira:
+    external: true
+    name: proctira-unified_proctira

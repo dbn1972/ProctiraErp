@@ -1,0 +1,124 @@
+{
+  "root": true,
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module",
+    "project": true
+  },
+  "plugins": ["@typescript-eslint", "import", "proctira"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/recommended-type-checked",
+    "plugin:import/recommended",
+    "plugin:import/typescript",
+    "prettier"
+  ],
+  "rules": {
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }
+    ],
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "@typescript-eslint/consistent-type-imports": [
+      "error",
+      { "prefer": "type-imports" }
+    ],
+    "@typescript-eslint/require-await": "warn",
+    "@typescript-eslint/restrict-template-expressions": [
+      "error",
+      { "allowNumber": true, "allowBoolean": true, "allowAny": false, "allowNullish": false }
+    ],
+    "@typescript-eslint/no-floating-promises": "warn",
+    "import/order": [
+      "error",
+      {
+        "groups": [
+          "builtin",
+          "external",
+          "internal",
+          "parent",
+          "sibling",
+          "index"
+        ],
+        "newlines-between": "always",
+        "alphabetize": { "order": "asc" }
+      }
+    ],
+    "import/default": "off",
+    "import/no-named-as-default": "off",
+    "import/no-named-as-default-member": "off",
+    "import/no-duplicates": "error",
+    "import/no-unresolved": "off",
+    "no-console": "warn"
+  },
+  "overrides": [
+    {
+      "files": ["apps/web/src/**/*.{ts,tsx}", "packages/ui/**/*.{ts,tsx}"],
+      "rules": {
+        "proctira/no-physical-margin-padding": "warn",
+        "proctira/icon-only-button-requires-aria-label": "error",
+        "proctira/img-requires-dimensions": [
+          "warn",
+          { "allowAriaHiddenDecorative": true }
+        ],
+        "proctira/no-hardcoded-brand-strings": "warn"
+      }
+    },
+    {
+      "files": ["packages/backend/**/route*.ts", "packages/backend/**/routes/*.ts"],
+      "rules": {
+        "proctira/error-envelope": "error",
+        "proctira/no-hardcoded-i18n-message": "warn"
+      }
+    },
+    {
+      "files": [
+        "packages/backend/notification/**/*.{ts,js}",
+        "packages/backend/notification/templates/**/*.{ts,js,hbs,html,mjml,txt}"
+      ],
+      "rules": {
+        "proctira/no-hardcoded-brand-strings": "warn"
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.spec.ts"],
+      "rules": {
+        "@typescript-eslint/no-unsafe-assignment": "off",
+        "@typescript-eslint/no-unsafe-member-access": "off",
+        "@typescript-eslint/no-unsafe-call": "off",
+        "@typescript-eslint/no-unsafe-argument": "off",
+        "@typescript-eslint/no-explicit-any": "off",
+        "@typescript-eslint/no-var-requires": "off",
+        "@typescript-eslint/require-await": "off",
+        "@typescript-eslint/no-floating-promises": "off",
+        "@typescript-eslint/no-misused-promises": "off",
+        "@typescript-eslint/no-unused-vars": "warn",
+        "@typescript-eslint/restrict-template-expressions": "off",
+        "import/order": "off"
+      }
+    }
+  ],
+  "settings": {
+    "import/resolver": {
+      "typescript": {
+        "project": "./tsconfig.base.json"
+      }
+    }
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    ".next",
+    "coverage",
+    "*.js",
+    "*.mjs",
+    "vitest.config.ts"
+  ]
+}

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Infrastructure — Saraswati Nodal High School · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .facility { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .facility .f-top { display: flex; align-items: flex-start; gap: 12px; }
+  .facility .f-icon {
+    width: 40px; height: 40px; border-radius: var(--r-md); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .facility .f-icon svg { width: 19px; height: 19px; }
+  .facility .f-name { font-weight: 700; font-size: var(--fs-md); }
+  .facility .f-count { font-size: var(--fs-xs); color: var(--text-3); margin-top: 1px; }
+  .facility .f-note { font-size: var(--fs-xs); color: var(--text-2); border-top: 1px dashed var(--border); padding-top: 10px; margin-top: auto; }
+</style>
+</head>
+<body data-active="institutions">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="institutions-list.html">Institutions</a><span class="sep">/</span>
+        <a href="institutions-detail.html">Saraswati Nodal High School</a><span class="sep">/</span>
+        <span class="current">Infrastructure</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Saraswati Nodal High School <span class="pill green">Active</span></h1>
+          <p class="page-sub"><span class="mono">UDISE 21180104506</span> · facility register · last physical verification 12 May 2026</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Verification report</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Log repair request</button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab" href="institutions-detail-overview.html" role="tab">Overview</a>
+        <a class="tab" href="institutions-classes.html" role="tab">Classes <span class="count">14</span></a>
+        <a class="tab" href="institutions-grades.html" role="tab">Grades <span class="count">5</span></a>
+        <a class="tab active" href="institutions-infrastructure.html" role="tab" aria-selected="true">Infrastructure</a>
+        <a class="tab" href="staff-list.html" role="tab">Staff <span class="count">21</span></a>
+      </div>
+
+      <div class="alert warn mb-20" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="a-body"><b>2 repairs pending block engineer sign-off</b>Classroom 7 roof leakage and girls' toilet door replacement were escalated to the Brahmagiri BDO on 3 Jun 2026.</div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span>
+            <div style="flex:1"><div class="f-name">Classrooms</div><div class="f-count">24 rooms · 18 in teaching use</div></div>
+            <span class="pill amber">Needs repair</span>
+          </div>
+          <div class="f-note">Room 7 roof leakage reported; tarpaulin cover in place, repair tendered.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/><path d="M5.52 16h12.96"/></svg></span>
+            <div style="flex:1"><div class="f-name">Laboratories</div><div class="f-count">3 labs · Physics, Chemistry, Biology</div></div>
+            <span class="pill green">Available</span>
+          </div>
+          <div class="f-note">Science kits replenished under Samagra Shiksha grant, Apr 2026.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
+            <div style="flex:1"><div class="f-name">Library</div><div class="f-count">4,120 books · 1 reading room</div></div>
+            <span class="pill green">Available</span>
+          </div>
+          <div class="f-note">Open 4 periods daily; class-library corners run in grades VI–VIII.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg></span>
+            <div style="flex:1"><div class="f-name">Drinking water</div><div class="f-count">2 RO units · 6 taps</div></div>
+            <span class="pill green">Available</span>
+          </div>
+          <div class="f-note">Quarterly water-quality test passed on 20 Apr 2026.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 22V12h6v10"/><path d="M2 10.6 12 2l10 8.6"/><path d="M4 9v13h16V9"/></svg></span>
+            <div style="flex:1"><div class="f-name">Toilets</div><div class="f-count">8 units · 4 boys, 4 girls · CWSN-accessible: 1</div></div>
+            <span class="pill amber">Needs repair</span>
+          </div>
+          <div class="f-note">Girls' block door replacement pending; interim arrangement signed off.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+            <div style="flex:1"><div class="f-name">Power backup</div><div class="f-count">5 kVA solar + inverter</div></div>
+            <span class="pill green">Available</span>
+          </div>
+          <div class="f-note">Solar array commissioned 2024; covers smart classroom and office load.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></span>
+            <div style="flex:1"><div class="f-name">Internet</div><div class="f-count">BharatNet FTTH · 100 Mbps</div></div>
+            <span class="pill green">Available</span>
+          </div>
+          <div class="f-note">Daily attendance sync and DIKSHA content access run over this link.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span>
+            <div style="flex:1"><div class="f-name">Playground</div><div class="f-count">1.2 acres · kho-kho &amp; volleyball courts</div></div>
+            <span class="pill green">Available</span>
+          </div>
+          <div class="f-note">Hosted block-level Khelo India trials in February 2026.</div>
+        </div>
+
+        <div class="card facility">
+          <div class="f-top">
+            <span class="f-icon" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span>
+            <div style="flex:1"><div class="f-name">Boundary wall</div><div class="f-count">Partial · 60% of perimeter</div></div>
+            <span class="pill red">None on east side</span>
+          </div>
+          <div class="f-note">East-side wall proposed in 2026–27 Samagra Shiksha civil works plan.</div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

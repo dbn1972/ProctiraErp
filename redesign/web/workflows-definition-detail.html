@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student Transfer Approval · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .pipeline { position: relative; display: flex; flex-direction: column; gap: 14px; }
+  .pipeline::before { content: ''; position: absolute; left: 19px; top: 24px; bottom: 24px; width: 2px; background: var(--border); }
+  .pipe-step { display: flex; gap: 16px; position: relative; z-index: 1; }
+  .pipe-step .ps-dot {
+    width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; margin-top: 10px;
+    display: flex; align-items: center; justify-content: center; font-weight: 800;
+    background: var(--surface); border: 2px solid var(--border-strong); color: var(--text-2);
+  }
+  .pipe-step.hot .ps-dot { background: var(--brand-600); border-color: var(--brand-600); color: #fff; box-shadow: 0 0 0 4px var(--brand-100); }
+  .ps-card { flex: 1; min-width: 0; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); padding: 14px 16px; }
+  .ps-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ps-title { font-weight: 700; font-size: var(--fs-md); }
+  .ps-stats { display: flex; gap: 22px; margin-top: 10px; flex-wrap: wrap; }
+  .ps-stat .v { font-weight: 700; font-variant-numeric: tabular-nums; font-size: var(--fs-md); }
+  .ps-stat .l { font-size: var(--fs-2xs); color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+  @media (max-width: 767px) { .pipeline::before { display: none; } .pipe-step { gap: 10px; } }
+</style>
+</head>
+<body data-active="workflows">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="workflows-list.html">Workflows</a><span class="sep">/</span>
+        <span class="current">Student Transfer Approval</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <div class="flex aic g8 wrap">
+            <h1 class="page-title">Student Transfer Approval</h1>
+            <span class="pill green">Active</span>
+            <span class="tag">Students</span>
+          </div>
+          <p class="page-sub">3-step approval chain · 18 running instances · average completion 2.4 days (SLA budget 6 days)</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>Pause</button>
+          <a class="btn btn-primary" href="workflows-definition-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit definition</a>
+        </div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <!-- Step pipeline -->
+          <section class="card">
+            <div class="card-head">
+              <div><h3>Approval pipeline</h3><div class="sub">Live performance per step, last 90 days</div></div>
+              <div class="spacer"><span class="pill brand plain">v4 · current</span></div>
+            </div>
+            <div class="card-pad">
+              <div class="pipeline">
+
+                <div class="pipe-step hot">
+                  <div class="ps-dot">1</div>
+                  <div class="ps-card">
+                    <div class="ps-top">
+                      <span class="ps-title">Headmaster review</span>
+                      <span class="tag">School level</span>
+                      <span class="pill amber" style="margin-left:auto">7 pending</span>
+                    </div>
+                    <div class="cell-sub" style="margin-top:3px">Approver role: Headmaster (sending school) · SLA 24 h · escalates to BEO</div>
+                    <div class="ps-stats">
+                      <div class="ps-stat"><div class="v">9.6 h</div><div class="l">Avg time</div></div>
+                      <div class="ps-stat"><div class="v">7</div><div class="l">Pending now</div></div>
+                      <div class="ps-stat"><div class="v">96%</div><div class="l">Within SLA</div></div>
+                      <div class="ps-stat"><div class="v">2%</div><div class="l">Rejected here</div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pipe-step hot">
+                  <div class="ps-dot">2</div>
+                  <div class="ps-card">
+                    <div class="ps-top">
+                      <span class="ps-title">Block Education Officer</span>
+                      <span class="tag">Block level</span>
+                      <span class="pill amber" style="margin-left:auto">8 pending</span>
+                    </div>
+                    <div class="cell-sub" style="margin-top:3px">Approver role: BEO (student's block) · SLA 48 h · escalates to DEO</div>
+                    <div class="ps-stats">
+                      <div class="ps-stat"><div class="v">26.4 h</div><div class="l">Avg time</div></div>
+                      <div class="ps-stat"><div class="v">8</div><div class="l">Pending now</div></div>
+                      <div class="ps-stat"><div class="v">88%</div><div class="l">Within SLA</div></div>
+                      <div class="ps-stat"><div class="v">5%</div><div class="l">Rejected here</div></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="pipe-step hot">
+                  <div class="ps-dot">3</div>
+                  <div class="ps-card">
+                    <div class="ps-top">
+                      <span class="ps-title">District approval</span>
+                      <span class="tag">District level</span>
+                      <span class="pill sky" style="margin-left:auto">3 pending</span>
+                    </div>
+                    <div class="cell-sub" style="margin-top:3px">Approver role: District Education Officer · SLA 72 h · final step, no escalation</div>
+                    <div class="ps-stats">
+                      <div class="ps-stat"><div class="v">18.2 h</div><div class="l">Avg time</div></div>
+                      <div class="ps-stat"><div class="v">3</div><div class="l">Pending now</div></div>
+                      <div class="ps-stat"><div class="v">99%</div><div class="l">Within SLA</div></div>
+                      <div class="ps-stat"><div class="v">1%</div><div class="l">Rejected here</div></div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </section>
+
+          <!-- Recent instances -->
+          <section class="card">
+            <div class="card-head">
+              <div><h3>Recent instances</h3><div class="sub">Latest requests routed through this workflow</div></div>
+              <div class="spacer"><a class="btn btn-ghost btn-sm" href="workflows-instances.html">View all →</a></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Instance</th><th>Subject</th><th>Current step</th><th>Started</th><th>SLA</th><th style="text-align:right">Actions</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Instance" class="mono">WF-2026-0871</td>
+                    <td data-label="Subject"><div class="cell-main">Transfer: Ananya Mohanty</div><div class="cell-sub">GSSS Puri → Nodal HS, Gop Sadar</div></td>
+                    <td data-label="Current step">2 · Block Education Officer</td>
+                    <td data-label="Started">05 Jun 2026</td>
+                    <td data-label="SLA"><span class="pill green">On track</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="workflows-instances.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Instance" class="mono">WF-2026-0864</td>
+                    <td data-label="Subject"><div class="cell-main">Transfer: Rohan Pattnaik</div><div class="cell-sub">UGME Brahmagiri → GSSS Puri</div></td>
+                    <td data-label="Current step">1 · Headmaster review</td>
+                    <td data-label="Started">04 Jun 2026</td>
+                    <td data-label="SLA"><span class="pill amber">Due soon</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="workflows-instances.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Instance" class="mono">WF-2026-0859</td>
+                    <td data-label="Subject"><div class="cell-main">Transfer: Ipsita Swain</div><div class="cell-sub">Govt. UP School, Satapada → Nodal HS, Gop</div></td>
+                    <td data-label="Current step">3 · District approval</td>
+                    <td data-label="Started">02 Jun 2026</td>
+                    <td data-label="SLA"><span class="pill green">On track</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="workflows-instances.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Instance" class="mono">WF-2026-0846</td>
+                    <td data-label="Subject"><div class="cell-main">Transfer: Subham Jena</div><div class="cell-sub">Nodal HS, Gop Sadar → GSSS Puri</div></td>
+                    <td data-label="Current step">2 · Block Education Officer</td>
+                    <td data-label="Started">30 May 2026</td>
+                    <td data-label="SLA"><span class="pill red">Overdue</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="workflows-instances.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Instance" class="mono">WF-2026-0839</td>
+                    <td data-label="Subject"><div class="cell-main">Transfer: Priyanka Sahoo</div><div class="cell-sub">GSSS Puri → UGME School, Brahmagiri</div></td>
+                    <td data-label="Current step">Completed · approved</td>
+                    <td data-label="Started">27 May 2026</td>
+                    <td data-label="SLA"><span class="pill slate">Closed in 2.1 d</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="workflows-instances.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Instance" class="mono">WF-2026-0833</td>
+                    <td data-label="Subject"><div class="cell-main">Transfer: Debasish Nayak</div><div class="cell-sub">Govt. UP School, Satapada → GSSS Puri</div></td>
+                    <td data-label="Current step">Completed · approved</td>
+                    <td data-label="Started">25 May 2026</td>
+                    <td data-label="SLA"><span class="pill slate">Closed in 3.4 d</span></td>
+                    <td><div class="row-actions"><a class="icon-btn" href="workflows-instances.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+        </div>
+
+        <div class="layout-side">
+
+          <!-- Facts -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 14px;font-size:var(--fs-lg)">About</h3>
+            <dl class="dl">
+              <dt>Created by</dt><dd><div class="person-cell"><span class="avatar sm av-1">DN</span><span>D. Nayak</span></div></dd>
+              <dt>Created</dt><dd>14 Aug 2024</dd>
+              <dt>Current version</dt><dd>v4 · activated 28 May 2026</dd>
+              <dt>Module</dt><dd>Students · transfer requests</dd>
+              <dt>Completed (90 d)</dt><dd>312 instances</dd>
+              <dt>Rejection rate</dt><dd>8% overall</dd>
+            </dl>
+          </div>
+
+          <!-- Version history -->
+          <div class="card">
+            <div class="card-head"><div><h3>Version history</h3><div class="sub">Changes to this definition</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <ul class="timeline">
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">v4 — BEO SLA raised to 48 h</div><div class="tl-meta">D. Nayak · 28 May 2026</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">v3 — escalation enabled on steps 1–2</div><div class="tl-meta">R. Senapati · 03 Feb 2026</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">v2 — added Block Education Officer step</div><div class="tl-meta">D. Nayak · 11 Nov 2025</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">v1 — definition created</div><div class="tl-meta">D. Nayak · 14 Aug 2024</div></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 12px;font-size:var(--fs-lg)">Manage</h3>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <a class="btn btn-secondary" href="workflows-definition-new.html" style="width:100%">Edit steps &amp; SLAs</a>
+              <button class="btn btn-secondary" type="button" style="width:100%">Pause new instances</button>
+              <button class="btn btn-danger-soft" type="button" style="width:100%">Retire definition</button>
+            </div>
+            <p class="fs-xs muted-3" style="margin:10px 0 0">Retiring stops new instances; the 18 running ones finish on the current version.</p>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

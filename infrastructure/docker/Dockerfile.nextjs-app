@@ -1,0 +1,77 @@
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+# Generic Dockerfile for Next.js applications in the monorepo
+# =============================================================================
+# Builds any Next.js app from apps/* using standalone output mode.
+# Build context: monorepo root.
+#
+# Required build args:
+#   APP_NAME  - The app directory name (e.g., web, registration-portal)
+#   APP_PORT  - Port the app listens on (default: 3000)
+#
+# Example:
+#   docker build \
+#     -f infrastructure/docker/Dockerfile.nextjs-app \
+#     --build-arg APP_NAME=registration-portal \
+#     --build-arg APP_PORT=3002 \
+#     -t proctira/registration-portal .
+# =============================================================================
+
+ARG NODE_VERSION=20-alpine
+
+# ---------- 1. base ----------
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache libc6-compat curl
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+WORKDIR /app
+
+# ---------- 2. deps ----------
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY turbo.json tsconfig.base.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY plugins ./plugins
+COPY themes ./themes
+COPY tools ./tools
+RUN pnpm install --frozen-lockfile
+
+# ---------- 3. builder ----------
+FROM deps AS builder
+ARG APP_NAME=web
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+RUN pnpm --filter "@proctira/${APP_NAME}..." run build
+
+# ---------- 4. runner ----------
+FROM node:${NODE_VERSION} AS runner
+ARG APP_NAME=web
+ARG APP_PORT=3000
+RUN apk add --no-cache curl
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=${APP_PORT}
+ENV HOSTNAME=0.0.0.0
+
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 --ingroup nodejs nextjs
+
+# Copy standalone output
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_NAME}/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_NAME}/.next/static ./apps/${APP_NAME}/.next/static
+# Public dir may not exist for all apps — create fallback
+RUN mkdir -p ./apps/${APP_NAME}/public && chown -R nextjs:nodejs ./apps/${APP_NAME}/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_NAME}/public ./apps/${APP_NAME}/public
+
+USER nextjs
+EXPOSE ${APP_PORT}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl --fail "http://127.0.0.1:${PORT}/api/health" || exit 1
+
+WORKDIR /app/apps/${APP_NAME}
+CMD ["node", "server.js"]

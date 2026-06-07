@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Application submitted · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  /* ---- Public shell ---- */
+  .pub-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .pub-header-in { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 24px; }
+  .pub-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .pub-logo .logo-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .pub-logo b { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+  .pub-logo b span { color: var(--brand-600); }
+  .pub-nav { display: flex; gap: 2px; }
+  .pub-nav a { padding: 8px 12px; border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); text-decoration: none; transition: background var(--t-fast), color var(--t-fast); }
+  .pub-nav a:hover { background: var(--bg-subtle); color: var(--text); }
+  .pub-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  .pub-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .pub-burger { display: none; }
+  .pub-mobile-nav { display: none; }
+  @media (max-width: 767px) {
+    .pub-header-in { padding: 0 16px; gap: 12px; }
+    .pub-nav { display: none; }
+    .pub-burger { display: inline-flex; }
+    .pub-mobile-nav.open { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .pub-mobile-nav a { padding: 13px 14px; border-radius: var(--r-md); font-size: var(--fs-md); font-weight: 600; color: var(--text-2); text-decoration: none; }
+    .pub-mobile-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  }
+  .pub-main { flex: 1; }
+  .pub-footer { background: var(--navy-900); color: #AEB9D6; }
+  .pub-footer-bottom { max-width: 1120px; margin: 0 auto; padding: 22px 24px calc(22px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; font-size: var(--fs-xs); color: #8B97B8; }
+  .pub-footer-bottom b { color: #fff; font-size: var(--fs-md); letter-spacing: .02em; }
+  .pub-footer-bottom .helpline { display: inline-flex; align-items: center; gap: 8px; }
+  .pub-footer-bottom .helpline svg { width: 14px; height: 14px; color: var(--brand-300); }
+  .pub-footer-bottom a { color: #8B97B8; text-decoration: none; }
+  .pub-footer-bottom a:hover { color: #fff; }
+  .pub-footer-bottom .fb-links { margin-left: auto; display: flex; gap: 18px; }
+  @media (max-width: 767px) { .pub-footer-bottom .fb-links { margin-left: 0; } }
+
+  /* ---- Success page ---- */
+  .done-wrap { max-width: 620px; margin: 0 auto; padding: 48px 24px 72px; width: 100%; }
+  @media (max-width: 767px) { .done-wrap { padding: 32px 16px 56px; } }
+  .done-hero { text-align: center; margin-bottom: 26px; }
+  .done-check { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 20px; background: var(--green-50); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 10px color-mix(in srgb, var(--green-500) 7%, transparent); }
+  .done-check svg { width: 40px; height: 40px; color: var(--green-600); }
+  .done-hero h1 { margin: 0 0 8px; font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -.02em; }
+  .done-hero p { margin: 0 auto; color: var(--text-2); font-size: var(--fs-md); max-width: 46ch; line-height: 1.6; }
+  .ref-chip { display: inline-flex; align-items: center; gap: 10px; margin-top: 20px; padding: 11px 16px; background: var(--bg-subtle); border: 1px dashed var(--border-strong); border-radius: var(--r-md); }
+  .ref-chip .ref { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 500; letter-spacing: .04em; color: var(--text); }
+  .ref-chip button { display: inline-flex; align-items: center; gap: 6px; border: none; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 8px; padding: 5px 11px; font-family: var(--font-sans); font-size: var(--fs-xs); font-weight: 600; color: var(--text-2); cursor: pointer; transition: all var(--t-fast); }
+  .ref-chip button:hover { color: var(--text); background: var(--bg-subtle); }
+  .ref-chip button svg { width: 13px; height: 13px; }
+  .done-actions { display: flex; gap: 10px; justify-content: center; margin: 26px 0 34px; flex-wrap: wrap; }
+  @media (max-width: 767px) { .done-actions .btn { flex: 1; } }
+</style>
+</head>
+<body>
+
+<header class="pub-header">
+  <div class="pub-header-in">
+    <a class="pub-logo" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="pub-nav" aria-label="Main">
+      <a href="home.html">Home</a>
+      <a href="schools.html">Find Schools</a>
+      <a href="apply-school.html" class="active" aria-current="page">Register</a>
+      <a href="track.html">Track Application</a>
+    </nav>
+    <div class="pub-right">
+      <button class="btn btn-secondary btn-sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English ▾</button>
+      <button class="icon-btn pub-burger" type="button" aria-label="Open menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', document.getElementById('mnav').classList.toggle('open'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+  </div>
+  <nav class="pub-mobile-nav" id="mnav" aria-label="Mobile">
+    <a href="home.html">Home</a>
+    <a href="schools.html">Find Schools</a>
+    <a href="apply-school.html" class="active" aria-current="page">Register</a>
+    <a href="track.html">Track Application</a>
+  </nav>
+</header>
+
+<main class="pub-main">
+  <div class="done-wrap">
+    <div class="done-hero">
+      <div class="done-check" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <h1>Application submitted</h1>
+      <p>Ananya's application to <strong>Government Upper Primary School, Baliapanda</strong> has been received. We have sent a confirmation SMS to <strong>+91 94370 21184</strong>.</p>
+      <div class="ref-chip">
+        <span class="ref" id="refno">REG-PUR-26-04318</span>
+        <button type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('REG-PUR-26-04318');this.querySelector('span').textContent='Copied!'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg><span>Copy</span></button>
+      </div>
+      <p class="fs-xs muted-3" style="margin-top:10px">Save this reference number — you will need it to track the application.</p>
+    </div>
+
+    <div class="done-actions">
+      <a class="btn btn-primary btn-lg" href="track.html">Track application</a>
+      <a class="btn btn-secondary btn-lg" href="#acknowledgement"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download acknowledgement</a>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h3>What happens next</h3></div>
+      <div class="card-pad">
+        <ul class="timeline">
+          <li>
+            <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">Document verification</div>
+              <div class="tl-meta">The block education office checks your uploads — usually takes 2–3 working days. If anything is unclear, they will call you, not reject you.</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">School review &amp; seat confirmation</div>
+              <div class="tl-meta">The head teacher confirms the seat for Class 1 based on availability and distance priority.</div>
+            </div>
+          </li>
+          <li>
+            <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+            <div class="tl-body">
+              <div class="tl-title">SMS notification with admission date</div>
+              <div class="tl-meta">You will get the final decision and the admission day details by SMS in Odia and English. Carry the original documents on that day.</div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="alert info mt-16">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      <div class="a-body"><b>Questions?</b>Call the toll-free helpline 155335 (Mon–Sat, 8 am–8 pm) and keep your reference number ready.</div>
+    </div>
+  </div>
+</main>
+
+<footer class="pub-footer">
+  <div class="pub-footer-bottom">
+    <span class="helpline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Helpline <b>155335</b> · toll-free, Mon–Sat 8 am–8 pm</span>
+    <span>© 2026 ProctiraERP · Student Registration Portal</span>
+    <div class="fb-links">
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#terms">Terms of Service</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Break-glass access · Proctira Platform Admin</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="console.css">
+</head>
+<body data-active="break-glass">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <div class="breadcrumbs"><a href="overview.html">Platform</a><span class="sep">/</span><span class="current">Break-glass</span></div>
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Break-glass access</h1>
+          <p class="page-sub">Emergency, time-boxed access to tenant data for incident response. Every session is customer-approved, fully audited and auto-expires.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="break-glass-requests.html">Requests queue <span class="pill amber plain" style="margin-left:2px">3</span></a>
+          <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Request access</button>
+        </div>
+      </div>
+
+      <div class="alert warn mb-20" role="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div class="a-body"><b>How break-glass works</b>Sessions grant scoped, read-mostly access to one tenant's data for incident response. They require a linked support case and customer approval, are recorded keystroke-level to the audit log, and auto-expire after the granted duration (max 4 hours). Tenants see a banner while a session is active.</div>
+      </div>
+
+      <!-- Active sessions -->
+      <div class="card mb-20">
+        <div class="card-head">
+          <div><h3>Active sessions</h3><div class="sub">1 session currently open</div></div>
+          <div class="spacer"><span class="pill amber">Auto-expiry enforced</span></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Operator</th><th>Tenant</th><th>Reason</th><th>Scope</th><th>Expires in</th><th></th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label="Operator"><div class="person-cell"><span class="avatar sm av-5">SI</span><div><div class="cell-main">S. Iyer</div><div class="cell-sub">s.iyer@proctira.com</div></div></div></td>
+                <td data-label="Tenant"><div class="cell-main">Ganjam DEO</div><div class="cell-sub">case #4421 · INC-2114</div></td>
+                <td data-label="Reason">Investigating attendance sync failure after queue backlog; verifying event replay for 12 schools.</td>
+                <td data-label="Scope"><span class="tag mono">attendance:read</span> <span class="tag mono">queues:replay</span></td>
+                <td data-label="Expires in"><span class="countdown">00:42:18</span><div class="cell-sub">granted 2 h · started 08:15 IST</div></td>
+                <td><div class="row-actions" style="opacity:1">
+                  <button class="btn btn-danger-soft btn-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Revoke</button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recent sessions -->
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Recent sessions</h3><div class="sub">Last 30 days · all closed sessions retained for 7 years</div></div>
+          <div class="spacer"><a class="btn btn-ghost btn-sm" href="audit.html">View in audit log →</a></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table dense">
+            <thead><tr><th>Operator</th><th>Tenant</th><th>Reason</th><th>Duration</th><th>Closed</th><th>Outcome</th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label="Operator"><div class="person-cell"><span class="avatar sm av-3">AK</span><div><div class="cell-main">A. Kulkarni</div><div class="cell-sub">a.kulkarni@proctira.com</div></div></div></td>
+                <td data-label="Tenant">Khordha DEO</td>
+                <td data-label="Reason">Corrupted exam schedule import (case #4398)</td>
+                <td data-label="Duration" class="mono">1 h 12 m</td>
+                <td data-label="Closed" class="mono">2026-06-03 16:40</td>
+                <td data-label="Outcome" class="td-flex"><span class="pill green">Expired normally</span></td>
+              </tr>
+              <tr>
+                <td data-label="Operator"><div class="person-cell"><span class="avatar sm av-6">PM</span><div><div class="cell-main">P. Mehta</div><div class="cell-sub">p.mehta@proctira.com</div></div></div></td>
+                <td data-label="Tenant">Cuttack DEO</td>
+                <td data-label="Reason">Scholarship batch stuck in disbursement state (case #4372)</td>
+                <td data-label="Duration" class="mono">2 h 00 m</td>
+                <td data-label="Closed" class="mono">2026-05-29 19:05</td>
+                <td data-label="Outcome" class="td-flex"><span class="pill green">Expired normally</span></td>
+              </tr>
+              <tr>
+                <td data-label="Operator"><div class="person-cell"><span class="avatar sm av-5">SI</span><div><div class="cell-main">S. Iyer</div><div class="cell-sub">s.iyer@proctira.com</div></div></div></td>
+                <td data-label="Tenant">Puri District Education Office</td>
+                <td data-label="Reason">Duplicate student records after UDISE re-seed (case #4351)</td>
+                <td data-label="Duration" class="mono">0 h 47 m</td>
+                <td data-label="Closed" class="mono">2026-05-26 12:18</td>
+                <td data-label="Outcome" class="td-flex"><span class="pill sky">Closed early</span></td>
+              </tr>
+              <tr>
+                <td data-label="Operator"><div class="person-cell"><span class="avatar sm av-2">NB</span><div><div class="cell-main">N. Banerjee</div><div class="cell-sub">n.banerjee@proctira.com</div></div></div></td>
+                <td data-label="Tenant">Balasore DEO</td>
+                <td data-label="Reason">Storage bucket permission audit after misconfigured plugin (case #4329)</td>
+                <td data-label="Duration" class="mono">3 h 30 m</td>
+                <td data-label="Closed" class="mono">2026-05-21 23:55</td>
+                <td data-label="Outcome" class="td-flex"><span class="pill green">Expired normally</span></td>
+              </tr>
+              <tr>
+                <td data-label="Operator"><div class="person-cell"><span class="avatar sm av-1">RV</span><div><div class="cell-main">R. Venkatesan</div><div class="cell-sub">r.venkatesan@proctira.com</div></div></div></td>
+                <td data-label="Tenant">Mayurbhanj DEO</td>
+                <td data-label="Reason">Report-card PDF rendering failure for Odia glyphs (case #4307)</td>
+                <td data-label="Duration" class="mono">0 h 22 m</td>
+                <td data-label="Closed" class="mono">2026-05-17 10:02</td>
+                <td data-label="Outcome" class="td-flex"><span class="pill red">Revoked by security</span></td>
+              </tr>
+              <tr>
+                <td data-label="Operator"><div class="person-cell"><span class="avatar sm av-6">PM</span><div><div class="cell-main">P. Mehta</div><div class="cell-sub">p.mehta@proctira.com</div></div></div></td>
+                <td data-label="Tenant">Ganjam DEO</td>
+                <td data-label="Reason">Verify SMS delivery receipts during vendor outage (case #4288)</td>
+                <td data-label="Duration" class="mono">1 h 45 m</td>
+                <td data-label="Closed" class="mono">2026-05-12 15:33</td>
+                <td data-label="Outcome" class="td-flex"><span class="pill green">Expired normally</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <span class="fs-xs muted">6 sessions in the last 30 days · median duration 1 h 28 m</span>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="console.js"></script>
+</body>
+</html>

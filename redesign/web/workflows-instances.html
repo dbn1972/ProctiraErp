@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Workflow instances · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="workflows">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="workflows-list.html">Workflows</a><span class="sep">/</span>
+        <span class="current">Instances</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Workflow instances</h1>
+          <p class="page-sub">Every approval request currently moving through a workflow, district-wide</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="workflows-approvals.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>My approvals</a>
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+            <span class="k-label">Running now</span>
+          </div>
+          <div class="k-value">73</div>
+          <div class="k-foot"><span class="delta up">↑ 12</span> vs last week</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <span class="k-label">Completed in June</span>
+          </div>
+          <div class="k-value">128</div>
+          <div class="k-foot"><span class="delta up">↑ 9%</span> vs May pace</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <span class="k-label">Overdue</span>
+          </div>
+          <div class="k-value">6</div>
+          <div class="k-foot"><span class="delta down">↓ 3</span> after escalations</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+            <span class="k-label">Avg completion</span>
+          </div>
+          <div class="k-value">3.2 d</div>
+          <div class="k-foot"><span class="delta up">↑ 0.4 d faster</span> than Q1</div>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">207</span></a>
+        <a class="tab" href="#" role="tab">Running <span class="count">73</span></a>
+        <a class="tab" href="#" role="tab">Completed <span class="count">128</span></a>
+        <a class="tab" href="#" role="tab">Overdue <span class="count">6</span></a>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search by instance ID or subject" aria-label="Search instances">
+        </div>
+        <select class="select" aria-label="Workflow"><option>All workflows</option><option>Student Transfer Approval</option><option>Staff Leave Approval</option><option>Scholarship Disbursement Sign-off</option><option>Exam Centre Allocation</option></select>
+        <select class="select" aria-label="SLA status"><option>Any SLA status</option><option>On track</option><option>Due soon</option><option>Overdue</option></select>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Instance</th>
+                <th>Workflow</th>
+                <th>Subject</th>
+                <th>Current step · assignee</th>
+                <th>Started</th>
+                <th>SLA</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0871</td>
+                <td data-label="Workflow">Student Transfer Approval</td>
+                <td data-label="Subject"><div class="cell-main">Transfer: Ananya Mohanty</div><div class="cell-sub">GSSS Puri → Nodal HS, Gop Sadar</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-2">BM</span><div><div class="cell-main" style="font-size:var(--fs-sm)">B. Mahapatra</div><div class="cell-sub">Step 2 · Block Education Officer</div></div></div></td>
+                <td data-label="Started">05 Jun 2026</td>
+                <td data-label="SLA"><span class="pill green">On track</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0869</td>
+                <td data-label="Workflow">Staff Leave Approval</td>
+                <td data-label="Subject"><div class="cell-main">Leave: S. Pradhan, 12–16 Jun</div><div class="cell-sub">Earned leave · 5 days · GSSS Puri</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-1">DN</span><div><div class="cell-main" style="font-size:var(--fs-sm)">D. Nayak</div><div class="cell-sub">Step 2 · District approval</div></div></div></td>
+                <td data-label="Started">06 Jun 2026</td>
+                <td data-label="SLA"><span class="pill green">On track</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0867</td>
+                <td data-label="Workflow">Scholarship Disbursement Sign-off</td>
+                <td data-label="Subject"><div class="cell-main">Pre-matric batch · 218 awards</div><div class="cell-sub">₹32,70,000 · AY 2026–27 Term 1</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-3">PM</span><div><div class="cell-main" style="font-size:var(--fs-sm)">P. Mishra</div><div class="cell-sub">Step 3 · Finance verification</div></div></div></td>
+                <td data-label="Started">04 Jun 2026</td>
+                <td data-label="SLA"><span class="pill amber">Due soon</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0864</td>
+                <td data-label="Workflow">Student Transfer Approval</td>
+                <td data-label="Subject"><div class="cell-main">Transfer: Rohan Pattnaik</div><div class="cell-sub">UGME Brahmagiri → GSSS Puri</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-4">AD</span><div><div class="cell-main" style="font-size:var(--fs-sm)">A. Dash</div><div class="cell-sub">Step 1 · Headmaster review</div></div></div></td>
+                <td data-label="Started">04 Jun 2026</td>
+                <td data-label="SLA"><span class="pill amber">Due soon</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0858</td>
+                <td data-label="Workflow">Exam Centre Allocation</td>
+                <td data-label="Subject"><div class="cell-main">Class X Board · Krushnaprasad block</div><div class="cell-sub">4 centres · 1,212 candidates</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-5">SB</span><div><div class="cell-main" style="font-size:var(--fs-sm)">S. Behera</div><div class="cell-sub">Step 2 · District exam cell</div></div></div></td>
+                <td data-label="Started">02 Jun 2026</td>
+                <td data-label="SLA"><span class="pill green">On track</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0846</td>
+                <td data-label="Workflow">Student Transfer Approval</td>
+                <td data-label="Subject"><div class="cell-main">Transfer: Subham Jena</div><div class="cell-sub">Nodal HS, Gop Sadar → GSSS Puri</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-2">BM</span><div><div class="cell-main" style="font-size:var(--fs-sm)">B. Mahapatra</div><div class="cell-sub">Step 2 · Block Education Officer</div></div></div></td>
+                <td data-label="Started">30 May 2026</td>
+                <td data-label="SLA"><span class="pill red">Overdue</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0844</td>
+                <td data-label="Workflow">Staff Transfer Request</td>
+                <td data-label="Subject"><div class="cell-main">Transfer: K. Routray (TGT Science)</div><div class="cell-sub">Nodal HS, Gop Sadar → GSSS Puri</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-6">RS</span><div><div class="cell-main" style="font-size:var(--fs-sm)">R. Senapati</div><div class="cell-sub">Step 3 · Establishment section</div></div></div></td>
+                <td data-label="Started">29 May 2026</td>
+                <td data-label="SLA"><span class="pill red">Overdue</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Instance" class="mono">WF-2026-0839</td>
+                <td data-label="Workflow">Student Transfer Approval</td>
+                <td data-label="Subject"><div class="cell-main">Transfer: Priyanka Sahoo</div><div class="cell-sub">GSSS Puri → UGME School, Brahmagiri</div></td>
+                <td data-label="Current step"><div class="person-cell"><span class="avatar sm av-1">DN</span><div><div class="cell-main" style="font-size:var(--fs-sm)">Completed</div><div class="cell-sub">Approved at step 3 by D. Nayak</div></div></div></td>
+                <td data-label="Started">27 May 2026</td>
+                <td data-label="SLA"><span class="pill slate">Closed in 2.1 d</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–8</b> of <b>207</b> instances</span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <span class="page-btn" style="cursor:default">…</span>
+              <button class="page-btn">26</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

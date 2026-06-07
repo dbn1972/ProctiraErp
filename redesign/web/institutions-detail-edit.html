@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Edit institution · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .form-card { max-width: 860px; }
+</style>
+</head>
+<body data-active="institutions">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="institutions-list.html">Institutions</a><span class="sep">/</span>
+        <a href="institutions-detail.html">Saraswati Nodal High School</a><span class="sep">/</span>
+        <span class="current">Edit</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Edit institution</h1>
+          <p class="page-sub">Saraswati Nodal High School · <span class="mono">UDISE 21180104506</span> · changes are audit-logged and reflected on the district roster immediately.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="institutions-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to profile</a>
+        </div>
+      </div>
+
+      <form class="card form-card">
+        <div class="card-pad">
+          <div class="form-grid">
+
+            <div class="form-section-title">Identity</div>
+            <div class="field span-2">
+              <label for="f-name">School name<span class="req">*</span></label>
+              <input class="input" id="f-name" type="text" value="Saraswati Nodal High School">
+            </div>
+            <div class="field">
+              <label for="f-udise">UDISE code<span class="req">*</span></label>
+              <input class="input mono" id="f-udise" type="text" inputmode="numeric" value="21180104506" maxlength="11">
+              <span class="hint">11-digit code issued by UDISE+ portal</span>
+            </div>
+            <div class="field">
+              <label for="f-type">Institution type<span class="req">*</span></label>
+              <select class="select" id="f-type">
+                <option>Primary (I–V)</option>
+                <option>Upper Primary (VI–VIII)</option>
+                <option selected>Secondary (VI–X)</option>
+                <option>Sr. Secondary (VI–XII)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-medium">Medium of instruction<span class="req">*</span></label>
+              <select class="select" id="f-medium">
+                <option selected>Odia</option>
+                <option>English</option>
+                <option>Odia &amp; English</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-estd">Year established</label>
+              <input class="input" id="f-estd" type="text" inputmode="numeric" value="1964" maxlength="4">
+            </div>
+
+            <div class="form-section-title">Location</div>
+            <div class="field">
+              <label>Block<span class="req">*</span></label>
+              <button class="entity-picker" type="button" aria-haspopup="listbox">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></span>
+                <span class="ep-text"><span class="ep-value">Brahmagiri</span><span class="ep-meta">Puri district · 38 schools</span></span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="field">
+              <label for="f-pin">PIN code<span class="req">*</span></label>
+              <input class="input mono" id="f-pin" type="text" inputmode="numeric" value="752011" maxlength="6">
+            </div>
+            <div class="field span-2">
+              <label for="f-address">Address<span class="req">*</span></label>
+              <textarea class="input" id="f-address" rows="3">At/Po Brahmagiri, Via Sakhigopal, Puri</textarea>
+            </div>
+            <div class="field">
+              <label for="f-lat">Latitude</label>
+              <input class="input mono" id="f-lat" type="text" inputmode="decimal" value="19.7926">
+            </div>
+            <div class="field">
+              <label for="f-lng">Longitude</label>
+              <input class="input mono" id="f-lng" type="text" inputmode="decimal" value="85.6094">
+              <span class="hint">Used for the district school map and route planning</span>
+            </div>
+
+            <div class="form-section-title">Administration</div>
+            <div class="field span-2">
+              <label>Headmaster / In-charge<span class="req">*</span></label>
+              <button class="entity-picker" type="button" aria-haspopup="listbox">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                <span class="ep-text"><span class="ep-value">Sarat Chandra Pradhan</span><span class="ep-meta">EMP-2104 · Headmaster · since Jul 2019</span></span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <span class="hint">Must hold a Headmaster or In-charge designation in the staff register</span>
+            </div>
+            <div class="field">
+              <label for="f-phone">Office phone<span class="req">*</span></label>
+              <input class="input" id="f-phone" type="tel" value="+91 94370 21834">
+            </div>
+            <div class="field">
+              <label for="f-email">Office email</label>
+              <input class="input" id="f-email" type="email" value="snhs.brahmagiri@puri.odisha.gov.in">
+            </div>
+
+          </div>
+        </div>
+        <div class="card-foot" style="justify-content:flex-end">
+          <a class="btn btn-ghost" href="institutions-detail.html">Cancel</a>
+          <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Save changes</button>
+        </div>
+      </form>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

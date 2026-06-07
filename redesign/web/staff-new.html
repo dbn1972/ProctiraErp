@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Add staff · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .form-card { max-width: 860px; }
+</style>
+</head>
+<body data-active="staff">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="staff-list.html">Staff</a><span class="sep">/</span>
+        <span class="current">Add staff</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Add staff member</h1>
+          <p class="page-sub">Create a service record for a teaching or non-teaching staff member. An employee ID is generated on save and the record is routed to the BEO for verification.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="staff-list.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to staff</a>
+        </div>
+      </div>
+
+      <form class="card form-card">
+        <div class="card-pad">
+          <div class="form-grid">
+
+            <div class="form-section-title">Personal</div>
+            <div class="field">
+              <label for="f-first">First name<span class="req">*</span></label>
+              <input class="input" id="f-first" type="text" placeholder="e.g. Minati">
+            </div>
+            <div class="field">
+              <label for="f-last">Last name<span class="req">*</span></label>
+              <input class="input" id="f-last" type="text" placeholder="e.g. Behera">
+            </div>
+            <div class="field">
+              <label for="f-dob">Date of birth<span class="req">*</span></label>
+              <input class="input" id="f-dob" type="date" value="1986-03-12">
+            </div>
+            <div class="field">
+              <label for="f-gender">Gender<span class="req">*</span></label>
+              <select class="select" id="f-gender"><option>Select</option><option>Female</option><option>Male</option><option>Other</option></select>
+            </div>
+            <div class="field">
+              <label for="f-phone">Mobile number<span class="req">*</span></label>
+              <input class="input" id="f-phone" type="tel" placeholder="+91 94370 00000">
+              <span class="hint">Used for attendance OTP and leave notifications</span>
+            </div>
+            <div class="field">
+              <label for="f-email">Email</label>
+              <input class="input" id="f-email" type="email" placeholder="name@odisha.gov.in">
+            </div>
+
+            <div class="form-section-title">Employment</div>
+            <div class="field">
+              <label for="f-designation">Designation<span class="req">*</span></label>
+              <select class="select" id="f-designation">
+                <option>Select designation</option>
+                <option>Headmaster</option>
+                <option>PGT — Post Graduate Teacher</option>
+                <option>TGT — Trained Graduate Teacher</option>
+                <option>Asst. Teacher</option>
+                <option>Clerk</option>
+                <option>Peon</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-cadre">Cadre</label>
+              <select class="select" id="f-cadre"><option>State cadre</option><option>District cadre</option><option>Contractual</option></select>
+            </div>
+            <div class="field span-2">
+              <label>Posted school<span class="req">*</span></label>
+              <button class="entity-picker" type="button" aria-haspopup="listbox">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/><circle cx="12" cy="9" r="2"/></svg></span>
+                <span class="ep-text"><span class="ep-value">Saraswati Nodal High School</span><span class="ep-meta">UDISE 21180104506 · Brahmagiri block</span></span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+            </div>
+            <div class="field">
+              <label for="f-joining">Joining date<span class="req">*</span></label>
+              <input class="input" id="f-joining" type="date" value="2026-06-15">
+            </div>
+            <div class="field">
+              <label for="f-status">Initial status</label>
+              <select class="select" id="f-status"><option>Probation (1 year)</option><option>Active</option><option>Deputation</option></select>
+            </div>
+
+            <div class="form-section-title">Qualifications</div>
+            <div class="field">
+              <label for="f-qual">Highest qualification<span class="req">*</span></label>
+              <select class="select" id="f-qual">
+                <option>Select</option>
+                <option>B.Sc. B.Ed.</option>
+                <option>B.A. B.Ed.</option>
+                <option>M.Sc. B.Ed.</option>
+                <option>M.A. B.Ed.</option>
+                <option>+2 / Diploma</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="f-tet">TET / OTET roll no.</label>
+              <input class="input mono" id="f-tet" type="text" placeholder="OT-2024-118245">
+            </div>
+            <div class="field span-2">
+              <label for="f-subjects">Teaching subjects</label>
+              <input class="input" id="f-subjects" type="text" placeholder="e.g. Mathematics, Science">
+              <span class="hint">Comma-separated · used to suggest teaching assignments</span>
+            </div>
+
+          </div>
+        </div>
+        <div class="card-foot" style="justify-content:flex-end">
+          <a class="btn btn-ghost" href="staff-list.html">Cancel</a>
+          <button class="btn btn-secondary" type="button">Save as draft</button>
+          <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Create staff record</button>
+        </div>
+      </form>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

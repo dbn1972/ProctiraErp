@@ -1,0 +1,83 @@
+# syntax=docker/dockerfile:1.7
+#
+# Multi-stage base image for Fastify-based backend services and workers
+# in the ProctiraERP Unified Platform monorepo.
+#
+# Per-service Dockerfiles consume this image (or copy these stages) and
+# pass `APP_NAME` (the workspace name suffix, e.g. `api-gateway`) and
+# `APP_DIR` (apps or packages/backend) so the runner copies the right
+# build artifacts.
+#
+# Stages:
+#   1. base    - Minimal Node + pnpm
+#   2. deps    - Installs the workspace dependency graph
+#   3. builder - Runs `pnpm turbo run build` for the selected app
+#   4. runner  - Lean runtime that boots the service via tsx (TypeScript ESM)
+#
+# All configuration is read from environment variables. No secrets baked in.
+
+ARG NODE_VERSION=20-alpine
+
+# ---------- 1. base ----------
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache libc6-compat curl tini
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+WORKDIR /app
+
+# ---------- 2. deps ----------
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY turbo.json tsconfig.base.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY plugins ./plugins
+COPY themes ./themes
+COPY tools ./tools
+RUN pnpm install --frozen-lockfile
+
+# ---------- 3. builder ----------
+FROM deps AS builder
+ARG APP_NAME=api-gateway
+ENV NODE_ENV=production
+# Build the target service and its workspace deps. The Fastify services
+# in this repo use `tsc --noEmit` for type checking and run TypeScript
+# directly via `tsx`, so the build step exists primarily to surface
+# type errors at image-build time.
+RUN pnpm --filter "@proctira/${APP_NAME}..." run build
+
+# ---------- 4. runner ----------
+FROM node:${NODE_VERSION} AS runner
+ARG APP_NAME=api-gateway
+ARG APP_DIR=apps
+ARG APP_PORT=3000
+ARG HEALTH_PATH=/health
+RUN apk add --no-cache curl tini
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=${APP_PORT}
+ENV HOST=0.0.0.0
+ENV HEALTH_PATH=${HEALTH_PATH}
+
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 --ingroup nodejs fastify
+
+# Copy the entire built workspace. Symlinks under node_modules require the
+# workspace tree to remain intact for `tsx`/Node module resolution to work.
+COPY --from=builder --chown=fastify:nodejs /app ./
+
+USER fastify
+EXPOSE ${APP_PORT}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl --fail "http://127.0.0.1:${PORT}${HEALTH_PATH}" || exit 1
+
+ENV APP_DIR=${APP_DIR}
+ENV APP_NAME=${APP_NAME}
+
+ENTRYPOINT ["/sbin/tini", "--"]
+# Boot the service. Apps install `tsx` and have a `start` script that runs
+# `tsx src/server.ts`; we invoke pnpm so workspace resolution is honored.
+CMD ["sh", "-c", "cd ${APP_DIR}/${APP_NAME} && exec node --enable-source-maps ./node_modules/tsx/dist/cli.mjs src/server.ts"]

@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dashboard · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="dashboard">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Good morning, D. Nayak</h1>
+          <p class="page-sub">Sunday, 7 June 2026 · Academic Year 2026–27, Term 1 · 142 schools reporting</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
+          <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Quick action</button>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+            <span class="k-label">Institutions</span>
+          </div>
+          <div class="k-value">142</div>
+          <div class="k-foot"><span class="delta up">↑ 3</span> new this term</div>
+          <svg class="k-spark" width="72" height="28" viewBox="0 0 72 28"><polyline points="0,22 12,20 24,21 36,16 48,14 60,9 72,6" fill="none" stroke="var(--brand-400)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+            <span class="k-label">Students</span>
+          </div>
+          <div class="k-value">24,812</div>
+          <div class="k-foot"><span class="delta up">↑ 1.8%</span> vs last term</div>
+          <svg class="k-spark" width="72" height="28" viewBox="0 0 72 28"><polyline points="0,20 12,18 24,19 36,15 48,12 60,10 72,7" fill="none" stroke="var(--teal-500)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span>
+            <span class="k-label">Staff</span>
+          </div>
+          <div class="k-value">1,427</div>
+          <div class="k-foot"><span class="delta flat">— 0%</span> 38 vacancies open</div>
+          <svg class="k-spark" width="72" height="28" viewBox="0 0 72 28"><polyline points="0,14 12,14 24,13 36,14 48,13 60,14 72,13" fill="none" stroke="var(--violet-500)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <span class="k-label">Attendance today</span>
+          </div>
+          <div class="k-value">94.6%</div>
+          <div class="k-foot"><span class="delta down">↓ 0.4%</span> vs 7-day avg</div>
+          <svg class="k-spark" width="72" height="28" viewBox="0 0 72 28"><polyline points="0,8 12,10 24,7 36,9 48,11 60,10 72,12" fill="none" stroke="var(--green-500)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <!-- Attendance trend -->
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Attendance trend</h3><div class="sub">District-wide daily attendance, last 14 school days</div></div>
+              <div class="spacer">
+                <select class="select" style="width:auto" aria-label="Range"><option>Last 14 days</option><option>Last 30 days</option><option>This term</option></select>
+              </div>
+            </div>
+            <div class="card-pad">
+              <svg viewBox="0 0 640 180" width="100%" height="180" role="img" aria-label="Attendance trend chart">
+                <defs><linearGradient id="ga" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--brand-500)" stop-opacity=".18"/><stop offset="1" stop-color="var(--brand-500)" stop-opacity="0"/></linearGradient></defs>
+                <g stroke="var(--border)" stroke-width="1">
+                  <line x1="40" y1="20" x2="630" y2="20"/><line x1="40" y1="60" x2="630" y2="60"/><line x1="40" y1="100" x2="630" y2="100"/><line x1="40" y1="140" x2="630" y2="140"/>
+                </g>
+                <g fill="var(--text-3)" font-size="10" font-family="Inter,sans-serif">
+                  <text x="8" y="24">100%</text><text x="14" y="64">95%</text><text x="14" y="104">90%</text><text x="14" y="144">85%</text>
+                  <text x="48" y="170">26 May</text><text x="180" y="170">31 May</text><text x="330" y="170">3 Jun</text><text x="480" y="170">5 Jun</text><text x="590" y="170">7 Jun</text>
+                </g>
+                <path d="M50,58 92,52 134,60 176,49 218,55 260,47 302,50 344,44 386,53 428,46 470,42 512,49 554,55 596,60 L596,150 50,150 Z" fill="url(#ga)"/>
+                <polyline points="50,58 92,52 134,60 176,49 218,55 260,47 302,50 344,44 386,53 428,46 470,42 512,49 554,55 596,60" fill="none" stroke="var(--brand-500)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="596" cy="60" r="4" fill="var(--brand-600)" stroke="var(--surface)" stroke-width="2"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Schools needing attention -->
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Needs attention</h3><div class="sub">Schools below 88% attendance this week</div></div>
+              <div class="spacer"><a class="btn btn-ghost btn-sm" href="reports-list.html">View report →</a></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>School</th><th>Block</th><th>Attendance</th><th></th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td data-label="School"><div class="cell-main">UGME School, Brahmagiri</div><div class="cell-sub">UDISE 21180104506</div></td>
+                    <td data-label="Block">Brahmagiri</td>
+                    <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:160px"><div class="progress red"><span style="width:81%"></span></div></div><span class="fw-7" style="color:var(--red-600)">81.2%</span></td>
+                    <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label="School"><div class="cell-main">Govt. UP School, Satapada</div><div class="cell-sub">UDISE 21180300214</div></td>
+                    <td data-label="Block">Krushnaprasad</td>
+                    <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:160px"><div class="progress amber"><span style="width:85%"></span></div></div><span class="fw-7" style="color:var(--amber-600)">85.4%</span></td>
+                    <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></td>
+                  </tr>
+                  <tr>
+                    <td data-label="School"><div class="cell-main">Nodal HS, Gop Sadar</div><div class="cell-sub">UDISE 21180501118</div></td>
+                    <td data-label="Block">Gop</td>
+                    <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:160px"><div class="progress amber"><span style="width:87%"></span></div></div><span class="fw-7" style="color:var(--amber-600)">87.1%</span></td>
+                    <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <!-- Pending approvals -->
+          <div class="card">
+            <div class="card-head"><div><h3>Pending approvals</h3><div class="sub">4 items awaiting you</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <ul class="timeline">
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Transfer: Ananya Mohanty → Nodal HS, Gop</div><div class="tl-meta">Student transfer · 2 h ago</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Leave: S. Pradhan, 12–16 Jun</div><div class="tl-meta">Staff leave · 5 h ago</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Scholarship batch: 218 pre-matric awards</div><div class="tl-meta">Disbursement sign-off · yesterday</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Exam centre allocation: Class X Board</div><div class="tl-meta">Examinations · yesterday</div></div>
+                </li>
+              </ul>
+              <a class="btn btn-secondary" style="width:100%;margin-top:10px" href="workflows-approvals.html">Review all approvals</a>
+            </div>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 12px;font-size:var(--fs-lg)">Quick actions</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <a class="btn btn-secondary" href="students-new.html">+ Add student</a>
+              <a class="btn btn-secondary" href="attendance-mark.html">Mark attendance</a>
+              <a class="btn btn-secondary" href="students-import.html">Bulk import</a>
+              <a class="btn btn-secondary" href="reports-new.html">New report</a>
+            </div>
+          </div>
+
+          <!-- Today -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 6px;font-size:var(--fs-lg)">Today</h3>
+            <div class="stat-row"><span class="sr-label">Classes in session</span><span class="sr-value">1,184</span></div>
+            <div class="stat-row"><span class="sr-label">Attendance marked</span><span class="sr-value">96% of rosters</span></div>
+            <div class="stat-row"><span class="sr-label">Exams scheduled</span><span class="sr-value">3</span></div>
+            <div class="stat-row"><span class="sr-label">Health screenings</span><span class="sr-value">2 camps</span></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

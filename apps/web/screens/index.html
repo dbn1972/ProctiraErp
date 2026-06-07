@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProctiraERP — Screen Contact Sheet</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #1a2233; background: #f6f7f9; }
+  header { position: sticky; top: 0; z-index: 5; padding: 18px 28px; background: #1d2b4f; color: #fff;
+    box-shadow: 0 1px 8px rgba(0,0,0,.18); }
+  header h1 { margin: 0 0 4px; font-size: 20px; }
+  header .meta { font-size: 12px; opacity: .8; }
+  nav { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 28px; background: #fff;
+    border-bottom: 1px solid #e3e6ea; position: sticky; top: 64px; z-index: 4; }
+  nav a { text-decoration: none; color: #1d2b4f; background: #eef1f6; padding: 4px 10px;
+    border-radius: 999px; font-size: 12px; }
+  nav a:hover { background: #dfe5ef; }
+  .count { display: inline-block; min-width: 18px; text-align: center; font-size: 11px;
+    background: #c9d3e6; color: #1d2b4f; border-radius: 999px; padding: 0 6px; margin-left: 2px; }
+  h2 .count { background: #1d2b4f; color: #fff; vertical-align: middle; }
+  main { padding: 8px 28px 60px; }
+  section { padding-top: 18px; }
+  section h2 { font-size: 16px; margin: 10px 0 12px; padding-top: 70px; margin-top: -60px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .card { display: block; text-decoration: none; color: inherit; background: #fff; border: 1px solid #e3e6ea;
+    border-radius: 10px; overflow: hidden; transition: box-shadow .15s, transform .15s; }
+  .card:hover { box-shadow: 0 6px 20px rgba(20,30,60,.16); transform: translateY(-2px); }
+  .thumb { aspect-ratio: 16/10; background: #fafbfc; overflow: hidden; border-bottom: 1px solid #eef0f3; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .cap { padding: 8px 12px; font-size: 13px; font-weight: 600; display: flex;
+    align-items: center; justify-content: space-between; gap: 8px; }
+  .vps { display: inline-flex; gap: 4px; }
+  .vp { text-decoration: none; font-size: 11px; font-weight: 700; color: #41506e;
+    background: #eef1f6; border: 1px solid #dfe3ea; border-radius: 5px; width: 20px; height: 20px;
+    display: inline-flex; align-items: center; justify-content: center; }
+  .vp:hover { background: #1d2b4f; color: #fff; border-color: #1d2b4f; }
+  footer { padding: 20px 28px 40px; color: #6b7585; font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>ProctiraERP — Screen Contact Sheet</h1>
+  <div class="meta">67 screens · 155 images (desktop/tablet/mobile) across 16 modules · captured against <code>next dev</code> (no backend — pages show empty/loading states) · generated 2026-06-07</div>
+</header>
+<nav><a href="#academic-periods">Academic Periods <span class="count">1</span></a><a href="#admin">Admin <span class="count">5</span></a><a href="#assessments">Assessments <span class="count">5</span></a><a href="#attendance">Attendance <span class="count">2</span></a><a href="#auth">Auth <span class="count">5</span></a><a href="#dashboard">Dashboard <span class="count">1</span></a><a href="#data-warehouse">Data Warehouse <span class="count">3</span></a><a href="#examinations">Examinations <span class="count">6</span></a><a href="#health">Health <span class="count">4</span></a><a href="#institutions">Institutions <span class="count">8</span></a><a href="#public">Public <span class="count">1</span></a><a href="#reports">Reports <span class="count">3</span></a><a href="#scholarships">Scholarships <span class="count">6</span></a><a href="#staff">Staff <span class="count">6</span></a><a href="#students">Students <span class="count">6</span></a><a href="#workflows">Workflows <span class="count">5</span></a></nav>
+<main>
+    <section id="academic-periods">
+      <h2>Academic Periods <span class="count">1</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="academic-periods/list.png" target="_blank" title="academic-periods/list.png"><img loading="lazy" src="academic-periods/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="academic-periods/list.png" target="_blank" title="desktop">D</a><a class="vp" href="academic-periods/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="academic-periods/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="admin">
+      <h2>Admin <span class="count">5</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="admin/overview.png" target="_blank" title="admin/overview.png"><img loading="lazy" src="admin/overview.png" alt="overview"></a>
+          <div class="cap"><span>overview</span><span class="vps"><a class="vp" href="admin/overview.png" target="_blank" title="desktop">D</a><a class="vp" href="admin/overview.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="admin/overview.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="admin/permissions.png" target="_blank" title="admin/permissions.png"><img loading="lazy" src="admin/permissions.png" alt="permissions"></a>
+          <div class="cap"><span>permissions</span><span class="vps"><a class="vp" href="admin/permissions.png" target="_blank" title="desktop">D</a><a class="vp" href="admin/permissions.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="admin/permissions.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="admin/roles.png" target="_blank" title="admin/roles.png"><img loading="lazy" src="admin/roles.png" alt="roles"></a>
+          <div class="cap"><span>roles</span><span class="vps"><a class="vp" href="admin/roles.png" target="_blank" title="desktop">D</a><a class="vp" href="admin/roles.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="admin/roles.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="admin/tenant.png" target="_blank" title="admin/tenant.png"><img loading="lazy" src="admin/tenant.png" alt="tenant"></a>
+          <div class="cap"><span>tenant</span><span class="vps"><a class="vp" href="admin/tenant.png" target="_blank" title="desktop">D</a><a class="vp" href="admin/tenant.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="admin/tenant.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="admin/users.png" target="_blank" title="admin/users.png"><img loading="lazy" src="admin/users.png" alt="users"></a>
+          <div class="cap"><span>users</span><span class="vps"><a class="vp" href="admin/users.png" target="_blank" title="desktop">D</a><a class="vp" href="admin/users.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="admin/users.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="assessments">
+      <h2>Assessments <span class="count">5</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="assessments/items.png" target="_blank" title="assessments/items.png"><img loading="lazy" src="assessments/items.png" alt="items"></a>
+          <div class="cap"><span>items</span><span class="vps"><a class="vp" href="assessments/items.png" target="_blank" title="desktop">D</a><a class="vp" href="assessments/items.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="assessments/items.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="assessments/list.png" target="_blank" title="assessments/list.png"><img loading="lazy" src="assessments/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="assessments/list.png" target="_blank" title="desktop">D</a><a class="vp" href="assessments/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="assessments/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="assessments/results.png" target="_blank" title="assessments/results.png"><img loading="lazy" src="assessments/results.png" alt="results"></a>
+          <div class="cap"><span>results</span><span class="vps"><a class="vp" href="assessments/results.png" target="_blank" title="desktop">D</a><a class="vp" href="assessments/results.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="assessments/results.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="assessments/scheme-edit.png" target="_blank" title="assessments/scheme-edit.png"><img loading="lazy" src="assessments/scheme-edit.png" alt="scheme-edit"></a>
+          <div class="cap"><span>scheme-edit</span><span class="vps"><a class="vp" href="assessments/scheme-edit.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="assessments/scheme-new.png" target="_blank" title="assessments/scheme-new.png"><img loading="lazy" src="assessments/scheme-new.png" alt="scheme-new"></a>
+          <div class="cap"><span>scheme-new</span><span class="vps"><a class="vp" href="assessments/scheme-new.png" target="_blank" title="desktop">D</a><a class="vp" href="assessments/scheme-new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="assessments/scheme-new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="attendance">
+      <h2>Attendance <span class="count">2</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="attendance/mark.png" target="_blank" title="attendance/mark.png"><img loading="lazy" src="attendance/mark.png" alt="mark"></a>
+          <div class="cap"><span>mark</span><span class="vps"><a class="vp" href="attendance/mark.png" target="_blank" title="desktop">D</a><a class="vp" href="attendance/mark.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="attendance/mark.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="attendance/reports.png" target="_blank" title="attendance/reports.png"><img loading="lazy" src="attendance/reports.png" alt="reports"></a>
+          <div class="cap"><span>reports</span><span class="vps"><a class="vp" href="attendance/reports.png" target="_blank" title="desktop">D</a><a class="vp" href="attendance/reports.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="attendance/reports.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="auth">
+      <h2>Auth <span class="count">5</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="auth/forgot-password.png" target="_blank" title="auth/forgot-password.png"><img loading="lazy" src="auth/forgot-password.png" alt="forgot-password"></a>
+          <div class="cap"><span>forgot-password</span><span class="vps"><a class="vp" href="auth/forgot-password.png" target="_blank" title="desktop">D</a><a class="vp" href="auth/forgot-password.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="auth/forgot-password.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="auth/login.png" target="_blank" title="auth/login.png"><img loading="lazy" src="auth/login.png" alt="login"></a>
+          <div class="cap"><span>login</span><span class="vps"><a class="vp" href="auth/login.png" target="_blank" title="desktop">D</a><a class="vp" href="auth/login.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="auth/login.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="auth/mfa.png" target="_blank" title="auth/mfa.png"><img loading="lazy" src="auth/mfa.png" alt="mfa"></a>
+          <div class="cap"><span>mfa</span><span class="vps"><a class="vp" href="auth/mfa.png" target="_blank" title="desktop">D</a><a class="vp" href="auth/mfa.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="auth/mfa.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="auth/reset-password.png" target="_blank" title="auth/reset-password.png"><img loading="lazy" src="auth/reset-password.png" alt="reset-password"></a>
+          <div class="cap"><span>reset-password</span><span class="vps"><a class="vp" href="auth/reset-password.png" target="_blank" title="desktop">D</a><a class="vp" href="auth/reset-password.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="auth/reset-password.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="auth/signup.png" target="_blank" title="auth/signup.png"><img loading="lazy" src="auth/signup.png" alt="signup"></a>
+          <div class="cap"><span>signup</span><span class="vps"><a class="vp" href="auth/signup.png" target="_blank" title="desktop">D</a><a class="vp" href="auth/signup.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="auth/signup.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="dashboard">
+      <h2>Dashboard <span class="count">1</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="dashboard/overview.png" target="_blank" title="dashboard/overview.png"><img loading="lazy" src="dashboard/overview.png" alt="overview"></a>
+          <div class="cap"><span>overview</span><span class="vps"><a class="vp" href="dashboard/overview.png" target="_blank" title="desktop">D</a><a class="vp" href="dashboard/overview.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="dashboard/overview.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="data-warehouse">
+      <h2>Data Warehouse <span class="count">3</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="data-warehouse/import.png" target="_blank" title="data-warehouse/import.png"><img loading="lazy" src="data-warehouse/import.png" alt="import"></a>
+          <div class="cap"><span>import</span><span class="vps"><a class="vp" href="data-warehouse/import.png" target="_blank" title="desktop">D</a><a class="vp" href="data-warehouse/import.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="data-warehouse/import.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="data-warehouse/map.png" target="_blank" title="data-warehouse/map.png"><img loading="lazy" src="data-warehouse/map.png" alt="map"></a>
+          <div class="cap"><span>map</span><span class="vps"><a class="vp" href="data-warehouse/map.png" target="_blank" title="desktop">D</a><a class="vp" href="data-warehouse/map.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="data-warehouse/map.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="data-warehouse/overview.png" target="_blank" title="data-warehouse/overview.png"><img loading="lazy" src="data-warehouse/overview.png" alt="overview"></a>
+          <div class="cap"><span>overview</span><span class="vps"><a class="vp" href="data-warehouse/overview.png" target="_blank" title="desktop">D</a><a class="vp" href="data-warehouse/overview.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="data-warehouse/overview.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="examinations">
+      <h2>Examinations <span class="count">6</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="examinations/candidates.png" target="_blank" title="examinations/candidates.png"><img loading="lazy" src="examinations/candidates.png" alt="candidates"></a>
+          <div class="cap"><span>candidates</span><span class="vps"><a class="vp" href="examinations/candidates.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="examinations/detail.png" target="_blank" title="examinations/detail.png"><img loading="lazy" src="examinations/detail.png" alt="detail"></a>
+          <div class="cap"><span>detail</span><span class="vps"><a class="vp" href="examinations/detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="examinations/documents.png" target="_blank" title="examinations/documents.png"><img loading="lazy" src="examinations/documents.png" alt="documents"></a>
+          <div class="cap"><span>documents</span><span class="vps"><a class="vp" href="examinations/documents.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="examinations/list.png" target="_blank" title="examinations/list.png"><img loading="lazy" src="examinations/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="examinations/list.png" target="_blank" title="desktop">D</a><a class="vp" href="examinations/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="examinations/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="examinations/new.png" target="_blank" title="examinations/new.png"><img loading="lazy" src="examinations/new.png" alt="new"></a>
+          <div class="cap"><span>new</span><span class="vps"><a class="vp" href="examinations/new.png" target="_blank" title="desktop">D</a><a class="vp" href="examinations/new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="examinations/new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="examinations/results.png" target="_blank" title="examinations/results.png"><img loading="lazy" src="examinations/results.png" alt="results"></a>
+          <div class="cap"><span>results</span><span class="vps"><a class="vp" href="examinations/results.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="health">
+      <h2>Health <span class="count">4</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="health/counselling.png" target="_blank" title="health/counselling.png"><img loading="lazy" src="health/counselling.png" alt="counselling"></a>
+          <div class="cap"><span>counselling</span><span class="vps"><a class="vp" href="health/counselling.png" target="_blank" title="desktop">D</a><a class="vp" href="health/counselling.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="health/counselling.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="health/list.png" target="_blank" title="health/list.png"><img loading="lazy" src="health/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="health/list.png" target="_blank" title="desktop">D</a><a class="vp" href="health/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="health/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="health/special-needs.png" target="_blank" title="health/special-needs.png"><img loading="lazy" src="health/special-needs.png" alt="special-needs"></a>
+          <div class="cap"><span>special-needs</span><span class="vps"><a class="vp" href="health/special-needs.png" target="_blank" title="desktop">D</a><a class="vp" href="health/special-needs.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="health/special-needs.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="health/student-detail.png" target="_blank" title="health/student-detail.png"><img loading="lazy" src="health/student-detail.png" alt="student-detail"></a>
+          <div class="cap"><span>student-detail</span><span class="vps"><a class="vp" href="health/student-detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="institutions">
+      <h2>Institutions <span class="count">8</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="institutions/classes.png" target="_blank" title="institutions/classes.png"><img loading="lazy" src="institutions/classes.png" alt="classes"></a>
+          <div class="cap"><span>classes</span><span class="vps"><a class="vp" href="institutions/classes.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="institutions/detail.png" target="_blank" title="institutions/detail.png"><img loading="lazy" src="institutions/detail.png" alt="detail"></a>
+          <div class="cap"><span>detail</span><span class="vps"><a class="vp" href="institutions/detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="institutions/detail-edit.png" target="_blank" title="institutions/detail-edit.png"><img loading="lazy" src="institutions/detail-edit.png" alt="detail-edit"></a>
+          <div class="cap"><span>detail-edit</span><span class="vps"><a class="vp" href="institutions/detail-edit.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="institutions/detail-overview.png" target="_blank" title="institutions/detail-overview.png"><img loading="lazy" src="institutions/detail-overview.png" alt="detail-overview"></a>
+          <div class="cap"><span>detail-overview</span><span class="vps"><a class="vp" href="institutions/detail-overview.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="institutions/grades.png" target="_blank" title="institutions/grades.png"><img loading="lazy" src="institutions/grades.png" alt="grades"></a>
+          <div class="cap"><span>grades</span><span class="vps"><a class="vp" href="institutions/grades.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="institutions/infrastructure.png" target="_blank" title="institutions/infrastructure.png"><img loading="lazy" src="institutions/infrastructure.png" alt="infrastructure"></a>
+          <div class="cap"><span>infrastructure</span><span class="vps"><a class="vp" href="institutions/infrastructure.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="institutions/list.png" target="_blank" title="institutions/list.png"><img loading="lazy" src="institutions/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="institutions/list.png" target="_blank" title="desktop">D</a><a class="vp" href="institutions/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="institutions/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="institutions/new.png" target="_blank" title="institutions/new.png"><img loading="lazy" src="institutions/new.png" alt="new"></a>
+          <div class="cap"><span>new</span><span class="vps"><a class="vp" href="institutions/new.png" target="_blank" title="desktop">D</a><a class="vp" href="institutions/new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="institutions/new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="public">
+      <h2>Public <span class="count">1</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="public/track.png" target="_blank" title="public/track.png"><img loading="lazy" src="public/track.png" alt="track"></a>
+          <div class="cap"><span>track</span><span class="vps"><a class="vp" href="public/track.png" target="_blank" title="desktop">D</a><a class="vp" href="public/track.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="public/track.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="reports">
+      <h2>Reports <span class="count">3</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="reports/list.png" target="_blank" title="reports/list.png"><img loading="lazy" src="reports/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="reports/list.png" target="_blank" title="desktop">D</a><a class="vp" href="reports/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="reports/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="reports/new.png" target="_blank" title="reports/new.png"><img loading="lazy" src="reports/new.png" alt="new"></a>
+          <div class="cap"><span>new</span><span class="vps"><a class="vp" href="reports/new.png" target="_blank" title="desktop">D</a><a class="vp" href="reports/new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="reports/new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="reports/results.png" target="_blank" title="reports/results.png"><img loading="lazy" src="reports/results.png" alt="results"></a>
+          <div class="cap"><span>results</span><span class="vps"><a class="vp" href="reports/results.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="scholarships">
+      <h2>Scholarships <span class="count">6</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="scholarships/application-detail.png" target="_blank" title="scholarships/application-detail.png"><img loading="lazy" src="scholarships/application-detail.png" alt="application-detail"></a>
+          <div class="cap"><span>application-detail</span><span class="vps"><a class="vp" href="scholarships/application-detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="scholarships/applications.png" target="_blank" title="scholarships/applications.png"><img loading="lazy" src="scholarships/applications.png" alt="applications"></a>
+          <div class="cap"><span>applications</span><span class="vps"><a class="vp" href="scholarships/applications.png" target="_blank" title="desktop">D</a><a class="vp" href="scholarships/applications.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="scholarships/applications.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="scholarships/disbursements.png" target="_blank" title="scholarships/disbursements.png"><img loading="lazy" src="scholarships/disbursements.png" alt="disbursements"></a>
+          <div class="cap"><span>disbursements</span><span class="vps"><a class="vp" href="scholarships/disbursements.png" target="_blank" title="desktop">D</a><a class="vp" href="scholarships/disbursements.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="scholarships/disbursements.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="scholarships/list.png" target="_blank" title="scholarships/list.png"><img loading="lazy" src="scholarships/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="scholarships/list.png" target="_blank" title="desktop">D</a><a class="vp" href="scholarships/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="scholarships/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="scholarships/program-detail.png" target="_blank" title="scholarships/program-detail.png"><img loading="lazy" src="scholarships/program-detail.png" alt="program-detail"></a>
+          <div class="cap"><span>program-detail</span><span class="vps"><a class="vp" href="scholarships/program-detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="scholarships/program-new.png" target="_blank" title="scholarships/program-new.png"><img loading="lazy" src="scholarships/program-new.png" alt="program-new"></a>
+          <div class="cap"><span>program-new</span><span class="vps"><a class="vp" href="scholarships/program-new.png" target="_blank" title="desktop">D</a><a class="vp" href="scholarships/program-new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="scholarships/program-new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="staff">
+      <h2>Staff <span class="count">6</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="staff/appraisal-new.png" target="_blank" title="staff/appraisal-new.png"><img loading="lazy" src="staff/appraisal-new.png" alt="appraisal-new"></a>
+          <div class="cap"><span>appraisal-new</span><span class="vps"><a class="vp" href="staff/appraisal-new.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="staff/assignment-new.png" target="_blank" title="staff/assignment-new.png"><img loading="lazy" src="staff/assignment-new.png" alt="assignment-new"></a>
+          <div class="cap"><span>assignment-new</span><span class="vps"><a class="vp" href="staff/assignment-new.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="staff/detail.png" target="_blank" title="staff/detail.png"><img loading="lazy" src="staff/detail.png" alt="detail"></a>
+          <div class="cap"><span>detail</span><span class="vps"><a class="vp" href="staff/detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="staff/detail-edit.png" target="_blank" title="staff/detail-edit.png"><img loading="lazy" src="staff/detail-edit.png" alt="detail-edit"></a>
+          <div class="cap"><span>detail-edit</span><span class="vps"><a class="vp" href="staff/detail-edit.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="staff/list.png" target="_blank" title="staff/list.png"><img loading="lazy" src="staff/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="staff/list.png" target="_blank" title="desktop">D</a><a class="vp" href="staff/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="staff/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="staff/new.png" target="_blank" title="staff/new.png"><img loading="lazy" src="staff/new.png" alt="new"></a>
+          <div class="cap"><span>new</span><span class="vps"><a class="vp" href="staff/new.png" target="_blank" title="desktop">D</a><a class="vp" href="staff/new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="staff/new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="students">
+      <h2>Students <span class="count">6</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="students/detail.png" target="_blank" title="students/detail.png"><img loading="lazy" src="students/detail.png" alt="detail"></a>
+          <div class="cap"><span>detail</span><span class="vps"><a class="vp" href="students/detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="students/detail-edit.png" target="_blank" title="students/detail-edit.png"><img loading="lazy" src="students/detail-edit.png" alt="detail-edit"></a>
+          <div class="cap"><span>detail-edit</span><span class="vps"><a class="vp" href="students/detail-edit.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="students/import.png" target="_blank" title="students/import.png"><img loading="lazy" src="students/import.png" alt="import"></a>
+          <div class="cap"><span>import</span><span class="vps"><a class="vp" href="students/import.png" target="_blank" title="desktop">D</a><a class="vp" href="students/import.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="students/import.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="students/list.png" target="_blank" title="students/list.png"><img loading="lazy" src="students/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="students/list.png" target="_blank" title="desktop">D</a><a class="vp" href="students/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="students/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="students/new.png" target="_blank" title="students/new.png"><img loading="lazy" src="students/new.png" alt="new"></a>
+          <div class="cap"><span>new</span><span class="vps"><a class="vp" href="students/new.png" target="_blank" title="desktop">D</a><a class="vp" href="students/new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="students/new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="students/transfer.png" target="_blank" title="students/transfer.png"><img loading="lazy" src="students/transfer.png" alt="transfer"></a>
+          <div class="cap"><span>transfer</span><span class="vps"><a class="vp" href="students/transfer.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+      </div>
+    </section>
+    <section id="workflows">
+      <h2>Workflows <span class="count">5</span></h2>
+      <div class="grid">
+        <div class="card">
+          <a class="thumb" href="workflows/approvals.png" target="_blank" title="workflows/approvals.png"><img loading="lazy" src="workflows/approvals.png" alt="approvals"></a>
+          <div class="cap"><span>approvals</span><span class="vps"><a class="vp" href="workflows/approvals.png" target="_blank" title="desktop">D</a><a class="vp" href="workflows/approvals.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="workflows/approvals.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="workflows/definition-detail.png" target="_blank" title="workflows/definition-detail.png"><img loading="lazy" src="workflows/definition-detail.png" alt="definition-detail"></a>
+          <div class="cap"><span>definition-detail</span><span class="vps"><a class="vp" href="workflows/definition-detail.png" target="_blank" title="desktop">D</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="workflows/definition-new.png" target="_blank" title="workflows/definition-new.png"><img loading="lazy" src="workflows/definition-new.png" alt="definition-new"></a>
+          <div class="cap"><span>definition-new</span><span class="vps"><a class="vp" href="workflows/definition-new.png" target="_blank" title="desktop">D</a><a class="vp" href="workflows/definition-new.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="workflows/definition-new.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="workflows/instances.png" target="_blank" title="workflows/instances.png"><img loading="lazy" src="workflows/instances.png" alt="instances"></a>
+          <div class="cap"><span>instances</span><span class="vps"><a class="vp" href="workflows/instances.png" target="_blank" title="desktop">D</a><a class="vp" href="workflows/instances.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="workflows/instances.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+        <div class="card">
+          <a class="thumb" href="workflows/list.png" target="_blank" title="workflows/list.png"><img loading="lazy" src="workflows/list.png" alt="list"></a>
+          <div class="cap"><span>list</span><span class="vps"><a class="vp" href="workflows/list.png" target="_blank" title="desktop">D</a><a class="vp" href="workflows/list.tablet.png" target="_blank" title="tablet">T</a><a class="vp" href="workflows/list.mobile.png" target="_blank" title="mobile">M</a></span></div>
+        </div>
+      </div>
+    </section>
+</main>
+<footer>Click any thumbnail to open the full-resolution screenshot. Source PNGs live alongside this file under <code>screens/&lt;module&gt;/&lt;screen&gt;.png</code>.</footer>
+</body>
+</html>

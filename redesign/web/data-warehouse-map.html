@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Field mapping · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .map-arrow { color: var(--text-3); }
+  .map-arrow svg { width: 16px; height: 16px; display: block; }
+  .map-progress { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .map-progress .progress { flex: 1; min-width: 160px; height: 8px; }
+  .src-field { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text); font-weight: 500; }
+  .sample { font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-3); }
+  .table .select { padding: 6px 30px 6px 10px; font-size: var(--fs-xs); min-width: 180px; }
+  @media (max-width: 767px) { .map-arrow { display: none; } }
+</style>
+</head>
+<body data-active="data-warehouse">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="data-warehouse-overview.html">Data Warehouse</a><span class="sep">/</span>
+        <a href="data-warehouse-import.html">Import data</a><span class="sep">/</span>
+        <span class="current">Field mapping</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Field mapping</h1>
+          <p class="page-sub">krushnaprasad_enrollment_2026.xlsx → Student enrollment records · 1,847 rows · 38 source columns</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="data-warehouse-import.html">Back</a>
+        </div>
+      </div>
+
+      <div style="max-width:980px">
+
+        <div class="stepper" aria-label="Import progress">
+          <div class="step done"><span class="s-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg></span><span class="s-label">Source</span></div>
+          <div class="step-line done"></div>
+          <div class="step active"><span class="s-dot">2</span><span class="s-label">Mapping</span></div>
+          <div class="step-line"></div>
+          <div class="step"><span class="s-dot">3</span><span class="s-label">Validate</span></div>
+          <div class="step-line"></div>
+          <div class="step"><span class="s-dot">4</span><span class="s-label">Run</span></div>
+        </div>
+
+        <!-- Auto-map suggestion -->
+        <div class="alert info mb-16" role="status">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/></svg>
+          <div class="a-body" style="flex:1">
+            <b>4 more matches suggested</b>
+            Header names look close to warehouse fields: <span class="mono">DOB</span>, <span class="mono">FatherName</span>, <span class="mono">Caste_Cat</span> and <span class="mono">Vill</span> can be mapped automatically with 90%+ confidence.
+          </div>
+          <button class="btn btn-secondary btn-sm" type="button" style="flex-shrink:0">Apply suggestions</button>
+        </div>
+
+        <!-- Progress summary -->
+        <div class="card card-pad mb-16">
+          <div class="map-progress">
+            <span class="fw-7" style="font-size:var(--fs-sm)">32 of 38 fields mapped</span>
+            <div class="progress green"><span style="width:84%"></span></div>
+            <span class="fs-xs muted">84% · 4 suggested · 2 will be skipped</span>
+          </div>
+        </div>
+
+        <!-- Mapping table -->
+        <section class="card">
+          <div class="card-head">
+            <div><h3>Column mapping</h3><div class="sub">Source column → warehouse field · sample shown from row 2</div></div>
+            <div class="spacer">
+              <select class="select" style="width:auto" aria-label="Filter mapping"><option>All fields</option><option>Unmapped only</option><option>Warnings only</option></select>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Source field</th>
+                  <th></th>
+                  <th>Target field</th>
+                  <th>Transform</th>
+                  <th>Sample value</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">StudentName</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for StudentName"><option selected>full_name</option><option>first_name</option><option>guardian_name</option><option>— skip column —</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">Title case</span></td>
+                  <td data-label="Sample"><span class="sample">PRITAM KUMAR SWAIN</span></td>
+                  <td data-label="Status"><span class="pill green">Mapped</span></td>
+                </tr>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">UDISE_Code</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for UDISE_Code"><option selected>school_udise_code</option><option>school_name</option><option>— skip column —</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">None</span></td>
+                  <td data-label="Sample"><span class="sample">21180300214</span></td>
+                  <td data-label="Status"><span class="pill green">Mapped</span></td>
+                </tr>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">DOB</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for DOB"><option selected>date_of_birth (suggested)</option><option>admission_date</option><option>— skip column —</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">DD/MM/YYYY → ISO</span></td>
+                  <td data-label="Sample"><span class="sample">14/03/2013</span></td>
+                  <td data-label="Status"><span class="pill sky">Suggested</span></td>
+                </tr>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">Std</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for Std"><option selected>grade</option><option>section</option><option>— skip column —</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">Roman → numeric</span></td>
+                  <td data-label="Sample"><span class="sample">VIII</span></td>
+                  <td data-label="Status"><span class="pill green">Mapped</span></td>
+                </tr>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">Gender</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for Gender"><option selected>gender</option><option>— skip column —</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">M/F → enum</span></td>
+                  <td data-label="Sample"><span class="sample">M</span></td>
+                  <td data-label="Status"><span class="pill amber">Warning</span></td>
+                </tr>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">AadhaarNo</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for AadhaarNo"><option selected>national_id (masked)</option><option>— skip column —</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">Mask + checksum</span></td>
+                  <td data-label="Sample"><span class="sample">XXXX XXXX 4812</span></td>
+                  <td data-label="Status"><span class="pill green">Mapped</span></td>
+                </tr>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">MotherTongue</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for MotherTongue"><option selected>— choose field —</option><option>home_language</option><option>medium_of_instruction</option><option>— skip column —</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">None</span></td>
+                  <td data-label="Sample"><span class="sample">Odia</span></td>
+                  <td data-label="Status"><span class="pill red">Unmapped</span></td>
+                </tr>
+                <tr>
+                  <td data-label="Source field"><span class="src-field">Remarks_Col2</span></td>
+                  <td class="map-arrow" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></td>
+                  <td data-label="Target field">
+                    <select class="select" aria-label="Target for Remarks_Col2"><option selected>— skip column —</option><option>notes</option></select>
+                  </td>
+                  <td data-label="Transform"><span class="tag">None</span></td>
+                  <td data-label="Sample"><span class="sample">(empty in 96% of rows)</span></td>
+                  <td data-label="Status"><span class="pill slate">Skipped</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-foot" style="justify-content:flex-end;flex-wrap:wrap">
+            <span class="fs-xs muted-3" style="margin-right:auto">Gender warning: 12 rows contain "T/G" — they'll be flagged for review at validation.</span>
+            <a class="btn btn-secondary" href="data-warehouse-import.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</a>
+            <button class="btn btn-primary" type="button">Validate 1,847 rows<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+          </div>
+        </section>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

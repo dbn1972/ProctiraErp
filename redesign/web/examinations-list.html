@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Examinations · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="examinations">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Examinations</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Examinations</h1>
+          <p class="page-sub">Exam cycles, centres, candidates and results across Puri district · AY 2026–27</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="examinations-documents.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Documents</a>
+          <a class="btn btn-primary" href="examinations-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Schedule exam</a>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">18</span></a>
+        <a class="tab" href="#" role="tab">Scheduled <span class="count">7</span></a>
+        <a class="tab" href="#" role="tab">Ongoing <span class="count">1</span></a>
+        <a class="tab" href="#" role="tab">Completed <span class="count">4</span></a>
+        <a class="tab" href="#" role="tab">Results out <span class="count">6</span></a>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search by exam name or code" aria-label="Search examinations">
+        </div>
+        <select class="select" aria-label="Type"><option>All types</option><option>Pre-board</option><option>Term exam</option><option>Internal</option><option>Scholarship</option><option>Supplementary</option></select>
+        <select class="select" aria-label="Academic year"><option>AY 2026–27</option><option>AY 2025–26</option></select>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">Examination <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Type</th>
+                <th>Dates</th>
+                <th class="num">Centres</th>
+                <th class="num">Candidates</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="examinations-detail.html" style="color:inherit;text-decoration:none">Class X Board Pre-Test</a></div><div class="cell-sub">EXA-2701 · BSE Odisha pattern · 6 subjects</div></td>
+                <td data-label="Type"><span class="tag">Pre-board</span></td>
+                <td data-label="Dates">12–22 Jan 2027</td>
+                <td data-label="Centres" class="num">4</td>
+                <td data-label="Candidates" class="num">1,284</td>
+                <td data-label="Status"><span class="pill sky">Scheduled</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="examinations-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="examinations-candidates.html" aria-label="Candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="examinations-detail.html" style="color:inherit;text-decoration:none">Half-Yearly Examination 2026</a></div><div class="cell-sub">EXA-2702 · Grades VI–X · 6 subjects</div></td>
+                <td data-label="Type"><span class="tag">Term exam</span></td>
+                <td data-label="Dates">14–24 Sep 2026</td>
+                <td data-label="Centres" class="num">6</td>
+                <td data-label="Candidates" class="num">5,212</td>
+                <td data-label="Status"><span class="pill sky">Scheduled</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="examinations-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="examinations-candidates.html" aria-label="Candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="examinations-detail.html" style="color:inherit;text-decoration:none">Quarterly Assessment VI–VIII</a></div><div class="cell-sub">EXA-2703 · internal · school centres</div></td>
+                <td data-label="Type"><span class="tag">Internal</span></td>
+                <td data-label="Dates">02–09 Jun 2026</td>
+                <td data-label="Centres" class="num">1</td>
+                <td data-label="Candidates" class="num">2,108</td>
+                <td data-label="Status"><span class="pill amber">Ongoing</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="examinations-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="examinations-candidates.html" aria-label="Candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="examinations-detail.html" style="color:inherit;text-decoration:none">NMMS Scholarship Screening</a></div><div class="cell-sub">EXA-2704 · Grade VIII · MAT + SAT papers</div></td>
+                <td data-label="Type"><span class="tag">Scholarship</span></td>
+                <td data-label="Dates">02 Aug 2026</td>
+                <td data-label="Centres" class="num">2</td>
+                <td data-label="Candidates" class="num">312</td>
+                <td data-label="Status"><span class="pill sky">Scheduled</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="examinations-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="examinations-candidates.html" aria-label="Candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="examinations-detail.html" style="color:inherit;text-decoration:none">Annual Examination IX 2025–26</a></div><div class="cell-sub">EXA-2618 · Grade IX · 6 subjects</div></td>
+                <td data-label="Type"><span class="tag">Annual</span></td>
+                <td data-label="Dates">02–14 Mar 2026</td>
+                <td data-label="Centres" class="num">5</td>
+                <td data-label="Candidates" class="num">1,168</td>
+                <td data-label="Status"><span class="pill green">Results out</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="examinations-results.html" aria-label="View results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="examinations-candidates.html" aria-label="Candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="examinations-detail.html" style="color:inherit;text-decoration:none">Class VIII Talent Search</a></div><div class="cell-sub">EXA-2615 · district competition · single paper</div></td>
+                <td data-label="Type"><span class="tag">Competition</span></td>
+                <td data-label="Dates">18 Apr 2026</td>
+                <td data-label="Centres" class="num">1</td>
+                <td data-label="Candidates" class="num">96</td>
+                <td data-label="Status"><span class="pill violet">Completed</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="examinations-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="examinations-candidates.html" aria-label="Candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="examinations-detail.html" style="color:inherit;text-decoration:none">Supplementary Exam X 2025–26</a></div><div class="cell-sub">EXA-2622 · compartment candidates only</div></td>
+                <td data-label="Type"><span class="tag">Supplementary</span></td>
+                <td data-label="Dates">11–16 May 2026</td>
+                <td data-label="Centres" class="num">2</td>
+                <td data-label="Candidates" class="num">84</td>
+                <td data-label="Status"><span class="pill green">Results out</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="examinations-results.html" aria-label="View results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="examinations-candidates.html" aria-label="Candidates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–7</b> of <b>18</b> examinations</span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

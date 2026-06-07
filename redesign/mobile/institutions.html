@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Institutions · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+<style>
+  .inst-ic { font-weight: 800; font-size: 13px; color: #fff; }
+  .mi-count { font-size: var(--fs-xs); font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body data-tab="services">
+<div class="phone">
+  <header class="appbar">
+    <a class="ab-back" href="services.html" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></a>
+    <div class="ab-title">
+      <h1>Institutions</h1>
+      <div class="ab-sub">Puri district · 6 schools in your cluster</div>
+    </div>
+  </header>
+  <div class="screen">
+
+    <label class="m-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" placeholder="Search by name or UDISE code">
+    </label>
+
+    <div class="m-list">
+      <a class="m-item" href="institution-detail.html">
+        <span class="mi-icon inst-ic" style="background:linear-gradient(135deg,var(--brand-500),var(--brand-700))">GS</span>
+        <span class="mi-body"><span class="mi-title">Govt. Sr. Sec. School, Puri</span><span class="mi-sub">UDISE 21180104502 · Puri Sadar block</span></span>
+        <span class="mi-end"><span class="mi-count">412</span><span class="pill green plain">94%</span></span>
+      </a>
+      <a class="m-item" href="institution-detail.html">
+        <span class="mi-icon inst-ic" style="background:linear-gradient(135deg,var(--teal-500),#0F766E)">UB</span>
+        <span class="mi-body"><span class="mi-title">UGME School, Brahmagiri</span><span class="mi-sub">UDISE 21180202114 · Brahmagiri block</span></span>
+        <span class="mi-end"><span class="mi-count">268</span><span class="pill green plain">92%</span></span>
+      </a>
+      <a class="m-item" href="institution-detail.html">
+        <span class="mi-icon inst-ic" style="background:linear-gradient(135deg,var(--violet-500),#6D28D9)">SN</span>
+        <span class="mi-body"><span class="mi-title">Satyabadi Nodal UP School</span><span class="mi-sub">UDISE 21180301807 · Satyabadi block</span></span>
+        <span class="mi-end"><span class="mi-count">317</span><span class="pill green plain">95%</span></span>
+      </a>
+      <a class="m-item" href="institution-detail.html">
+        <span class="mi-icon inst-ic" style="background:linear-gradient(135deg,var(--sky-500),#0369A1)">GP</span>
+        <span class="mi-body"><span class="mi-title">Govt. High School, Pipili</span><span class="mi-sub">UDISE 21180405211 · Pipili block</span></span>
+        <span class="mi-end"><span class="mi-count">385</span><span class="pill amber plain">87%</span></span>
+      </a>
+      <a class="m-item" href="institution-detail.html">
+        <span class="mi-icon inst-ic" style="background:linear-gradient(135deg,#EC4899,#BE185D)">KN</span>
+        <span class="mi-body"><span class="mi-title">Krushnaprasad Girls High School</span><span class="mi-sub">UDISE 21180503309 · Krushnaprasad block</span></span>
+        <span class="mi-end"><span class="mi-count">224</span><span class="pill green plain">93%</span></span>
+      </a>
+      <a class="m-item" href="institution-detail.html">
+        <span class="mi-icon inst-ic" style="background:linear-gradient(135deg,var(--amber-500),#B45309)">NG</span>
+        <span class="mi-body"><span class="mi-title">Nimapada Govt. UP School</span><span class="mi-sub">UDISE 21180601420 · Nimapada block</span></span>
+        <span class="mi-end"><span class="mi-count">196</span><span class="pill amber plain">85%</span></span>
+      </a>
+    </div>
+
+    <p class="m-note">Student counts and attendance are from the last completed sync · 7 Jun, 09:38.</p>
+
+  </div>
+</div>
+<script src="mobile.js"></script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Students · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="students">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Students</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Students</h1>
+          <p class="page-sub">24,812 students across 142 institutions · enrollment, records, and transfers</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="students-import.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Bulk import</a>
+          <a class="btn btn-primary" href="students-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add student</a>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">24,812</span></a>
+        <a class="tab" href="#" role="tab">Enrolled <span class="count">23,904</span></a>
+        <a class="tab" href="#" role="tab">Pending transfer <span class="count">86</span></a>
+        <a class="tab" href="#" role="tab">Alumni <span class="count">714</span></a>
+        <a class="tab" href="#" role="tab">Withdrawn <span class="count">108</span></a>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search by name, national ID, or admission no." aria-label="Search students">
+        </div>
+        <select class="select" aria-label="Institution"><option>All institutions</option><option>Govt. Sr. Sec. School, Puri</option><option>Nodal HS, Gop Sadar</option></select>
+        <select class="select" aria-label="Grade"><option>All grades</option><option>Grade VI</option><option>Grade VII</option><option>Grade VIII</option><option>Grade IX</option><option>Grade X</option></select>
+        <span class="filter-chip">Grade VIII <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">Student <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>National ID</th>
+                <th>Grade / Section</th>
+                <th>Institution</th>
+                <th>Attendance</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-1">AS</span><div><div class="cell-main">Aarav Sharma</div><div class="cell-sub">M · 18 Apr 2012 · Adm. 2024/0117</div></div></div>
+                </td>
+                <td data-label="National ID" class="mono">IDN-10000</td>
+                <td data-label="Grade">VIII · A</td>
+                <td data-label="Institution">Govt. Sr. Sec. School, Puri</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:97%"></span></div></div><span class="fs-xs fw-6">97%</span></td>
+                <td data-label="Status"><span class="pill green">Enrolled</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="students-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="students-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-2">DP</span><div><div class="cell-main">Diya Patel</div><div class="cell-sub">F · 02 Sep 2012 · Adm. 2024/0118</div></div></div>
+                </td>
+                <td data-label="National ID" class="mono">IDN-10001</td>
+                <td data-label="Grade">VIII · A</td>
+                <td data-label="Institution">Govt. Sr. Sec. School, Puri</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:94%"></span></div></div><span class="fs-xs fw-6">94%</span></td>
+                <td data-label="Status"><span class="pill green">Enrolled</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="students-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="students-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-3">VR</span><div><div class="cell-main">Vivaan Reddy</div><div class="cell-sub">M · 21 Jan 2013 · Adm. 2024/0119</div></div></div>
+                </td>
+                <td data-label="National ID" class="mono">IDN-10002</td>
+                <td data-label="Grade">VIII · B</td>
+                <td data-label="Institution">Govt. Sr. Sec. School, Puri</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress amber"><span style="width:86%"></span></div></div><span class="fs-xs fw-6">86%</span></td>
+                <td data-label="Status"><span class="pill amber">Pending transfer</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="students-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="students-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-4">AN</span><div><div class="cell-main">Ananya Nair</div><div class="cell-sub">F · 09 Nov 2012 · Adm. 2024/0120</div></div></div>
+                </td>
+                <td data-label="National ID" class="mono">IDN-10003</td>
+                <td data-label="Grade">VIII · B</td>
+                <td data-label="Institution">Nodal HS, Gop Sadar</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:98%"></span></div></div><span class="fs-xs fw-6">98%</span></td>
+                <td data-label="Status"><span class="pill green">Enrolled</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="students-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="students-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-5">AI</span><div><div class="cell-main">Aditya Iyer</div><div class="cell-sub">M · 27 Jun 2012 · Adm. 2024/0121</div></div></div>
+                </td>
+                <td data-label="National ID" class="mono">IDN-10004</td>
+                <td data-label="Grade">VIII · C</td>
+                <td data-label="Institution">Govt. UP School, Satapada</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress red"><span style="width:74%"></span></div></div><span class="fs-xs fw-6" style="color:var(--red-600)">74%</span></td>
+                <td data-label="Status"><span class="pill red">At risk</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="students-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="students-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="">
+                  <div class="person-cell"><span class="avatar av-6">SD</span><div><div class="cell-main">Sai Das</div><div class="cell-sub">F · 14 Mar 2013 · Adm. 2024/0122</div></div></div>
+                </td>
+                <td data-label="National ID" class="mono">IDN-10005</td>
+                <td data-label="Grade">VIII · C</td>
+                <td data-label="Institution">Nodal HS, Gop Sadar</td>
+                <td data-label="Attendance" class="td-flex"><div style="flex:1;max-width:120px"><div class="progress green"><span style="width:92%"></span></div></div><span class="fs-xs fw-6">92%</span></td>
+                <td data-label="Status"><span class="pill green">Enrolled</span></td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="students-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                    <a class="icon-btn" href="students-detail-edit.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                    <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–6</b> of <b>24,812</b></span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <span class="page-btn" style="cursor:default">…</span>
+              <button class="page-btn">4,136</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

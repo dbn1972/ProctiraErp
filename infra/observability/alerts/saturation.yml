@@ -1,0 +1,63 @@
+# Saturation alerts.
+#
+# Definitions
+#  - SLI: process CPU usage and resident memory relative to allocated quota.
+#  - SLO: keep CPU < 85% and memory < 90% under steady state.
+groups:
+  - name: saturation
+    interval: 30s
+    rules:
+      - alert: ProcessCPUHigh
+        # rate(process_cpu_seconds_total[5m]) gives core-seconds per second.
+        # Threshold of 0.85 corresponds to 85% of one core; multi-core services
+        # should override the threshold via service-specific rules.
+        expr: |
+          rate(process_cpu_seconds_total[5m]) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+          slo: saturation
+        annotations:
+          summary: "{{ $labels.service }} CPU above 85% for 5m"
+          description: |
+            Process CPU on {{ $labels.service }} is at {{ $value | humanize }} cores
+            (>85% of one core) over the last 5 minutes. Consider horizontal scaling.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#cpu-saturation"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"
+
+      - alert: ProcessMemoryHigh
+        expr: |
+          (
+            process_resident_memory_bytes
+            /
+            on (service) group_left() (nodejs_heap_size_total_bytes + 1)
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+          slo: saturation
+        annotations:
+          summary: "{{ $labels.service }} memory usage above 90%"
+          description: |
+            Resident memory on {{ $labels.service }} is at {{ $value | humanizePercentage }}
+            of heap capacity. Risk of OOM and restart.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#memory-saturation"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"
+
+      - alert: EventLoopLagHigh
+        expr: |
+          nodejs_eventloop_lag_seconds > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          team: engineering
+          slo: saturation
+        annotations:
+          summary: "{{ $labels.service }} event loop lag > 100ms"
+          description: |
+            Node.js event loop lag on {{ $labels.service }} has exceeded 100ms for
+            5 minutes. The service is CPU-bound or blocked on sync I/O.
+          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#event-loop-lag"
+          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"

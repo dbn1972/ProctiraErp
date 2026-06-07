@@ -1,0 +1,65 @@
+{{- if .Values.etlWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "proctira.fullname" . }}-etl-worker
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: etl-worker
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.etlWorker.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: etl-worker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    {{- toYaml .Values.etlWorker.strategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: etl-worker
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/part-of: proctira-platform
+        app.kubernetes.io/component: worker
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 60
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: etl-worker
+          image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.etlWorker.image "appVersion" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.etlWorker.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.etlWorker.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.etlWorker.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "proctira.configmapName" . }}
+            - secretRef:
+                name: {{ include "proctira.secretName" . }}
+          resources:
+            {{- toYaml .Values.etlWorker.resources | nindent 12 }}
+          {{- with .Values.etlWorker.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.etlWorker.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

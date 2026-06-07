@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aarav Sharma · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .profile-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .profile-head .ph-meta { flex: 1; min-width: 220px; }
+  .profile-head .ph-meta h1 { margin: 0; font-size: var(--fs-2xl); font-weight: 700; letter-spacing: -.02em; }
+  .profile-head .ph-sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; font-size: var(--fs-sm); color: var(--text-2); }
+  .heat-strip { display: grid; grid-template-columns: repeat(30, 1fr); gap: 4px; }
+  .heat-strip span { aspect-ratio: 1; border-radius: 4px; background: var(--bg-subtle); }
+  .heat-strip .h1 { background: var(--green-500); }
+  .heat-strip .h2 { background: color-mix(in srgb, var(--green-500) 55%, var(--bg-subtle)); }
+  .heat-strip .h3 { background: var(--amber-500); }
+  .heat-strip .h0 { background: var(--red-500); }
+  .heat-legend { display: flex; align-items: center; gap: 14px; margin-top: 10px; font-size: var(--fs-2xs); color: var(--text-3); }
+  .heat-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body data-active="students">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="students-list.html">Students</a><span class="sep">/</span>
+        <span class="current">Aarav Sharma</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="profile-head ph-text">
+          <span class="avatar xl av-1">AS</span>
+          <div class="ph-meta">
+            <h1>Aarav Sharma</h1>
+            <div class="ph-sub">
+              <span class="mono">IDN-10000</span>
+              <span>·</span><span>M · 18 Apr 2012 (14 y)</span>
+              <span>·</span><span>Adm. 2024/0117</span>
+              <span class="pill green">Enrolled</span>
+            </div>
+          </div>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="students-transfer.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>Request transfer</a>
+          <a class="btn btn-primary" href="students-detail-edit.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>Edit student</a>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">Overview</a>
+        <a class="tab" href="#" role="tab">Attendance</a>
+        <a class="tab" href="#" role="tab">Assessments</a>
+        <a class="tab" href="health-student-detail.html" role="tab">Health</a>
+        <a class="tab" href="#" role="tab">Documents <span class="count">6</span></a>
+        <a class="tab" href="#" role="tab">History</a>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <div class="kpi-grid" style="margin-bottom:0">
+            <div class="card kpi">
+              <div class="k-top"><span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span><span class="k-label">Attendance</span></div>
+              <div class="k-value">97%</div>
+              <div class="k-foot"><span class="delta up">↑ 1.2%</span> this term</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top"><span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></svg></span><span class="k-label">Avg score</span></div>
+              <div class="k-value">82.4</div>
+              <div class="k-foot"><span class="delta up">↑ 3.1</span> vs Term 2</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top"><span class="k-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span><span class="k-label">Rank band</span></div>
+              <div class="k-value">Top 10%</div>
+              <div class="k-foot">of Grade VIII · 184 students</div>
+            </div>
+            <div class="card kpi">
+              <div class="k-top"><span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="k-label">Fee status</span></div>
+              <div class="k-value" style="font-size:var(--fs-2xl);color:var(--green-600)">Cleared</div>
+              <div class="k-foot">Term 1 · paid 02 Jun 2026</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Attendance — last 30 school days</h3><div class="sub">29 present · 1 absent (03 Jun, medical) · 0 late</div></div>
+              <div class="spacer"><span class="pill green">97% this term</span></div>
+            </div>
+            <div class="card-pad">
+              <div class="heat-strip" role="img" aria-label="Attendance for last 30 school days">
+                <span class="h1"></span><span class="h1"></span><span class="h1"></span><span class="h1"></span><span class="h1"></span>
+                <span class="h1"></span><span class="h2"></span><span class="h1"></span><span class="h1"></span><span class="h1"></span>
+                <span class="h1"></span><span class="h1"></span><span class="h1"></span><span class="h2"></span><span class="h1"></span>
+                <span class="h1"></span><span class="h1"></span><span class="h1"></span><span class="h1"></span><span class="h1"></span>
+                <span class="h1"></span><span class="h1"></span><span class="h0"></span><span class="h1"></span><span class="h1"></span>
+                <span class="h1"></span><span class="h1"></span><span class="h1"></span><span class="h1"></span><span class="h1"></span>
+              </div>
+              <div class="heat-legend">
+                <span><i style="background:var(--green-500)"></i>Present</span>
+                <span><i style="background:color-mix(in srgb, var(--green-500) 55%, var(--bg-subtle))"></i>Half day</span>
+                <span><i style="background:var(--red-500)"></i>Absent</span>
+                <span style="margin-left:auto">09 May → 07 Jun 2026</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Recent assessments</h3><div class="sub">Term 1, Academic Year 2026–27</div></div>
+              <div class="spacer"><a class="btn btn-ghost btn-sm" href="assessments-list.html">View all →</a></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Assessment</th><th>Subject</th><th>Date</th><th class="num">Score</th><th>Grade</th><th>Class avg</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Assessment"><div class="cell-main">Unit Test 2</div><div class="cell-sub">Formative · 25 marks</div></td>
+                    <td data-label="Subject">Mathematics</td>
+                    <td data-label="Date">02 Jun 2026</td>
+                    <td data-label="Score" class="num fw-7">22 / 25</td>
+                    <td data-label="Grade"><span class="pill green plain">A1</span></td>
+                    <td data-label="Class avg" class="muted">17.4</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Assessment"><div class="cell-main">Unit Test 2</div><div class="cell-sub">Formative · 25 marks</div></td>
+                    <td data-label="Subject">Science</td>
+                    <td data-label="Date">30 May 2026</td>
+                    <td data-label="Score" class="num fw-7">20 / 25</td>
+                    <td data-label="Grade"><span class="pill green plain">A2</span></td>
+                    <td data-label="Class avg" class="muted">16.8</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Assessment"><div class="cell-main">Unit Test 2</div><div class="cell-sub">Formative · 25 marks</div></td>
+                    <td data-label="Subject">Odia</td>
+                    <td data-label="Date">28 May 2026</td>
+                    <td data-label="Score" class="num fw-7">19 / 25</td>
+                    <td data-label="Grade"><span class="pill sky plain">B1</span></td>
+                    <td data-label="Class avg" class="muted">18.1</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Assessment"><div class="cell-main">Unit Test 2</div><div class="cell-sub">Formative · 25 marks</div></td>
+                    <td data-label="Subject">English</td>
+                    <td data-label="Date">26 May 2026</td>
+                    <td data-label="Score" class="num fw-7">21 / 25</td>
+                    <td data-label="Grade"><span class="pill green plain">A2</span></td>
+                    <td data-label="Class avg" class="muted">15.9</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Assessment"><div class="cell-main">Unit Test 1</div><div class="cell-sub">Formative · 25 marks</div></td>
+                    <td data-label="Subject">Social Science</td>
+                    <td data-label="Date">12 May 2026</td>
+                    <td data-label="Score" class="num fw-7">17 / 25</td>
+                    <td data-label="Grade"><span class="pill sky plain">B1</span></td>
+                    <td data-label="Class avg" class="muted">16.2</td>
+                  </tr>
+                  <tr>
+                    <td data-label="Assessment"><div class="cell-main">Unit Test 1</div><div class="cell-sub">Formative · 25 marks</div></td>
+                    <td data-label="Subject">Mathematics</td>
+                    <td data-label="Date">09 May 2026</td>
+                    <td data-label="Score" class="num fw-7">23 / 25</td>
+                    <td data-label="Grade"><span class="pill green plain">A1</span></td>
+                    <td data-label="Class avg" class="muted">17.0</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <div class="card">
+            <div class="card-head"><div><h3>Student facts</h3></div></div>
+            <div class="card-pad">
+              <dl class="dl">
+                <dt>Guardian</dt><dd>Rajesh Sharma (Father)</dd>
+                <dt>Guardian phone</dt><dd>+91 98101 24500</dd>
+                <dt>Guardian email</dt><dd>rajesh.sharma@example.com</dd>
+                <dt>Address</dt><dd>Plot 14, Grand Road, Puri, Odisha 752001</dd>
+                <dt>Blood group</dt><dd>B+</dd>
+                <dt>Category</dt><dd>OBC</dd>
+                <dt>Mother tongue</dt><dd>Odia</dd>
+                <dt>Scholarships</dt><dd><a href="scholarships-applications.html" style="color:var(--link);text-decoration:none">NMMS 2026 · ₹12,000/yr</a></dd>
+              </dl>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Enrollment timeline</h3></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <ul class="timeline">
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Promoted to Grade VIII · A</div><div class="tl-meta">Govt. Sr. Sec. School, Puri · 01 Apr 2026</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Passed Grade VII · 78.2% aggregate</div><div class="tl-meta">Annual examination · 22 Mar 2026</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Promoted to Grade VII · A</div><div class="tl-meta">Govt. Sr. Sec. School, Puri · 02 Apr 2025</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Admitted to Grade VI · A</div><div class="tl-meta">Adm. 2024/0117 · 01 Apr 2024</div></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <h3 style="margin:0 0 6px;font-size:var(--fs-lg)">Current enrollment</h3>
+            <div class="stat-row"><span class="sr-label">Institution</span><span class="sr-value">Govt. Sr. Sec. School, Puri</span></div>
+            <div class="stat-row"><span class="sr-label">UDISE</span><span class="sr-value mono">21180100101</span></div>
+            <div class="stat-row"><span class="sr-label">Grade / Section</span><span class="sr-value">VIII · A</span></div>
+            <div class="stat-row"><span class="sr-label">Class teacher</span><span class="sr-value">S. Mishra</span></div>
+            <div class="stat-row"><span class="sr-label">Roll number</span><span class="sr-value">07</span></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "name": "@proctira/events",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./kafka": "./src/kafka/index.ts",
+    "./rabbitmq": "./src/rabbitmq/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "amqplib": "^0.10.4"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.5",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

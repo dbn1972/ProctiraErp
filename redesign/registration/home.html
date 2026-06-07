@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student Registration Portal · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100vh; background: var(--surface); }
+  /* ---- Public shell ---- */
+  .pub-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .pub-header-in { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 24px; }
+  .pub-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .pub-logo .logo-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .pub-logo b { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+  .pub-logo b span { color: var(--brand-600); }
+  .pub-nav { display: flex; gap: 2px; }
+  .pub-nav a { padding: 8px 12px; border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); text-decoration: none; transition: background var(--t-fast), color var(--t-fast); }
+  .pub-nav a:hover { background: var(--bg-subtle); color: var(--text); }
+  .pub-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  .pub-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .pub-burger { display: none; }
+  .pub-mobile-nav { display: none; }
+  @media (max-width: 767px) {
+    .pub-header-in { padding: 0 16px; gap: 12px; }
+    .pub-nav { display: none; }
+    .pub-burger { display: inline-flex; }
+    .pub-mobile-nav.open { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .pub-mobile-nav a { padding: 13px 14px; border-radius: var(--r-md); font-size: var(--fs-md); font-weight: 600; color: var(--text-2); text-decoration: none; }
+    .pub-mobile-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  }
+  .pub-main { flex: 1; }
+  .pub-footer { background: var(--navy-900); color: #AEB9D6; }
+  .pub-footer-in { max-width: 1120px; margin: 0 auto; padding: 40px 24px 0; display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 32px; }
+  .pub-footer .f-brand { display: flex; align-items: center; gap: 10px; color: #fff; margin-bottom: 12px; }
+  .pub-footer .f-brand .logo-mark { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; }
+  .pub-footer .f-brand b span { color: var(--brand-400); }
+  .pub-footer p { margin: 0; font-size: var(--fs-sm); line-height: 1.6; color: #8B97B8; max-width: 40ch; }
+  .pub-footer h4 { margin: 0 0 12px; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5E6C90; }
+  .pub-footer .f-links { display: flex; flex-direction: column; gap: 9px; }
+  .pub-footer .f-links a { color: #AEB9D6; font-size: var(--fs-sm); text-decoration: none; }
+  .pub-footer .f-links a:hover { color: #fff; }
+  .f-helpline { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09); border-radius: var(--r-lg); padding: 14px 16px; }
+  .f-helpline .h-ic { width: 38px; height: 38px; border-radius: 11px; background: rgba(99,102,241,.2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .f-helpline .h-ic svg { width: 17px; height: 17px; color: var(--brand-300); }
+  .f-helpline b { display: block; color: #fff; font-size: var(--fs-xl); letter-spacing: .02em; }
+  .f-helpline span { font-size: var(--fs-xs); color: #8B97B8; }
+  .pub-footer-bottom { max-width: 1120px; margin: 32px auto 0; padding: 18px 24px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; font-size: var(--fs-xs); color: #5E6C90; }
+  .pub-footer-bottom a { color: #8B97B8; text-decoration: none; }
+  .pub-footer-bottom a:hover { color: #fff; }
+  .pub-footer-bottom .fb-links { margin-left: auto; display: flex; gap: 18px; }
+  @media (max-width: 767px) {
+    .pub-footer-in { grid-template-columns: 1fr; gap: 28px; padding: 32px 20px 0; }
+    .pub-footer-bottom .fb-links { margin-left: 0; }
+  }
+
+  /* ---- Page: hero ---- */
+  .hero { position: relative; overflow: hidden; background: radial-gradient(900px 500px at 85% -20%, var(--brand-50) 0%, transparent 60%), linear-gradient(180deg, var(--slate-25), var(--surface)); border-bottom: 1px solid var(--border); }
+  .hero-in { max-width: 1120px; margin: 0 auto; padding: 72px 24px 64px; display: grid; grid-template-columns: 1.15fr .85fr; gap: 48px; align-items: center; }
+  .hero .eyebrow { display: inline-flex; align-items: center; gap: 7px; font-size: var(--fs-xs); font-weight: 700; color: var(--brand-700); background: var(--brand-50); border: 1px solid var(--brand-200); border-radius: var(--r-full); padding: 5px 13px; margin-bottom: 18px; }
+  .hero h1 { margin: 0 0 16px; font-size: clamp(1.9rem, 4.2vw, 2.85rem); font-weight: 800; letter-spacing: -.03em; line-height: 1.12; }
+  .hero h1 em { font-style: normal; color: var(--brand-600); }
+  .hero .lede { margin: 0 0 28px; font-size: var(--fs-lg); color: var(--text-2); line-height: 1.65; max-width: 52ch; }
+  .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero-trust { display: flex; gap: 22px; margin-top: 30px; flex-wrap: wrap; }
+  .hero-trust .ht { display: flex; align-items: center; gap: 8px; font-size: var(--fs-sm); color: var(--text-2); font-weight: 500; }
+  .hero-trust .ht svg { width: 16px; height: 16px; color: var(--green-600); flex-shrink: 0; }
+  .hero-art { position: relative; }
+  .hero-art .card { padding: 22px; }
+  .hero-art .ha-row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px dashed var(--border); }
+  .hero-art .ha-row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .hero-art .ha-ic { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .hero-art .ha-ic svg { width: 17px; height: 17px; }
+  .hero-art .ha-row b { display: block; font-size: var(--fs-sm); }
+  .hero-art .ha-row span { font-size: var(--fs-xs); color: var(--text-3); }
+  .hero-art .float-pill { position: absolute; top: -16px; right: -10px; box-shadow: var(--sh-md); font-size: var(--fs-xs); padding: 6px 14px; }
+  @media (max-width: 1023px) { .hero-in { grid-template-columns: 1fr; padding: 52px 24px 48px; } .hero-art { display: none; } }
+  @media (max-width: 767px) { .hero-in { padding: 40px 20px 40px; } .hero-ctas .btn { flex: 1; } }
+
+  /* ---- Sections ---- */
+  .section { max-width: 1120px; margin: 0 auto; padding: 64px 24px; }
+  .section-head { text-align: center; max-width: 560px; margin: 0 auto 40px; }
+  .section-head h2 { margin: 0 0 8px; font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -.02em; }
+  .section-head p { margin: 0; color: var(--text-2); font-size: var(--fs-md); }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .step-card { position: relative; padding: 26px 24px 24px; }
+  .step-card .sc-num { position: absolute; top: -14px; left: 22px; width: 30px; height: 30px; border-radius: 50%; background: var(--brand-600); color: #fff; font-weight: 800; font-size: var(--fs-sm); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 4px var(--surface); }
+  .step-card .sc-ic { width: 44px; height: 44px; border-radius: 13px; background: var(--brand-50); color: var(--brand-600); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+  .step-card .sc-ic svg { width: 21px; height: 21px; }
+  .step-card h3 { margin: 0 0 6px; font-size: var(--fs-lg); font-weight: 700; }
+  .step-card p { margin: 0; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.6; }
+  @media (max-width: 767px) { .steps { grid-template-columns: 1fr; gap: 26px; } }
+
+  .elig { background: var(--slate-25); border-block: 1px solid var(--border); }
+  .elig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+  .elig-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .elig-list li { display: flex; gap: 12px; font-size: var(--fs-md); color: var(--text-2); line-height: 1.55; }
+  .elig-list li svg { width: 19px; height: 19px; color: var(--green-600); flex-shrink: 0; margin-top: 2px; }
+  .elig-list li b { color: var(--text); }
+  @media (max-width: 767px) { .elig-grid { grid-template-columns: 1fr; } }
+
+  .help-card { display: flex; gap: 18px; align-items: flex-start; padding: 24px; }
+  .help-card .hc-ic { width: 46px; height: 46px; border-radius: 13px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .help-card .hc-ic svg { width: 21px; height: 21px; }
+  .help-card h3 { margin: 0 0 5px; font-size: var(--fs-lg); font-weight: 700; }
+  .help-card p { margin: 0; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.6; }
+  .help-card .hc-num { font-size: var(--fs-2xl); font-weight: 800; letter-spacing: .01em; color: var(--brand-700); }
+
+  .faq details { border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); margin-bottom: 10px; box-shadow: var(--sh-xs); }
+  .faq summary { display: flex; align-items: center; gap: 12px; padding: 17px 20px; font-size: var(--fs-md); font-weight: 600; cursor: pointer; list-style: none; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary svg { width: 17px; height: 17px; color: var(--text-3); margin-left: auto; flex-shrink: 0; transition: transform var(--t-med); }
+  .faq details[open] summary svg { transform: rotate(180deg); }
+  .faq .faq-body { padding: 0 20px 18px; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.65; max-width: 72ch; }
+</style>
+</head>
+<body>
+
+<header class="pub-header">
+  <div class="pub-header-in">
+    <a class="pub-logo" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="pub-nav" aria-label="Main">
+      <a href="home.html" class="active" aria-current="page">Home</a>
+      <a href="schools.html">Find Schools</a>
+      <a href="apply-school.html">Register</a>
+      <a href="track.html">Track Application</a>
+    </nav>
+    <div class="pub-right">
+      <button class="btn btn-secondary btn-sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English ▾</button>
+      <button class="icon-btn pub-burger" type="button" aria-label="Open menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', document.getElementById('mnav').classList.toggle('open'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+  </div>
+  <nav class="pub-mobile-nav" id="mnav" aria-label="Mobile">
+    <a href="home.html" class="active" aria-current="page">Home</a>
+    <a href="schools.html">Find Schools</a>
+    <a href="apply-school.html">Register</a>
+    <a href="track.html">Track Application</a>
+  </nav>
+</header>
+
+<main class="pub-main">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-in">
+      <div>
+        <span class="eyebrow"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>Admissions open · Academic year 2026–27</span>
+        <h1>Enroll your child in a government school — <em>online, free, in 10&nbsp;minutes</em></h1>
+        <p class="lede">Apply to any government school in Puri district from your phone. No queues, no agent fees, no paperwork to photocopy. You will get updates by SMS at every step.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary btn-lg" href="apply-school.html">Start registration<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a class="btn btn-secondary btn-lg" href="track.html">Track application</a>
+        </div>
+        <div class="hero-trust">
+          <span class="ht"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Completely free</span>
+          <span class="ht"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Works on any phone</span>
+          <span class="ht"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>SMS updates in Odia</span>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <span class="pill green plain float-pill">12,847 applications this year</span>
+        <div class="card">
+          <div class="ha-row">
+            <span class="ha-ic" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+            <div><b>Application REG-PUR-26-04211</b><span>Ananya Pradhan · Class 1 · Govt. UP School, Baliapanda</span></div>
+            <span class="pill green" style="margin-left:auto">Approved</span>
+          </div>
+          <div class="ha-row">
+            <span class="ha-ic" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+            <div><b>SMS sent to +91 94370 21184</b><span>"Your ward's admission is confirmed. Report on 18 Jun."</span></div>
+          </div>
+          <div class="ha-row">
+            <span class="ha-ic" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <div><b>Seat reserved</b><span>Class 1 · Section A · Roll number issued on admission day</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="section" id="how-it-works">
+    <div class="section-head">
+      <h2>Three simple steps</h2>
+      <p>Keep your child's birth certificate and your address proof ready — that is all you need to begin.</p>
+    </div>
+    <div class="steps">
+      <div class="card step-card">
+        <span class="sc-num">1</span>
+        <span class="sc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>
+        <h3>Fill the form</h3>
+        <p>Enter your child's details and your contact number. The form takes about 5 minutes and saves automatically as you go.</p>
+      </div>
+      <div class="card step-card">
+        <span class="sc-num">2</span>
+        <span class="sc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+        <h3>Upload documents</h3>
+        <p>Take clear photos of the birth certificate and address proof with your phone camera and upload them. PDF or JPG, up to 5 MB each.</p>
+      </div>
+      <div class="card step-card">
+        <span class="sc-num">3</span>
+        <span class="sc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <h3>Track status</h3>
+        <p>You get a reference number instantly. Use it any time to check progress online — we also send you an SMS at every stage.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Eligibility -->
+  <section class="elig">
+    <div class="section">
+      <div class="elig-grid">
+        <div>
+          <h2 style="margin:0 0 10px;font-size:var(--fs-3xl);font-weight:800;letter-spacing:-.02em">Who can apply?</h2>
+          <p style="margin:0 0 24px;color:var(--text-2);line-height:1.65">Every child has a right to free education under the RTE Act 2009. Government schools in Odisha charge no admission fee, no tuition fee, and provide free textbooks, uniforms, and the mid-day meal.</p>
+          <ul class="elig-list">
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span><b>Age:</b> children who complete 6 years by 1 September 2026 can join Class 1. Older children are placed in an age-appropriate class.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span><b>Residence:</b> any family living in Puri district. Priority is given to schools within 1 km of your home for primary classes.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span><b>Documents:</b> birth certificate and address proof are needed. A caste certificate is optional and only used for scholarship benefits.</span></li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg><span><b>No document? Apply anyway.</b> Admission cannot be denied for missing papers — the school will help you obtain them after enrollment.</span></li>
+          </ul>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="card help-card">
+            <span class="hc-ic" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+            <div>
+              <h3>Need help? Call us — it's toll-free</h3>
+              <span class="hc-num">155335</span>
+              <p>Monday to Saturday, 8 am to 8 pm. Help available in Odia, Hindi, and English. The call costs you nothing.</p>
+            </div>
+          </div>
+          <div class="card help-card">
+            <span class="hc-ic" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M5 21V7l7-4 7 4v14"/><path d="M9 21v-4h6v4"/><path d="M9 11h.01M15 11h.01"/></svg></span>
+            <div>
+              <h3>Prefer to apply in person?</h3>
+              <p>Visit any school directly or the Block Education Office during working hours — staff there will fill this same form with you, free of charge. Carry the original documents.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section faq" id="faq">
+    <div class="section-head">
+      <h2>Common questions</h2>
+      <p>Quick answers from parents who applied before you.</p>
+    </div>
+    <details open>
+      <summary>Does it cost anything to apply or study?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></summary>
+      <div class="faq-body">No. Registration is free, admission is free, and education in government schools is free — including textbooks, two sets of uniforms, and the mid-day meal. If anyone asks you for money to "process" your application, please report it on the helpline 155335.</div>
+    </details>
+    <details>
+      <summary>I don't have a birth certificate for my child. Can I still apply?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></summary>
+      <div class="faq-body">Yes. Start the application and skip the upload. An Anganwadi record, hospital record, or a self-declaration of age is accepted temporarily. The school will guide you on getting the certificate made after admission — it cannot be a reason to refuse your child.</div>
+    </details>
+    <details>
+      <summary>Can I apply to more than one school?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></summary>
+      <div class="faq-body">Yes, you may select up to three schools in order of preference. If your first choice has no seats in that class, your application automatically moves to the next school on your list — you do not need to apply again.</div>
+    </details>
+    <details>
+      <summary>How long does the whole process take?<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></summary>
+      <div class="faq-body">Document verification takes 2–3 working days. The school then reviews the application and confirms the seat, usually within a week. You will receive an SMS at every step, and you can check the status anytime on the Track Application page.</div>
+    </details>
+  </section>
+
+</main>
+
+<footer class="pub-footer">
+  <div class="pub-footer-in">
+    <div>
+      <div class="f-brand"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></div>
+      <p>Student Registration Portal for government schools, Puri district, Odisha. A free service — no fees, no agents, no middlemen.</p>
+    </div>
+    <div>
+      <h4>Portal</h4>
+      <div class="f-links">
+        <a href="schools.html">Find Schools</a>
+        <a href="apply-school.html">Register</a>
+        <a href="track.html">Track Application</a>
+        <a href="home.html#faq">Help &amp; FAQ</a>
+      </div>
+    </div>
+    <div>
+      <h4>Helpline</h4>
+      <div class="f-helpline">
+        <span class="h-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+        <div><b>155335</b><span>Toll-free · Mon–Sat, 8 am–8 pm</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="pub-footer-bottom">
+    <span>© 2026 ProctiraERP · Student Registration Portal</span>
+    <div class="fb-links">
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#terms">Terms of Service</a>
+      <a href="#accessibility">Accessibility</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

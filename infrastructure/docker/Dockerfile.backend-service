@@ -1,0 +1,84 @@
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+# Generic multi-stage Dockerfile for Fastify-based backend services
+# =============================================================================
+# This Dockerfile builds any backend service from packages/backend/* as a
+# standalone microservice. It wraps the Fastify plugin in a lightweight
+# server harness.
+#
+# Build context MUST be the monorepo root.
+#
+# Required build args:
+#   SERVICE_NAME  - The package directory name (e.g., institution, student)
+#   SERVICE_PORT  - Port the service listens on (default: 3000)
+#
+# Example:
+#   docker build \
+#     -f infrastructure/docker/Dockerfile.backend-service \
+#     --build-arg SERVICE_NAME=institution \
+#     --build-arg SERVICE_PORT=3020 \
+#     -t proctira/institution-service .
+#
+# Stages:
+#   1. base    - Minimal Node + pnpm
+#   2. deps    - Installs the workspace dependency graph
+#   3. builder - Runs type-checking build for the target service
+#   4. runner  - Lean production runtime
+# =============================================================================
+
+ARG NODE_VERSION=20-alpine
+
+# ---------- 1. base ----------
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache libc6-compat curl tini
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+WORKDIR /app
+
+# ---------- 2. deps ----------
+FROM base AS deps
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY turbo.json tsconfig.base.json ./
+COPY apps ./apps
+COPY packages ./packages
+COPY plugins ./plugins
+COPY themes ./themes
+COPY tools ./tools
+RUN pnpm install --frozen-lockfile
+
+# ---------- 3. builder ----------
+FROM deps AS builder
+ARG SERVICE_NAME=institution
+ENV NODE_ENV=production
+# Type-check the service and all its workspace dependencies.
+RUN pnpm --filter "@proctira/backend-${SERVICE_NAME}..." run build
+
+# ---------- 4. runner ----------
+FROM node:${NODE_VERSION} AS runner
+ARG SERVICE_NAME=institution
+ARG SERVICE_PORT=3000
+RUN apk add --no-cache curl tini
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV PORT=${SERVICE_PORT}
+ENV HOST=0.0.0.0
+ENV SERVICE_NAME=${SERVICE_NAME}
+
+# Run as non-root
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 --ingroup nodejs fastify
+
+# Copy the entire workspace (pnpm symlinks require the full tree for resolution)
+COPY --from=builder --chown=fastify:nodejs /app ./
+
+USER fastify
+EXPOSE ${SERVICE_PORT}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD curl --fail "http://127.0.0.1:${PORT}/health" || exit 1
+
+ENTRYPOINT ["/sbin/tini", "--"]
+WORKDIR /app/packages/backend/${SERVICE_NAME}
+CMD ["node", "--enable-source-maps", "../../node_modules/tsx/dist/cli.mjs", "src/standalone-server.ts"]

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProctiraERP — Redesign Gallery</title>
+<link rel="stylesheet" href="shared/tokens.css">
+<style>
+  body { display: flex; height: 100vh; overflow: hidden; }
+  .nav {
+    width: 300px; flex-shrink: 0; height: 100%; overflow-y: auto;
+    background: var(--navy-900); color: #C2CBE3; padding: 18px 14px 40px;
+  }
+  .nav h1 { font-size: 15px; color: #fff; margin: 0 0 2px; padding: 0 8px; }
+  .nav .meta { font-size: 11px; color: #8B97B8; padding: 0 8px; margin-bottom: 14px; }
+  .nav h2 { font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5E6C90; margin: 18px 0 4px; padding: 0 8px; }
+  .nav button {
+    display: block; width: 100%; text-align: left; border: none; cursor: pointer;
+    background: transparent; color: #AEB9D6; font-family: var(--font-sans);
+    font-size: 12.5px; font-weight: 500; padding: 5px 8px; border-radius: 7px;
+  }
+  .nav button:hover { background: rgba(255,255,255,.07); color: #fff; }
+  .nav button.active { background: rgba(99,102,241,.22); color: #fff; font-weight: 600; }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--slate-100); }
+  .bar {
+    height: 52px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px; padding: 0 18px;
+  }
+  .bar .crumb { font-size: 13px; font-weight: 600; color: var(--text); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar .crumb span { color: var(--text-3); font-weight: 500; }
+  .devices { margin-left: auto; display: flex; gap: 4px; background: var(--bg-subtle); border-radius: 999px; padding: 3px; }
+  .devices button {
+    border: none; cursor: pointer; font-family: var(--font-sans); font-size: 12px; font-weight: 600;
+    padding: 5px 14px; border-radius: 999px; background: transparent; color: var(--text-2);
+  }
+  .devices button.on { background: var(--brand-600); color: #fff; }
+  .open-new { font-size: 12px; font-weight: 600; color: var(--link); text-decoration: none; white-space: nowrap; }
+  .stage { flex: 1; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 22px; }
+  .frame-wrap { background: #fff; border-radius: 14px; box-shadow: 0 12px 40px rgba(15,23,42,.16); overflow: hidden; transition: width .25s ease; max-width: 100%; }
+  .frame-wrap iframe { display: block; width: 100%; height: calc(100vh - 140px); border: none; }
+  @media (max-width: 900px) { .nav { display: none; } }
+</style>
+</head>
+<body>
+  <nav class="nav" id="nav">
+    <h1>ProctiraERP Redesign</h1>
+    <div class="meta">124 screens · web + portals + native mobile app · v2.0 · Jun 2026</div>
+  </nav>
+  <div class="main">
+    <div class="bar">
+      <div class="crumb" id="crumb">—</div>
+      <div class="devices" id="devices">
+        <button data-w="100%" class="on">Desktop</button>
+        <button data-w="768px">Tablet</button>
+        <button data-w="390px">Mobile</button>
+      </div>
+      <a class="open-new" id="openNew" href="#" target="_blank">Open ↗</a>
+    </div>
+    <div class="stage"><div class="frame-wrap" id="wrap" style="width:100%"><iframe id="frame" title="Screen preview"></iframe></div></div>
+  </div>
+<script>
+const SCREENS = {
+  'Web App — Auth': [
+    ['web/auth-login.html','Login'],['web/auth-signup.html','Sign up'],['web/auth-forgot-password.html','Forgot password'],
+    ['web/auth-reset-password.html','Reset password'],['web/auth-mfa.html','MFA verification'],
+  ],
+  'Web App — Overview & People': [
+    ['web/dashboard-overview.html','Dashboard'],
+    ['web/students-list.html','Students · list'],['web/students-detail.html','Students · profile'],['web/students-new.html','Students · add'],
+    ['web/students-detail-edit.html','Students · edit'],['web/students-import.html','Students · bulk import'],['web/students-transfer.html','Students · transfer'],
+    ['web/staff-list.html','Staff · list'],['web/staff-detail.html','Staff · profile'],['web/staff-new.html','Staff · add'],
+    ['web/staff-detail-edit.html','Staff · edit'],['web/staff-assignment-new.html','Staff · new assignment'],['web/staff-appraisal-new.html','Staff · new appraisal'],
+  ],
+  'Web App — Academics': [
+    ['web/institutions-list.html','Institutions · list'],['web/institutions-detail.html','Institutions · profile'],
+    ['web/institutions-detail-overview.html','Institutions · overview tab'],['web/institutions-new.html','Institutions · register'],
+    ['web/institutions-detail-edit.html','Institutions · edit'],['web/institutions-classes.html','Institutions · classes'],
+    ['web/institutions-grades.html','Institutions · grades'],['web/institutions-infrastructure.html','Institutions · infrastructure'],
+    ['web/academic-periods-list.html','Academic periods'],
+    ['web/attendance-mark.html','Attendance · mark'],['web/attendance-reports.html','Attendance · reports'],
+    ['web/assessments-list.html','Assessments · schemes'],['web/assessments-items.html','Assessments · items'],
+    ['web/assessments-scheme-new.html','Assessments · new scheme'],['web/assessments-scheme-edit.html','Assessments · edit scheme'],
+    ['web/assessments-results.html','Assessments · result entry'],
+    ['web/examinations-list.html','Examinations · list'],['web/examinations-new.html','Examinations · schedule'],
+    ['web/examinations-detail.html','Examinations · detail'],['web/examinations-candidates.html','Examinations · candidates'],
+    ['web/examinations-documents.html','Examinations · documents'],['web/examinations-results.html','Examinations · results'],
+  ],
+  'Web App — Services': [
+    ['web/scholarships-list.html','Scholarships · programs'],['web/scholarships-program-detail.html','Scholarships · program detail'],
+    ['web/scholarships-program-new.html','Scholarships · new program'],['web/scholarships-applications.html','Scholarships · applications'],
+    ['web/scholarships-application-detail.html','Scholarships · application detail'],['web/scholarships-disbursements.html','Scholarships · disbursements'],
+    ['web/health-list.html','Health · screenings'],['web/health-student-detail.html','Health · student profile'],
+    ['web/health-counselling.html','Health · counselling'],['web/health-special-needs.html','Health · special needs'],
+    ['web/workflows-list.html','Workflows · definitions'],['web/workflows-definition-new.html','Workflows · new definition'],
+    ['web/workflows-definition-detail.html','Workflows · definition detail'],['web/workflows-instances.html','Workflows · instances'],
+    ['web/workflows-approvals.html','Workflows · my approvals'],
+  ],
+  'Web App — Insights & System': [
+    ['web/reports-list.html','Reports · catalog'],['web/reports-new.html','Reports · builder'],['web/reports-results.html','Reports · result'],
+    ['web/data-warehouse-overview.html','Data warehouse · overview'],['web/data-warehouse-import.html','Data warehouse · import'],
+    ['web/data-warehouse-map.html','Data warehouse · field mapping'],
+    ['web/admin-overview.html','Admin · overview'],['web/admin-users.html','Admin · users'],['web/admin-roles.html','Admin · roles'],
+    ['web/admin-permissions.html','Admin · permission matrix'],['web/admin-tenant.html','Admin · tenant settings'],
+    ['web/public-track.html','Public · track application'],
+  ],
+  'Platform Admin Console': [
+    ['admin-console/login.html','Operator login'],['admin-console/overview.html','Platform overview'],
+    ['admin-console/tenants.html','Tenants'],['admin-console/tenants-new.html','Provision tenant'],
+    ['admin-console/plans.html','Plans'],['admin-console/plugins.html','Plugins'],['admin-console/themes.html','Themes'],
+    ['admin-console/break-glass.html','Break-glass'],['admin-console/break-glass-requests.html','Break-glass requests'],
+    ['admin-console/support.html','Support'],['admin-console/health.html','System health'],
+    ['admin-console/audit.html','Audit log'],['admin-console/forbidden.html','403 Forbidden'],
+  ],
+  'Registration Portal': [
+    ['registration/home.html','Home'],['registration/schools.html','Find schools'],
+    ['registration/apply-school.html','Apply · personal info'],['registration/apply-school-documents.html','Apply · documents'],
+    ['registration/apply-school-review.html','Apply · review'],['registration/apply-success.html','Apply · success'],
+    ['registration/track.html','Track application'],
+  ],
+  'Public Website': [
+    ['website/home.html','Home'],['website/product.html','Product'],['website/installation.html','Installation'],
+    ['website/security.html','Security'],['website/compliance.html','Compliance'],['website/status.html','Status'],
+    ['website/about.html','About'],['website/contact.html','Contact'],['website/legal.html','Legal hub'],
+    ['website/privacy.html','Privacy'],['website/terms.html','Terms'],['website/cookies.html','Cookies'],
+  ],
+  'Other Portals': [
+    ['developer-portal/home.html','Developer portal'],['install-wizard/home.html','Install wizard'],
+  ],
+  'Mobile App (native)': [
+    ['mobile/login.html','Login (biometric)'],['mobile/tenant-selection.html','Choose workspace'],
+    ['mobile/home.html','Home'],['mobile/notifications.html','Notifications'],
+    ['mobile/students.html','Students'],['mobile/student-profile.html','Student profile'],
+    ['mobile/enrollment-history.html','Enrollment history'],
+    ['mobile/attendance.html','Attendance (geofence)'],
+    ['mobile/services.html','Services hub'],
+    ['mobile/assessment-results.html','Marks entry'],['mobile/examination-list.html','Examinations'],
+    ['mobile/examination-results.html','Exam results'],
+    ['mobile/scholarship-programs.html','Scholarship programs'],['mobile/scholarship-application.html','Scholarship apply'],
+    ['mobile/scholarship-status.html','Scholarship status'],
+    ['mobile/health-records.html','Health records'],['mobile/document-capture.html','Document scan'],
+    ['mobile/institutions.html','Institutions'],['mobile/institution-detail.html','Institution detail'],
+    ['mobile/reports.html','Reports'],['mobile/report-detail.html','Report detail'],
+    ['mobile/profile.html','Profile & settings'],['mobile/notification-preferences.html','Notification prefs'],
+  ],
+};
+const nav = document.getElementById('nav'), frame = document.getElementById('frame'),
+      crumb = document.getElementById('crumb'), wrap = document.getElementById('wrap'),
+      openNew = document.getElementById('openNew');
+let current = null;
+for (const [group, items] of Object.entries(SCREENS)) {
+  const h = document.createElement('h2'); h.textContent = group; nav.appendChild(h);
+  for (const [href, label] of items) {
+    const b = document.createElement('button'); b.textContent = label;
+    b.onclick = () => select(b, href, group, label);
+    nav.appendChild(b);
+    if (!current) { current = b; select(b, href, group, label); }
+  }
+}
+function select(btn, href, group, label) {
+  nav.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+  btn.classList.add('active');
+  frame.src = href; openNew.href = href;
+  crumb.innerHTML = `<span>${group} / </span>${label}`;
+}
+document.getElementById('devices').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  document.querySelectorAll('.devices button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); wrap.style.width = b.dataset.w;
+});
+</script>
+</body>
+</html>

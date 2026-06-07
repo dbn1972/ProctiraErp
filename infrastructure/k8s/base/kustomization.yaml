@@ -1,0 +1,62 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: proctira
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  # Frontend applications
+  - web/deployment.yaml
+  - web/service.yaml
+  - web/hpa.yaml
+  - registration-portal/deployment.yaml
+  - registration-portal/service.yaml
+  - public-website/deployment.yaml
+  - public-website/service.yaml
+  - admin-console/deployment.yaml
+  - admin-console/service.yaml
+  - developer-portal/deployment.yaml
+  - developer-portal/service.yaml
+  # API Gateway
+  - api-gateway/deployment.yaml
+  - api-gateway/service.yaml
+  - api-gateway/hpa.yaml
+  # Backend domain services
+  - institution/deployment.yaml
+  - institution/service.yaml
+  - institution/hpa.yaml
+  - student/deployment.yaml
+  - student/service.yaml
+  - student/hpa.yaml
+  - staff/deployment.yaml
+  - staff/service.yaml
+  - staff/hpa.yaml
+  - assessment/deployment.yaml
+  - assessment/service.yaml
+  - assessment/hpa.yaml
+  - attendance/deployment.yaml
+  - attendance/service.yaml
+  - attendance/hpa.yaml
+  - examination/deployment.yaml
+  - examination/service.yaml
+  - examination/hpa.yaml
+  - workflow/deployment.yaml
+  - workflow/service.yaml
+  - workflow/hpa.yaml
+  - notification/deployment.yaml
+  - notification/service.yaml
+  - notification/hpa.yaml
+  - report/deployment.yaml
+  - report/service.yaml
+  - report/hpa.yaml
+  # ETL Worker
+  - etl-worker/deployment.yaml
+  - etl-worker/service.yaml
+  - etl-worker/hpa.yaml
+  # Ingress
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: proctira-platform
+  app.kubernetes.io/managed-by: kustomize

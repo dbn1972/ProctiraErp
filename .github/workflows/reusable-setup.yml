@@ -1,0 +1,56 @@
+# =============================================================================
+# Reusable Setup Workflow - ProctiraERP Unified Platform
+# =============================================================================
+# Shared setup steps for Node.js, pnpm, and Turborepo remote caching.
+# Called by other workflows to avoid duplication.
+# =============================================================================
+
+name: Reusable Setup
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: 'Node.js version'
+        required: false
+        type: string
+        default: '20'
+      pnpm-version:
+        description: 'pnpm version'
+        required: false
+        type: string
+        default: '10.33.2'
+      install-dependencies:
+        description: 'Whether to install dependencies'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      TURBO_TOKEN:
+        required: false
+      TURBO_TEAM:
+        required: false
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ inputs.pnpm-version }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        if: inputs.install-dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+          TURBO_TEAM: ${{ secrets.TURBO_TEAM }}

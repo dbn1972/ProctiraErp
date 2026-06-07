@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My approvals · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .approval-list { display: flex; flex-direction: column; gap: 16px; max-width: 880px; }
+  .approval-card { overflow: hidden; }
+  .ac-head { display: flex; align-items: flex-start; gap: 14px; padding: 16px 20px 0; flex-wrap: wrap; }
+  .ac-head .ac-who { flex: 1; min-width: 220px; }
+  .ac-summary { padding: 12px 20px 0; font-size: var(--fs-sm); color: var(--text-2); max-width: 72ch; }
+  .ac-details {
+    margin: 14px 20px 0; padding: 12px 16px; border-radius: var(--r-md);
+    background: var(--surface-2); border: 1px solid var(--border);
+  }
+  .ac-details .dl { grid-template-columns: 150px 1fr; gap: 7px 16px; font-size: var(--fs-xs); }
+  .ac-foot { display: flex; align-items: center; gap: 8px; padding: 14px 20px 16px; flex-wrap: wrap; }
+  .ac-foot .meta { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: var(--fs-xs); color: var(--text-3); }
+  .sla-chip { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2xs); font-weight: 700; padding: 3px 10px; border-radius: var(--r-full); }
+  .sla-chip svg { width: 12px; height: 12px; }
+  .sla-ok { background: var(--green-50); color: var(--green-700); }
+  .sla-warn { background: var(--amber-50); color: var(--amber-700); }
+  .sla-late { background: var(--red-50); color: var(--red-700); }
+  .caught-up { display: flex; align-items: center; gap: 10px; justify-content: center; padding: 18px; color: var(--text-3); font-size: var(--fs-sm); }
+  .caught-up svg { width: 16px; height: 16px; color: var(--green-500); }
+  @media (max-width: 767px) {
+    .ac-foot .btn { flex: 1; }
+    .ac-foot .meta { width: 100%; margin-left: 0; justify-content: flex-start; }
+  }
+</style>
+</head>
+<body data-active="workflows">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="workflows-list.html">Workflows</a><span class="sep">/</span>
+        <span class="current">My approvals</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">My approvals</h1>
+          <p class="page-sub">Requests waiting on you as District Administrator · oldest first, SLA clock shown on each</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="workflows-instances.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>All instances</a>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">Pending <span class="count">4</span></a>
+        <a class="tab" href="#" role="tab">Approved <span class="count">61</span></a>
+        <a class="tab" href="#" role="tab">Rejected <span class="count">5</span></a>
+      </div>
+
+      <div class="approval-list">
+
+        <!-- 1 -->
+        <article class="card approval-card">
+          <div class="ac-head">
+            <div class="person-cell ac-who">
+              <span class="avatar av-4">SM</span>
+              <div>
+                <div class="cell-main">Smita Mohanty</div>
+                <div class="cell-sub">Headmistress · Govt. Sr. Sec. School, Puri</div>
+              </div>
+            </div>
+            <span class="tag">Student transfer</span>
+            <span class="sla-chip sla-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>SLA: 9 h left</span>
+          </div>
+          <p class="ac-summary">Final district approval for <b>Ananya Mohanty</b> (Grade VIII) moving from GSSS Puri to Nodal HS, Gop Sadar. Headmaster and BEO steps are already cleared.</p>
+          <div class="ac-details">
+            <dl class="dl">
+              <dt>Instance</dt><dd class="mono">WF-2026-0871</dd>
+              <dt>Student</dt><dd>Ananya Mohanty · Adm. 2023/0412 · Grade VIII-A</dd>
+              <dt>Reason</dt><dd>Family relocation to Gop block</dd>
+              <dt>Prior steps</dt><dd>Headmaster ✓ 05 Jun · BEO ✓ 06 Jun</dd>
+            </dl>
+          </div>
+          <div class="ac-foot">
+            <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
+            <button class="btn btn-danger-soft" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
+            <a class="btn btn-ghost" href="workflows-instances.html">View details</a>
+            <span class="meta">Submitted 2 h ago · step 3 of 3</span>
+          </div>
+        </article>
+
+        <!-- 2 -->
+        <article class="card approval-card">
+          <div class="ac-head">
+            <div class="person-cell ac-who">
+              <span class="avatar av-2">SP</span>
+              <div>
+                <div class="cell-main">Sasmita Pradhan</div>
+                <div class="cell-sub">TGT English · Govt. Sr. Sec. School, Puri</div>
+              </div>
+            </div>
+            <span class="tag">Staff leave</span>
+            <span class="sla-chip sla-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>SLA: 1 d 6 h left</span>
+          </div>
+          <p class="ac-summary">Earned leave for <b>5 working days (12–16 Jun)</b>. Headmistress has approved and arranged substitute cover for Grade IX English periods.</p>
+          <div class="ac-details">
+            <dl class="dl">
+              <dt>Instance</dt><dd class="mono">WF-2026-0869</dd>
+              <dt>Leave type</dt><dd>Earned leave · balance 14 days after this</dd>
+              <dt>Cover</dt><dd>M. Das (TGT English, shift-adjusted)</dd>
+              <dt>Prior steps</dt><dd>Headmistress ✓ 06 Jun</dd>
+            </dl>
+          </div>
+          <div class="ac-foot">
+            <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
+            <button class="btn btn-danger-soft" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
+            <a class="btn btn-ghost" href="workflows-instances.html">View details</a>
+            <span class="meta">Submitted 5 h ago · step 2 of 2</span>
+          </div>
+        </article>
+
+        <!-- 3 -->
+        <article class="card approval-card">
+          <div class="ac-head">
+            <div class="person-cell ac-who">
+              <span class="avatar av-3">PM</span>
+              <div>
+                <div class="cell-main">Prakash Mishra</div>
+                <div class="cell-sub">Scholarship Officer · District Education Office, Puri</div>
+              </div>
+            </div>
+            <span class="tag">Scholarship disbursement</span>
+            <span class="sla-chip sla-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>SLA: 2 d left</span>
+          </div>
+          <p class="ac-summary">Sign-off on the <b>pre-matric scholarship batch of 218 awards totalling ₹32,70,000</b> for AY 2026–27 Term 1. Bank details verified for all 218 beneficiaries; 3 duplicates were removed at verification.</p>
+          <div class="ac-details">
+            <dl class="dl">
+              <dt>Instance</dt><dd class="mono">WF-2026-0867</dd>
+              <dt>Batch value</dt><dd>₹32,70,000 · 218 students · ₹15,000 each</dd>
+              <dt>Scheme</dt><dd>Pre-matric (ST/SC) · GO 1146/SME dt. 12 Apr 2026</dd>
+              <dt>Prior steps</dt><dd>Block verification ✓ · DPC review ✓ · Finance ✓</dd>
+            </dl>
+          </div>
+          <div class="ac-foot">
+            <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
+            <button class="btn btn-danger-soft" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
+            <a class="btn btn-ghost" href="workflows-instances.html">View details</a>
+            <span class="meta">Submitted yesterday · step 4 of 4</span>
+          </div>
+        </article>
+
+        <!-- 4 -->
+        <article class="card approval-card">
+          <div class="ac-head">
+            <div class="person-cell ac-who">
+              <span class="avatar av-5">SB</span>
+              <div>
+                <div class="cell-main">Sunita Behera</div>
+                <div class="cell-sub">District Exam Cell · Puri</div>
+              </div>
+            </div>
+            <span class="tag">Exam centre allocation</span>
+            <span class="sla-chip sla-late"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Overdue by 4 h</span>
+          </div>
+          <p class="ac-summary">Approve <b>Class X Board centre allocation for Krushnaprasad block</b> — 1,212 candidates over 4 centres. One centre changed from last year because Satapada HS is under repair.</p>
+          <div class="ac-details">
+            <dl class="dl">
+              <dt>Instance</dt><dd class="mono">WF-2026-0858</dd>
+              <dt>Candidates</dt><dd>1,212 · 4 centres · max 320 per centre</dd>
+              <dt>Change</dt><dd>Satapada HS → Govt. UP School, Satapada (annex)</dd>
+              <dt>Prior steps</dt><dd>Block proposal ✓ 02 Jun · Exam cell ✓ 04 Jun</dd>
+            </dl>
+          </div>
+          <div class="ac-foot">
+            <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Approve</button>
+            <button class="btn btn-danger-soft" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Reject</button>
+            <a class="btn btn-ghost" href="workflows-instances.html">View details</a>
+            <span class="meta">Submitted 2 days ago · step 3 of 3</span>
+          </div>
+        </article>
+
+        <div class="caught-up">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          You're all caught up after these 4 — nothing else needs your sign-off.
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

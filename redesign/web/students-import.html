@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bulk import students · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .upload-summary { display: flex; align-items: center; gap: 14px; }
+  .upload-summary .us-icon {
+    width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+    background: var(--green-50); color: var(--green-600);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .upload-summary .us-icon svg { width: 20px; height: 20px; }
+  .map-select { min-width: 200px; }
+  .sample-val { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-2); background: var(--bg-subtle); padding: 2px 8px; border-radius: var(--r-sm); white-space: nowrap; }
+</style>
+</head>
+<body data-active="students">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="students-list.html">Students</a><span class="sep">/</span>
+        <span class="current">Bulk import</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Bulk import students</h1>
+          <p class="page-sub">Map your spreadsheet columns to ProctiraERP fields. Every row is validated before any record is created — nothing is saved until you confirm.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download template</button>
+        </div>
+      </div>
+
+      <div class="stepper">
+        <div class="step done">
+          <span class="s-dot"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <span class="s-label">Upload</span>
+        </div>
+        <div class="step-line done"></div>
+        <div class="step active"><span class="s-dot">2</span><span class="s-label">Map columns</span></div>
+        <div class="step-line"></div>
+        <div class="step"><span class="s-dot">3</span><span class="s-label">Validate</span></div>
+        <div class="step-line"></div>
+        <div class="step"><span class="s-dot">4</span><span class="s-label">Import</span></div>
+      </div>
+
+      <div class="card card-pad mb-16">
+        <div class="upload-summary">
+          <span class="us-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+          <div style="flex:1;min-width:0">
+            <div class="fw-7">students_2026.xlsx</div>
+            <div class="fs-xs muted">248 rows · 9 columns · 1.2 MB · uploaded 2 minutes ago by D. Nayak</div>
+          </div>
+          <span class="pill green">File parsed</span>
+          <button class="btn btn-ghost btn-sm" type="button">Replace file</button>
+        </div>
+      </div>
+
+      <div class="alert warn mb-16" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="a-body"><b>3 rows need attention before import</b>2 rows have dates in DD-MM-YY format (rows 41, 87) and 1 row has a possible duplicate National ID (row 203, matches Adm. 2024/0117). Fix the mapping below or resolve them in the Validate step.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Column mapping</h3><div class="sub">We auto-matched 7 of 9 columns from your file header row</div></div>
+          <div class="spacer"><button class="btn btn-ghost btn-sm" type="button">Reset to auto-match</button></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Source column</th><th>Target field</th><th>Sample value</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Student Name</div><div class="cell-sub">Column A</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Student Name"><option selected>Full name (split on save)</option><option>First name</option><option>Last name</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">Ishaan Mohanty</span></td>
+                <td data-label="Status"><span class="pill green">OK</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">DOB</div><div class="cell-sub">Column B</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map DOB"><option selected>Date of birth</option><option>Admission date</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">14-08-2012</span></td>
+                <td data-label="Status"><span class="pill amber">Needs review</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Sex</div><div class="cell-sub">Column C</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Sex"><option selected>Gender</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">M</span></td>
+                <td data-label="Status"><span class="pill green">OK</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Aadhaar / ID</div><div class="cell-sub">Column D</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Aadhaar"><option selected>National ID</option><option>Admission number</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">IDN-10342</span></td>
+                <td data-label="Status"><span class="pill amber">Needs review</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Father / Guardian</div><div class="cell-sub">Column E</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Guardian"><option selected>Guardian name</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">Prakash Mohanty</span></td>
+                <td data-label="Status"><span class="pill green">OK</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Mobile</div><div class="cell-sub">Column F</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Mobile"><option selected>Guardian phone</option><option>Student phone</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">+91 94370 18265</span></td>
+                <td data-label="Status"><span class="pill green">OK</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Class</div><div class="cell-sub">Column G</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Class"><option selected>Grade</option><option>Section</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">VIII</span></td>
+                <td data-label="Status"><span class="pill green">OK</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Sec</div><div class="cell-sub">Column H</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Sec"><option selected>Section</option><option>Grade</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">B</span></td>
+                <td data-label="Status"><span class="pill green">OK</span></td>
+              </tr>
+              <tr>
+                <td data-label="Source column"><div class="cell-main">Village</div><div class="cell-sub">Column I</div></td>
+                <td data-label="Target field"><select class="select map-select" aria-label="Map Village"><option selected>Address — locality</option><option>Address — line 1</option><option>Do not import</option></select></td>
+                <td data-label="Sample value"><span class="sample-val">Chandanpur</span></td>
+                <td data-label="Status"><span class="pill green">OK</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <span class="fs-xs muted-3">Mappings are remembered for the next import from this school</span>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <a class="btn btn-ghost" href="students-list.html">Cancel</a>
+            <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back</button>
+            <button class="btn btn-primary" type="button">Continue to validation<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

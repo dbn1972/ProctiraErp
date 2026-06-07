@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notification preferences · ProctiraERP Mobile</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="mobile.css">
+</head>
+<body data-tab="profile">
+<div class="phone">
+  <header class="appbar">
+    <a class="ab-back" href="profile.html" aria-label="Back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></a>
+    <div class="ab-title">
+      <h1>Notifications</h1>
+      <div class="ab-sub">Choose what reaches you</div>
+    </div>
+  </header>
+  <div class="screen">
+
+    <div class="m-list">
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Push notifications</span><span class="mi-sub">Master switch for all alerts on this device</span></span>
+        <span class="mi-end"><button class="switch on" role="switch" aria-checked="true" aria-label="Push notifications"></button></span>
+      </div>
+    </div>
+
+    <h2 class="sec">Categories</h2>
+    <div class="m-list">
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Approvals</span><span class="mi-sub">Leave, TC and record approvals</span></span>
+        <span class="mi-end"><button class="switch on" role="switch" aria-checked="true" aria-label="Approvals"></button></span>
+      </div>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Attendance reminders</span><span class="mi-sub">Nudge if a class isn't marked by 15 min</span></span>
+        <span class="mi-end"><button class="switch on" role="switch" aria-checked="true" aria-label="Attendance reminders"></button></span>
+      </div>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Exam schedules</span><span class="mi-sub">Timetables, invigilation duty, results</span></span>
+        <span class="mi-end"><button class="switch on" role="switch" aria-checked="true" aria-label="Exam schedules"></button></span>
+      </div>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Scholarship updates</span><span class="mi-sub">Application status and disbursals</span></span>
+        <span class="mi-end"><button class="switch" role="switch" aria-checked="false" aria-label="Scholarship updates"></button></span>
+      </div>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Sync alerts</span><span class="mi-sub">Failures and items stuck in queue</span></span>
+        <span class="mi-end"><button class="switch on" role="switch" aria-checked="true" aria-label="Sync alerts"></button></span>
+      </div>
+    </div>
+
+    <h2 class="sec">Delivery</h2>
+    <div class="m-list">
+      <button class="m-item">
+        <span class="mi-icon" style="background:var(--navy-800);color:#A5B4FC"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg></span>
+        <span class="mi-body"><span class="mi-title">Quiet hours</span><span class="mi-sub">22:00 – 06:00 · alerts held until morning</span></span>
+        <span class="mi-end"><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></span>
+      </button>
+      <div class="m-item">
+        <span class="mi-icon" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></svg></span>
+        <span class="mi-body"><span class="mi-title">SMS fallback</span><span class="mi-sub">Critical alerts by SMS when offline 24h+</span></span>
+        <span class="mi-end"><button class="switch on" role="switch" aria-checked="true" aria-label="SMS fallback"></button></span>
+      </div>
+    </div>
+
+    <p class="m-note">SMS fallback uses the school's registered gateway. Standard carrier rates may apply on personal numbers.</p>
+
+  </div>
+</div>
+<script src="mobile.js"></script>
+<script>
+  document.querySelectorAll('.switch').forEach(s => s.addEventListener('click', () => {
+    s.classList.toggle('on');
+    s.setAttribute('aria-checked', s.classList.contains('on'));
+  }));
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+{{- if .Values.examinationService.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "proctira.fullname" . }}-examination-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/name: examination-service
+    app.kubernetes.io/component: backend
+spec:
+  replicas: {{ .Values.examinationService.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: examination-service
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    {{- toYaml .Values.examinationService.strategy | nindent 4 }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: examination-service
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/part-of: proctira-platform
+        app.kubernetes.io/component: backend
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+      terminationGracePeriodSeconds: 30
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: examination-service
+          image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.examinationService.image "appVersion" .Chart.AppVersion) }}
+          imagePullPolicy: {{ .Values.examinationService.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.examinationService.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- range $key, $value := .Values.examinationService.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "proctira.configmapName" . }}
+            - secretRef:
+                name: {{ include "proctira.secretName" . }}
+          resources:
+            {{- toYaml .Values.examinationService.resources | nindent 12 }}
+          {{- with .Values.examinationService.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.examinationService.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.examinationService.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reports · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .catalog-section { margin-bottom: 28px; }
+  .catalog-title {
+    display: flex; align-items: center; gap: 8px; margin: 0 0 12px;
+    font-size: var(--fs-xs); font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--text-3);
+  }
+  .catalog-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .report-card { display: flex; flex-direction: column; padding: 18px; transition: box-shadow var(--t-fast), border-color var(--t-fast); }
+  .report-card:hover { box-shadow: var(--sh-md); border-color: var(--border-strong); }
+  .report-card .rc-icon {
+    width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+    margin-bottom: 12px;
+  }
+  .report-card .rc-icon svg { width: 18px; height: 18px; }
+  .report-card h4 { margin: 0 0 4px; font-size: var(--fs-md); font-weight: 700; letter-spacing: -.01em; }
+  .report-card p { margin: 0 0 14px; font-size: var(--fs-xs); color: var(--text-2); flex: 1; }
+  .report-card .rc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .report-card .rc-meta { font-size: var(--fs-2xs); color: var(--text-3); }
+</style>
+</head>
+<body data-active="reports">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Reports</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Reports</h1>
+          <p class="page-sub">10 ready-made reports across attendance, enrollment, examinations and finance — or build your own</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-primary" href="reports-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New report</a>
+        </div>
+      </div>
+
+      <!-- Attendance -->
+      <section class="catalog-section">
+        <h2 class="catalog-title">Attendance</h2>
+        <div class="grid-3">
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <h4>Daily Attendance Summary</h4>
+            <p>Student and staff attendance for any day, school-by-school with district roll-up.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run today 08:05</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>
+            <h4>Block-wise Attendance Trend</h4>
+            <p>14/30/90-day attendance trend per block, with schools below threshold flagged.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run yesterday</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <h4>Chronic Absenteeism Register</h4>
+            <p>Students below 75% attendance this term, with guardian contact details for follow-up.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 04 Jun</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Enrollment -->
+      <section class="catalog-section">
+        <h2 class="catalog-title">Enrollment</h2>
+        <div class="grid-3">
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+            <h4>Enrollment by Grade &amp; Gender</h4>
+            <p>Grade-wise enrollment with gender split and year-on-year change per school or block.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 07 Jun 14:32</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+            <h4>Transfer &amp; Dropout Report</h4>
+            <p>Transfers in/out and dropout cases by block, with reasons recorded at exit.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 02 Jun</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+            <h4>UDISE+ Enrollment Return</h4>
+            <p>Pre-filled UDISE+ enrollment return in the prescribed format, ready to upload.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 28 May</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Examinations -->
+      <section class="catalog-section">
+        <h2 class="catalog-title">Examinations</h2>
+        <div class="grid-3">
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+            <h4>Board Exam Results Analysis</h4>
+            <p>Class X board pass percentage, division split and subject-wise averages per school.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 21 May</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></svg></span>
+            <h4>Assessment Performance by School</h4>
+            <p>Formative and summative assessment outcomes, ranked with learning-gap indicators.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 30 May</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+            <h4>Exam Centre Readiness</h4>
+            <p>Centre-wise candidate counts, invigilator allocation and infrastructure checklist status.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 03 Jun</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Finance -->
+      <section class="catalog-section">
+        <h2 class="catalog-title">Finance</h2>
+        <div class="grid-3">
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+            <h4>Scholarship Disbursement Ledger</h4>
+            <p>Scheme-wise disbursements with beneficiary counts, amounts in ₹ and pending sign-offs.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 05 Jun</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></span>
+            <h4>Mid-Day Meal Expenditure</h4>
+            <p>Monthly MDM expenditure vs allocation per school, with utilisation certificates due.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 01 Jun</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+          <article class="card report-card">
+            <span class="rc-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+            <h4>School Grant Utilisation</h4>
+            <p>Composite school grant utilisation by head — received, spent and unspent balance in ₹.</p>
+            <div class="rc-foot"><span class="rc-meta">Last run 26 May</span><a class="btn btn-secondary btn-sm" href="reports-results.html">Run</a></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Recent runs -->
+      <section class="card">
+        <div class="card-head">
+          <div><h3>Recent runs</h3><div class="sub">Reports generated in the last 7 days</div></div>
+          <div class="spacer"><button class="btn btn-ghost btn-sm" type="button">View all runs →</button></div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Report</th><th>Run by</th><th>When</th><th>Scope</th><th>Status</th><th style="text-align:right">Actions</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Report"><div class="cell-main">Enrollment by Grade &amp; Gender</div><div class="cell-sub">PDF · 2.1 MB</div></td>
+                <td data-label="Run by"><div class="person-cell"><span class="avatar sm av-1">DN</span><span>D. Nayak</span></div></td>
+                <td data-label="When">Today 14:32</td>
+                <td data-label="Scope">Puri district · all blocks</td>
+                <td data-label="Status"><span class="pill green">Ready</span></td>
+                <td><div class="row-actions"><a class="icon-btn" href="reports-results.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="icon-btn" aria-label="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Report"><div class="cell-main">Daily Attendance Summary</div><div class="cell-sub">Excel · 840 KB</div></td>
+                <td data-label="Run by"><div class="person-cell"><span class="avatar sm av-5">SB</span><span>S. Behera</span></div></td>
+                <td data-label="When">Today 08:05</td>
+                <td data-label="Scope">All 142 schools · 07 Jun</td>
+                <td data-label="Status"><span class="pill green">Ready</span></td>
+                <td><div class="row-actions"><a class="icon-btn" href="reports-results.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="icon-btn" aria-label="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Report"><div class="cell-main">Scholarship Disbursement Ledger</div><div class="cell-sub">Generating page 3 of 11</div></td>
+                <td data-label="Run by"><div class="person-cell"><span class="avatar sm av-3">PM</span><span>P. Mishra</span></div></td>
+                <td data-label="When">Today 15:48</td>
+                <td data-label="Scope">Pre-matric · AY 2026–27</td>
+                <td data-label="Status"><span class="pill sky">Running</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Report"><div class="cell-main">Block-wise Attendance Trend</div><div class="cell-sub">PDF · 1.4 MB</div></td>
+                <td data-label="Run by"><div class="person-cell"><span class="avatar sm av-2">BM</span><span>B. Mahapatra</span></div></td>
+                <td data-label="When">Yesterday 17:20</td>
+                <td data-label="Scope">Gop &amp; Brahmagiri blocks · 30 days</td>
+                <td data-label="Status"><span class="pill green">Ready</span></td>
+                <td><div class="row-actions"><a class="icon-btn" href="reports-results.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="icon-btn" aria-label="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Report"><div class="cell-main">Chronic Absenteeism Register</div><div class="cell-sub">Failed at 62% — source timeout</div></td>
+                <td data-label="Run by"><div class="person-cell"><span class="avatar sm av-6">RS</span><span>R. Senapati</span></div></td>
+                <td data-label="When">04 Jun 11:02</td>
+                <td data-label="Scope">Krushnaprasad block</td>
+                <td data-label="Status"><span class="pill red">Failed</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Retry"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></button><button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Report"><div class="cell-main">UDISE+ Enrollment Return</div><div class="cell-sub">CSV · 3.6 MB</div></td>
+                <td data-label="Run by"><div class="person-cell"><span class="avatar sm av-1">DN</span><span>D. Nayak</span></div></td>
+                <td data-label="When">28 May 09:14</td>
+                <td data-label="Scope">All schools · AY 2026–27</td>
+                <td data-label="Status"><span class="pill green">Ready</span></td>
+                <td><div class="row-actions"><a class="icon-btn" href="reports-results.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a><button class="icon-btn" aria-label="Download"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

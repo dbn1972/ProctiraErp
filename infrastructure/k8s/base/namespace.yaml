@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: proctira
+  labels:
+    app.kubernetes.io/part-of: proctira-platform
+    app.kubernetes.io/managed-by: kubectl

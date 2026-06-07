@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cookie Policy · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="site.css">
+<style>
+  .pref-card { margin: 22px 0 8px; }
+  .pref-row { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .pref-row:last-child { border-bottom: none; }
+  .pref-row .pr-text { flex: 1; min-width: 0; }
+  .pref-row .pr-text b { display: block; font-size: var(--fs-md); font-weight: 700; }
+  .pref-row .pr-text span { display: block; margin-top: 2px; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.5; }
+  .pref-row .locked { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-3); display: inline-flex; align-items: center; gap: 5px; }
+  .pref-row .locked svg { width: 12px; height: 12px; }
+  .pref-foot { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: var(--slate-25); border-top: 1px solid var(--border); border-radius: 0 0 var(--r-lg) var(--r-lg); }
+</style>
+</head>
+<body class="site">
+
+<header class="site-header">
+  <div class="container nav-row">
+    <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="product.html">Product</a>
+      <a href="home.html#levels">Solutions</a>
+      <a href="installation.html">Developers</a>
+      <a href="contact.html">Pricing</a>
+      <a href="about.html" class="active">Company</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+    <button class="hamburger" type="button" aria-label="Toggle menu" aria-expanded="false" onclick="toggleNav(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+  <div class="mobile-menu">
+    <a href="product.html">Product</a>
+    <a href="home.html#levels">Solutions</a>
+    <a href="installation.html">Developers</a>
+    <a href="contact.html">Pricing</a>
+    <a href="about.html">Company</a>
+    <div class="mm-actions">
+      <a class="btn btn-secondary" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container legal-layout">
+
+    <!-- TOC -->
+    <aside class="toc" aria-label="Table of contents">
+      <div class="toc-label">On this page</div>
+      <nav>
+        <a href="#what" class="active">What are cookies?</a>
+        <a href="#which">Cookies we use</a>
+        <a href="#prefs">Manage preferences</a>
+        <a href="#dnt">Do Not Track</a>
+        <a href="#changes">Changes &amp; contact</a>
+      </nav>
+    </aside>
+
+    <!-- ARTICLE -->
+    <article class="prose">
+      <span class="kicker">Legal · Cookies</span>
+      <h1>Cookie Policy</h1>
+      <div class="updated-banner">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 3"/></svg>
+        Last updated 2 March 2026 · Applies to proctira.org and its subdomains
+      </div>
+      <p>This Cookie Policy explains how the ProctiraERP public website and services use cookies and similar technologies. We use a deliberately small set — no third-party advertising trackers, ever.</p>
+
+      <h2 id="what">What are cookies?</h2>
+      <p>Cookies are small text files a website stores on your device. They let the site remember your actions and preferences over time so you don't have to repeat them on every visit — for example, keeping you signed in or remembering your language.</p>
+
+      <h2 id="which">Cookies we use</h2>
+      <p>Every cookie set by this website is listed below, with its purpose, lifetime, and category:</p>
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr><th>Name</th><th>Purpose</th><th>Duration</th><th>Type</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td data-label="Name"><span class="mono">proctira_session</span></td>
+              <td data-label="Purpose">Keeps you signed in and protects forms against cross-site request forgery</td>
+              <td data-label="Duration">Session</td>
+              <td data-label="Type"><span class="pill green plain">Essential</span></td>
+            </tr>
+            <tr>
+              <td data-label="Name"><span class="mono">proctira_locale</span></td>
+              <td data-label="Purpose">Remembers your language and region (English, हिन्दी, ଓଡ଼ିଆ)</td>
+              <td data-label="Duration">12 months</td>
+              <td data-label="Type"><span class="pill green plain">Essential</span></td>
+            </tr>
+            <tr>
+              <td data-label="Name"><span class="mono">proctira_consent</span></td>
+              <td data-label="Purpose">Stores the cookie choices you make in the preference panel below</td>
+              <td data-label="Duration">6 months</td>
+              <td data-label="Type"><span class="pill green plain">Essential</span></td>
+            </tr>
+            <tr>
+              <td data-label="Name"><span class="mono">pa_id</span></td>
+              <td data-label="Purpose">Self-hosted, privacy-preserving analytics — counts visits without cross-site tracking</td>
+              <td data-label="Duration">13 months</td>
+              <td data-label="Type"><span class="pill sky plain">Analytics</span></td>
+            </tr>
+            <tr>
+              <td data-label="Name"><span class="mono">pa_campaign</span></td>
+              <td data-label="Purpose">Attributes visits from outreach campaigns to measure what's useful</td>
+              <td data-label="Duration">30 days</td>
+              <td data-label="Type"><span class="pill violet plain">Marketing</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="prefs">Manage preferences</h2>
+      <p>You can change your choices at any time — they take effect immediately and are stored in the <span class="mono">proctira_consent</span> cookie.</p>
+      <div class="card pref-card">
+        <div class="pref-row">
+          <div class="pr-text">
+            <b>Essential</b>
+            <span>Required for sign-in, security, and remembering your language. Cannot be switched off.</span>
+          </div>
+          <span class="locked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Always on</span>
+          <button class="switch on" type="button" disabled aria-label="Essential cookies always enabled" style="opacity:.55;cursor:not-allowed"></button>
+        </div>
+        <div class="pref-row">
+          <div class="pr-text">
+            <b>Analytics</b>
+            <span>Helps us understand which pages are useful. Self-hosted, anonymised, never shared.</span>
+          </div>
+          <button class="switch on" type="button" aria-pressed="true" aria-label="Toggle analytics cookies" onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))"></button>
+        </div>
+        <div class="pref-row">
+          <div class="pr-text">
+            <b>Marketing</b>
+            <span>Measures outreach campaigns for the open-source project. Off by default.</span>
+          </div>
+          <button class="switch" type="button" aria-pressed="false" aria-label="Toggle marketing cookies" onclick="this.classList.toggle('on'); this.setAttribute('aria-pressed', this.classList.contains('on'))"></button>
+        </div>
+        <div class="pref-foot">
+          <button class="btn btn-primary btn-sm" type="button" onclick="this.textContent='Preferences saved ✓'">Save preferences</button>
+          <span class="fs-xs muted-3">Choices apply to this browser on this device.</span>
+        </div>
+      </div>
+
+      <h2 id="dnt">Do Not Track</h2>
+      <p>We respect Do Not Track and Global Privacy Control signals: when your browser sends one, analytics and marketing cookies are disabled automatically — no consent surface required.</p>
+
+      <h2 id="changes">Changes &amp; contact</h2>
+      <p>If we add or change a cookie, we will update this page and the consent panel before the change takes effect. Questions about cookies or this policy? Contact <strong>privacy@proctira.org</strong>.</p>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+        <p>Open-source education infrastructure for schools, districts, and ministries — built in India, for the world.</p>
+        <span class="foot-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17l-6.2 3.9 1.6-7L2 9.2l7.1-.6z"/></svg>Apache-2.0 · Open source</span>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="product.html">Product tour</a>
+        <a href="installation.html">Installation</a>
+        <a href="security.html">Security</a>
+        <a href="status.html">System status</a>
+        <a href="compliance.html">Compliance</a>
+      </div>
+      <div class="foot-col">
+        <h4>Solutions</h4>
+        <a href="home.html#levels">For schools</a>
+        <a href="home.html#levels">For districts</a>
+        <a href="home.html#levels">For ministries</a>
+        <a href="about.html">Odisha pilot</a>
+      </div>
+      <div class="foot-col">
+        <h4>Developers</h4>
+        <a href="installation.html">Documentation</a>
+        <a href="installation.html#architecture">Architecture</a>
+        <a href="product.html#integrations">Integrations</a>
+        <a href="about.html#opensource">GitHub</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="about.html#careers">Careers</a>
+        <a href="legal.html">Legal</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="foot-locale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English (India) · हिन्दी · ଓଡ଼ିଆ</span>
+      <div class="legal-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="cookies.html">Cookies</a>
+        <a href="status.html">Status</a>
+      </div>
+      <div class="foot-copy">© 2026 ProctiraERP · open source under <a href="legal.html">Apache-2.0</a></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleNav(btn){
+  document.body.classList.toggle('nav-open');
+  btn.setAttribute('aria-expanded', document.body.classList.contains('nav-open'));
+}
+const tocLinks = document.querySelectorAll('.toc a');
+const tocIds = [...tocLinks].map(a => a.getAttribute('href').slice(1));
+window.addEventListener('scroll', () => {
+  let current = tocIds[0];
+  for (const id of tocIds) {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top < 140) current = id;
+  }
+  tocLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current));
+}, { passive: true });
+</script>
+</body>
+</html>

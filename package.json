@@ -1,0 +1,65 @@
+{
+  "name": "proctira-erp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ProctiraERP - Education Management System",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "lint:a11y": "node tools/scripts/check-icon-only-button.mjs",
+    "check:contrast": "node tools/scripts/check-contrast.mjs",
+    "check:bundle": "node tools/scripts/check-bundle.mjs",
+    "check:lighthouse": "node tools/scripts/check-lighthouse.mjs",
+    "check:brand-strings": "node tools/scripts/check-brand-strings.mjs",
+    "check:i18n": "node tools/scripts/check-i18n.mjs",
+    "lint:brand": "node tools/scripts/check-brand-strings-eslint.mjs",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yaml,yml}\"",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "typecheck": "turbo run typecheck",
+    "check:dod": "pnpm --filter @proctira/dod-checks check",
+    "check:dod:strict": "pnpm --filter @proctira/dod-checks check -- --strict",
+    "check:dod:test": "pnpm --filter @proctira/dod-checks test",
+    "dod:check": "node tools/scripts/definition-of-done-checks.mjs",
+    "dod:test": "node tools/scripts/definition-of-done-checks.test.mjs",
+    "test:tenant-isolation": "pnpm --filter @proctira/tenant-isolation-tests run test:all",
+    "test:tenant-isolation:unit": "pnpm --filter @proctira/tenant-isolation-tests run test:unit",
+    "test:tenant-isolation:integration": "pnpm --filter @proctira/tenant-isolation-tests run test:integration",
+    "test:tenant-isolation:e2e": "pnpm --filter @proctira/tenant-isolation-tests run test:e2e",
+    "test:tenant-isolation:queue": "pnpm --filter @proctira/tenant-isolation-tests run test:queue",
+    "test:tenant-isolation:search": "pnpm --filter @proctira/tenant-isolation-tests run test:search",
+    "test:tenant-isolation:cache": "pnpm --filter @proctira/tenant-isolation-tests run test:cache",
+    "test:tenant-isolation:report": "pnpm --filter @proctira/tenant-isolation-tests run test:report"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-import-resolver-typescript": "^3.10.1",
+    "eslint-plugin-import": "^2.29.0",
+    "eslint-plugin-proctira": "workspace:*",
+    "fast-check": "^3.17.0",
+    "prettier": "^3.2.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "pnpm": {
+    "packageExtensions": {
+      "@hookform/resolvers": {
+        "dependencies": {
+          "zod": "^4.4.3"
+        }
+      }
+    }
+  },
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}

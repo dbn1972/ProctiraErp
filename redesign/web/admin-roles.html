@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roles · Administration · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .roles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .role-card { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
+  .role-card .rc-top { display: flex; align-items: flex-start; gap: 12px; }
+  .role-card .rc-icon { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .role-card .rc-icon svg { width: 19px; height: 19px; }
+  .role-card h3 { margin: 0; font-size: var(--fs-lg); font-weight: 700; letter-spacing: -.01em; }
+  .role-card .rc-sub { font-size: var(--fs-xs); color: var(--text-3); margin-top: 1px; }
+  .role-card p { margin: 0; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.55; flex: 1; }
+  .role-card .rc-perms { display: flex; flex-wrap: wrap; gap: 6px; }
+  .role-card .rc-foot { display: flex; align-items: center; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .role-card .rc-foot .avatar { margin-left: -8px; border: 2px solid var(--surface); }
+  .role-card .rc-foot .avatar:first-child { margin-left: 0; }
+  .role-card .rc-count { font-size: var(--fs-xs); color: var(--text-2); font-weight: 600; margin-left: 6px; }
+  .role-card .rc-foot .icon-btn { margin-left: auto; }
+  .ic-brand { background: var(--brand-50); color: var(--brand-600); }
+  .ic-violet { background: var(--violet-50); color: var(--violet-600); }
+  .ic-sky { background: var(--sky-50); color: var(--sky-600); }
+  .ic-amber { background: var(--amber-50); color: var(--amber-600); }
+  .ic-green { background: var(--green-50); color: var(--green-600); }
+  @media (max-width: 1023px) { .roles-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 767px) { .roles-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body data-active="admin">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="admin-overview.html">Administration</a><span class="sep">/</span><span class="current">Roles</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Roles</h1>
+          <p class="page-sub">Bundle permissions into named roles, then assign them to users. Changes apply instantly across all sessions.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="admin-permissions.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>Permission matrix</a>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Create role</button>
+        </div>
+      </div>
+
+      <div class="roles-grid">
+        <div class="card role-card">
+          <div class="rc-top">
+            <span class="rc-icon ic-brand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span>
+            <div><h3>District Administrator</h3><div class="rc-sub">System role · cannot be deleted</div></div>
+          </div>
+          <p>Full control over every module, tenant settings, user management, and the audit log for the entire district.</p>
+          <div class="rc-perms"><span class="tag">All modules</span><span class="tag">Manage users</span><span class="tag">Tenant settings</span><span class="tag">Audit log</span></div>
+          <div class="rc-foot">
+            <span class="avatar sm av-1">DN</span><span class="avatar sm av-5">KB</span>
+            <span class="rc-count">2 members</span>
+            <button class="icon-btn" aria-label="Edit role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="card role-card">
+          <div class="rc-top">
+            <span class="rc-icon ic-violet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M14 22v-4a2 2 0 0 0-4 0v4"/></svg></span>
+            <div><h3>Headmaster</h3><div class="rc-sub">Custom role · updated 14 May 2026</div></div>
+          </div>
+          <p>Manages one institution end-to-end: students, staff assignments, attendance approval, exams, and reports.</p>
+          <div class="rc-perms"><span class="tag">Students: full</span><span class="tag">Staff: full</span><span class="tag">Attendance: approve</span><span class="tag">Reports: view</span></div>
+          <div class="rc-foot">
+            <span class="avatar sm av-2">SM</span><span class="avatar sm av-3">GP</span><span class="avatar sm av-4">RT</span>
+            <span class="rc-count">6 members</span>
+            <button class="icon-btn" aria-label="Edit role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="card role-card">
+          <div class="rc-top">
+            <span class="rc-icon ic-sky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+            <div><h3>Teacher</h3><div class="rc-sub">Custom role · updated 02 Apr 2026</div></div>
+          </div>
+          <p>Marks daily attendance, records assessment scores, and views the profiles of students in assigned sections.</p>
+          <div class="rc-perms"><span class="tag">Attendance: mark</span><span class="tag">Assessments: record</span><span class="tag">Students: view</span></div>
+          <div class="rc-foot">
+            <span class="avatar sm av-3">PB</span><span class="avatar sm av-6">BJ</span><span class="avatar sm av-2">LS</span>
+            <span class="rc-count">21 members</span>
+            <button class="icon-btn" aria-label="Edit role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="card role-card">
+          <div class="rc-top">
+            <span class="rc-icon ic-amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h6"/></svg></span>
+            <div><h3>Clerk</h3><div class="rc-sub">Custom role · updated 19 Mar 2026</div></div>
+          </div>
+          <p>Handles admissions paperwork, student record updates, transfer certificates, and scholarship applications.</p>
+          <div class="rc-perms"><span class="tag">Students: edit</span><span class="tag">Scholarships: process</span><span class="tag">Workflows: submit</span></div>
+          <div class="rc-foot">
+            <span class="avatar sm av-5">AS</span><span class="avatar sm av-3">MD</span>
+            <span class="rc-count">7 members</span>
+            <button class="icon-btn" aria-label="Edit role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="card role-card">
+          <div class="rc-top">
+            <span class="rc-icon ic-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span>
+            <div><h3>Health Officer</h3><div class="rc-sub">Custom role · updated 28 Jan 2026</div></div>
+          </div>
+          <p>Records health screenings, manages counselling referrals, and tracks special-needs support plans.</p>
+          <div class="rc-perms"><span class="tag">Health: full</span><span class="tag">Students: view</span><span class="tag">Reports: health only</span></div>
+          <div class="rc-foot">
+            <span class="avatar sm av-4">RP</span><span class="avatar sm av-1">SK</span>
+            <span class="rc-count">2 members</span>
+            <button class="icon-btn" aria-label="Edit role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+          </div>
+        </div>
+
+        <div class="card role-card" style="border-style:dashed;align-items:center;justify-content:center;text-align:center;gap:10px">
+          <span class="rc-icon ic-brand" style="margin-top:6px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+          <h3 style="font-size:var(--fs-md)">Create a custom role</h3>
+          <p style="flex:0;max-width:30ch">Start from a blank slate or duplicate an existing role and adjust its permissions.</p>
+          <button class="btn btn-secondary btn-sm" type="button" style="margin-bottom:6px">New role</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

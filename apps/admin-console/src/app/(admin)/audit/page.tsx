@@ -1,0 +1,99 @@
+import { PageHeader } from '@/components/layout/page-header';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { StatusBadge } from '@/components/ui/status-badge';
+import { listAudit } from '@/lib/api/audit';
+import { requireRole } from '@/lib/auth/server';
+import { formatDateTime } from '@/lib/utils';
+
+import { AuditFilter } from './audit-filter';
+
+export default async function AuditPage({
+  searchParams,
+}: {
+  searchParams: { q?: string; resourceType?: string; tenantId?: string };
+}) {
+  await requireRole('audit', '/audit');
+  const { entries } = await listAudit({
+    search: searchParams?.q,
+    resourceType: searchParams?.resourceType,
+    tenantId: searchParams?.tenantId,
+  });
+
+  return (
+    <>
+      <PageHeader
+        title="Audit log"
+        description="Platform-wide record of admin actions, break-glass grants, and lifecycle events."
+      />
+
+      <Card>
+        <CardContent className="p-0">
+          <div className="border-b border-border p-4">
+            <AuditFilter
+              q={searchParams?.q ?? ''}
+              resourceType={searchParams?.resourceType ?? ''}
+              tenantId={searchParams?.tenantId ?? ''}
+            />
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>When</TableHead>
+                <TableHead>Actor</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Resource</TableHead>
+                <TableHead>Tenant</TableHead>
+                <TableHead>Outcome</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                    No audit entries match the current filters.
+                  </TableCell>
+                </TableRow>
+              )}
+              {entries.map((entry) => (
+                <TableRow key={entry.id}>
+                  <TableCell className="text-xs whitespace-nowrap">
+                    {formatDateTime(entry.timestamp)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-xs">{entry.actor}</div>
+                    {entry.actorRole && (
+                      <div className="text-xs text-muted-foreground">
+                        {entry.actorRole}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs">{entry.action}</TableCell>
+                  <TableCell>
+                    <div className="text-xs">{entry.resource}</div>
+                    <div className="font-mono text-xs text-muted-foreground">
+                      {entry.resourceType}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">
+                    {entry.tenantId}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={entry.outcome} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </>
+  );
+}

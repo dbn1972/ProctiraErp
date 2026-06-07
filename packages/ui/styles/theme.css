@@ -1,0 +1,509 @@
+/**
+ * OpenEMIS Unified Platform — Design Token Stylesheet
+ *
+ * This file defines all theme-aware CSS custom properties for the platform.
+ * Tokens are organized into: color (primary, accent, semantic, neutral),
+ * sidebar, chart palettes, typography, spacing, radius, and shadows.
+ *
+ * The ThemeProvider toggles `.light` / `.dark` on <html> (document.documentElement).
+ * Tailwind v4 dark variant and the `.dark { ... }` block both activate from that class.
+ *
+ * WCAG 2.1 AA compliance:
+ *   - Body text: ≥ 7:1 contrast (Requirement 37 AC 2)
+ *   - UI components (borders, icons): ≥ 3:1 contrast
+ *   - Chart axes, labels, series: ≥ 4.5:1 contrast (Requirement 36 AC 6)
+ *
+ * Tenant override slots (injected at runtime by BrandConfigProvider):
+ *   --tenant-primary, --tenant-accent, --tenant-logo, --tenant-favicon, --tenant-login-bg
+ *
+ * --------------------------------------------------------------------------
+ * BASE TYPOGRAPHY OVERRIDE (Task 56.1 / Requirement 37 AC 1 / Design §K)
+ * --------------------------------------------------------------------------
+ * The Tailwind v4 base layer below sets `html { font-size: 18px }` and
+ * `body { line-height: 1.5 }` to meet Requirement 37 AC 1 ("body text at a
+ * minimum base font size of 18 pixels … line height of at least 1.5"). The
+ * default user-agent root font-size is 16 px, so without this override the
+ * platform would render body copy below the 18 px floor required for the
+ * low-resource / rural-user persona that owns Requirement 37.
+ *
+ * Why a base-layer rule on `html` (not `body`):
+ *   - 1 rem resolves against `<html>`, so bumping the root size scales the
+ *     entire spacing, type, and component scale uniformly. Setting only
+ *     `body { font-size: 18px }` would leave any element using `rem` units
+ *     (and Tailwind's spacing scale, which is rem-based) anchored to the
+ *     16 px default and require manual overrides everywhere.
+ *   - `body` inherits `font-size` from `html`, so this single declaration
+ *     is sufficient for body text.
+ *
+ * The `--font-size` custom property is declared in the `:root, :root.light`
+ * block below; the unqualified `:root` selector matches `<html>` regardless
+ * of the active theme class, so dark mode inherits the same 18 px base.
+ * Tenants or future tasks can override it at `:root` without touching this
+ * rule.
+ *
+ * The line-height of 1.5 is applied directly on `body` so component-level
+ * overrides (headings, code blocks, table cells) can opt into a tighter
+ * leading without fighting a value declared on `html`.
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+/* ==========================================================================
+   BASE LAYER — Accessibility typography (Requirement 37 AC 1)
+   ========================================================================== */
+
+@layer base {
+  html {
+    /* Resolves to var(--font-size) which is 18px from the `:root, :root.light`
+     * declaration below. The unqualified :root selector targets <html> in
+     * both light and dark modes, so 1 rem = 18 px platform-wide.
+     * Falls back to a literal 18px if the variable is unavailable, e.g.
+     * before the cascade resolves on the very first paint. */
+    font-size: var(--font-size, 18px);
+  }
+
+  body {
+    /* WCAG 2.1 AA — minimum 1.5 leading for body copy. */
+    line-height: 1.5;
+  }
+
+  /* ------------------------------------------------------------------------
+   * GLOBAL FOCUS RING (Task 56.4 / Requirement 37 AC 3 / Design §K)
+   * ------------------------------------------------------------------------
+   * Every keyboard-focused element receives a 2 px solid outline drawn from
+   * the `--ring` token, with a 2 px offset so the ring sits clear of the
+   * element's own border. `:focus-visible` (instead of `:focus`) means the
+   * ring only appears for keyboard focus, not for mouse clicks — matching
+   * platform expectations and avoiding visual noise on pointer interactions.
+   *
+   * Why a global `*` selector:
+   *   - Provides an accessible default for *every* focusable element (links,
+   *     buttons, form controls, custom widgets with `tabindex`) without
+   *     requiring each component to redeclare focus styles.
+   *   - shadcn/ui components in `packages/ui/components` opt into a custom
+   *     `box-shadow`-based ring via `focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`.
+   *     Their `outline-none` (which Tailwind compiles to `outline: 2px solid transparent`)
+   *     wins on selector specificity (`.foo:focus-visible` > `*:focus-visible`)
+   *     and replaces the outline ring with the matching shadow ring, so the
+   *     visual contract is preserved while letting components round their
+   *     ring to match their own `border-radius`. Those overrides are the
+   *     legitimate opt-outs noted in `theme.test.ts`.
+   *
+   * Why 2 px solid + 2 px offset:
+   *   - Requirement 37 AC 3 mandates a 2 px ring at ≥ 3:1 contrast against
+   *     adjacent colors. A solid stroke (not dashed/dotted) is the most
+   *     reliably visible style across operating systems and high-contrast
+   *     forced-colors modes.
+   *   - The 2 px offset moves the ring outside the element so it is not
+   *     occluded by the element's own border, background, or shadow, and
+   *     so it contrasts against the *background* rather than the element fill.
+   *
+   * Contrast verification (computed via WCAG 2.1 relative-luminance formula
+   * using the helpers in `packages/backend/theme/src/accessibility.ts`):
+   *
+   *   Light mode — `--ring: hsl(222, 47%, 31%)` ≈ rgb(42, 64, 116)
+   *     • vs `--background` hsl(0, 0%, 100%)        → 10.08 : 1 ✓
+   *     • vs `--card`       hsl(0, 0%, 100%)        → 10.08 : 1 ✓
+   *     • vs `--muted`      hsl(210, 40%, 96%)      →  9.20 : 1 ✓
+   *     • vs `--secondary`  hsl(210, 40%, 96%)      →  9.20 : 1 ✓
+   *
+   *   Dark mode  — `--ring: hsl(222, 47%, 70%)` ≈ rgb(142, 164, 214)
+   *     • vs `--background` hsl(222, 47%,  7%)      →  7.76 : 1 ✓
+   *     • vs `--card`       hsl(222, 47%, 11%)      →  7.19 : 1 ✓
+   *     • vs `--muted`      hsl(222, 47%, 14%)      →  6.74 : 1 ✓
+   *     • vs `--sidebar`    hsl(222, 47%, 11%)      →  7.19 : 1 ✓
+   *
+   * Every adjacent-color pair clears the 3:1 floor by more than 2x in both
+   * modes, leaving headroom for tenant overrides that nudge `--primary`
+   * (and therefore `--ring`, which mirrors `--primary` by default) within
+   * the navy hue family.
+   */
+  *:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* ==========================================================================
+   LIGHT MODE (default)
+   Applied via :root.light or :root (fallback before ThemeProvider hydrates)
+   ========================================================================== */
+
+:root,
+:root.light {
+  /* ---------- Base Font Size (Accessibility: 18px per Requirement 37 AC 1) ---------- */
+  --font-size: 18px;
+
+  /* ---------- Primary Color Scale — Navy (hsl 222, 47%) ---------- */
+  --primary-50: hsl(222, 47%, 96%);
+  --primary-100: hsl(222, 47%, 90%);
+  --primary-200: hsl(222, 47%, 80%);
+  --primary-300: hsl(222, 47%, 68%);
+  --primary-400: hsl(222, 47%, 52%);
+  --primary-500: hsl(222, 47%, 31%);
+  --primary-600: hsl(222, 47%, 25%);
+  --primary-700: hsl(222, 47%, 20%);
+  --primary-800: hsl(222, 47%, 15%);
+  --primary-900: hsl(222, 47%, 11%);
+
+  /* ---------- Accent Color Scale — Teal (hsl 174, 62%) ---------- */
+  --accent-50: hsl(174, 62%, 95%);
+  --accent-100: hsl(174, 62%, 90%);
+  --accent-200: hsl(174, 62%, 80%);
+  --accent-300: hsl(174, 62%, 70%);
+  --accent-400: hsl(174, 62%, 55%);
+  --accent-500: hsl(174, 62%, 40%);
+  --accent-600: hsl(174, 62%, 30%);
+  --accent-700: hsl(174, 62%, 25%);
+  --accent-800: hsl(174, 62%, 20%);
+  --accent-900: hsl(174, 62%, 15%);
+
+  /* ---------- Neutral Scale ---------- */
+  --neutral-0: hsl(0, 0%, 100%);
+  --neutral-50: hsl(210, 40%, 98%);
+  --neutral-100: hsl(214, 32%, 91%);
+  --neutral-200: hsl(213, 27%, 84%);
+  --neutral-300: hsl(211, 25%, 72%);
+  --neutral-400: hsl(215, 16%, 47%);
+  --neutral-500: hsl(215, 19%, 35%);
+  --neutral-600: hsl(215, 25%, 27%);
+  --neutral-700: hsl(217, 33%, 17%);
+  --neutral-800: hsl(222, 47%, 11%);
+  --neutral-900: hsl(222, 47%, 7%);
+
+  /* ---------- Semantic Mapped Tokens (shadcn/ui compatible) ---------- */
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(222, 47%, 11%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(222, 47%, 11%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(222, 47%, 11%);
+  --primary: hsl(222, 47%, 31%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(210, 40%, 96%);
+  --secondary-foreground: hsl(222, 47%, 31%);
+  --muted: hsl(210, 40%, 96%);
+  --muted-foreground: hsl(215, 16%, 47%);
+  --accent: hsl(174, 62%, 40%);
+  --accent-foreground: hsl(0, 0%, 100%);
+  --destructive: hsl(0, 72%, 51%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --border: hsl(214, 32%, 91%);
+  --input: transparent;
+  --input-background: hsl(210, 40%, 98%);
+  --switch-background: hsl(211, 25%, 72%);
+  --ring: hsl(222, 47%, 31%);
+
+  /* ---------- Semantic Status Colors ---------- */
+  --success: hsl(142, 71%, 35%);
+  --success-bg: hsl(142, 71%, 95%);
+  --warning: hsl(38, 92%, 50%);
+  --warning-bg: hsl(38, 92%, 95%);
+  --error: hsl(0, 72%, 51%);
+  --error-bg: hsl(0, 72%, 96%);
+  --info: hsl(210, 92%, 45%);
+  --info-bg: hsl(210, 92%, 96%);
+
+  /* ---------- Chart Series (Recharts integration) ---------- */
+  --chart-1: hsl(222, 47%, 31%);
+  --chart-2: hsl(174, 62%, 30%);
+  --chart-3: hsl(142, 71%, 28%);
+  --chart-4: hsl(25, 90%, 38%);
+  --chart-5: hsl(210, 92%, 45%);
+
+  /* Chart Categorical Palette (8 distinct hues for category series) */
+  --chart-categorical-1: hsl(199, 60%, 42%);
+  --chart-categorical-2: hsl(322, 48%, 42%);
+  --chart-categorical-3: hsl(33, 95%, 47%);
+  --chart-categorical-4: hsl(10, 70%, 50%);
+  --chart-categorical-5: hsl(330, 30%, 18%);
+  --chart-categorical-6: hsl(148, 50%, 33%);
+  --chart-categorical-7: hsl(270, 35%, 45%);
+  --chart-categorical-8: hsl(52, 80%, 60%);
+
+  /* Chart Sequential Palette (single-hue ramp, low to high) */
+  --chart-sequential-50: hsl(204, 70%, 95%);
+  --chart-sequential-100: hsl(204, 65%, 85%);
+  --chart-sequential-200: hsl(204, 60%, 75%);
+  --chart-sequential-300: hsl(204, 55%, 65%);
+  --chart-sequential-400: hsl(204, 55%, 55%);
+  --chart-sequential-500: hsl(204, 60%, 45%);
+  --chart-sequential-600: hsl(204, 65%, 38%);
+  --chart-sequential-700: hsl(204, 70%, 30%);
+  --chart-sequential-800: hsl(204, 75%, 22%);
+  --chart-sequential-900: hsl(204, 80%, 15%);
+
+  /* Chart Diverging Palette (negative → neutral → positive) */
+  --chart-diverging-low: hsl(0, 65%, 51%);
+  --chart-diverging-mid: hsl(0, 0%, 96%);
+  --chart-diverging-high: hsl(142, 50%, 45%);
+
+  /* ---------- Sidebar (Dark navy per design system) ---------- */
+  --sidebar: hsl(222, 47%, 11%);
+  --sidebar-foreground: hsl(210, 40%, 98%);
+  --sidebar-primary: hsl(222, 47%, 31%);
+  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-accent: hsl(222, 47%, 15%);
+  --sidebar-accent-foreground: hsl(210, 40%, 98%);
+  --sidebar-border: hsl(222, 47%, 15%);
+  --sidebar-ring: hsl(174, 62%, 40%);
+
+  /* ---------- Tenant Override Slots (injected by BrandConfigProvider) ---------- */
+  --tenant-primary: hsl(222, 47%, 31%);
+  --tenant-accent: hsl(174, 62%, 40%);
+  --tenant-logo: none;
+  --tenant-favicon: none;
+  --tenant-login-bg: linear-gradient(135deg, hsl(222, 47%, 20%) 0%, hsl(222, 47%, 11%) 100%);
+
+  /* ---------- Typography ---------- */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Inter",
+    "Noto Sans",
+    "Noto Sans Devanagari",
+    "Noto Sans Tamil",
+    "Noto Sans Telugu",
+    "Noto Sans Bengali",
+    "Noto Sans Gujarati",
+    "Noto Sans Kannada",
+    "Noto Sans Arabic",
+    "Noto Sans Hebrew",
+    sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+  --font-weight-bold: 700;
+  --font-weight-semibold: 600;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+
+  /* ---------- Spacing Scale (4px grid) ---------- */
+  --space-0: 0px;
+  --space-0-5: 0.125rem;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+
+  /* ---------- Border Radius ---------- */
+  --radius-none: 0px;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+  --radius: var(--radius-md);
+
+  /* ---------- Shadows ---------- */
+  --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px 0 hsl(0 0% 0% / 0.06);
+  --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.06);
+  --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -2px hsl(0 0% 0% / 0.05);
+  --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.1), 0 10px 10px -5px hsl(0 0% 0% / 0.04);
+  --shadow-2xl: 0 25px 50px -12px hsl(0 0% 0% / 0.25);
+  --shadow-inner: inset 0 2px 4px 0 hsl(0 0% 0% / 0.06);
+}
+
+/* ==========================================================================
+   DARK MODE
+   Activated when ThemeProvider sets .dark on document.documentElement
+   Uses higher saturation for charts to maintain WCAG AA contrast on dark bg
+   ========================================================================== */
+
+:root.dark {
+  /* ---------- Primary Scale (inverted lightness for dark surfaces) ---------- */
+  --primary-50: hsl(222, 47%, 12%);
+  --primary-100: hsl(222, 47%, 18%);
+  --primary-200: hsl(222, 47%, 25%);
+  --primary-300: hsl(222, 47%, 35%);
+  --primary-400: hsl(222, 47%, 52%);
+  --primary-500: hsl(222, 47%, 55%);
+  --primary-600: hsl(222, 47%, 65%);
+  --primary-700: hsl(222, 47%, 75%);
+  --primary-800: hsl(222, 47%, 85%);
+  --primary-900: hsl(222, 47%, 92%);
+
+  /* ---------- Accent Scale (inverted for dark) ---------- */
+  --accent-50: hsl(174, 62%, 12%);
+  --accent-100: hsl(174, 62%, 18%);
+  --accent-200: hsl(174, 62%, 25%);
+  --accent-300: hsl(174, 62%, 35%);
+  --accent-400: hsl(174, 62%, 55%);
+  --accent-500: hsl(174, 62%, 60%);
+  --accent-600: hsl(174, 62%, 70%);
+  --accent-700: hsl(174, 62%, 78%);
+  --accent-800: hsl(174, 62%, 85%);
+  --accent-900: hsl(174, 62%, 92%);
+
+  /* ---------- Neutral Scale (inverted) ---------- */
+  --neutral-0: hsl(222, 47%, 7%);
+  --neutral-50: hsl(222, 47%, 9%);
+  --neutral-100: hsl(222, 47%, 12%);
+  --neutral-200: hsl(222, 47%, 14%);
+  --neutral-300: hsl(215, 16%, 35%);
+  --neutral-400: hsl(215, 16%, 55%);
+  --neutral-500: hsl(215, 16%, 65%);
+  --neutral-600: hsl(213, 27%, 76%);
+  --neutral-700: hsl(214, 32%, 84%);
+  --neutral-800: hsl(210, 40%, 92%);
+  --neutral-900: hsl(210, 40%, 98%);
+
+  /* ---------- Semantic Mapped Tokens ---------- */
+  --background: hsl(222, 47%, 7%);
+  --foreground: hsl(210, 40%, 98%);
+  --card: hsl(222, 47%, 11%);
+  --card-foreground: hsl(210, 40%, 98%);
+  --popover: hsl(222, 47%, 11%);
+  --popover-foreground: hsl(210, 40%, 98%);
+  --primary: hsl(222, 47%, 52%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(210, 40%, 15%);
+  --secondary-foreground: hsl(210, 40%, 90%);
+  --muted: hsl(222, 47%, 14%);
+  --muted-foreground: hsl(215, 16%, 65%);
+  --accent: hsl(174, 62%, 55%);
+  --accent-foreground: hsl(174, 62%, 10%);
+  --destructive: hsl(0, 72%, 65%);
+  --destructive-foreground: hsl(0, 0%, 5%);
+  --border: hsl(222, 47%, 20%);
+  --input: hsl(222, 47%, 14%);
+  --input-background: hsl(222, 47%, 11%);
+  --switch-background: hsl(215, 25%, 27%);
+  --ring: hsl(222, 47%, 70%);
+
+  /* ---------- Semantic Status Colors (higher lightness for dark bg contrast) ---------- */
+  --success: hsl(142, 71%, 55%);
+  --success-bg: hsl(142, 71%, 12%);
+  --warning: hsl(38, 92%, 60%);
+  --warning-bg: hsl(38, 92%, 12%);
+  --error: hsl(0, 72%, 65%);
+  --error-bg: hsl(0, 72%, 12%);
+  --info: hsl(210, 92%, 60%);
+  --info-bg: hsl(210, 92%, 12%);
+
+  /* ---------- Chart Series (higher saturation/lightness for dark bg AA contrast) ---------- */
+  --chart-1: hsl(222, 55%, 60%);
+  --chart-2: hsl(174, 70%, 55%);
+  --chart-3: hsl(142, 71%, 55%);
+  --chart-4: hsl(38, 92%, 60%);
+  --chart-5: hsl(210, 92%, 60%);
+
+  /* Chart Categorical Palette (boosted lightness for dark backgrounds) */
+  --chart-categorical-1: hsl(199, 65%, 58%);
+  --chart-categorical-2: hsl(322, 55%, 60%);
+  --chart-categorical-3: hsl(33, 95%, 60%);
+  --chart-categorical-4: hsl(10, 75%, 62%);
+  --chart-categorical-5: hsl(330, 30%, 65%);
+  --chart-categorical-6: hsl(148, 55%, 52%);
+  --chart-categorical-7: hsl(270, 45%, 62%);
+  --chart-categorical-8: hsl(52, 85%, 65%);
+
+  /* Chart Sequential Palette (higher saturation for dark mode visibility) */
+  --chart-sequential-50: hsl(204, 80%, 12%);
+  --chart-sequential-100: hsl(204, 75%, 20%);
+  --chart-sequential-200: hsl(204, 70%, 30%);
+  --chart-sequential-300: hsl(204, 65%, 40%);
+  --chart-sequential-400: hsl(204, 65%, 50%);
+  --chart-sequential-500: hsl(204, 70%, 58%);
+  --chart-sequential-600: hsl(204, 75%, 65%);
+  --chart-sequential-700: hsl(204, 80%, 72%);
+  --chart-sequential-800: hsl(204, 85%, 80%);
+  --chart-sequential-900: hsl(204, 90%, 88%);
+
+  /* Chart Diverging Palette (adjusted for dark background contrast) */
+  --chart-diverging-low: hsl(0, 70%, 62%);
+  --chart-diverging-mid: hsl(0, 0%, 25%);
+  --chart-diverging-high: hsl(142, 55%, 55%);
+
+  /* ---------- Sidebar (slightly lighter than page bg for depth) ---------- */
+  --sidebar: hsl(222, 47%, 11%);
+  --sidebar-foreground: hsl(210, 40%, 98%);
+  --sidebar-primary: hsl(222, 47%, 52%);
+  --sidebar-primary-foreground: hsl(222, 47%, 7%);
+  --sidebar-accent: hsl(222, 47%, 14%);
+  --sidebar-accent-foreground: hsl(210, 40%, 98%);
+  --sidebar-border: hsl(222, 47%, 14%);
+  --sidebar-ring: hsl(222, 47%, 52%);
+
+  /* ---------- Tenant Override Slots (same keys, dark-appropriate defaults) ---------- */
+  --tenant-primary: hsl(222, 47%, 52%);
+  --tenant-accent: hsl(174, 62%, 55%);
+  --tenant-login-bg: linear-gradient(135deg, hsl(222, 47%, 11%) 0%, hsl(222, 47%, 5%) 100%);
+
+  /* ---------- Shadows (stronger opacity for dark surfaces) ---------- */
+  --shadow-xs: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+  --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.4), 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+  --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -1px hsl(0 0% 0% / 0.3);
+  --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.4), 0 4px 6px -2px hsl(0 0% 0% / 0.3);
+  --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.4), 0 10px 10px -5px hsl(0 0% 0% / 0.3);
+  --shadow-2xl: 0 25px 50px -12px hsl(0 0% 0% / 0.5);
+  --shadow-inner: inset 0 2px 4px 0 hsl(0 0% 0% / 0.2);
+}
+
+/* ==========================================================================
+   TAILWIND v4 THEME INLINE — Maps tokens to Tailwind utility classes
+   ========================================================================== */
+
+@theme inline {
+  /* Color utilities */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+
+  /* Semantic status colors */
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
+  /* Chart colors */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* Sidebar colors */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Radius utilities */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+}

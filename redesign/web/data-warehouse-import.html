@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Import data · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .source-card {
+    position: relative; display: flex; gap: 14px; align-items: flex-start;
+    padding: 18px; border: 2px solid var(--border); border-radius: var(--r-lg);
+    background: var(--surface); cursor: pointer; text-align: left; font-family: var(--font-sans);
+    transition: border-color var(--t-fast), box-shadow var(--t-fast); width: 100%;
+  }
+  .source-card:hover { border-color: var(--border-strong); box-shadow: var(--sh-sm); }
+  .source-card.selected { border-color: var(--brand-500); background: var(--brand-50); box-shadow: var(--sh-sm); }
+  .source-card .sc-icon {
+    width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg-subtle); color: var(--text-2);
+  }
+  .source-card.selected .sc-icon { background: var(--brand-600); color: #fff; }
+  .source-card .sc-icon svg { width: 20px; height: 20px; }
+  .source-card h4 { margin: 0 0 3px; font-size: var(--fs-md); font-weight: 700; color: var(--text); }
+  .source-card p { margin: 0; font-size: var(--fs-xs); color: var(--text-2); }
+  .source-card .sc-check {
+    position: absolute; top: 12px; right: 12px; width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid var(--border-strong); background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .source-card.selected .sc-check { background: var(--brand-600); border-color: var(--brand-600); color: #fff; }
+  .source-card .sc-check svg { width: 11px; height: 11px; }
+  .dropzone {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+    padding: 30px 20px; border: 2px dashed var(--border-strong); border-radius: var(--r-md);
+    background: var(--surface-2); color: var(--text-2); font-size: var(--fs-sm);
+  }
+  .dropzone svg { width: 28px; height: 28px; color: var(--brand-500); }
+  .dropzone .dz-hint { font-size: var(--fs-2xs); color: var(--text-3); }
+</style>
+</head>
+<body data-active="data-warehouse">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="data-warehouse-overview.html">Data Warehouse</a><span class="sep">/</span>
+        <span class="current">Import data</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Import data</h1>
+          <p class="page-sub">Bring external records into the warehouse — choose a source, map fields, validate, then run</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="data-warehouse-overview.html">Cancel</a>
+        </div>
+      </div>
+
+      <div style="max-width:880px">
+
+        <div class="stepper" aria-label="Import progress">
+          <div class="step active"><span class="s-dot">1</span><span class="s-label">Source</span></div>
+          <div class="step-line"></div>
+          <div class="step"><span class="s-dot">2</span><span class="s-label">Mapping</span></div>
+          <div class="step-line"></div>
+          <div class="step"><span class="s-dot">3</span><span class="s-label">Validate</span></div>
+          <div class="step-line"></div>
+          <div class="step"><span class="s-dot">4</span><span class="s-label">Run</span></div>
+        </div>
+
+        <!-- Source choice -->
+        <section class="card mb-20">
+          <div class="card-head"><div><h3>Choose a source</h3><div class="sub">Where is the data coming from?</div></div></div>
+          <div class="card-pad">
+            <div class="grid-2" role="radiogroup" aria-label="Import source">
+
+              <button class="source-card selected" type="button" role="radio" aria-checked="true">
+                <span class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13h8M8 17h8M8 9h1"/></svg></span>
+                <span style="min-width:0">
+                  <h4>Excel upload</h4>
+                  <p>Upload .xlsx or .csv files — best for one-off block returns and legacy registers.</p>
+                </span>
+                <span class="sc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+              </button>
+
+              <button class="source-card" type="button" role="radio" aria-checked="false">
+                <span class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
+                <span style="min-width:0">
+                  <h4>Legacy MIS</h4>
+                  <p>Direct pull from the pre-2024 district MIS database (read-only connection).</p>
+                </span>
+                <span class="sc-check"></span>
+              </button>
+
+              <button class="source-card" type="button" role="radio" aria-checked="false">
+                <span class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg></span>
+                <span style="min-width:0">
+                  <h4>UDISE+ sync</h4>
+                  <p>Scheduled pull of school, facility and enrollment data from the UDISE+ portal.</p>
+                </span>
+                <span class="sc-check"></span>
+              </button>
+
+              <button class="source-card" type="button" role="radio" aria-checked="false">
+                <span class="sc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+                <span style="min-width:0">
+                  <h4>API</h4>
+                  <p>Push records from another system via the ProctiraERP ingest API with a signed key.</p>
+                </span>
+                <span class="sc-check"></span>
+              </button>
+
+            </div>
+          </div>
+        </section>
+
+        <!-- Chosen source detail -->
+        <section class="card">
+          <div class="card-head"><div><h3>Excel upload</h3><div class="sub">Tell us what the file contains so we can suggest the right mapping</div></div></div>
+          <div class="card-pad">
+            <div class="form-grid">
+              <div class="field">
+                <label for="imp-dataset">Target dataset <span class="req">*</span></label>
+                <select class="select" id="imp-dataset">
+                  <option selected>Student enrollment records</option>
+                  <option>Attendance history</option>
+                  <option>Assessment scores</option>
+                  <option>Staff postings</option>
+                  <option>School facilities</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="imp-year">Academic year <span class="req">*</span></label>
+                <select class="select" id="imp-year">
+                  <option selected>2026–27</option>
+                  <option>2025–26</option>
+                  <option>2024–25</option>
+                </select>
+              </div>
+              <div class="field span-2">
+                <label>Originating block</label>
+                <button class="entity-picker" type="button">
+                  <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></span>
+                  <span class="ep-text"><span class="ep-value">Krushnaprasad</span><span class="ep-meta">Block · Puri district · 13 schools</span></span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <span class="hint">Used to validate UDISE codes in the file against schools in this block.</span>
+              </div>
+              <div class="field span-2">
+                <label>File <span class="req">*</span></label>
+                <div class="dropzone">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  <div><b>krushnaprasad_enrollment_2026.xlsx</b> attached (412 KB)</div>
+                  <div class="dz-hint">Drop a replacement here, or click to browse · .xlsx and .csv up to 25 MB · first sheet is read</div>
+                </div>
+              </div>
+              <div class="field span-2">
+                <label class="checkbox-row"><input type="checkbox" checked> First row contains column headers</label>
+              </div>
+            </div>
+
+            <div class="alert info mt-16">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <div class="a-body"><b>38 columns detected</b>We found 1,847 data rows. Next you'll map these columns to warehouse fields — most match automatically.</div>
+            </div>
+          </div>
+          <div class="card-foot" style="justify-content:flex-end">
+            <a class="btn btn-ghost" href="data-warehouse-overview.html">Cancel</a>
+            <a class="btn btn-primary" href="data-warehouse-map.html">Continue to mapping<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          </div>
+        </section>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

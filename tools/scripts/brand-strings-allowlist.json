@@ -1,0 +1,96 @@
+{
+  "_doc": [
+    "Allowlist of glob patterns where literal brand strings (ProctiraERP / EduZo)",
+    "are permitted to appear. Patterns are matched against the workspace-relative",
+    "POSIX path (e.g. 'apps/web/src/messages/en.json'). Categories follow",
+    "task 57.4 in .kiro/specs/proctira-unified-platform/tasks.md and design 'M'.",
+    "",
+    "Adding entries:",
+    "  1. Open tools/scripts/brand-strings-allowlist.json.",
+    "  2. Append a glob to the matching category (or add a new category with a",
+    "     comment in `categories`).",
+    "  3. Run `pnpm check:brand-strings` locally to confirm 0 violations.",
+    "  4. Reference the Charter or design section that justifies the exception",
+    "     in the PR description."
+  ],
+  "categories": {
+    "build-artifacts-and-lockfiles": [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/.turbo/**",
+      "**/build/**",
+      "**/coverage/**",
+      "**/.git/**",
+      "pnpm-lock.yaml",
+      "**/pnpm-lock.yaml"
+    ],
+    "config-files": [
+      "**/*.config.*",
+      "**/package.json",
+      "**/pnpm-workspace.yaml",
+      "**/turbo.json",
+      "**/tsconfig*.json",
+      "**/.eslintrc*",
+      "**/.prettierrc*"
+    ],
+    "infrastructure-operational-identifiers": [
+      "infrastructure/**",
+      "infra/**",
+      "docker-compose*.yml",
+      "**/docker-compose*.yml",
+      "Dockerfile*",
+      "**/Dockerfile*",
+      ".dockerignore",
+      "**/.dockerignore"
+    ],
+    "ci-automation": [
+      ".github/**"
+    ],
+    "project-documentation": [
+      "README.md",
+      "**/README.md",
+      "**/CHANGELOG.md",
+      "**/CONTRIBUTING.md",
+      "**/LICENSE",
+      "**/LICENSE.md",
+      "**/LICENSE.txt",
+      "**/ATTRIBUTIONS.md",
+      "**/CODE_OF_CONDUCT.md",
+      "docs/**",
+      "**/docs/**"
+    ],
+    "dod-reports-generated": [
+      "tools/dod-checks/reports/**"
+    ],
+    "reference-port-figma": [
+      "School Platform Design/**"
+    ],
+    "mobile-app-metadata": [
+      "apps/mobile/pubspec.yaml",
+      "**/pubspec.yaml"
+    ],
+    "locale-catalogs-app-name": [
+      "apps/*/src/messages/*.json",
+      "apps/*/messages/*.json"
+    ],
+    "themes-shipping-default-brand": [
+      "themes/**"
+    ],
+    "plugin-sdk-documentation": [
+      "plugins/plugin-sdk/**"
+    ],
+    "tooling-readmes-and-fixtures": [
+      "tools/install-cli/**",
+      "tools/migrations/**",
+      "tools/tenant-isolation-tests/**",
+      "tools/dod-checks/**",
+      "tools/scripts/__test_fixtures__/**",
+      "tools/scripts/__tests__/**"
+    ],
+    "brand-scanner-self": [
+      "tools/scripts/brand-strings-allowlist.json",
+      "tools/scripts/README.md"
+    ]
+  }
+}

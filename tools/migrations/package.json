@@ -1,0 +1,38 @@
+{
+  "name": "@proctira/migrations",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Legacy MySQL to PostgreSQL migration scripts for ProctiraERP",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "migrate:bulk": "node dist/run-pgloader.js",
+    "migrate:transform": "node dist/transform-schema.js",
+    "migrate:uuids": "node dist/generate-uuids.js",
+    "migrate:tenant": "node dist/assign-tenant.js",
+    "migrate:validate": "node dist/validate-migration.js",
+    "migrate:report": "node dist/run-report.js",
+    "migrate:constraints": "node dist/run-constraint-validation.js",
+    "migrate:cdc-sync": "node dist/run-cdc-sync.js",
+    "migrate:all": "node dist/run-full-migration.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "pg": "^8.11.0",
+    "mysql2": "^3.9.0",
+    "uuid": "^9.0.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.0",
+    "kafkajs": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.0",
+    "@types/uuid": "^9.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "fast-check": "^3.17.0"
+  }
+}

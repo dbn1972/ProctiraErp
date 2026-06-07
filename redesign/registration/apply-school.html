@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Register — Step 1 of 3: Personal Information · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  /* ---- Public shell ---- */
+  .pub-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .pub-header-in { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 24px; }
+  .pub-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .pub-logo .logo-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .pub-logo b { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+  .pub-logo b span { color: var(--brand-600); }
+  .pub-nav { display: flex; gap: 2px; }
+  .pub-nav a { padding: 8px 12px; border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); text-decoration: none; transition: background var(--t-fast), color var(--t-fast); }
+  .pub-nav a:hover { background: var(--bg-subtle); color: var(--text); }
+  .pub-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  .pub-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .pub-burger { display: none; }
+  .pub-mobile-nav { display: none; }
+  @media (max-width: 767px) {
+    .pub-header-in { padding: 0 16px; gap: 12px; }
+    .pub-nav { display: none; }
+    .pub-burger { display: inline-flex; }
+    .pub-mobile-nav.open { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .pub-mobile-nav a { padding: 13px 14px; border-radius: var(--r-md); font-size: var(--fs-md); font-weight: 600; color: var(--text-2); text-decoration: none; }
+    .pub-mobile-nav a.active { color: var(--brand-700); background: var(--brand-50); }
+  }
+  .pub-main { flex: 1; }
+  .pub-footer { background: var(--navy-900); color: #AEB9D6; }
+  .pub-footer-bottom { max-width: 1120px; margin: 0 auto; padding: 22px 24px calc(22px + env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; font-size: var(--fs-xs); color: #8B97B8; }
+  .pub-footer-bottom b { color: #fff; font-size: var(--fs-md); letter-spacing: .02em; }
+  .pub-footer-bottom .helpline { display: inline-flex; align-items: center; gap: 8px; }
+  .pub-footer-bottom .helpline svg { width: 14px; height: 14px; color: var(--brand-300); }
+  .pub-footer-bottom a { color: #8B97B8; text-decoration: none; }
+  .pub-footer-bottom a:hover { color: #fff; }
+  .pub-footer-bottom .fb-links { margin-left: auto; display: flex; gap: 18px; }
+  @media (max-width: 767px) { .pub-footer-bottom .fb-links { margin-left: 0; } }
+
+  /* ---- Wizard page ---- */
+  .wiz { max-width: 760px; margin: 0 auto; padding: 36px 24px 72px; width: 100%; }
+  @media (max-width: 767px) { .wiz { padding: 24px 16px 56px; } }
+  .wiz-head { text-align: center; margin-bottom: 26px; }
+  .wiz-head h1 { margin: 0 0 4px; font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -.02em; }
+  .wiz-head p { margin: 0; color: var(--text-2); font-size: var(--fs-sm); }
+  .stepper { justify-content: center; }
+  .phone-group { display: flex; }
+  .phone-group .prefix { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--border-strong); border-right: 0; border-radius: var(--r-md) 0 0 var(--r-md); background: var(--bg-subtle); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); white-space: nowrap; }
+  .phone-group .input { border-radius: 0 var(--r-md) var(--r-md) 0; }
+  .trust-note { display: flex; align-items: center; gap: 9px; font-size: var(--fs-xs); color: var(--text-2); }
+  .trust-note svg { width: 15px; height: 15px; color: var(--green-600); flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header class="pub-header">
+  <div class="pub-header-in">
+    <a class="pub-logo" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="pub-nav" aria-label="Main">
+      <a href="home.html">Home</a>
+      <a href="schools.html">Find Schools</a>
+      <a href="apply-school.html" class="active" aria-current="page">Register</a>
+      <a href="track.html">Track Application</a>
+    </nav>
+    <div class="pub-right">
+      <button class="btn btn-secondary btn-sm" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English ▾</button>
+      <button class="icon-btn pub-burger" type="button" aria-label="Open menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', document.getElementById('mnav').classList.toggle('open'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+  </div>
+  <nav class="pub-mobile-nav" id="mnav" aria-label="Mobile">
+    <a href="home.html">Home</a>
+    <a href="schools.html">Find Schools</a>
+    <a href="apply-school.html" class="active" aria-current="page">Register</a>
+    <a href="track.html">Track Application</a>
+  </nav>
+</header>
+
+<main class="pub-main">
+  <div class="wiz">
+    <div class="wiz-head">
+      <h1>Student registration</h1>
+      <p>Applying to Government Upper Primary School, Baliapanda · Academic year 2026–27</p>
+    </div>
+
+    <div class="stepper" aria-label="Application progress">
+      <div class="step active"><span class="s-dot">1</span><span class="s-label">Personal</span></div>
+      <span class="step-line"></span>
+      <div class="step"><span class="s-dot">2</span><span class="s-label">Documents</span></div>
+      <span class="step-line"></span>
+      <div class="step"><span class="s-dot">3</span><span class="s-label">Review</span></div>
+    </div>
+
+    <form class="card">
+      <div class="card-head">
+        <div>
+          <h3>Personal information</h3>
+          <div class="sub">Fill in your child's details exactly as on the birth certificate.</div>
+        </div>
+      </div>
+      <div class="card-pad">
+        <div class="form-grid">
+          <p class="form-section-title">Child's details</p>
+          <div class="field">
+            <label for="fname">First name<span class="req" aria-hidden="true">*</span></label>
+            <input class="input" id="fname" type="text" value="Ananya" autocomplete="given-name">
+          </div>
+          <div class="field">
+            <label for="lname">Last name<span class="req" aria-hidden="true">*</span></label>
+            <input class="input" id="lname" type="text" value="Pradhan" autocomplete="family-name">
+          </div>
+          <div class="field">
+            <label for="dob">Date of birth<span class="req" aria-hidden="true">*</span></label>
+            <input class="input" id="dob" type="date" value="2020-03-14">
+            <span class="hint">As written on the birth certificate</span>
+          </div>
+          <div class="field">
+            <label for="gender">Gender<span class="req" aria-hidden="true">*</span></label>
+            <select class="select" id="gender">
+              <option>Girl</option>
+              <option>Boy</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field span-2">
+            <label for="grade">Class applying for<span class="req" aria-hidden="true">*</span></label>
+            <select class="select" id="grade">
+              <option>Class 1</option>
+              <option>Class 2</option>
+              <option>Class 3</option>
+              <option>Class 4</option>
+              <option>Class 5</option>
+              <option>Class 6</option>
+              <option>Class 7</option>
+              <option>Class 8</option>
+            </select>
+            <span class="hint">Children completing 6 years by 1 Sep 2026 can join Class 1</span>
+          </div>
+
+          <p class="form-section-title">Parent / guardian details</p>
+          <div class="field">
+            <label for="gname">Guardian's full name<span class="req" aria-hidden="true">*</span></label>
+            <input class="input" id="gname" type="text" value="Sasmita Pradhan" autocomplete="name">
+          </div>
+          <div class="field">
+            <label for="gphone">Mobile number<span class="req" aria-hidden="true">*</span></label>
+            <div class="phone-group">
+              <span class="prefix">+91</span>
+              <input class="input" id="gphone" type="tel" inputmode="numeric" value="94370 21184" autocomplete="tel-national">
+            </div>
+            <span class="hint">We send all updates by SMS to this number</span>
+          </div>
+          <div class="field span-2">
+            <label for="gemail">Email <span class="muted-3" style="font-weight:500">(optional)</span></label>
+            <input class="input" id="gemail" type="email" placeholder="name@example.com" autocomplete="email">
+          </div>
+          <div class="field span-2">
+            <label for="addr">Home address<span class="req" aria-hidden="true">*</span></label>
+            <textarea class="input" id="addr" rows="3" autocomplete="street-address">Plot 14, Baliapanda Housing Board Colony, Near Lighthouse Road, Puri, Odisha 752001</textarea>
+            <span class="hint">Used to confirm the neighbourhood school priority — no proof of ownership is needed</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-foot">
+        <span class="trust-note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>Your data is protected under the DPDP Act 2023 and is shared only with the school you apply to.</span>
+        <a class="btn btn-primary" href="apply-school-documents.html" style="margin-left:auto">Next: Documents<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+    </form>
+  </div>
+</main>
+
+<footer class="pub-footer">
+  <div class="pub-footer-bottom">
+    <span class="helpline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>Helpline <b>155335</b> · toll-free, Mon–Sat 8 am–8 pm</span>
+    <span>© 2026 ProctiraERP · Student Registration Portal</span>
+    <div class="fb-links">
+      <a href="#privacy">Privacy Policy</a>
+      <a href="#terms">Terms of Service</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

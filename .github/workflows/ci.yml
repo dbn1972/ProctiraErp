@@ -1,0 +1,568 @@
+# =============================================================================
+# CI Pipeline - ProctiraERP Unified Platform
+# =============================================================================
+# Runs on every push and pull request to main/develop branches.
+# Stages: lint → type-check → unit test → build → integration test
+# Uses Turborepo remote caching and affected-module detection for selective builds.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop, 'release/**']
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.33.2'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Detect which packages/apps changed to enable selective builds
+  # ---------------------------------------------------------------------------
+  detect-changes:
+    name: Detect Affected Modules
+    runs-on: ubuntu-latest
+    outputs:
+      packages-changed: ${{ steps.filter.outputs.packages }}
+      apps-changed: ${{ steps.filter.outputs.apps }}
+      infra-changed: ${{ steps.filter.outputs.infra }}
+      has-backend-changes: ${{ steps.filter.outputs.backend }}
+      has-frontend-changes: ${{ steps.filter.outputs.frontend }}
+      has-shared-changes: ${{ steps.filter.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            packages:
+              - 'packages/**'
+            apps:
+              - 'apps/**'
+            infra:
+              - 'infrastructure/**'
+              - 'Dockerfile*'
+              - 'docker-compose*.yml'
+            backend:
+              - 'packages/backend/**'
+              - 'packages/shared/**'
+              - 'apps/api-gateway/**'
+              - 'apps/etl-worker/**'
+            frontend:
+              - 'packages/ui/**'
+              - 'apps/web/**'
+              - 'apps/registration-portal/**'
+            shared:
+              - 'packages/shared/**'
+              - 'turbo.json'
+              - 'tsconfig.base.json'
+              - 'pnpm-lock.yaml'
+
+  # ---------------------------------------------------------------------------
+  # Lint - ESLint + Prettier check
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.packages-changed == 'true' || needs.detect-changes.outputs.apps-changed == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run ESLint (affected packages)
+        run: pnpm turbo run lint --filter='...[HEAD~1]'
+
+      - name: Run accessibility ESLint scan (icon-only buttons)
+        run: pnpm run lint:a11y
+
+      - name: Run contrast gate (Requirement 37 AC 2 — light + dark modes)
+        run: pnpm run check:contrast
+
+      - name: Run brand-neutrality ESLint scan (no-hardcoded-brand-strings)
+        run: pnpm run lint:brand
+
+      - name: Check hardcoded brand strings (non-TypeScript assets)
+        run: pnpm run check:brand-strings
+
+      - name: Check formatting
+        run: pnpm format:check
+
+  # ---------------------------------------------------------------------------
+  # Type Check - TypeScript compilation
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: Type Check
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.packages-changed == 'true' || needs.detect-changes.outputs.apps-changed == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run TypeScript type checking (affected packages)
+        run: pnpm turbo run typecheck --filter='...[HEAD~1]'
+
+  # ---------------------------------------------------------------------------
+  # Unit Tests - Vitest + fast-check property tests
+  # ---------------------------------------------------------------------------
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests (affected packages)
+        run: pnpm turbo run test --filter='...[HEAD~1]'
+        env:
+          CI: true
+
+      - name: Upload test coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: '**/coverage/'
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Build - Production build of affected packages
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [unit-test]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build affected packages
+        run: pnpm turbo run build --filter='...[HEAD~1]'
+        env:
+          NODE_ENV: production
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            apps/*/dist/
+            apps/*/.next/
+            packages/*/dist/
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # Bundle Budget Gate (Requirement 39 AC 1 — Design §J — task 60.6)
+  # ---------------------------------------------------------------------------
+  # Runs `pnpm check:bundle` against the Next.js build produced for
+  # `apps/web`. The gate fails the pipeline when any of the named routes
+  # (`/auth/signin`, `/app/dashboard`, `/app/attendance`) ships more than
+  # 500 KB gzip in initial chunks. Implemented in
+  # `tools/scripts/check-bundle.mjs`; per-route output is kept in the CI
+  # log for change-by-change tracking and the JSON report + bundle
+  # visualizer HTML (when emitted) are archived as PR-reviewable artifacts.
+  # ---------------------------------------------------------------------------
+  bundle-budget:
+    name: Bundle Budget (Requirement 39 AC 1)
+    runs-on: ubuntu-latest
+    needs: [build, detect-changes]
+    if: needs.detect-changes.outputs.has-frontend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build apps/web (production)
+        run: pnpm --filter @proctira/web build
+        env:
+          NODE_ENV: production
+          ANALYZE: 'true'
+
+      - name: Run bundle budget gate
+        # Exits non-zero when any named route's initial chunks exceed
+        # 500 KB gzip — that failure propagates here and fails the job,
+        # satisfying the second bullet of task 60.6 ("Fail the build on
+        # any over-budget chunk").
+        run: pnpm run check:bundle --no-build
+
+      - name: Generate bundle budget JSON report
+        if: always()
+        run: pnpm run check:bundle --no-build --json --quiet > bundle-budget.json
+        continue-on-error: true
+
+      - name: Archive bundle budget JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-budget-report
+          path: bundle-budget.json
+          retention-days: 30
+
+      - name: Archive bundle visualizer HTML (when emitted)
+        # The Next.js bundle analyzer (enabled via ANALYZE=true) emits
+        # client.html and nodejs.html under `.next/analyze/`. The Vite
+        # SPA build emits `dist/bundle-analysis.html`. Upload whichever
+        # exists so reviewers can inspect chunk sizes per PR (task 60.6
+        # — "Enable bundle visualizer in CI").
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-visualizer
+          path: |
+            apps/web/.next/analyze/
+            apps/web/dist/bundle-analysis.html
+            apps/web/dist/bundle-stats.html
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Lighthouse Gate (Requirement 39 AC 2 — Property F-10 — Design §J)
+  # ---------------------------------------------------------------------------
+  # Runs `pnpm -F @proctira/web check:lighthouse` after the Next.js
+  # production build. The gate audits the routes named in Requirement 39
+  # (`/auth/signin`, `/app/dashboard`, `/app/attendance`) under two
+  # profiles — desktop and simulated 3G mobile (1.6 Mbps downlink, 750 ms
+  # RTT, 4× CPU slowdown). Categories collected: accessibility (axe-core),
+  # performance, best-practices, seo. The build fails when any category
+  # score drops below: Accessibility 0.95, Performance 0.80, Best
+  # Practices 0.90, SEO 0.90 (Property F-10).
+  #
+  # Authenticated routes are evaluated only when the workflow exposes a
+  # session cookie via `LHCI_AUTH_COOKIE` (a JSON-encoded array suitable
+  # for Puppeteer `page.setCookie`). Without it the wrapper logs a
+  # warning and audits the anonymous `/login` surface only — matching the
+  # spec's implementation note for task 55.7.
+  # ---------------------------------------------------------------------------
+  lighthouse:
+    name: Lighthouse Gate (Property F-10)
+    runs-on: ubuntu-latest
+    needs: [build, detect-changes]
+    if: needs.detect-changes.outputs.has-frontend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
+    env:
+      LHCI_PORT: '3001'
+      LHCI_BASE_URL: 'http://localhost:3001'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build apps/web (production)
+        run: pnpm --filter @proctira/web build
+        env:
+          NODE_ENV: production
+
+      - name: Start apps/web (production)
+        run: |
+          pnpm --filter @proctira/web start --port "$LHCI_PORT" > /tmp/web.log 2>&1 &
+          echo "WEB_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for /login to respond
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS "$LHCI_BASE_URL/login" -o /dev/null; then
+              echo "ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "apps/web did not become ready on $LHCI_BASE_URL" >&2
+          tail -n 200 /tmp/web.log >&2 || true
+          exit 1
+
+      - name: Run Lighthouse gate (desktop + mobile-3g)
+        run: pnpm --filter @proctira/web check:lighthouse --strict
+
+      - name: Stop apps/web
+        if: always()
+        run: |
+          if [ -n "${WEB_PID:-}" ]; then kill "$WEB_PID" 2>/dev/null || true; fi
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: tools/scripts/.lighthouseci/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Integration Tests - Requires infrastructure services
+  # ---------------------------------------------------------------------------
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build, detect-changes]
+    if: needs.detect-changes.outputs.has-backend-changes == 'true' || needs.detect-changes.outputs.has-shared-changes == 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: proctira
+          POSTGRES_PASSWORD: proctira_test
+          POSTGRES_DB: proctira_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run database migrations
+        run: pnpm --filter @proctira/database run db:migrate:deploy
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+
+      - name: Run integration tests
+        run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+          CI: true
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: '**/test-results/'
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Definition-of-Done — Charter Compliance Release Gate
+  # ---------------------------------------------------------------------------
+  # Charter §32 (Definition of Done). Runs the seven automated checks in
+  # tools/dod-checks/ as a release gate; a non-zero exit blocks the merge.
+  # The detailed workflow definition-of-done.yml runs the same job in
+  # isolation when only DoD-relevant paths change; this entry keeps the
+  # gate present in the affected-modules pipeline as well.
+  # ---------------------------------------------------------------------------
+  dod-checks:
+    name: Definition of Done (Charter §32)
+    runs-on: ubuntu-latest
+    needs: [unit-test]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Definition-of-Done checks
+        run: pnpm run check:dod
+
+      - name: Run DoD check unit tests
+        run: pnpm run check:dod:test
+
+      - name: Upload DoD JSON report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dod-report
+          path: tools/dod-checks/reports/dod-report.json
+          retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # Tenant Isolation Verification - Release Gate
+  # ---------------------------------------------------------------------------
+  # This job runs the comprehensive tenant isolation test suite and MUST pass
+  # before any release. It verifies data isolation across all layers:
+  # query scoping, auth boundaries, HTTP, event routing, search, cache, and
+  # reports. The gate is implemented as a dedicated package
+  # (@proctira/tenant-isolation-tests) under tools/tenant-isolation-tests.
+  # Charter: Section 39 (Tenant Isolation Verification)
+  # ---------------------------------------------------------------------------
+  tenant-isolation:
+    name: Tenant Isolation Verification (Release Gate)
+    runs-on: ubuntu-latest
+    needs: [unit-test]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit isolation tests
+        run: pnpm test:tenant-isolation:unit
+        env:
+          CI: true
+
+      - name: Run integration isolation tests
+        run: pnpm test:tenant-isolation:integration
+        env:
+          CI: true
+
+      - name: Run queue/event isolation tests
+        run: pnpm test:tenant-isolation:queue
+        env:
+          CI: true
+
+      - name: Run search isolation tests
+        run: pnpm test:tenant-isolation:search
+        env:
+          CI: true
+
+      - name: Run cache isolation tests
+        run: pnpm test:tenant-isolation:cache
+        env:
+          CI: true
+
+      - name: Run report isolation tests
+        run: pnpm test:tenant-isolation:report
+        env:
+          CI: true
+
+      - name: Run E2E isolation tests
+        run: pnpm test:tenant-isolation:e2e
+        env:
+          CI: true
+
+      - name: Upload tenant isolation test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tenant-isolation-results
+          path: |
+            tools/tenant-isolation-tests/test-results/
+            tools/tenant-isolation-tests/playwright-report/
+          retention-days: 7

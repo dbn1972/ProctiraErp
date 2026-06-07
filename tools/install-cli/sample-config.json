@@ -1,0 +1,45 @@
+{
+  "cdn": {
+    "adapter": "nginx",
+    "baseUrl": "http://localhost:8080",
+    "tenantAware": true
+  },
+  "database": {
+    "provider": "postgresql",
+    "host": "localhost",
+    "port": 5432,
+    "database": "proctira",
+    "username": "proctira",
+    "password": "changeme",
+    "ssl": false,
+    "poolSize": 10
+  },
+  "storage": {
+    "adapter": "minio",
+    "bucket": "proctira",
+    "endpoint": "http://localhost:9000",
+    "accessKeyId": "minioadmin",
+    "secretAccessKey": "minioadmin",
+    "forcePathStyle": true
+  },
+  "cache": {
+    "adapter": "redis",
+    "host": "localhost",
+    "port": 6379,
+    "db": 0,
+    "keyPrefix": "proctira:"
+  },
+  "queue": {
+    "backend": "rabbitmq",
+    "rabbitmq": {
+      "url": "amqp://guest:guest@localhost:5672",
+      "exchange": "proctira"
+    }
+  },
+  "admin": {
+    "username": "admin@proctira.org",
+    "password": "Admin123!",
+    "firstName": "System",
+    "lastName": "Administrator"
+  }
+}

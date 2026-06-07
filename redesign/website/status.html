@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>System status — All systems operational · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="site.css">
+<style>
+  .status-hero { text-align: center; padding: 72px 0 56px; }
+  .status-hero h1 { margin: 22px 0 0; font-size: var(--fs-4xl); font-weight: 800; letter-spacing: -.03em; }
+  .status-hero p { margin: 12px auto 0; color: var(--text-2); font-size: var(--fs-lg); max-width: 52ch; }
+  .uptime-legend { display: flex; gap: 18px; justify-content: flex-end; font-size: var(--fs-xs); color: var(--text-3); padding: 14px 22px 0; flex-wrap: wrap; }
+  .uptime-legend span { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .uptime-legend i { width: 9px; height: 14px; border-radius: 3px; display: inline-block; }
+  .inc-card { padding: 22px 24px; }
+  .inc-card .inc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .inc-card h3 { margin: 0; font-size: var(--fs-lg); font-weight: 700; }
+  .inc-card .inc-date { font-size: var(--fs-xs); color: var(--text-3); font-weight: 600; margin-left: auto; }
+  .inc-card p { margin: 6px 0 0; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.65; }
+  .inc-card .inc-meta { margin-top: 10px; font-size: var(--fs-xs); color: var(--text-3); }
+</style>
+</head>
+<body class="site">
+
+<header class="site-header">
+  <div class="container nav-row">
+    <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <nav class="main-nav" aria-label="Primary">
+      <a href="product.html">Product</a>
+      <a href="home.html#levels">Solutions</a>
+      <a href="installation.html">Developers</a>
+      <a href="contact.html">Pricing</a>
+      <a href="about.html">Company</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+    <button class="hamburger" type="button" aria-label="Toggle menu" aria-expanded="false" onclick="toggleNav(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+  </div>
+  <div class="mobile-menu">
+    <a href="product.html">Product</a>
+    <a href="home.html#levels">Solutions</a>
+    <a href="installation.html">Developers</a>
+    <a href="contact.html">Pricing</a>
+    <a href="about.html">Company</a>
+    <div class="mm-actions">
+      <a class="btn btn-secondary" href="../web/auth-login.html">Sign in</a>
+      <a class="btn btn-primary" href="contact.html">Contact sales</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="status-hero">
+    <div class="container">
+      <span class="status-hero-pill"><span class="pulse"></span>All systems operational</span>
+      <h1>System status</h1>
+      <p>Live operational state of ProctiraERP cloud services. Last checked 7 June 2026, 09:42 IST · refreshes every 60 seconds.</p>
+    </div>
+  </section>
+
+  <!-- COMPONENTS -->
+  <section class="section" style="padding-top:24px">
+    <div class="container">
+      <div class="card">
+        <div class="uptime-legend">
+          <span><i style="background:var(--green-500)"></i>Operational</span>
+          <span><i style="background:var(--amber-500)"></i>Degraded</span>
+          <span><i style="background:var(--slate-300)"></i>No data</span>
+          <span style="margin-left:auto">← 90 days ago · today →</span>
+        </div>
+
+        <div class="component-row">
+          <div class="c-name">Web app<span class="c-sub">app.proctira.org</span></div>
+          <div class="c-bars"><svg data-degraded="" preserveAspectRatio="none" role="img" aria-label="90-day uptime, 100 percent"></svg></div>
+          <span class="pill green">Operational</span>
+          <span class="c-uptime">100%</span>
+        </div>
+
+        <div class="component-row">
+          <div class="c-name">API<span class="c-sub">api.proctira.org</span></div>
+          <div class="c-bars"><svg data-degraded="31,62" preserveAspectRatio="none" role="img" aria-label="90-day uptime, 99.98 percent"></svg></div>
+          <span class="pill green">Operational</span>
+          <span class="c-uptime">99.98%</span>
+        </div>
+
+        <div class="component-row">
+          <div class="c-name">Authentication<span class="c-sub">SSO, OTP &amp; sessions</span></div>
+          <div class="c-bars"><svg data-degraded="" preserveAspectRatio="none" role="img" aria-label="90-day uptime, 100 percent"></svg></div>
+          <span class="pill green">Operational</span>
+          <span class="c-uptime">100%</span>
+        </div>
+
+        <div class="component-row">
+          <div class="c-name">SMS notifications<span class="c-sub">Guardian alerts &amp; OTP delivery</span></div>
+          <div class="c-bars"><svg data-degraded="12,13,55" preserveAspectRatio="none" role="img" aria-label="90-day uptime, 99.91 percent"></svg></div>
+          <span class="pill green">Operational</span>
+          <span class="c-uptime">99.91%</span>
+        </div>
+
+        <div class="component-row">
+          <div class="c-name">DBT integration<span class="c-sub">PFMS disbursal &amp; reconciliation</span></div>
+          <div class="c-bars"><svg data-degraded="47" preserveAspectRatio="none" role="img" aria-label="90-day uptime, 99.95 percent"></svg></div>
+          <span class="pill green">Operational</span>
+          <span class="c-uptime">99.95%</span>
+        </div>
+
+        <div class="component-row">
+          <div class="c-name">Reports engine<span class="c-sub">Exports, PDFs &amp; UDISE+ files</span></div>
+          <div class="c-bars"><svg data-degraded="76,77" preserveAspectRatio="none" role="img" aria-label="90-day uptime, 99.93 percent"></svg></div>
+          <span class="pill green">Operational</span>
+          <span class="c-uptime">99.93%</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAST INCIDENTS -->
+  <section class="section alt">
+    <div class="container" style="max-width:860px">
+      <div class="section-head left">
+        <span class="kicker">History</span>
+        <h2 class="section-title">Past incidents</h2>
+        <p class="section-sub">Post-mortems and corrective actions are published with every incident affecting a production service.</p>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div class="card inc-card">
+          <div class="inc-head">
+            <span class="pill green">Resolved</span>
+            <h3>Delayed SMS delivery to guardians in eastern districts</h3>
+            <span class="inc-date">22 May 2026 · 14:05–16:40 IST</span>
+          </div>
+          <p>A telecom gateway partner experienced congestion that delayed roughly 38% of attendance-alert SMS by 30–90 minutes. No messages were lost; queued alerts were delivered after automatic failover to the secondary gateway. We have since lowered the failover threshold from 10 minutes to 3 minutes.</p>
+          <div class="inc-meta">Duration 2h 35m · Impact: degraded · Affected: SMS notifications</div>
+        </div>
+
+        <div class="card inc-card">
+          <div class="inc-head">
+            <span class="pill green">Resolved</span>
+            <h3>Elevated API latency during term-end report generation</h3>
+            <span class="inc-date">28 March 2026 · 10:12–11:48 IST</span>
+          </div>
+          <p>Concurrent report-card generation across 140+ schools at term close saturated the reports queue and raised p95 API latency to 2.1s. We isolated report workloads onto a dedicated worker pool and added pre-term capacity scheduling. No data was affected and no requests failed.</p>
+          <div class="inc-meta">Duration 1h 36m · Impact: degraded · Affected: API, Reports engine</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="band-navy cta-band">
+    <div class="container">
+      <h2>Subscribe to <span class="grad-dark">status updates</span></h2>
+      <p>Operations teams can receive incident notifications by email, RSS, or webhook — straight from status.proctira.org.</p>
+      <div class="hero-ctas">
+        <a class="btn btn-grad btn-xl" href="contact.html">Subscribe to updates</a>
+        <a class="btn btn-onnavy btn-xl" href="security.html">How we run operations</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-brand">
+        <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+        <p>Open-source education infrastructure for schools, districts, and ministries — built in India, for the world.</p>
+        <span class="foot-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17l-6.2 3.9 1.6-7L2 9.2l7.1-.6z"/></svg>Apache-2.0 · Open source</span>
+      </div>
+      <div class="foot-col">
+        <h4>Product</h4>
+        <a href="product.html">Product tour</a>
+        <a href="installation.html">Installation</a>
+        <a href="security.html">Security</a>
+        <a href="status.html">System status</a>
+        <a href="compliance.html">Compliance</a>
+      </div>
+      <div class="foot-col">
+        <h4>Solutions</h4>
+        <a href="home.html#levels">For schools</a>
+        <a href="home.html#levels">For districts</a>
+        <a href="home.html#levels">For ministries</a>
+        <a href="about.html">Odisha pilot</a>
+      </div>
+      <div class="foot-col">
+        <h4>Developers</h4>
+        <a href="installation.html">Documentation</a>
+        <a href="installation.html#architecture">Architecture</a>
+        <a href="product.html#integrations">Integrations</a>
+        <a href="about.html#opensource">GitHub</a>
+      </div>
+      <div class="foot-col">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+        <a href="about.html#careers">Careers</a>
+        <a href="legal.html">Legal</a>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="foot-locale"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>English (India) · हिन्दी · ଓଡ଼ିଆ</span>
+      <div class="legal-links">
+        <a href="privacy.html">Privacy</a>
+        <a href="terms.html">Terms</a>
+        <a href="cookies.html">Cookies</a>
+        <a href="status.html">Status</a>
+      </div>
+      <div class="foot-copy">© 2026 ProctiraERP · open source under <a href="legal.html">Apache-2.0</a></div>
+    </div>
+  </div>
+</footer>
+
+<script>
+function toggleNav(btn){
+  document.body.classList.toggle('nav-open');
+  btn.setAttribute('aria-expanded', document.body.classList.contains('nav-open'));
+}
+// Render 90-day uptime tick strips
+document.querySelectorAll('.c-bars svg').forEach(svg => {
+  const degraded = (svg.dataset.degraded || '').split(',').filter(Boolean).map(Number);
+  const DAYS = 90, GAP = 2, W = 8, H = 30;
+  svg.setAttribute('viewBox', `0 0 ${DAYS * (W + GAP) - GAP} ${H}`);
+  let ticks = '';
+  for (let i = 0; i < DAYS; i++) {
+    const fill = degraded.includes(i) ? 'var(--amber-500)' : 'var(--green-500)';
+    ticks += `<rect x="${i * (W + GAP)}" y="0" width="${W}" height="${H}" rx="2.5" fill="${fill}"><title>Day ${i + 1} of 90 — ${degraded.includes(i) ? 'degraded performance' : 'operational'}</title></rect>`;
+  }
+  svg.innerHTML = ticks;
+});
+</script>
+</body>
+</html>

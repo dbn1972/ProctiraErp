@@ -1,0 +1,39 @@
+{
+  "name": "@proctira/backend-admin-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./plugin": "./src/admin-dashboard-plugin.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@proctira/cache": "workspace:*",
+    "@proctira/common": "workspace:*",
+    "@proctira/queue-abstraction": "workspace:*",
+    "@sinclair/typebox": "^0.32.0",
+    "fastify-plugin": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "fastify": "^4.26.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "peerDependencies": {
+    "fastify": "^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "fastify": {
+      "optional": true
+    }
+  }
+}

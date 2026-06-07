@@ -1,0 +1,41 @@
+{
+  "name": "@proctira/tenant-isolation-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant isolation verification gate. Charter Section 39.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./helpers": "./src/helpers/index.ts"
+  },
+  "scripts": {
+    "test": "pnpm test:all",
+    "test:all": "pnpm test:unit && pnpm test:integration && pnpm test:queue && pnpm test:search && pnpm test:cache && pnpm test:report && pnpm test:e2e",
+    "test:unit": "vitest run --config vitest.config.ts src/unit",
+    "test:integration": "vitest run --config vitest.config.ts src/integration",
+    "test:queue": "vitest run --config vitest.config.ts src/queue",
+    "test:search": "vitest run --config vitest.config.ts src/search",
+    "test:cache": "vitest run --config vitest.config.ts src/cache",
+    "test:report": "vitest run --config vitest.config.ts src/report",
+    "test:e2e": "playwright test --config=playwright.config.ts",
+    "test:e2e:headed": "playwright test --config=playwright.config.ts --headed",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@proctira/events": "workspace:*",
+    "@proctira/tenant": "workspace:*",
+    "@proctira/testing": "workspace:*",
+    "fastify": "^4.26.0",
+    "fastify-plugin": "^4.5.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.45.0",
+    "@types/node": "^20.12.0",
+    "fast-check": "^3.17.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@proctira/default-theme",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Default platform theme for ProctiraERP with light and dark mode support",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./light": "./src/light.ts",
+    "./dark": "./src/dark.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@proctira/theme-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "fast-check": "^3.17.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}

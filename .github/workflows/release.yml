@@ -1,0 +1,362 @@
+# =============================================================================
+# Release Pipeline - ProctiraERP Unified Platform
+# =============================================================================
+# Builds and pushes container images for affected services to a configurable
+# OCI registry (GHCR by default). Gated on successful completion of the CI
+# workflow for the same commit, so only commits that pass lint, type-check,
+# unit tests, build, and integration tests produce release artifacts.
+#
+# Triggers:
+#   - workflow_run: After CI completes successfully on main/develop/release/**
+#   - workflow_dispatch: Manual release for any ref (with optional service list)
+#
+# Outputs:
+#   - Container images tagged by:
+#       * Full commit SHA (immutable, for traceability)
+#       * Short commit SHA (human-readable)
+#       * Branch name (latest commit on that branch)
+#       * "latest" (only on main)
+# =============================================================================
+
+name: Release
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main, develop, 'release/**']
+  workflow_dispatch:
+    inputs:
+      services:
+        description: 'Comma-separated services to release (empty = affected only)'
+        required: false
+        type: string
+      force-all:
+        description: 'Build all services regardless of changes'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # Registry is configurable. Defaults to GitHub Container Registry.
+  # Override by setting the CONTAINER_REGISTRY repository variable.
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}
+  IMAGE_NAMESPACE: ${{ vars.IMAGE_NAMESPACE || github.repository_owner }}
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.33.2'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Gate: Only proceed if the upstream CI run succeeded (workflow_run trigger).
+  # workflow_dispatch bypasses this gate.
+  # ---------------------------------------------------------------------------
+  ci-gate:
+    name: Verify CI Passed
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      head-sha: ${{ steps.resolve.outputs.head-sha }}
+      head-branch: ${{ steps.resolve.outputs.head-branch }}
+    steps:
+      - name: Resolve commit and branch
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            HEAD_SHA="${{ github.event.workflow_run.head_sha }}"
+            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          else
+            HEAD_SHA="${{ github.sha }}"
+            HEAD_BRANCH="${{ github.ref_name }}"
+          fi
+          echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "head-branch=${HEAD_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "Releasing commit ${HEAD_SHA} from branch ${HEAD_BRANCH}" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Detect which services have changed and need new container images.
+  # Uses path-based detection against the previous commit on the same branch.
+  # ---------------------------------------------------------------------------
+  detect-services:
+    name: Detect Affected Services
+    runs-on: ubuntu-latest
+    needs: ci-gate
+    outputs:
+      services: ${{ steps.affected.outputs.services }}
+      has-services: ${{ steps.affected.outputs.has-services }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
+          fetch-depth: 0
+
+      - name: Detect affected services
+        id: affected
+        env:
+          MANUAL_SERVICES: ${{ inputs.services }}
+          FORCE_ALL: ${{ inputs.force-all }}
+        run: |
+          set -euo pipefail
+
+          # Master list of releasable services. Adding a new service requires
+          # adding it here AND providing a Dockerfile in infrastructure/docker/.
+          ALL_SERVICES="api-gateway,web,registration-portal,etl-worker,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
+
+          # Manual override via workflow_dispatch.
+          if [ "${FORCE_ALL:-false}" = "true" ]; then
+            echo "Force-all flag set: building all services"
+            echo "services=${ALL_SERVICES}" >> "$GITHUB_OUTPUT"
+            echo "has-services=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -n "${MANUAL_SERVICES:-}" ]; then
+            echo "Manual service list provided: ${MANUAL_SERVICES}"
+            echo "services=${MANUAL_SERVICES}" >> "$GITHUB_OUTPUT"
+            echo "has-services=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Path -> service-name mapping. Multiple paths can map to the same
+          # service (e.g. when a feature spans backend + tooling).
+          declare -A SERVICE_MAP=(
+            ["apps/api-gateway"]="api-gateway"
+            ["apps/web"]="web"
+            ["apps/registration-portal"]="registration-portal"
+            ["apps/etl-worker"]="etl-worker"
+            ["packages/backend/institution"]="institution"
+            ["packages/backend/student"]="student"
+            ["packages/backend/staff"]="staff"
+            ["packages/backend/assessment"]="assessment"
+            ["packages/backend/attendance"]="attendance"
+            ["packages/backend/examination"]="examination"
+            ["packages/backend/workflow"]="workflow"
+            ["packages/backend/notification"]="notification"
+            ["packages/backend/report"]="report"
+          )
+
+          # Compare against the previous commit. On force-pushed branches HEAD~1
+          # may not exist; fall back gracefully.
+          if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          else
+            echo "No previous commit available; treating as full release"
+            echo "services=${ALL_SERVICES}" >> "$GITHUB_OUTPUT"
+            echo "has-services=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Shared package or Dockerfile changes trigger a full release because
+          # all services share the same base layers and shared library code.
+          if echo "$CHANGED_FILES" | grep -qE "^(packages/shared/|infrastructure/docker/|Dockerfile|pnpm-lock\.yaml|turbo\.json|tsconfig\.base\.json)"; then
+            echo "Shared/infra change detected: building all services"
+            echo "services=${ALL_SERVICES}" >> "$GITHUB_OUTPUT"
+            echo "has-services=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          SERVICES=""
+          for path in "${!SERVICE_MAP[@]}"; do
+            if echo "$CHANGED_FILES" | grep -q "^${path}/"; then
+              if [ -n "$SERVICES" ]; then
+                SERVICES="${SERVICES},${SERVICE_MAP[$path]}"
+              else
+                SERVICES="${SERVICE_MAP[$path]}"
+              fi
+            fi
+          done
+
+          if [ -z "$SERVICES" ]; then
+            echo "No service changes detected; skipping image builds"
+            echo "services=" >> "$GITHUB_OUTPUT"
+            echo "has-services=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Affected services: ${SERVICES}"
+            echo "services=${SERVICES}" >> "$GITHUB_OUTPUT"
+            echo "has-services=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Convert comma-separated service list into a matrix for parallel builds.
+  # ---------------------------------------------------------------------------
+  matrix-prep:
+    name: Prepare Build Matrix
+    runs-on: ubuntu-latest
+    needs: detect-services
+    if: needs.detect-services.outputs.has-services == 'true'
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Convert services to matrix JSON
+        id: set-matrix
+        env:
+          SERVICES: ${{ needs.detect-services.outputs.services }}
+        run: |
+          JSON=$(echo "$SERVICES" | jq -R -c 'split(",")')
+          echo "matrix={\"service\":${JSON}}" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Build and push container images. One job per service runs in parallel.
+  # ---------------------------------------------------------------------------
+  build-and-push:
+    name: Build & Push ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: [ci-gate, detect-services, matrix-prep]
+    if: needs.detect-services.outputs.has-services == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.ci-gate.outputs.head-sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # GHCR uses GITHUB_TOKEN automatically; other registries require explicit
+      # credentials. The choice is determined by REGISTRY at runtime.
+      - name: Login to GHCR
+        if: env.REGISTRY == 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to custom registry
+        if: env.REGISTRY != 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Resolve Dockerfile and build args
+        id: docker-config
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          case "$SERVICE" in
+            api-gateway)
+              DOCKERFILE="infrastructure/docker/Dockerfile.api-gateway"
+              BUILD_ARGS=""
+              ;;
+            web)
+              DOCKERFILE="infrastructure/docker/Dockerfile.web"
+              BUILD_ARGS=""
+              ;;
+            registration-portal)
+              DOCKERFILE="infrastructure/docker/Dockerfile.nextjs-app"
+              BUILD_ARGS=$'APP_NAME=registration-portal\nAPP_PORT=3002'
+              ;;
+            etl-worker)
+              DOCKERFILE="infrastructure/docker/Dockerfile.etl-worker"
+              BUILD_ARGS=""
+              ;;
+            *)
+              DOCKERFILE="infrastructure/docker/Dockerfile.backend-service"
+              declare -A PORT_MAP=(
+                ["institution"]="3020"
+                ["student"]="3021"
+                ["staff"]="3022"
+                ["assessment"]="3023"
+                ["attendance"]="3024"
+                ["examination"]="3025"
+                ["workflow"]="3026"
+                ["notification"]="3027"
+                ["report"]="3028"
+              )
+              PORT="${PORT_MAP[$SERVICE]:-3000}"
+              BUILD_ARGS=$'SERVICE_NAME='"$SERVICE"$'\nSERVICE_PORT='"$PORT"
+              ;;
+          esac
+          echo "dockerfile=${DOCKERFILE}" >> "$GITHUB_OUTPUT"
+          {
+            echo 'build-args<<EOF'
+            echo "$BUILD_ARGS"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # docker/metadata-action computes the canonical set of tags and labels
+      # following OCI and OpenContainers conventions. Tags include:
+      #   - branch name (e.g. develop, main)
+      #   - short SHA (e.g. sha-abc1234)
+      #   - full SHA (immutable digest reference)
+      #   - latest (only on main)
+      - name: Compute image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira-${{ matrix.service }}
+          tags: |
+            type=raw,value=${{ needs.ci-gate.outputs.head-branch }},enable=${{ needs.ci-gate.outputs.head-branch != '' }}
+            type=raw,value=sha-${{ needs.ci-gate.outputs.head-sha }}
+            type=sha,format=short,prefix=sha-,sha=${{ needs.ci-gate.outputs.head-sha }}
+            type=raw,value=latest,enable=${{ needs.ci-gate.outputs.head-branch == 'main' }}
+          labels: |
+            org.opencontainers.image.title=proctira-${{ matrix.service }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.ci-gate.outputs.head-sha }}
+            org.opencontainers.image.version=${{ needs.ci-gate.outputs.head-branch }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ steps.docker-config.outputs.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ steps.docker-config.outputs.build-args }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          platforms: linux/amd64
+          provenance: false
+
+      - name: Record image digest
+        run: |
+          {
+            echo "### ${{ matrix.service }}"
+            echo ""
+            echo '```'
+            echo "Tags:"
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Aggregate result so downstream workflows (deploy.yml) can depend on the
+  # whole release matrix succeeding.
+  # ---------------------------------------------------------------------------
+  release-summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    needs: [ci-gate, detect-services, build-and-push]
+    if: always() && needs.ci-gate.result == 'success'
+    steps:
+      - name: Summarize
+        run: |
+          {
+            echo "## Release Summary"
+            echo ""
+            echo "- Commit: \`${{ needs.ci-gate.outputs.head-sha }}\`"
+            echo "- Branch: \`${{ needs.ci-gate.outputs.head-branch }}\`"
+            echo "- Services: \`${{ needs.detect-services.outputs.services || 'none' }}\`"
+            echo "- Build status: \`${{ needs.build-and-push.result }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if any image build failed
+        if: needs.build-and-push.result == 'failure'
+        run: exit 1

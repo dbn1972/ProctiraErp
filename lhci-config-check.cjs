@@ -1,0 +1,12 @@
+const path = require('node:path');
+const cfg = require('./apps/web/lighthouserc.cjs');
+console.log('hasCi:', !!cfg.ci);
+console.log('urls:', cfg.ci.collect.url);
+console.log('preset:', cfg.ci.collect.settings.preset);
+console.log('throttling:', cfg.ci.collect.settings.throttling);
+console.log('assertions:', cfg.ci.assert.assertions);
+console.log('scoreThresholds:', cfg.SCORE_THRESHOLDS);
+console.log('routes:', cfg.ROUTES);
+console.log('mobile3g:', cfg.MOBILE_3G_THROTTLING);
+console.log('upload target:', cfg.ci.upload.target);
+console.log('upload outputDir:', cfg.ci.upload.outputDir);

@@ -1,0 +1,80 @@
+# syntax=docker/dockerfile:1.7
+#
+# Multi-stage base image for Next.js web applications in the ProctiraERP
+# Unified Platform monorepo.
+#
+# Per-app Dockerfiles consume this image (or copy these stages) and pass
+# `APP_NAME` as a build argument to select the workspace app to build.
+#
+# Stages:
+#   1. base    - Minimal Node + pnpm, used as a common parent layer
+#   2. deps    - Resolves and installs the workspace dependency graph
+#   3. builder - Runs `pnpm turbo run build` for the selected app
+#   4. runner  - Final lean runtime that boots the standalone server
+#
+# All configuration is read from environment variables. No secrets baked in.
+
+ARG NODE_VERSION=20-alpine
+
+# ---------- 1. base ----------
+FROM node:${NODE_VERSION} AS base
+RUN apk add --no-cache libc6-compat curl
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@10.33.2 --activate
+WORKDIR /app
+
+# ---------- 2. deps ----------
+FROM base AS deps
+# Copy workspace manifests so pnpm can resolve the graph deterministically.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY turbo.json tsconfig.base.json ./
+# Copy every workspace package.json (preserves relative paths) without
+# pulling in source — improves Docker layer caching when only code changes.
+COPY apps ./apps
+COPY packages ./packages
+COPY plugins ./plugins
+COPY themes ./themes
+COPY tools ./tools
+RUN pnpm install --frozen-lockfile
+
+# ---------- 3. builder ----------
+FROM deps AS builder
+ARG APP_NAME=web
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+# Build only the target app and its workspace deps via Turbo's filter.
+RUN pnpm --filter "@proctira/${APP_NAME}..." run build
+
+# ---------- 4. runner ----------
+FROM node:${NODE_VERSION} AS runner
+ARG APP_NAME=web
+ARG APP_PORT=3000
+RUN apk add --no-cache curl
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=${APP_PORT}
+ENV HOSTNAME=0.0.0.0
+
+# Run as non-root.
+RUN addgroup --system --gid 1001 nodejs \
+ && adduser --system --uid 1001 --ingroup nodejs nextjs
+
+# Copy the standalone server output. Next.js standalone bundles the workspace
+# dependencies under the same relative path layout as the source tree, so we
+# point the WORKDIR at the app subdirectory of the standalone build.
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_NAME}/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_NAME}/.next/static ./apps/${APP_NAME}/.next/static
+# Public dir is optional — copy it if it exists (no-op otherwise).
+COPY --from=builder --chown=nextjs:nodejs /app/apps/${APP_NAME}/public ./apps/${APP_NAME}/public
+
+USER nextjs
+EXPOSE ${APP_PORT}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl --fail "http://127.0.0.1:${PORT}/api/health" || exit 1
+
+WORKDIR /app/apps/${APP_NAME}
+CMD ["node", "server.js"]

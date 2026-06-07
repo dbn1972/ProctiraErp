@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Setup Wizard — System Check · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  body { background: radial-gradient(700px 420px at 50% -10%, var(--brand-50) 0%, transparent 55%), var(--bg); }
+  .wiz-shell { max-width: 880px; margin: 0 auto; padding: 32px 24px 64px; }
+  @media (max-width: 767px) { .wiz-shell { padding: 20px 16px 48px; } }
+  .wiz-brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0 28px; color: var(--text); }
+  .wiz-brand .logo-mark { width: 38px; height: 38px; border-radius: 11px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 18px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .wiz-brand b { font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+  .wiz-brand b span { color: var(--brand-600); }
+  .wiz-brand .sep { color: var(--text-3); font-weight: 400; }
+  .wiz-brand .wname { font-size: var(--fs-sm); color: var(--text-2); font-weight: 600; }
+
+  .wiz-grid { display: grid; grid-template-columns: 230px 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 767px) { .wiz-grid { grid-template-columns: 1fr; } }
+
+  /* Vertical stepper */
+  .vstepper { display: flex; flex-direction: column; gap: 0; padding: 18px 16px; position: sticky; top: 24px; }
+  .vstep { display: flex; gap: 12px; align-items: flex-start; position: relative; padding-bottom: 22px; }
+  .vstep:last-child { padding-bottom: 0; }
+  .vstep::before { content: ''; position: absolute; left: 14px; top: 32px; bottom: 2px; width: 2px; background: var(--border); }
+  .vstep:last-child::before { display: none; }
+  .vstep .s-dot { width: 29px; height: 29px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 700; background: var(--bg-subtle); color: var(--text-3); border: 2px solid var(--border); z-index: 1; }
+  .vstep.active .s-dot { background: var(--brand-600); border-color: var(--brand-600); color: #fff; box-shadow: 0 0 0 4px var(--brand-100); }
+  .vstep .s-meta b { display: block; font-size: var(--fs-sm); font-weight: 600; color: var(--text-3); line-height: 1.3; padding-top: 5px; }
+  .vstep .s-meta span { font-size: var(--fs-2xs); color: var(--text-3); }
+  .vstep.active .s-meta b { color: var(--text); }
+  @media (max-width: 767px) {
+    .vstepper { position: static; flex-direction: row; overflow-x: auto; padding: 12px 14px; gap: 18px; }
+    .vstep { padding-bottom: 0; flex-shrink: 0; align-items: center; }
+    .vstep::before { display: none; }
+    .vstep .s-meta span { display: none; }
+    .vstep .s-meta b { padding-top: 0; white-space: nowrap; }
+  }
+
+  /* Check rows */
+  .check-row { display: flex; align-items: center; gap: 13px; padding: 13px 0; border-bottom: 1px solid var(--border); }
+  .check-row:last-child { border-bottom: none; }
+  .check-row .c-ic { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .check-row .c-ic svg { width: 16px; height: 16px; }
+  .check-row .c-ic.ok { background: var(--green-50); color: var(--green-600); }
+  .check-row .c-ic.warn { background: var(--amber-50); color: var(--amber-600); }
+  .check-row .c-body { flex: 1; min-width: 0; }
+  .check-row .c-body b { display: block; font-size: var(--fs-sm); }
+  .check-row .c-body span { font-size: var(--fs-xs); color: var(--text-3); font-family: var(--font-mono); }
+  .check-row .pill { flex-shrink: 0; }
+  .wiz-foot-actions { display: flex; gap: 10px; align-items: center; }
+  .wiz-foot-actions .btn-primary { margin-left: auto; }
+  @media (max-width: 767px) {
+    .wiz-foot-actions { flex-wrap: wrap; }
+    .wiz-foot-actions .btn { flex: 1; }
+  }
+  .env-meta { display: flex; gap: 8px; align-items: center; font-size: var(--fs-xs); color: var(--text-3); }
+  .env-meta .mono { font-size: var(--fs-2xs); }
+</style>
+</head>
+<body>
+
+<div class="wiz-shell">
+  <div class="wiz-brand">
+    <span class="logo-mark">P</span><b>Proctira<span>ERP</span></b><span class="sep">·</span><span class="wname">Self-hosted setup</span>
+  </div>
+
+  <div class="wiz-grid">
+
+    <aside class="card vstepper" aria-label="Setup progress">
+      <div class="vstep active">
+        <span class="s-dot">1</span>
+        <div class="s-meta"><b>System check</b><span>Verify server requirements</span></div>
+      </div>
+      <div class="vstep">
+        <span class="s-dot">2</span>
+        <div class="s-meta"><b>Database</b><span>PostgreSQL connection</span></div>
+      </div>
+      <div class="vstep">
+        <span class="s-dot">3</span>
+        <div class="s-meta"><b>Admin account</b><span>First administrator</span></div>
+      </div>
+      <div class="vstep">
+        <span class="s-dot">4</span>
+        <div class="s-meta"><b>Institution</b><span>School or district details</span></div>
+      </div>
+      <div class="vstep">
+        <span class="s-dot">5</span>
+        <div class="s-meta"><b>Finish</b><span>Review and install</span></div>
+      </div>
+    </aside>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>System check</h3>
+          <div class="sub">We verified your server against the requirements for ProctiraERP 4.2.</div>
+        </div>
+        <div class="spacer env-meta"><span class="mono">Ubuntu 24.04 LTS · x86_64</span></div>
+      </div>
+
+      <div class="card-pad" style="padding-top:8px;padding-bottom:8px">
+        <div class="check-row">
+          <span class="c-ic ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <div class="c-body"><b>Node.js runtime</b><span>v22.11.0 detected · requires ≥ 20.0</span></div>
+          <span class="pill green">Passed</span>
+        </div>
+        <div class="check-row">
+          <span class="c-ic ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <div class="c-body"><b>PostgreSQL</b><span>16.4 reachable on localhost:5432 · requires ≥ 14</span></div>
+          <span class="pill green">Passed</span>
+        </div>
+        <div class="check-row">
+          <span class="c-ic ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <div class="c-body"><b>Redis</b><span>7.2.5 reachable on localhost:6379</span></div>
+          <span class="pill green">Passed</span>
+        </div>
+        <div class="check-row">
+          <span class="c-ic ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+          <div class="c-body"><b>Disk space</b><span>184 GB free on /var/lib/proctira · requires ≥ 20 GB</span></div>
+          <span class="pill green">Passed</span>
+        </div>
+        <div class="check-row">
+          <span class="c-ic warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+          <div class="c-body"><b>SMTP (outgoing email)</b><span>SMTP_HOST not set — email notifications will be disabled</span></div>
+          <span class="pill amber">Not configured</span>
+        </div>
+      </div>
+
+      <div class="card-pad" style="padding-top:0">
+        <div class="alert warn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div class="a-body"><b>You can continue without SMTP</b>Password resets and email notifications won't work until it is configured. You can add SMTP settings later under Settings → Email — SMS notifications are unaffected.</div>
+        </div>
+        <label class="checkbox-row" style="margin-top:14px">
+          <input type="checkbox" id="ack" onchange="var b=document.getElementById('contBtn');b.disabled=!this.checked">
+          <span>I understand that email features will be disabled until SMTP is configured.</span>
+        </label>
+      </div>
+
+      <div class="card-foot wiz-foot-actions">
+        <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><polyline points="21 3 21 9 15 9"/></svg>Re-run checks</button>
+        <button class="btn btn-primary" type="button" id="contBtn" disabled>Continue to Database<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      </div>
+    </div>
+
+  </div>
+
+  <p style="text-align:center;margin:22px 0 0;font-size:var(--fs-xs);color:var(--text-3)">ProctiraERP 4.2.0 · Installer · <a href="#docs" style="color:var(--link);text-decoration:none;font-weight:600">Installation guide</a> · <a href="#support" style="color:var(--link);text-decoration:none;font-weight:600">Get help</a></p>
+</div>
+
+</body>
+</html>

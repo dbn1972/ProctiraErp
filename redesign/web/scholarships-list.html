@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scholarships · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="scholarships">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Scholarships</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Scholarship programs</h1>
+          <p class="page-sub">Central and state scholarship schemes for Puri district — eligibility, application windows, and DBT disbursements in one place.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="scholarships-applications.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Applications</a>
+          <a class="btn btn-secondary" href="scholarships-disbursements.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Disbursements</a>
+          <a class="btn btn-primary" href="scholarships-program-new.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New program</a>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span><span class="k-label">Disbursed this year</span></div>
+          <div class="k-value">₹2,18,46,000</div>
+          <div class="k-foot"><span class="delta up">↑ 14%</span> vs AY 2025–26</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span><span class="k-label">Active programs</span></div>
+          <div class="k-value">6</div>
+          <div class="k-foot">2 windows close this month</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span><span class="k-label">Pending applications</span></div>
+          <div class="k-value">342</div>
+          <div class="k-foot">96 awaiting income verification</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top"><span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span><span class="k-label">Beneficiaries</span></div>
+          <div class="k-value">2,847</div>
+          <div class="k-foot">11.5% of enrolled students</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search programs" aria-label="Search programs">
+        </div>
+        <select class="select" aria-label="Sponsor"><option>All sponsors</option><option>Govt. of India</option><option>Govt. of Odisha</option><option>NCERT</option></select>
+        <select class="select" aria-label="Status"><option>All statuses</option><option>Window open</option><option>Closing soon</option><option>Closed</option></select>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Program</th><th>Sponsor</th><th>Eligibility</th><th class="num">Amount</th><th>Window</th><th class="num">Applications</th><th>Status</th><th style="text-align:right">Actions</th></tr></thead>
+            <tbody>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="scholarships-program-detail.html" style="color:inherit;text-decoration:none">Pre-Matric Scholarship (SC/ST)</a></div><div class="cell-sub">PM-SC-2026 · Grades VI–X</div></td>
+                <td data-label="Sponsor">Govt. of India</td>
+                <td data-label="Eligibility">SC/ST · income ≤ ₹2,50,000 · attendance ≥ 75%</td>
+                <td data-label="Amount" class="num fw-7">₹4,500/yr</td>
+                <td data-label="Window">01 May – 30 Jun 2026</td>
+                <td data-label="Applications" class="num">1,184</td>
+                <td data-label="Status"><span class="pill green">Window open</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="scholarships-program-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="scholarships-program-detail.html" style="color:inherit;text-decoration:none">NMMS (National Means-cum-Merit)</a></div><div class="cell-sub">NMMS-2026 · Grade VIII entry</div></td>
+                <td data-label="Sponsor">NCERT / Govt. of India</td>
+                <td data-label="Eligibility">Income ≤ ₹3,50,000 · min 55% in Grade VII · merit test</td>
+                <td data-label="Amount" class="num fw-7">₹12,000/yr</td>
+                <td data-label="Window">15 May – 15 Jul 2026</td>
+                <td data-label="Applications" class="num">486</td>
+                <td data-label="Status"><span class="pill green">Window open</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="scholarships-program-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="scholarships-program-detail.html" style="color:inherit;text-decoration:none">PM-YASASVI (OBC/EBC/DNT)</a></div><div class="cell-sub">YAS-2026 · Grades IX–X</div></td>
+                <td data-label="Sponsor">Govt. of India</td>
+                <td data-label="Eligibility">OBC/EBC/DNT · income ≤ ₹2,50,000 · entrance test</td>
+                <td data-label="Amount" class="num fw-7">₹75,000/yr</td>
+                <td data-label="Window">01 Jun – 31 Jul 2026</td>
+                <td data-label="Applications" class="num">219</td>
+                <td data-label="Status"><span class="pill green">Window open</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="scholarships-program-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="scholarships-program-detail.html" style="color:inherit;text-decoration:none">Pathani Samanta Mathematics Talent</a></div><div class="cell-sub">PSM-2026 · Grades VI–VIII · Odisha</div></td>
+                <td data-label="Sponsor">Govt. of Odisha</td>
+                <td data-label="Eligibility">Govt. school students · merit test in mathematics</td>
+                <td data-label="Amount" class="num fw-7">₹5,000/yr</td>
+                <td data-label="Window">10 Jun – 10 Aug 2026</td>
+                <td data-label="Applications" class="num">158</td>
+                <td data-label="Status"><span class="pill green">Window open</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="scholarships-program-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="scholarships-program-detail.html" style="color:inherit;text-decoration:none">Banishree Scholarship (CwSN)</a></div><div class="cell-sub">BAN-2026 · all grades · Odisha</div></td>
+                <td data-label="Sponsor">Govt. of Odisha</td>
+                <td data-label="Eligibility">Students with special needs (40%+ certified)</td>
+                <td data-label="Amount" class="num fw-7">₹6,000/yr</td>
+                <td data-label="Window">01 Jun – 15 Jun 2026</td>
+                <td data-label="Applications" class="num">64</td>
+                <td data-label="Status"><span class="pill amber">Closing soon</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="scholarships-program-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label=""><div class="cell-main"><a href="scholarships-program-detail.html" style="color:inherit;text-decoration:none">Medhabruti (Junior Merit)</a></div><div class="cell-sub">MED-2025 · Grade X toppers · Odisha</div></td>
+                <td data-label="Sponsor">Govt. of Odisha</td>
+                <td data-label="Eligibility">Top 10% in HSC examination · income ≤ ₹6,00,000</td>
+                <td data-label="Amount" class="num fw-7">₹3,000/yr</td>
+                <td data-label="Window">Closed 31 Mar 2026</td>
+                <td data-label="Applications" class="num">412</td>
+                <td data-label="Status"><span class="pill slate">Closed</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="scholarships-program-detail.html" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–6</b> of <b>6</b> programs</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,105 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "proctira.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.hosts.api | quote }}
+        - {{ .Values.ingress.hosts.web | quote }}
+        - {{ .Values.ingress.hosts.register | quote }}
+        - {{ .Values.ingress.hosts.public | quote }}
+        - {{ .Values.ingress.hosts.admin | quote }}
+        - {{ .Values.ingress.hosts.developers | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    {{- if .Values.apiGateway.enabled }}
+    # API Gateway — handles all /api/* traffic on tenant subdomains
+    - host: {{ .Values.ingress.hosts.web | quote }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-api-gateway
+                port:
+                  name: http
+    {{- end }}
+    {{- if .Values.web.enabled }}
+    # Web application — main authenticated app on tenant subdomains
+    - host: {{ .Values.ingress.hosts.web | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-web
+                port:
+                  name: http
+    {{- end }}
+    {{- if .Values.registrationPortal.enabled }}
+    # Registration portal
+    - host: {{ .Values.ingress.hosts.register | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-registration-portal
+                port:
+                  name: http
+    {{- end }}
+    {{- if .Values.publicWebsite.enabled }}
+    # Public website — marketing/landing pages
+    - host: {{ .Values.ingress.hosts.public | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-public-website
+                port:
+                  name: http
+    {{- end }}
+    {{- if .Values.adminConsole.enabled }}
+    # Admin console
+    - host: {{ .Values.ingress.hosts.admin | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-admin-console
+                port:
+                  name: http
+    {{- end }}
+    {{- if .Values.developerPortal.enabled }}
+    # Developer portal
+    - host: {{ .Values.ingress.hosts.developers | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "proctira.fullname" . }}-developer-portal
+                port:
+                  name: http
+    {{- end }}
+{{- end }}

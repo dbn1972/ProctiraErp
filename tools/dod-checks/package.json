@@ -1,0 +1,29 @@
+{
+  "name": "@proctira/dod-checks",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Definition-of-Done CI checks enforcing the Multi-Tenant Product Platform Charter (Section 32). Each check is independently runnable; the aggregator runs all of them and produces a structured JSON report plus a human-readable summary.",
+  "type": "module",
+  "bin": {
+    "dod-check": "./bin/dod-check.mjs"
+  },
+  "scripts": {
+    "check": "node bin/dod-check.mjs",
+    "check:table-naming": "node src/checks/table-naming.mjs",
+    "check:cross-service-joins": "node src/checks/cross-service-joins.mjs",
+    "check:tenant-id": "node src/checks/tenant-id.mjs",
+    "check:audit-events": "node src/checks/audit-events.mjs",
+    "check:api-schema": "node src/checks/api-schema.mjs",
+    "check:error-envelope": "node src/checks/error-envelope.mjs",
+    "check:i18n": "node src/checks/i18n-readiness.mjs",
+    "test": "node test/runner.mjs",
+    "lint": "eslint src/",
+    "typecheck": "echo 'No-op: dod-checks is JavaScript-only'"
+  },
+  "dependencies": {
+    "ts-morph": "^22.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0"
+  }
+}

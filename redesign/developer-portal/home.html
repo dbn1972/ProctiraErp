@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Developer Portal · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  .dev-header { position: sticky; top: 0; z-index: 50; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+  .dev-header-in { max-width: 1120px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 24px; }
+  .dev-logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+  .dev-logo .logo-mark { width: 34px; height: 34px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-500), var(--brand-700)); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 16px; box-shadow: inset 0 1px 0 rgba(255,255,255,.25); }
+  .dev-logo b { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+  .dev-logo b span { color: var(--brand-400); }
+  .dev-logo .tag-dev { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-300); background: var(--brand-50); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 7px; margin-left: 2px; }
+  .dev-nav { display: flex; gap: 2px; }
+  .dev-nav a { padding: 8px 12px; border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: 600; color: var(--text-2); text-decoration: none; transition: background var(--t-fast), color var(--t-fast); }
+  .dev-nav a:hover { background: var(--bg-subtle); color: var(--text); }
+  .dev-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .dev-burger { display: none; }
+  .dev-mobile-nav { display: none; }
+  @media (max-width: 767px) {
+    .dev-header-in { padding: 0 16px; gap: 12px; }
+    .dev-nav { display: none; }
+    .dev-burger { display: inline-flex; }
+    .dev-right .btn-primary { display: none; }
+    .dev-mobile-nav.open { display: flex; flex-direction: column; gap: 2px; padding: 8px 12px 14px; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .dev-mobile-nav a { padding: 13px 14px; border-radius: var(--r-md); font-size: var(--fs-md); font-weight: 600; color: var(--text-2); text-decoration: none; }
+  }
+
+  /* Hero */
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--border); background: radial-gradient(800px 480px at 80% -10%, rgba(99,102,241,.16) 0%, transparent 60%), radial-gradient(600px 400px at 0% 110%, rgba(20,184,166,.08) 0%, transparent 60%); }
+  .hero-in { max-width: 1120px; margin: 0 auto; padding: 80px 24px 64px; display: grid; grid-template-columns: 1.05fr .95fr; gap: 52px; align-items: center; }
+  .hero .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-xs); font-weight: 600; color: var(--brand-300); background: var(--brand-50); border: 1px solid var(--border); border-radius: var(--r-full); padding: 5px 13px; margin-bottom: 20px; }
+  .hero .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green-500); }
+  .hero h1 { margin: 0 0 16px; font-size: clamp(2rem, 4.4vw, 3rem); font-weight: 800; letter-spacing: -.035em; line-height: 1.1; }
+  .hero h1 em { font-style: normal; background: linear-gradient(90deg, var(--brand-400), var(--teal-500)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p { margin: 0 0 28px; font-size: var(--fs-lg); color: var(--text-2); line-height: 1.65; max-width: 50ch; }
+  .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stats-row { display: flex; gap: 36px; margin-top: 38px; flex-wrap: wrap; }
+  .stats-row b { display: block; font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .stats-row span { font-size: var(--fs-xs); color: var(--text-3); }
+  @media (max-width: 1023px) { .hero-in { grid-template-columns: 1fr; padding: 56px 24px 48px; } }
+  @media (max-width: 767px) { .hero-in { padding: 44px 16px 40px; } .hero-ctas .btn { flex: 1; } }
+
+  /* Code card */
+  .code-card { border: 1px solid var(--border); border-radius: var(--r-lg); background: #0A1020; box-shadow: var(--sh-lg); overflow: hidden; }
+  .code-head { display: flex; align-items: center; gap: 8px; padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .code-head .cd { width: 11px; height: 11px; border-radius: 50%; }
+  .code-head .file { margin-left: 8px; font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-3); }
+  .code-head .lang { margin-left: auto; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em; color: var(--text-3); text-transform: uppercase; }
+  .code-body { padding: 18px 20px; font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.75; overflow-x: auto; white-space: pre; color: #C6D0E8; }
+  .code-body .cmt { color: #5E6E92; }
+  .code-body .cmd { color: #7DD3FC; }
+  .code-body .flag { color: #A5B4FC; }
+  .code-body .str { color: #6EE7B7; }
+  .code-body .key { color: #FCA5A5; }
+  .code-body .val { color: #FCD34D; }
+
+  /* Sections */
+  .section { max-width: 1120px; margin: 0 auto; padding: 64px 24px; width: 100%; }
+  .section-head { max-width: 600px; margin-bottom: 36px; }
+  .section-head h2 { margin: 0 0 8px; font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -.02em; }
+  .section-head p { margin: 0; color: var(--text-2); }
+  .feat { padding: 22px; transition: border-color var(--t-fast), transform var(--t-fast); }
+  .feat:hover { border-color: var(--brand-500); transform: translateY(-2px); }
+  .feat .f-ic { width: 40px; height: 40px; border-radius: 11px; display: flex; align-items: center; justify-content: center; margin-bottom: 14px; background: var(--brand-50); color: var(--brand-300); }
+  .feat .f-ic svg { width: 18px; height: 18px; }
+  .feat h3 { margin: 0 0 6px; font-size: var(--fs-lg); font-weight: 700; }
+  .feat p { margin: 0; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.6; }
+  .feat .f-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 12px; font-size: var(--fs-xs); font-weight: 600; color: var(--brand-400); text-decoration: none; }
+  .feat .f-link:hover { color: var(--brand-300); }
+  .feat .f-link svg { width: 12px; height: 12px; }
+
+  /* Getting started */
+  .gs { background: var(--bg-subtle); border-block: 1px solid var(--border); }
+  .gs-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .gs-step { position: relative; padding: 24px 22px; }
+  .gs-step .num { width: 30px; height: 30px; border-radius: 50%; background: var(--brand-600); color: #fff; font-weight: 800; font-size: var(--fs-sm); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+  .gs-step h3 { margin: 0 0 6px; font-size: var(--fs-md); font-weight: 700; }
+  .gs-step p { margin: 0; font-size: var(--fs-sm); color: var(--text-2); line-height: 1.6; }
+  .gs-step code { font-family: var(--font-mono); font-size: var(--fs-2xs); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; color: var(--teal-500); }
+  @media (max-width: 767px) { .gs-steps { grid-template-columns: 1fr; } }
+
+  /* Footer */
+  .dev-footer { border-top: 1px solid var(--border); background: var(--bg-subtle); }
+  .dev-footer-in { max-width: 1120px; margin: 0 auto; padding: 40px 24px 0; display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 28px; }
+  .dev-footer h4 { margin: 0 0 12px; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+  .dev-footer .f-links { display: flex; flex-direction: column; gap: 9px; }
+  .dev-footer .f-links a { color: var(--text-2); font-size: var(--fs-sm); text-decoration: none; }
+  .dev-footer .f-links a:hover { color: var(--text); }
+  .dev-footer p { margin: 10px 0 0; font-size: var(--fs-sm); color: var(--text-3); max-width: 36ch; line-height: 1.6; }
+  .dev-footer-bottom { max-width: 1120px; margin: 32px auto 0; padding: 18px 24px calc(18px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-3); }
+  .dev-footer-bottom .status { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; color: var(--green-500); font-weight: 600; }
+  .dev-footer-bottom .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green-500); }
+  @media (max-width: 767px) { .dev-footer-in { grid-template-columns: 1fr 1fr; } .dev-footer-bottom .status { margin-left: 0; } }
+</style>
+</head>
+<body>
+
+<header class="dev-header">
+  <div class="dev-header-in">
+    <a class="dev-logo" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b><span class="tag-dev">Developers</span></a>
+    <nav class="dev-nav" aria-label="Main">
+      <a href="#docs">Docs</a>
+      <a href="#api">API Reference</a>
+      <a href="#plugins">Plugins</a>
+      <a href="#status">Status</a>
+    </nav>
+    <div class="dev-right">
+      <a class="btn btn-primary" href="#get-api-key">Get API key</a>
+      <button class="icon-btn dev-burger" type="button" aria-label="Open menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', document.getElementById('mnav').classList.toggle('open'))"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+    </div>
+  </div>
+  <nav class="dev-mobile-nav" id="mnav" aria-label="Mobile">
+    <a href="#docs">Docs</a>
+    <a href="#api">API Reference</a>
+    <a href="#plugins">Plugins</a>
+    <a href="#status">Status</a>
+    <a href="#get-api-key" style="color:var(--brand-400)">Get API key</a>
+  </nav>
+</header>
+
+<main style="flex:1">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-in">
+      <div>
+        <span class="eyebrow"><span class="dot"></span>API v3 is live · sandbox tenants now self-serve</span>
+        <h1>Build for <em>every school in India</em></h1>
+        <p>One REST API across enrollment, attendance, assessments, and scholarships. Ship a plugin once and it runs in every ProctiraERP school — from a single classroom to an entire state.</p>
+        <div class="hero-ctas">
+          <a class="btn btn-primary btn-lg" href="#get-api-key">Get API key<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+          <a class="btn btn-secondary btn-lg" href="#docs">Read the docs</a>
+        </div>
+        <div class="stats-row">
+          <div><b>14</b><span>published plugins</span></div>
+          <div><b>240+</b><span>API endpoints</span></div>
+          <div><b>99.95%</b><span>uptime, trailing 12 months</span></div>
+        </div>
+      </div>
+      <div class="code-card" aria-label="Example API request">
+        <div class="code-head">
+          <span class="cd" style="background:#F87171"></span>
+          <span class="cd" style="background:#FBBF24"></span>
+          <span class="cd" style="background:#34D399"></span>
+          <span class="file">quickstart.sh</span>
+          <span class="lang">curl</span>
+        </div>
+        <div class="code-body"><span class="cmt"># List students enrolled this week in your sandbox tenant</span>
+<span class="cmd">curl</span> <span class="str">"https://api.proctira.dev/v3/students"</span> \
+  <span class="flag">-H</span> <span class="str">"Authorization: Bearer $PROCTIRA_API_KEY"</span> \
+  <span class="flag">-H</span> <span class="str">"X-Tenant: sandbox-puri-demo"</span> \
+  <span class="flag">--data-urlencode</span> <span class="str">"enrolled_after=2026-06-01"</span>
+
+<span class="cmt"># 200 OK</span>
+{
+  <span class="key">"data"</span>: [{
+    <span class="key">"id"</span>: <span class="str">"stu_8Hq2vKp"</span>,
+    <span class="key">"name"</span>: <span class="str">"Ananya Pradhan"</span>,
+    <span class="key">"grade"</span>: <span class="val">1</span>,
+    <span class="key">"school_udise"</span>: <span class="str">"21180100412"</span>
+  }],
+  <span class="key">"total"</span>: <span class="val">38</span>
+}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section" id="api">
+    <div class="section-head">
+      <h2>Everything you need to ship</h2>
+      <p>The same primitives our own apps are built on — no private APIs, no second-class access.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card feat">
+        <span class="f-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></span>
+        <h3>REST API</h3>
+        <p>240+ versioned endpoints with cursor pagination, idempotency keys, and predictable errors. OpenAPI 3.1 spec included.</p>
+        <a class="f-link" href="#api">API reference<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+      <div class="card feat">
+        <span class="f-ic" style="background:var(--teal-50);color:var(--teal-500)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5Z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg></span>
+        <h3>Plugin SDK</h3>
+        <p>TypeScript SDK with typed entities, UI slots, and a local dev server. Scaffold to publish in under an hour.</p>
+        <a class="f-link" href="#plugins">SDK guide<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+      <div class="card feat">
+        <span class="f-ic" style="background:var(--amber-50);color:var(--amber-500)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
+        <h3>Webhooks</h3>
+        <p>Signed events for every state change — admissions, attendance, results. At-least-once delivery with automatic retries.</p>
+        <a class="f-link" href="#docs">Event catalog<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+      <div class="card feat">
+        <span class="f-ic" style="background:var(--sky-50);color:var(--sky-500)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></span>
+        <h3>Sandbox tenants</h3>
+        <p>Spin up a disposable school pre-seeded with realistic Odisha demo data. Reset anytime, no production risk.</p>
+        <a class="f-link" href="#get-api-key">Create sandbox<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+      <div class="card feat">
+        <span class="f-ic" style="background:var(--violet-50);color:var(--violet-500)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="19" cy="13" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="10" cy="19.5" r="2.5"/><path d="M12 9a9 9 0 0 0-7 7m14-1a9 9 0 0 0-5-8m-3 12a9 9 0 0 0 7-4"/></svg></span>
+        <h3>Theme kit</h3>
+        <p>Design tokens, components, and dark mode out of the box — your plugin looks native in every tenant's branding.</p>
+        <a class="f-link" href="#docs">Theme docs<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+      <div class="card feat">
+        <span class="f-ic" style="background:var(--green-50);color:var(--green-500)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+        <h3>OAuth scopes</h3>
+        <p>Granular, consent-based scopes down to the field level. Students' personal data stays protected under DPDP Act 2023.</p>
+        <a class="f-link" href="#docs">Auth guide<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Getting started -->
+  <section class="gs" id="docs">
+    <div class="section">
+      <div class="section-head">
+        <h2>From zero to first call in 5 minutes</h2>
+        <p>No sales call, no approval queue. Production access is reviewed only when you're ready to publish.</p>
+      </div>
+      <div class="gs-steps">
+        <div class="card gs-step">
+          <span class="num">1</span>
+          <h3>Create a developer account</h3>
+          <p>Sign in with GitHub or email. You get a sandbox tenant <code>sandbox-*-demo</code> seeded with 500 students automatically.</p>
+        </div>
+        <div class="card gs-step">
+          <span class="num">2</span>
+          <h3>Grab your API key</h3>
+          <p>Generate a scoped key from the dashboard and export it as <code>PROCTIRA_API_KEY</code>. Keys rotate without downtime.</p>
+        </div>
+        <div class="card gs-step">
+          <span class="num">3</span>
+          <h3>Make your first request</h3>
+          <p>Run the quickstart curl above, or <code>npx create-proctira-plugin</code> to scaffold a full plugin with hot reload.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="dev-footer">
+  <div class="dev-footer-in">
+    <div>
+      <a class="dev-logo" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+      <p>The developer platform for India's school ERP. Build once, run in every school.</p>
+    </div>
+    <div>
+      <h4>Documentation</h4>
+      <div class="f-links">
+        <a href="#docs">Quickstart</a>
+        <a href="#api">API Reference</a>
+        <a href="#docs">Webhooks</a>
+        <a href="#docs">Plugin SDK</a>
+      </div>
+    </div>
+    <div>
+      <h4>Platform</h4>
+      <div class="f-links">
+        <a href="#plugins">Plugin marketplace</a>
+        <a href="#get-api-key">Sandbox tenants</a>
+        <a href="#docs">Changelog</a>
+        <a href="#docs">Rate limits</a>
+      </div>
+    </div>
+    <div>
+      <h4>Support</h4>
+      <div class="f-links">
+        <a href="#status">System status</a>
+        <a href="#community">Developer forum</a>
+        <a href="#security">Report a vulnerability</a>
+        <a href="#terms">API terms</a>
+      </div>
+    </div>
+  </div>
+  <div class="dev-footer-bottom">
+    <span>© 2026 ProctiraERP · Developer Portal</span>
+    <span class="status"><span class="dot"></span>All systems operational</span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Health profile — Aarav Sharma · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .profile-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .profile-head .ph-meta h1 { margin: 0; font-size: var(--fs-2xl); font-weight: 700; letter-spacing: -.02em; }
+  .profile-head .ph-sub { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; font-size: var(--fs-sm); color: var(--text-2); }
+  .vital-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .vital { padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); }
+  .vital .v-label { font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+  .vital .v-value { font-size: var(--fs-xl); font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .vital .v-sub { font-size: var(--fs-2xs); color: var(--text-3); }
+  @media (max-width: 767px) { .vital-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body data-active="health">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="health-list.html">Health &amp; Wellness</a><span class="sep">/</span>
+        <span class="current">Aarav Sharma</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="profile-head ph-text">
+          <span class="avatar xl av-1">AS</span>
+          <div class="ph-meta">
+            <h1>Aarav Sharma</h1>
+            <div class="ph-sub">
+              <span class="mono">IDN-10000</span>
+              <span>·</span><span>M · 14 years · Grade VIII · A</span>
+              <span>·</span><span>Govt. Sr. Sec. School, Puri</span>
+              <span class="pill green">No follow-ups due</span>
+            </div>
+          </div>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="students-detail.html">Student profile</a>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Record screening</button>
+        </div>
+      </div>
+
+      <div class="alert info mb-20" role="note">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
+        <div class="a-body"><b>Confidential medical record</b>This profile is visible to you as a Health Officer. Sharing findings outside the school health programme requires written guardian consent.</div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Vitals</h3><div class="sub">Recorded at annual health check · 05 Jun 2026 · Dr. M. Mohapatra (RBSK)</div></div>
+            </div>
+            <div class="card-pad">
+              <div class="vital-grid">
+                <div class="vital"><div class="v-label">Height</div><div class="v-value">158 cm</div><div class="v-sub">50th percentile for age</div></div>
+                <div class="vital"><div class="v-label">Weight</div><div class="v-value">46.2 kg</div><div class="v-sub">+1.8 kg since Dec 2025</div></div>
+                <div class="vital"><div class="v-label">BMI</div><div class="v-value">18.5</div><div class="v-sub">Healthy range</div></div>
+                <div class="vital"><div class="v-label">Vision L / R</div><div class="v-value">6/6 · 6/6</div><div class="v-sub">No correction needed</div></div>
+                <div class="vital"><div class="v-label">Blood group</div><div class="v-value">B+</div><div class="v-sub">Verified 2024</div></div>
+                <div class="vital"><div class="v-label">Haemoglobin</div><div class="v-value">12.8 g/dL</div><div class="v-sub">Normal</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert warn" role="note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <div class="a-body"><b>Allergies &amp; conditions</b>Allergic to penicillin (reported by guardian, Apr 2024). Mild seasonal asthma — inhaler kept with class teacher; action plan on file. No dietary restrictions.</div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Immunization record</h3><div class="sub">School-programme vaccines · verified against immunization card</div></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead><tr><th>Vaccine</th><th>Dose</th><th>Date given</th><th>Administered by</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Vaccine"><div class="cell-main">Td (Tetanus–diphtheria)</div></td>
+                    <td data-label="Dose">Booster, 10 yrs</td>
+                    <td data-label="Date given">11 Aug 2022</td>
+                    <td data-label="Administered by">PHC Puri Sadar</td>
+                    <td data-label="Status"><span class="pill green">Complete</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Vaccine"><div class="cell-main">Td (Tetanus–diphtheria)</div></td>
+                    <td data-label="Dose">Booster, 16 yrs</td>
+                    <td data-label="Date given">Due 2028</td>
+                    <td data-label="Administered by">—</td>
+                    <td data-label="Status"><span class="pill slate">Scheduled</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Vaccine"><div class="cell-main">MR (Measles–Rubella)</div></td>
+                    <td data-label="Dose">2 of 2</td>
+                    <td data-label="Date given">19 Feb 2018</td>
+                    <td data-label="Administered by">Anganwadi, Puri</td>
+                    <td data-label="Status"><span class="pill green">Complete</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Vaccine"><div class="cell-main">JE (Japanese encephalitis)</div></td>
+                    <td data-label="Dose">2 of 2</td>
+                    <td data-label="Date given">03 Mar 2015</td>
+                    <td data-label="Administered by">PHC Puri Sadar</td>
+                    <td data-label="Status"><span class="pill green">Complete</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Vaccine"><div class="cell-main">DPT booster</div></td>
+                    <td data-label="Dose">5–6 yrs</td>
+                    <td data-label="Date given">22 Jun 2017</td>
+                    <td data-label="Administered by">Anganwadi, Puri</td>
+                    <td data-label="Status"><span class="pill green">Complete</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Vaccine"><div class="cell-main">Vitamin A supplementation</div></td>
+                    <td data-label="Dose">Round 9</td>
+                    <td data-label="Date given">15 Jan 2026</td>
+                    <td data-label="Administered by">School health camp</td>
+                    <td data-label="Status"><span class="pill green">Complete</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <div class="card">
+            <div class="card-head"><div><h3>Screening history</h3><div class="sub">Most recent first</div></div></div>
+            <div class="card-pad" style="padding-top:8px">
+              <ul class="timeline">
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Annual health check — all clear</div><div class="tl-meta">05 Jun 2026 · Dr. M. Mohapatra, RBSK team</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Vision screening — 6/6 both eyes</div><div class="tl-meta">12 Jan 2026 · school health camp</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot amber"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Dental check — cleaning advised, completed</div><div class="tl-meta">18 Sep 2025 · PHC dental unit, follow-up closed Nov 2025</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Hb screening — 12.4 g/dL, normal</div><div class="tl-meta">21 Jul 2025 · anaemia camp</div></div>
+                </li>
+                <li>
+                  <span class="tl-dot green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></span>
+                  <div class="tl-body"><div class="tl-title">Annual health check — all clear</div><div class="tl-meta">07 Jun 2025 · RBSK team</div></div>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Care contacts</h3></div></div>
+            <div class="card-pad">
+              <dl class="dl">
+                <dt>Guardian</dt><dd>Rajesh Sharma (Father)</dd>
+                <dt>Emergency phone</dt><dd>+91 98101 24500</dd>
+                <dt>Family physician</dt><dd>Dr. S. Panda, Puri</dd>
+                <dt>School nurse</dt><dd>L. Swain · Mon–Sat</dd>
+                <dt>Nearest PHC</dt><dd>PHC Puri Sadar · 1.8 km</dd>
+              </dl>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

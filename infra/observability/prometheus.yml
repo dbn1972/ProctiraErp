@@ -1,0 +1,291 @@
+# Prometheus configuration for the ProctiraERP Unified Platform.
+#
+# - Scrapes every backend service /metrics endpoint every 15s.
+# - Loads alert rules from ./alerts/*.yml.
+# - Forwards firing alerts to the Alertmanager service on port 9093.
+#
+# When run via docker-compose.observability.yml the service hostnames
+# below resolve through the shared docker network.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: proctira
+    env: dev
+
+rule_files:
+  - alerts/availability.yml
+  - alerts/latency.yml
+  - alerts/error_rate.yml
+  - alerts/saturation.yml
+  - alerts/queue_lag.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+scrape_configs:
+  # ─── Edge / Gateway ────────────────────────────────────────────────────────
+  - job_name: api-gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api-gateway:3000']
+        labels:
+          service: api-gateway
+          team: engineering
+
+  # ─── Core domain services ──────────────────────────────────────────────────
+  - job_name: auth
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['auth:3001']
+        labels:
+          service: auth
+          team: security
+
+  - job_name: institution
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['institution:3002']
+        labels:
+          service: institution
+          team: engineering
+
+  - job_name: student
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['student:3003']
+        labels:
+          service: student
+          team: engineering
+
+  - job_name: staff
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['staff:3004']
+        labels:
+          service: staff
+          team: engineering
+
+  - job_name: assessment
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['assessment:3005']
+        labels:
+          service: assessment
+          team: engineering
+
+  - job_name: attendance
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['attendance:3006']
+        labels:
+          service: attendance
+          team: engineering
+
+  - job_name: examination
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['examination:3007']
+        labels:
+          service: examination
+          team: engineering
+
+  - job_name: scholarship
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['scholarship:3008']
+        labels:
+          service: scholarship
+          team: engineering
+
+  - job_name: health
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['health:3009']
+        labels:
+          service: health
+          team: engineering
+
+  - job_name: workflow
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['workflow:3011']
+        labels:
+          service: workflow
+          team: engineering
+
+  - job_name: notification
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['notification:3012']
+        labels:
+          service: notification
+          team: engineering
+
+  - job_name: audit
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['audit:3013']
+        labels:
+          service: audit
+          team: security
+
+  - job_name: custom-field
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['custom-field:3014']
+        labels:
+          service: custom-field
+          team: engineering
+
+  - job_name: survey
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['survey:3015']
+        labels:
+          service: survey
+          team: engineering
+
+  - job_name: report
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['report:3016']
+        labels:
+          service: report
+          team: engineering
+
+  - job_name: transport
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['transport:3017']
+        labels:
+          service: transport
+          team: engineering
+
+  # ─── Data and ETL ──────────────────────────────────────────────────────────
+  - job_name: etl
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['etl-worker:3010']
+        labels:
+          service: etl
+          team: ops
+
+  - job_name: data-warehouse
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['data-warehouse:3018']
+        labels:
+          service: data-warehouse
+          team: ops
+
+  # ─── Lifecycle services ────────────────────────────────────────────────────
+  - job_name: registration
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['registration:3019']
+        labels:
+          service: registration
+          team: engineering
+
+  - job_name: plugin
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['plugin:3020']
+        labels:
+          service: plugin
+          team: engineering
+
+  - job_name: theme
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['theme:3021']
+        labels:
+          service: theme
+          team: engineering
+
+  - job_name: billing
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['billing:3022']
+        labels:
+          service: billing
+          team: engineering
+
+  - job_name: policy
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['policy:3023']
+        labels:
+          service: policy
+          team: security
+
+  - job_name: tenant
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['tenant:3024']
+        labels:
+          service: tenant
+          team: engineering
+
+  - job_name: install
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['install:3025']
+        labels:
+          service: install
+          team: ops
+
+  - job_name: developer-portal
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['developer-portal:3026']
+        labels:
+          service: developer-portal
+          team: engineering
+
+  # ─── Front-end / portal apps ───────────────────────────────────────────────
+  - job_name: web
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['web:3030']
+        labels:
+          service: web
+          team: engineering
+
+  - job_name: registration-portal
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['registration-portal:3031']
+        labels:
+          service: registration-portal
+          team: engineering
+
+  - job_name: public-website
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['public-website:3032']
+        labels:
+          service: public-website
+          team: engineering
+
+  - job_name: admin-console
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['admin-console:3033']
+        labels:
+          service: admin-console
+          team: ops
+
+  # ─── Self-monitoring ───────────────────────────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: prometheus
+          team: ops

@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Edit Aarav Sharma · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .photo-current { display: flex; align-items: center; gap: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface-2); }
+  .save-footer {
+    position: sticky; bottom: 0; z-index: 20; margin-top: 24px;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border); border-radius: var(--r-lg);
+    padding: 12px 20px; display: flex; align-items: center; gap: 10px;
+    box-shadow: var(--sh-md);
+  }
+  .save-footer .sf-note { font-size: var(--fs-xs); color: var(--text-3); margin-right: auto; }
+  @media (max-width: 767px) {
+    .save-footer { flex-wrap: wrap; }
+    .save-footer .btn { flex: 1; }
+  }
+</style>
+</head>
+<body data-active="students">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="students-list.html">Students</a><span class="sep">/</span>
+        <a href="students-detail.html">Aarav Sharma</a><span class="sep">/</span>
+        <span class="current">Edit</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Edit student: Aarav Sharma</h1>
+          <p class="page-sub">Adm. 2024/0117 · Grade VIII · A · Govt. Sr. Sec. School, Puri. All changes are recorded in the audit trail with your name and timestamp.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="students-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Back to profile</a>
+        </div>
+      </div>
+
+      <form>
+        <div class="card card-pad" style="max-width:880px">
+          <div class="form-grid">
+
+            <div class="form-section-title">Personal details</div>
+
+            <div class="field span-2">
+              <label>Photograph</label>
+              <div class="photo-current">
+                <span class="avatar lg av-1">AS</span>
+                <div style="flex:1">
+                  <div class="fw-6 fs-sm">aarav_sharma_2026.jpg</div>
+                  <div class="fs-xs muted-3">Uploaded 01 Apr 2026 · 412 KB</div>
+                </div>
+                <button class="btn btn-secondary btn-sm" type="button">Replace</button>
+                <button class="btn btn-ghost btn-sm" type="button" style="color:var(--red-600)">Remove</button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>First name <span class="req">*</span></label>
+              <input class="input" type="text" value="Aarav">
+            </div>
+            <div class="field">
+              <label>Last name <span class="req">*</span></label>
+              <input class="input" type="text" value="Sharma">
+            </div>
+            <div class="field">
+              <label>Date of birth <span class="req">*</span></label>
+              <input class="input" type="text" value="18 / 04 / 2012" inputmode="numeric">
+              <span class="hint">As per the birth certificate or school record</span>
+            </div>
+            <div class="field">
+              <label>Gender <span class="req">*</span></label>
+              <select class="select"><option>Female</option><option selected>Male</option><option>Other</option></select>
+            </div>
+            <div class="field">
+              <label>National ID</label>
+              <input class="input mono" type="text" value="IDN-10000">
+              <span class="hint">Used to detect duplicate records across all 142 institutions</span>
+            </div>
+            <div class="field">
+              <label>Nationality</label>
+              <select class="select"><option selected>India</option><option>Nepal</option><option>Bangladesh</option><option>Other</option></select>
+            </div>
+
+            <div class="form-section-title">Guardian</div>
+
+            <div class="field">
+              <label>Guardian name <span class="req">*</span></label>
+              <input class="input" type="text" value="Rajesh Sharma">
+            </div>
+            <div class="field">
+              <label>Relation <span class="req">*</span></label>
+              <select class="select"><option selected>Father</option><option>Mother</option><option>Grandparent</option><option>Sibling</option><option>Legal guardian</option></select>
+            </div>
+            <div class="field">
+              <label>Phone <span class="req">*</span></label>
+              <input class="input" type="tel" value="+91 98101 24500">
+              <span class="hint">Attendance and fee alerts are sent to this number</span>
+            </div>
+            <div class="field">
+              <label>Email</label>
+              <input class="input" type="email" value="rajesh.sharma@example.com">
+            </div>
+
+            <div class="form-section-title">Enrollment</div>
+
+            <div class="field span-2">
+              <label>Institution <span class="req">*</span></label>
+              <button class="entity-picker" type="button">
+                <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+                <span class="ep-text">
+                  <span class="ep-value">Govt. Sr. Sec. School, Puri</span>
+                  <span class="ep-meta">UDISE 21180100101 · Block: Puri Sadar · 1,248 students</span>
+                </span>
+                <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <span class="hint">Changing the institution requires a transfer request — use <a href="students-transfer.html" style="color:var(--link)">Request transfer</a> instead.</span>
+            </div>
+            <div class="field">
+              <label>Grade <span class="req">*</span></label>
+              <select class="select"><option>Grade VI</option><option>Grade VII</option><option selected>Grade VIII</option><option>Grade IX</option><option>Grade X</option></select>
+            </div>
+            <div class="field">
+              <label>Section</label>
+              <select class="select"><option selected>Section A · 38 of 45 seats filled</option><option>Section B · 41 of 45 seats filled</option><option>Section C · 36 of 45 seats filled</option></select>
+            </div>
+            <div class="field">
+              <label>Admission date <span class="req">*</span></label>
+              <input class="input" type="text" value="01 / 04 / 2024" inputmode="numeric">
+            </div>
+            <div class="field">
+              <label>Admission number</label>
+              <input class="input mono" type="text" value="2024/0117" readonly style="background:var(--bg-subtle)">
+              <span class="hint">Cannot be changed after admission</span>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="save-footer" style="max-width:880px">
+          <span class="sf-note">Last edited by S. Mishra · 14 May 2026, 11:42 · audit trail keeps every version</span>
+          <a class="btn btn-ghost" href="students-detail.html">Cancel</a>
+          <button class="btn btn-primary" type="submit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Save changes</button>
+        </div>
+      </form>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

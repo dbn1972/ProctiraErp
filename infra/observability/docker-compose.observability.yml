@@ -1,0 +1,73 @@
+# Docker compose stack for the ProctiraERP observability tier.
+#
+# Brings up Prometheus (with the alert rules bundled in ./alerts),
+# Alertmanager (using ./alertmanager.yml), and Grafana (auto-provisioned
+# with the datasource and dashboards in ./grafana).
+#
+# Usage:
+#   docker compose -f infra/observability/docker-compose.observability.yml up -d
+#
+# The services attach to the `proctira` network expected to be created by
+# the main docker-compose.yml. Override with OBSERVABILITY_NETWORK if you
+# run the stack standalone.
+version: "3.9"
+
+networks:
+  default:
+    name: ${OBSERVABILITY_NETWORK:-proctira}
+    external: ${OBSERVABILITY_NETWORK_EXTERNAL:-false}
+
+volumes:
+  prometheus_data: {}
+  alertmanager_data: {}
+  grafana_data: {}
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: proctira-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+      - --web.enable-admin-api
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: proctira-alertmanager
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+      - --web.external-url=http://localhost:9093
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: proctira-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3050:3000"
+    depends_on:
+      - prometheus

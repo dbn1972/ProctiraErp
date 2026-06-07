@@ -1,0 +1,43 @@
+{
+  "name": "@proctira/plugin-sdk",
+  "version": "0.1.0",
+  "description": "ProctiraERP Plugin Development SDK - Build, test, and publish plugins for the ProctiraERP platform",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest": "./src/manifest/index.ts",
+    "./testing": "./src/testing/index.ts",
+    "./dev": "./src/dev/index.ts"
+  },
+  "bin": {
+    "proctira-plugin": "./src/cli/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src/",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@proctira/backend-plugin": "workspace:*",
+    "@sinclair/typebox": "^0.32.0",
+    "chokidar": "^3.6.0",
+    "ajv": "^8.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "fast-check": "^3.17.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "keywords": [
+    "proctira",
+    "plugin",
+    "sdk",
+    "education",
+    "extension"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,116 @@
+/* ============================================================
+   ProctiraERP — Platform Admin Console shell & overrides
+   Loads after tokens.css + app.css. Darker, denser "ops" feel.
+   ============================================================ */
+
+/* ---------- Sidebar: deepest navy + amber operator accents ---------- */
+.sidebar { background: var(--navy-950); }
+.sidebar-brand { padding-bottom: 6px; }
+.pa-badge {
+  display: inline-flex; align-items: center; gap: 6px; width: fit-content;
+  margin: 0 20px 12px; padding: 3px 9px; border-radius: var(--r-full);
+  font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--amber-500); background: rgba(245,158,11,.10);
+  border: 1px solid rgba(245,158,11,.35);
+}
+.pa-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--amber-500); }
+.sidebar .nav-item.active { background: rgba(245,158,11,.12); }
+.sidebar .nav-item.active::before { background: var(--amber-500); }
+.sidebar .nav-badge { background: var(--amber-600); }
+
+/* ---------- Topbar: environment pill ---------- */
+.env-pill {
+  display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: var(--fs-2xs); font-weight: 500;
+  letter-spacing: .02em; padding: 5px 11px; border-radius: var(--r-full);
+  background: var(--navy-950); color: #D7DEF0; border: 1px solid #2A3553;
+  white-space: nowrap;
+}
+.env-pill .env-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--green-500);
+  box-shadow: 0 0 0 3px rgba(16,185,129,.20);
+}
+@media (max-width: 767px) { .env-pill span.env-region { display: none; } }
+
+/* ---------- Denser ops tables ---------- */
+.table.dense td { padding: 9px 16px; }
+.table.dense .mono { font-size: var(--fs-2xs); }
+
+/* ---------- Countdown / live values ---------- */
+.countdown { font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500; color: var(--amber-700); }
+
+/* ---------- Plan cards ---------- */
+.plan-card { display: flex; flex-direction: column; }
+.plan-card .plan-head { padding: 20px 20px 14px; border-bottom: 1px solid var(--border); }
+.plan-card .plan-name { font-size: var(--fs-lg); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.plan-card .plan-price { margin-top: 8px; font-size: var(--fs-3xl); font-weight: 800; letter-spacing: -.03em; }
+.plan-card .plan-price small { font-size: var(--fs-xs); font-weight: 500; color: var(--text-3); letter-spacing: 0; }
+.plan-card .plan-body { padding: 16px 20px; flex: 1; }
+.plan-card ul.plan-feats { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.plan-card ul.plan-feats li { display: flex; gap: 9px; align-items: flex-start; font-size: var(--fs-sm); color: var(--text-2); }
+.plan-card ul.plan-feats li svg { width: 15px; height: 15px; flex-shrink: 0; margin-top: 2px; color: var(--green-600); }
+.plan-card ul.plan-feats li.off { color: var(--text-3); }
+.plan-card ul.plan-feats li.off svg { color: var(--text-3); }
+.plan-card.featured { border-color: var(--brand-400); box-shadow: 0 0 0 1px var(--brand-400), var(--sh-md); }
+
+/* ---------- Theme gallery ---------- */
+.theme-card .theme-thumb { display: block; width: 100%; border-radius: var(--r-lg) var(--r-lg) 0 0; border-bottom: 1px solid var(--border); }
+.theme-card .theme-meta { padding: 14px 16px; }
+
+/* ---------- Review (plugin / break-glass request) cards ---------- */
+.review-card .rc-head { display: flex; align-items: flex-start; gap: 12px; padding: 16px 20px 0; flex-wrap: wrap; }
+.review-card .rc-body { padding: 12px 20px 16px; }
+.review-card .rc-foot { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.scope-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.quote {
+  margin: 10px 0 0; padding: 10px 14px; border-left: 3px solid var(--border-strong);
+  background: var(--bg-subtle); border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  font-size: var(--fs-sm); color: var(--text-2); font-style: italic;
+}
+
+/* ---------- Login (standalone) ---------- */
+body.console-login {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background:
+    radial-gradient(900px 480px at 80% -10%, rgba(99,102,241,.20), transparent 60%),
+    radial-gradient(700px 420px at 8% 108%, rgba(245,158,11,.08), transparent 55%),
+    var(--navy-950);
+}
+.login-card {
+  width: 100%; max-width: 420px; border-radius: var(--r-xl);
+  background: var(--navy-900); border: 1px solid #243154;
+  box-shadow: 0 24px 64px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);
+  padding: 32px 32px 28px; color: #E6EBF5;
+}
+.login-card h1 { margin: 0; font-size: var(--fs-2xl); font-weight: 700; letter-spacing: -.02em; color: #fff; }
+.login-card .login-sub { margin: 6px 0 0; font-size: var(--fs-sm); color: #8E9CBD; }
+.login-card .field label { color: #C9D2E8; }
+.login-card .input {
+  background: rgba(255,255,255,.05); border-color: #2C3A60; color: #E6EBF5;
+}
+.login-card .input::placeholder { color: #5E6E92; }
+.login-card .input:focus { border-color: var(--brand-400); box-shadow: 0 0 0 3px rgba(99,102,241,.25); }
+.login-card .hint { color: #6E7DA0; }
+.login-card .alert.warn { background: rgba(245,158,11,.10); border-color: rgba(245,158,11,.35); color: #FBBF6E; }
+.login-foot { margin-top: 20px; text-align: center; font-size: var(--fs-2xs); color: #5E6E92; }
+.login-foot a { color: #8FA0CB; }
+
+/* ---------- Minimal header (forbidden / standalone) ---------- */
+.mini-topbar {
+  height: var(--topbar-h); display: flex; align-items: center; gap: 12px; padding: 0 24px;
+  background: var(--navy-950); color: #fff;
+}
+.mini-topbar .logo-mark {
+  width: 30px; height: 30px; border-radius: 8px;
+  background: linear-gradient(135deg, var(--brand-500), var(--brand-700));
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 14px;
+}
+.mini-topbar .logo-name { font-size: 15px; font-weight: 700; }
+.mini-topbar .logo-name span { color: var(--brand-400); }
+.mini-topbar .spacer { margin-left: auto; }
+
+/* ---------- Content fixes (no bottom-nav in console) ---------- */
+@media (max-width: 767px) {
+  .content { padding-bottom: 48px; }
+}

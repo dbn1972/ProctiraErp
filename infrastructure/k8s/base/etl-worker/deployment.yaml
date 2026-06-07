@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etl-worker
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: etl-worker
+    app.kubernetes.io/part-of: proctira-platform
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: etl-worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: etl-worker
+        app.kubernetes.io/part-of: proctira-platform
+        app.kubernetes.io/component: worker
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: etl-worker
+          image: proctira/etl-worker:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3010
+              protocol: TCP
+          env:
+            - name: ETL_WORKER_PORT
+              value: "3010"
+            - name: ETL_WORKER_HOST
+              value: "0.0.0.0"
+          envFrom:
+            - configMapRef:
+                name: proctira-config
+            - secretRef:
+                name: proctira-secrets
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3

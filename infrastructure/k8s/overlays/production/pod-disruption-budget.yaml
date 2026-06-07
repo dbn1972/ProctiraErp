@@ -1,0 +1,167 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api-gateway-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: api-gateway
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: web
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: registration-portal-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: registration-portal
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: registration-portal
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: institution-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: institution-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: institution-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: student-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: student-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: student-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: staff-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: staff-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: staff-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: assessment-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: assessment-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: assessment-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: attendance-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: attendance-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: attendance-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: examination-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: examination-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: examination-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: workflow-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: workflow-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workflow-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: notification-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: notification-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-service
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: report-service-pdb
+  namespace: proctira
+  labels:
+    app.kubernetes.io/name: report-service
+    app.kubernetes.io/part-of: proctira-platform
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: report-service

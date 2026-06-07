@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>New workflow definition · ProctiraERP</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .step-builder { position: relative; display: flex; flex-direction: column; gap: 14px; }
+  .step-builder::before {
+    content: ''; position: absolute; left: 19px; top: 24px; bottom: 24px; width: 2px;
+    background: var(--border); z-index: 0;
+  }
+  .builder-step { display: flex; gap: 16px; position: relative; z-index: 1; }
+  .builder-step .bs-dot {
+    width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; margin-top: 14px;
+    background: var(--brand-600); color: #fff; font-weight: 800; font-size: var(--fs-md);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 4px var(--brand-100);
+  }
+  .builder-step .bs-card { flex: 1; min-width: 0; }
+  .bs-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .bs-head .bs-title { font-weight: 700; font-size: var(--fs-md); flex: 1; min-width: 0; }
+  .bs-head .bs-title input {
+    border: none; background: transparent; font: inherit; color: inherit; width: 100%;
+    padding: 2px 0; outline: none;
+  }
+  .bs-grid { display: grid; grid-template-columns: 1.4fr .6fr; gap: 14px 18px; padding: 14px 16px; }
+  .bs-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-top: 1px dashed var(--border); }
+  .add-step {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-left: 56px; padding: 13px; border: 2px dashed var(--border-strong); border-radius: var(--r-lg);
+    background: transparent; color: var(--text-2); font: inherit; font-weight: 600; font-size: var(--fs-sm);
+    cursor: pointer; transition: all var(--t-fast); position: relative; z-index: 1;
+  }
+  .add-step:hover { border-color: var(--brand-400); color: var(--brand-600); background: var(--brand-50); }
+  .add-step svg { width: 16px; height: 16px; }
+  @media (max-width: 767px) {
+    .bs-grid { grid-template-columns: 1fr; }
+    .builder-step { gap: 10px; }
+    .add-step { margin-left: 0; }
+    .step-builder::before { display: none; }
+  }
+</style>
+</head>
+<body data-active="workflows">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span>
+        <a href="workflows-list.html">Workflows</a><span class="sep">/</span>
+        <span class="current">New definition</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">New workflow definition</h1>
+          <p class="page-sub">Define the approval chain once — every matching request is then routed step by step, with SLA tracking and escalation built in.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-ghost" href="workflows-list.html">Cancel</a>
+        </div>
+      </div>
+
+      <div style="max-width:880px;display:flex;flex-direction:column;gap:24px">
+
+        <!-- Definition basics -->
+        <section class="card">
+          <div class="card-head"><div><h3>Definition</h3><div class="sub">Name the workflow and pick the module that triggers it</div></div></div>
+          <div class="card-pad">
+            <div class="form-grid">
+              <div class="field">
+                <label for="wf-name">Workflow name <span class="req">*</span></label>
+                <input class="input" id="wf-name" type="text" value="Student Transfer Approval" placeholder="e.g. Student Transfer Approval">
+              </div>
+              <div class="field">
+                <label for="wf-module">Trigger module <span class="req">*</span></label>
+                <select class="select" id="wf-module">
+                  <option selected>Students — transfer requests</option>
+                  <option>Students — admission verification</option>
+                  <option>Staff — leave requests</option>
+                  <option>Staff — transfer requests</option>
+                  <option>Scholarships — disbursement batches</option>
+                  <option>Examinations — centre allocation</option>
+                </select>
+              </div>
+              <div class="field span-2">
+                <label for="wf-desc">Description</label>
+                <textarea class="input" id="wf-desc" rows="2" placeholder="What this workflow approves and when it should be used">Routes inter-school transfer requests through the sending headmaster, the block education officer, and final district approval before records move.</textarea>
+                <span class="hint">Shown to requesters when they raise a transfer, so keep it plain and short.</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Step builder -->
+        <section class="card">
+          <div class="card-head">
+            <div><h3>Approval steps</h3><div class="sub">Requests move top to bottom — each step must approve before the next is activated</div></div>
+            <div class="spacer"><span class="pill brand plain">3 steps</span></div>
+          </div>
+          <div class="card-pad">
+            <div class="step-builder">
+
+              <div class="builder-step">
+                <div class="bs-dot">1</div>
+                <div class="bs-card card" style="box-shadow:none">
+                  <div class="bs-head">
+                    <div class="bs-title"><input type="text" value="Headmaster review" aria-label="Step 1 name"></div>
+                    <span class="tag">School level</span>
+                    <button class="icon-btn" aria-label="Remove step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  </div>
+                  <div class="bs-grid">
+                    <div class="field">
+                      <label>Approver role <span class="req">*</span></label>
+                      <button class="entity-picker" type="button">
+                        <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                        <span class="ep-text"><span class="ep-value">Headmaster</span><span class="ep-meta">Role · sending school · 142 holders</span></span>
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                    </div>
+                    <div class="field">
+                      <label for="sla-1">SLA (hours)</label>
+                      <input class="input" id="sla-1" type="number" value="24" min="1">
+                    </div>
+                  </div>
+                  <div class="bs-foot">
+                    <label class="checkbox-row" style="gap:10px">
+                      <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Escalate step 1 on SLA breach"></button>
+                      Escalate to Block Education Officer if SLA is breached
+                    </label>
+                    <span class="fs-xs muted-3">Step 1 of 3</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="builder-step">
+                <div class="bs-dot">2</div>
+                <div class="bs-card card" style="box-shadow:none">
+                  <div class="bs-head">
+                    <div class="bs-title"><input type="text" value="Block Education Officer" aria-label="Step 2 name"></div>
+                    <span class="tag">Block level</span>
+                    <button class="icon-btn" aria-label="Remove step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  </div>
+                  <div class="bs-grid">
+                    <div class="field">
+                      <label>Approver role <span class="req">*</span></label>
+                      <button class="entity-picker" type="button">
+                        <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+                        <span class="ep-text"><span class="ep-value">Block Education Officer</span><span class="ep-meta">Role · student's block · 11 holders</span></span>
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                    </div>
+                    <div class="field">
+                      <label for="sla-2">SLA (hours)</label>
+                      <input class="input" id="sla-2" type="number" value="48" min="1">
+                    </div>
+                  </div>
+                  <div class="bs-foot">
+                    <label class="checkbox-row" style="gap:10px">
+                      <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Escalate step 2 on SLA breach"></button>
+                      Escalate to District Education Officer if SLA is breached
+                    </label>
+                    <span class="fs-xs muted-3">Step 2 of 3</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="builder-step">
+                <div class="bs-dot">3</div>
+                <div class="bs-card card" style="box-shadow:none">
+                  <div class="bs-head">
+                    <div class="bs-title"><input type="text" value="District approval" aria-label="Step 3 name"></div>
+                    <span class="tag">District level</span>
+                    <button class="icon-btn" aria-label="Remove step"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  </div>
+                  <div class="bs-grid">
+                    <div class="field">
+                      <label>Approver role <span class="req">*</span></label>
+                      <button class="entity-picker" type="button">
+                        <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span>
+                        <span class="ep-text"><span class="ep-value">District Education Officer</span><span class="ep-meta">Role · Puri district · 2 holders</span></span>
+                        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+                      </button>
+                    </div>
+                    <div class="field">
+                      <label for="sla-3">SLA (hours)</label>
+                      <input class="input" id="sla-3" type="number" value="72" min="1">
+                    </div>
+                  </div>
+                  <div class="bs-foot">
+                    <label class="checkbox-row" style="gap:10px">
+                      <button class="switch" type="button" role="switch" aria-checked="false" aria-label="Escalate step 3 on SLA breach"></button>
+                      Escalate if SLA is breached
+                    </label>
+                    <span class="fs-xs muted-3">Step 3 of 3 · final</span>
+                  </div>
+                </div>
+              </div>
+
+              <button class="add-step" type="button">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add step
+              </button>
+
+            </div>
+          </div>
+          <div class="card-foot" style="justify-content:flex-end">
+            <span class="fs-xs muted" style="margin-right:auto">Total SLA budget: <b>144 hours (6 days)</b> end to end</span>
+            <button class="btn btn-secondary" type="button">Save as draft</button>
+            <a class="btn btn-primary" href="workflows-definition-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Create &amp; activate</a>
+          </div>
+        </section>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>
