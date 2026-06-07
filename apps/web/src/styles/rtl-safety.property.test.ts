@@ -184,7 +184,7 @@ function scanFileForViolations(filePath: string): Violation[] {
   const relPath = relative(REPO_ROOT, filePath).replace(/\\/g, '/');
 
   for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-    const line = lines[lineIdx];
+    const line = lines[lineIdx]!;
 
     // Skip comment lines (single-line JS/TS comments and CSS comments)
     const trimmed = line.trim();

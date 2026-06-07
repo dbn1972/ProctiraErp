@@ -306,7 +306,7 @@ describe('Property F-6: Tenant Theming Independence', () => {
     expect(themeCss).toMatch(/--tenant-accent:\s*[^;]+;/);
 
     // Dark mode block must also declare them
-    const darkBlockMatch = themeCss.match(/:root\.dark\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/s);
+    const darkBlockMatch = themeCss.match(/:root\.dark\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}/);
     expect(darkBlockMatch).not.toBeNull();
     const darkBlock = darkBlockMatch![1];
     expect(darkBlock).toMatch(/--tenant-primary/);

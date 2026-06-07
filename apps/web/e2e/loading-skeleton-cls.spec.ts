@@ -340,8 +340,8 @@ test.describe('Property F-8: Loading-State Skeleton and CLS', () => {
       const minCount = Math.min(skeletonBounds.length, loadedBounds.length);
 
       for (let i = 0; i < minCount; i++) {
-        const skeleton = skeletonBounds[i];
-        const loaded = loadedBounds[i];
+        const skeleton = skeletonBounds[i]!;
+        const loaded = loadedBounds[i]!;
 
         // Width should match (same grid column)
         expect(

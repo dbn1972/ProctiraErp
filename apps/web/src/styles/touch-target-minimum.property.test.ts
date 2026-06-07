@@ -196,12 +196,12 @@ function analyzeComponent(relPath: string): TouchTargetAnalysis {
 function parseHeightPx(cls: string): number | null {
   // Arbitrary value: h-[48px], min-h-[44px]
   const arbMatch = cls.match(/(?:min-)?[hw]-\[(\d+)px\]/);
-  if (arbMatch) return parseInt(arbMatch[1], 10);
+  if (arbMatch) return parseInt(arbMatch[1]!, 10);
 
   // Scale value: h-12, min-h-11
   const scaleMatch = cls.match(/(?:min-)?[hw]-(\d+)/);
   if (scaleMatch) {
-    const scale = scaleMatch[1];
+    const scale = scaleMatch[1]!;
     return TAILWIND_HEIGHT_SCALE[scale] ?? null;
   }
 
@@ -296,9 +296,9 @@ describe('Property F-5: Touch Target Minimum', () => {
 
     // All size variants should maintain the 48px minimum via h-12 or larger
     // (h-12 = 48px in Tailwind's default spacing scale)
-    const sizeVariantSection = content.match(/size:\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}/s);
+    const sizeVariantSection = content.match(/size:\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}/);
     if (sizeVariantSection) {
-      const sizeBlock = sizeVariantSection[1];
+      const sizeBlock = sizeVariantSection[1]!;
       const variants = sizeBlock.match(/(\w+):\s*'([^']+)'/g) || [];
 
       for (const variant of variants) {

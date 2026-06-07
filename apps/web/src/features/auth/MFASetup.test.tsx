@@ -41,7 +41,6 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 if (typeof globalThis.ResizeObserver === 'undefined') {
-  // @ts-expect-error — jsdom ships no ResizeObserver
   globalThis.ResizeObserver = ResizeObserverStub;
 }
 

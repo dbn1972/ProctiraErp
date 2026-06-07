@@ -118,15 +118,15 @@ describe('<Sidebar> keyboard contract — Task 56.6 / Req 37 AC 6', () => {
     // Focus the first anchor; in the production app the brand
     // (ProctiraERP) is the document's first focusable element inside the
     // sidebar. We assert that it can receive focus directly.
-    act(() => links[0].focus());
+    act(() => links[0]!.focus());
     expect(document.activeElement).toBe(links[0]);
 
     // Tab to the next focusable element. jsdom does not implement the
     // browser's tabbing algorithm, but the *document order* of links
     // is the canonical sequence — assert that the next link in the
     // returned NodeList is the dashboard entry.
-    expect(links[0].textContent).toContain('ProctiraERP');
-    expect(links[1].textContent).toContain('Dashboard');
+    expect(links[0]!.textContent).toContain('ProctiraERP');
+    expect(links[1]!.textContent).toContain('Dashboard');
   });
 
   it('Enter on a focused link does not preventDefault — anchors retain native activation', () => {

@@ -46,8 +46,6 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 if (typeof globalThis.ResizeObserver === 'undefined') {
-  // @ts-expect-error — assigning a stub onto the global is exactly what
-  // we want for tests; jsdom doesn't provide one.
   globalThis.ResizeObserver = ResizeObserverStub;
 }
 

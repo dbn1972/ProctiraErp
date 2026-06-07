@@ -141,15 +141,15 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     const inputs = getDigitInputs();
 
     act(() => {
-      fireEvent.change(inputs[0], { target: { value: '1' } });
+      fireEvent.change(inputs[0]!, { target: { value: '1' } });
     });
-    expect(inputs[0].value).toBe('1');
+    expect(inputs[0]!.value).toBe('1');
     expect(document.activeElement).toBe(inputs[1]);
 
     act(() => {
-      fireEvent.change(inputs[1], { target: { value: '2' } });
+      fireEvent.change(inputs[1]!, { target: { value: '2' } });
     });
-    expect(inputs[1].value).toBe('2');
+    expect(inputs[1]!.value).toBe('2');
     expect(document.activeElement).toBe(inputs[2]);
   });
 
@@ -158,11 +158,11 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     const inputs = getDigitInputs();
 
     act(() => {
-      fireEvent.change(inputs[0], { target: { value: 'a' } });
+      fireEvent.change(inputs[0]!, { target: { value: 'a' } });
     });
     // The handler strips non-digits and slices to one char, so the
     // slot remains empty and focus does not advance.
-    expect(inputs[0].value).toBe('');
+    expect(inputs[0]!.value).toBe('');
     expect(document.activeElement).toBe(inputs[0]);
   });
 
@@ -173,15 +173,15 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     // Fill slots 1-5 first.
     for (let i = 0; i < 5; i++) {
       act(() => {
-        fireEvent.change(inputs[i], { target: { value: String(i + 1) } });
+        fireEvent.change(inputs[i]!, { target: { value: String(i + 1) } });
       });
     }
     expect(document.activeElement).toBe(inputs[5]);
 
     act(() => {
-      fireEvent.change(inputs[5], { target: { value: '6' } });
+      fireEvent.change(inputs[5]!, { target: { value: '6' } });
     });
-    expect(inputs[5].value).toBe('6');
+    expect(inputs[5]!.value).toBe('6');
     expect(document.activeElement).toBe(inputs[5]);
   });
 
@@ -193,14 +193,14 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     // each digit auto-advances. Move focus back to the empty slot 2
     // and press Backspace.
     act(() => {
-      fireEvent.change(inputs[0], { target: { value: '1' } });
+      fireEvent.change(inputs[0]!, { target: { value: '1' } });
     });
     expect(document.activeElement).toBe(inputs[1]);
 
     // Slot 1 is empty; press Backspace — focus should move back to
     // slot 0.
     act(() => {
-      fireEvent.keyDown(inputs[1], { key: 'Backspace', code: 'Backspace' });
+      fireEvent.keyDown(inputs[1]!, { key: 'Backspace', code: 'Backspace' });
     });
     expect(document.activeElement).toBe(inputs[0]);
   });
@@ -210,13 +210,13 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     const inputs = getDigitInputs();
 
     act(() => {
-      fireEvent.change(inputs[0], { target: { value: '5' } });
+      fireEvent.change(inputs[0]!, { target: { value: '5' } });
     });
     // Auto-advance lands on slot 1; tab back to slot 0.
-    act(() => inputs[0].focus());
+    act(() => inputs[0]!.focus());
 
     act(() => {
-      fireEvent.keyDown(inputs[0], { key: 'Backspace', code: 'Backspace' });
+      fireEvent.keyDown(inputs[0]!, { key: 'Backspace', code: 'Backspace' });
     });
     // The handler does NOT move focus when the current slot has a
     // digit — the browser default clears the digit on the next
@@ -229,19 +229,19 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     const inputs = getDigitInputs();
 
     act(() => {
-      fireEvent.paste(inputs[0], {
+      fireEvent.paste(inputs[0]!, {
         clipboardData: {
           getData: (type: string) => (type === 'text' ? '123456' : ''),
         },
       });
     });
 
-    expect(inputs[0].value).toBe('1');
-    expect(inputs[1].value).toBe('2');
-    expect(inputs[2].value).toBe('3');
-    expect(inputs[3].value).toBe('4');
-    expect(inputs[4].value).toBe('5');
-    expect(inputs[5].value).toBe('6');
+    expect(inputs[0]!.value).toBe('1');
+    expect(inputs[1]!.value).toBe('2');
+    expect(inputs[2]!.value).toBe('3');
+    expect(inputs[3]!.value).toBe('4');
+    expect(inputs[4]!.value).toBe('5');
+    expect(inputs[5]!.value).toBe('6');
     expect(document.activeElement).toBe(inputs[5]);
   });
 
@@ -250,19 +250,19 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     const inputs = getDigitInputs();
 
     act(() => {
-      fireEvent.paste(inputs[0], {
+      fireEvent.paste(inputs[0]!, {
         clipboardData: {
           getData: (type: string) => (type === 'text' ? '12-34-56' : ''),
         },
       });
     });
 
-    expect(inputs[0].value).toBe('1');
-    expect(inputs[1].value).toBe('2');
-    expect(inputs[2].value).toBe('3');
-    expect(inputs[3].value).toBe('4');
-    expect(inputs[4].value).toBe('5');
-    expect(inputs[5].value).toBe('6');
+    expect(inputs[0]!.value).toBe('1');
+    expect(inputs[1]!.value).toBe('2');
+    expect(inputs[2]!.value).toBe('3');
+    expect(inputs[3]!.value).toBe('4');
+    expect(inputs[4]!.value).toBe('5');
+    expect(inputs[5]!.value).toBe('6');
   });
 
   it('Pasting fewer than 6 digits fills only the leading slots', () => {
@@ -270,17 +270,17 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     const inputs = getDigitInputs();
 
     act(() => {
-      fireEvent.paste(inputs[0], {
+      fireEvent.paste(inputs[0]!, {
         clipboardData: {
           getData: (type: string) => (type === 'text' ? '12' : ''),
         },
       });
     });
 
-    expect(inputs[0].value).toBe('1');
-    expect(inputs[1].value).toBe('2');
-    expect(inputs[2].value).toBe('');
-    expect(inputs[3].value).toBe('');
+    expect(inputs[0]!.value).toBe('1');
+    expect(inputs[1]!.value).toBe('2');
+    expect(inputs[2]!.value).toBe('');
+    expect(inputs[3]!.value).toBe('');
     // Focus parks on slot 2 (after the last filled position, capped
     // at 5).
     expect(document.activeElement).toBe(inputs[2]);
