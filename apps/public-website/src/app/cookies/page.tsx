@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CalendarClock } from 'lucide-react';
 
 import { LegalProse } from '@/components/layout/legal-prose';
 import { PageHero } from '@/components/layout/page-hero';
@@ -22,9 +23,14 @@ export default function CookiesPage() {
       <PageHero
         eyebrow="Legal"
         title="Cookie Policy"
-        description="Effective date: review and update before public launch."
+        description="How we use cookies and similar technologies on our website."
       />
       <section className="container py-16">
+        <div className="mx-auto mb-8 flex max-w-3xl items-center gap-2.5 rounded-md border border-primary/20 bg-primary/5 px-4 py-3 text-sm font-medium text-primary">
+          <CalendarClock aria-hidden="true" className="h-4 w-4 flex-shrink-0" />
+          Applies to proctira.org and its subdomains — review and update before
+          public launch.
+        </div>
         <LegalProse>
           <p>
             This Cookie Policy explains how the ProctiraERP public website and

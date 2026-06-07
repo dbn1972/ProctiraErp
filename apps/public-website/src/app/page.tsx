@@ -3,12 +3,14 @@ import Link from 'next/link';
 import {
   ArrowRight,
   BarChart3,
+  Boxes,
   GraduationCap,
-  Layers,
+  Landmark,
+  LayoutGrid,
   Lock,
-  Plug,
+  Package,
+  School,
   ShieldCheck,
-  Sparkles,
   Users,
 } from 'lucide-react';
 
@@ -35,73 +37,106 @@ const FEATURES = [
     icon: GraduationCap,
     title: 'Student lifecycle',
     description:
-      'Admissions, enrollment, attendance, assessments, and graduation in one connected workflow.',
+      'Admissions, enrolment, attendance, assessments, and graduation in one connected workflow — from first application to transfer certificate.',
   },
   {
     icon: Users,
-    title: 'Staff and HR',
+    title: 'Staff & HR',
     description:
-      'Manage teachers, administrators, and support staff with role-based access and audit trails.',
+      'Manage teachers, administrators, and support staff with role-based access, transfers, payroll integration, and complete audit trails.',
   },
   {
     icon: BarChart3,
-    title: 'Reporting and analytics',
+    title: 'Reporting & analytics',
     description:
-      'Operational dashboards and exportable reports for schools, districts, and ministries.',
+      'Operational dashboards and exportable reports for schools, districts, and ministries — UDISE+ ready, refreshed in near real time.',
   },
   {
-    icon: Layers,
+    icon: Boxes,
     title: 'Multi-tenant by design',
     description:
-      'One platform, many tenants. Strict data isolation with shared infrastructure economics.',
+      'One deployment, thousands of institutions. Strict data isolation per tenant with shared infrastructure economics and central policy control.',
   },
   {
-    icon: Plug,
-    title: 'Plugins and themes',
+    icon: Package,
+    title: 'Plugins & themes',
     description:
-      'Extend without forking. A signed plugin marketplace and theme system keep upgrades safe.',
+      'Extend without forking. A signed plugin marketplace and theme system keep upgrades safe while you adapt the platform to local needs.',
   },
   {
     icon: ShieldCheck,
-    title: 'Security and compliance',
+    title: 'Security & compliance',
     description:
-      'Encryption in transit and at rest, immutable audit logs, and break-glass support controls.',
+      'Encryption in transit and at rest, role-based access control, immutable audit logs, and break-glass support controls — compliant by default.',
   },
 ];
 
-const SOLUTIONS = [
+interface Solution {
+  readonly id: string;
+  readonly icon: typeof School;
+  readonly title: string;
+  readonly description: string;
+  readonly points: ReadonlyArray<string>;
+  readonly cta: { readonly href: string; readonly label: string };
+}
+
+const SOLUTIONS: ReadonlyArray<Solution> = [
   {
     id: 'solutions-schools',
+    icon: School,
     title: 'Schools',
-    description:
-      'Run day-to-day operations: timetables, attendance, grading, parent communication, and finance.',
+    description: 'Run the day-to-day with less paperwork and more teaching time.',
+    points: [
+      'Daily timetables, attendance, and receipts',
+      'Parent communication over SMS and messaging channels',
+      'Exam scheduling, grading, and report cards',
+      'Works on shared devices and low bandwidth',
+    ],
+    cta: { href: '/product', label: 'Explore for schools' },
   },
   {
     id: 'solutions-districts',
+    icon: LayoutGrid,
     title: 'Districts',
     description:
-      'Aggregate school data, manage staffing, monitor outcomes, and run district-wide programs.',
+      'Aggregate school data, manage staffing, and monitor outcomes across every block.',
+    points: [
+      'Cross-school dashboards and league reports',
+      'Teacher deployment and transfer workflows',
+      'Scholarship and DBT disbursal tracking',
+      'Block- and cluster-level role hierarchies',
+    ],
+    cta: { href: '/product', label: 'Explore for districts' },
   },
   {
     id: 'solutions-ministries',
+    icon: Landmark,
     title: 'Ministries',
     description:
-      'National EMIS reporting, policy rollouts, school census, and SDG-aligned indicators.',
+      'National EMIS reporting, policy rollouts, and sovereign data control at scale.',
+    points: [
+      'State-wide multi-tenant deployment',
+      'UDISE+ and census-grade data exports',
+      'Data residency on your own cloud',
+      'Central policy rollout and audit',
+    ],
+    cta: { href: '/contact', label: 'Talk to our public-sector team' },
   },
 ];
 
 const TRUST_SIGNALS = [
-  'GDPR-ready data protection workflows',
-  'FERPA-aligned student data handling',
-  'ISO 27001 security control mapping',
+  'GDPR-ready data protection',
+  'FERPA-aligned handling',
+  'ISO 27001 control mapping',
   'WCAG 2.1 AA accessibility',
 ];
 
 /**
  * Public home page.
  *
- * Hero, key feature grid, solutions overview, trust signals, and a final
- * call-to-action. Renders fully static for fast TTFB and CDN cacheability.
+ * Bold hero with a decorative dashboard preview, trust strip, feature grid,
+ * solutions overview, a navy stat band, and a strong final call-to-action.
+ * Renders fully static for fast TTFB and CDN cacheability.
  */
 export default function HomePage() {
   return (
@@ -111,20 +146,23 @@ export default function HomePage() {
         className="relative overflow-hidden border-b border-border bg-gradient-to-b from-primary/5 via-background to-background"
         aria-labelledby="hero-heading"
       >
-        <div className="container grid gap-10 py-20 md:grid-cols-2 md:items-center md:py-28">
+        <div className="container grid gap-12 py-20 md:grid-cols-2 md:items-center md:py-28">
           <div>
-            <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent">
-              <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-              Education management, reimagined
+            <p className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent/30 bg-accent/10 px-3.5 py-1.5 text-xs font-bold tracking-wide text-accent">
+              <span
+                aria-hidden="true"
+                className="h-1.5 w-1.5 rounded-full bg-accent ring-4 ring-accent/20"
+              />
+              Open source · Education infrastructure
             </p>
             <h1
               id="hero-heading"
-              className="text-4xl font-bold tracking-tight text-foreground md:text-5xl lg:text-6xl"
+              className="text-4xl font-extrabold tracking-tight text-foreground md:text-5xl lg:text-6xl"
             >
               The open platform for{' '}
               <span className="text-primary">modern education</span>
             </h1>
-            <p className="mt-6 max-w-xl text-lg text-muted-foreground">
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
               ProctiraERP unifies students, staff, finance, and analytics across
               schools, districts, and ministries — with the security, scale,
               and flexibility every education system needs.
@@ -137,11 +175,15 @@ export default function HomePage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/installation">View installation guide</Link>
+                <Link href="/installation">
+                  View installation guide
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </Link>
               </Button>
             </div>
             <p className="mt-6 text-sm text-muted-foreground">
-              Free, open-source, and self-hostable. Cloud editions available.
+              Free, open source, and self-hostable. Cloud editions available for
+              districts and states.
             </p>
           </div>
 
@@ -154,7 +196,7 @@ export default function HomePage() {
               <span className="h-3 w-3 rounded-full bg-yellow-400/70" />
               <span className="h-3 w-3 rounded-full bg-accent/70" />
               <span className="ml-2 text-xs text-muted-foreground">
-                proctira.cloud / dashboard
+                app.proctira.org / dashboard
               </span>
             </div>
             <div className="mt-6 grid grid-cols-3 gap-3">
@@ -187,9 +229,12 @@ export default function HomePage() {
       </section>
 
       {/* Trust signals */}
-      <section className="border-b border-border bg-secondary/30" aria-label="Trust signals">
+      <section
+        className="border-b border-border bg-secondary/30"
+        aria-label="Trust signals"
+      >
         <div className="container flex flex-wrap items-center justify-center gap-x-10 gap-y-3 py-6 text-sm text-muted-foreground">
-          <Lock aria-hidden="true" className="h-4 w-4" />
+          <Lock aria-hidden="true" className="h-4 w-4 text-primary" />
           {TRUST_SIGNALS.map((signal) => (
             <span key={signal} className="font-medium">
               {signal}
@@ -201,9 +246,12 @@ export default function HomePage() {
       {/* Features */}
       <section className="container py-20" aria-labelledby="features-heading">
         <div className="mx-auto max-w-2xl text-center">
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            The platform
+          </p>
           <h2
             id="features-heading"
-            className="text-3xl font-bold tracking-tight text-foreground md:text-4xl"
+            className="text-3xl font-extrabold tracking-tight text-foreground md:text-4xl"
           >
             Everything an education system needs
           </h2>
@@ -217,9 +265,12 @@ export default function HomePage() {
           {FEATURES.map((feature) => {
             const Icon = feature.icon;
             return (
-              <Card key={feature.title}>
+              <Card
+                key={feature.title}
+                className="transition-shadow hover:shadow-md"
+              >
                 <CardHeader>
-                  <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Icon aria-hidden="true" className="h-5 w-5" />
                   </div>
                   <CardTitle className="mt-4">{feature.title}</CardTitle>
@@ -239,9 +290,12 @@ export default function HomePage() {
       >
         <div className="container">
           <div className="mx-auto max-w-2xl text-center">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+              Solutions
+            </p>
             <h2
               id="solutions-heading"
-              className="text-3xl font-bold tracking-tight text-foreground md:text-4xl"
+              className="text-3xl font-extrabold tracking-tight text-foreground md:text-4xl"
             >
               Built for every level of education
             </h2>
@@ -251,54 +305,125 @@ export default function HomePage() {
             </p>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {SOLUTIONS.map((solution) => (
-              <Card key={solution.id} id={solution.id}>
-                <CardHeader>
-                  <CardTitle>{solution.title}</CardTitle>
-                  <CardDescription>{solution.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Link
-                    href="/product"
-                    className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                  >
-                    Learn more
-                    <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                  </Link>
-                </CardContent>
-              </Card>
+            {SOLUTIONS.map((solution) => {
+              const Icon = solution.icon;
+              return (
+                <Card
+                  key={solution.id}
+                  id={solution.id}
+                  className="flex flex-col"
+                >
+                  <CardHeader>
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                      <Icon aria-hidden="true" className="h-5 w-5" />
+                    </div>
+                    <CardTitle className="mt-4">{solution.title}</CardTitle>
+                    <CardDescription>{solution.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex flex-1 flex-col">
+                    <ul className="space-y-2.5 text-sm text-muted-foreground">
+                      {solution.points.map((point) => (
+                        <li key={point} className="flex items-start gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent"
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-2.5 w-2.5"
+                            >
+                              <path d="m5 13 4 4L19 7" />
+                            </svg>
+                          </span>
+                          {point}
+                        </li>
+                      ))}
+                    </ul>
+                    <Link
+                      href={solution.cta.href}
+                      className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                    >
+                      {solution.cta.label}
+                      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                    </Link>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Stats band */}
+      <section
+        className="border-t border-border bg-primary text-primary-foreground"
+        aria-label="Platform at a glance"
+      >
+        <div className="container py-16">
+          <div className="grid gap-10 text-center md:grid-cols-3">
+            {[
+              { value: '24,812', label: 'students managed every day' },
+              { value: '142', label: 'schools live in the pilot deployment' },
+              {
+                value: '96.4%',
+                label: 'average attendance captured digitally',
+              },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <p className="text-4xl font-extrabold tracking-tight md:text-5xl">
+                  {stat.value}
+                </p>
+                <p className="mt-2 text-sm text-primary-foreground/70">
+                  {stat.label}
+                </p>
+              </div>
             ))}
           </div>
+          <p className="mt-9 text-center text-sm text-primary-foreground/60">
+            Illustrative figures from a pilot deployment preview.
+          </p>
         </div>
       </section>
 
       {/* Final CTA */}
       <section
         id="pricing"
-        className="border-t border-border bg-primary text-primary-foreground"
+        className="border-t border-primary-foreground/10 bg-primary text-primary-foreground"
         aria-labelledby="cta-heading"
       >
-        <div className="container flex flex-col items-start justify-between gap-6 py-16 md:flex-row md:items-center">
-          <div>
-            <h2
-              id="cta-heading"
-              className="text-2xl font-bold tracking-tight md:text-3xl"
-            >
-              Ready to modernize your education system?
-            </h2>
-            <p className="mt-2 max-w-2xl text-primary-foreground/80">
-              Open source forever. Cloud-managed editions available. Talk to
-              our team about deployment, training, and support.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
+        <div className="container py-20 text-center">
+          <h2
+            id="cta-heading"
+            className="text-3xl font-extrabold tracking-tight md:text-4xl"
+          >
+            Ready to modernize your education system?
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
+            Talk to our team about deployment, training, and support — or
+            self-host the open-source platform today and see it running in under
+            an hour.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">
               <Link href="/contact">Contact sales</Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">
-              <Link href="/installation">Self-host</Link>
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="bg-transparent text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
+            >
+              <Link href="/installation">Self-host ProctiraERP</Link>
             </Button>
           </div>
+          <p className="mt-6 text-sm text-primary-foreground/60">
+            Apache-2.0 licensed · No per-student fees on self-hosted deployments
+          </p>
         </div>
       </section>
     </>
