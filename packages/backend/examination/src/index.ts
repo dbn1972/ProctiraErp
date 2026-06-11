@@ -86,6 +86,17 @@ export { InMemoryExaminationRepository } from './in-memory-repository.js';
 export { InMemoryResultRepository } from './in-memory-result-repository.js';
 export { InMemoryDocumentRepository } from './in-memory-document-repository.js';
 
+// Persistence: Prisma repositories + env-driven factory
+export { PrismaExaminationRepository } from './prisma-examination-repository.js';
+export { PrismaResultRepository } from './prisma-result-repository.js';
+export { PrismaDocumentRepository } from './prisma-document-repository.js';
+export {
+  createExaminationRepository,
+  createResultRepository,
+  createDocumentRepository,
+} from './repository-factory.js';
+export type { ExaminationRepositoryConfig } from './repository-factory.js';
+
 // Cached repository decorator
 export { CachedExaminationRepository } from './cached-examination-repository.js';
 

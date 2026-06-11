@@ -830,6 +830,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/queue-abstraction':
         specifier: workspace:*
         version: link:../../shared/queue-abstraction

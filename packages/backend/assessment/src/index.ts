@@ -48,6 +48,23 @@ export {
 } from './in-memory-repository.js';
 export { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
 
+// Prisma repositories (production)
+export {
+  PrismaGradingSchemeRepository,
+  PrismaAssessmentItemRepository,
+  PrismaOutcomeRepository,
+} from './prisma-repository.js';
+export { PrismaAssessmentResultRepository } from './prisma-result-repository.js';
+
+// Repository factories
+export {
+  createGradingSchemeRepository,
+  createAssessmentItemRepository,
+  createOutcomeRepository,
+  createAssessmentResultRepository,
+} from './repository-factory.js';
+export type { AssessmentRepositoryConfig } from './repository-factory.js';
+
 // Schemas
 export {
   GradingSchemeTypeEnum,

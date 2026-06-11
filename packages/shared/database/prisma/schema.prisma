@@ -42,6 +42,20 @@ model Tenant {
   sessions        UserSession[]
   themeVersions   TenantThemeVersion[]
   themeDraft      TenantThemeDraft?
+  studentAttendance StudentAttendance[]
+  staffAttendance   StaffAttendance[]
+  staffAssignments  StaffAssignment[]
+  examinations      Examination[]
+  examinationCandidateRegistrations ExaminationCandidateRegistration[]
+  examinationCandidates             ExaminationCandidate[]
+  examinationPublications           ExaminationPublication[]
+  examinationResultAnalyses         ExaminationResultAnalysis[]
+  examinationAcademicRecords        ExaminationAcademicRecord[]
+  examinationDocumentJobs           ExaminationDocumentJob[]
+  gradingSchemes     GradingScheme[]
+  assessmentItems    AssessmentItem[]
+  assessmentOutcomes AssessmentOutcome[]
+  assessmentResults  AssessmentResult[]
 
   @@map("tenants")
 }
@@ -504,4 +518,363 @@ model InstitutionSubject {
   @@unique([tenantId, institutionId, subjectId, gradeId])
   @@index([tenantId, institutionId, gradeId])
   @@map("institution_subjects")
+}
+
+// ============================================================================
+// STUDENT ATTENDANCE (Requirement 9.1-9.3, 9.7)
+// ============================================================================
+
+/// A single student attendance record for a class on a date. When the
+/// institution records by subject or period, `subjectId` / `periodId` pin the
+/// record to that dimension; in plain class mode both are null.
+///
+/// Uniqueness is enforced in the service (find-then-write), not by a DB unique
+/// constraint, because nullable `subjectId`/`periodId` make a composite unique
+/// unreliable (NULLs compare distinct in Postgres) — this mirrors the prior
+/// in-memory behavior. The indexes below cover the roster, percentage, and
+/// absence-count query paths.
+model StudentAttendance {
+  id               String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String  @map("tenant_id") @db.Uuid
+  studentId        String  @map("student_id") @db.Uuid
+  institutionId    String  @map("institution_id") @db.Uuid
+  classId          String  @map("class_id") @db.Uuid
+  academicPeriodId String  @map("academic_period_id") @db.Uuid
+  date             DateTime @db.Date
+  subjectId        String? @map("subject_id") @db.Uuid
+  periodId         String? @map("period_id") @db.Uuid
+  status           String  @db.VarChar(20)
+  comment          String? @db.Text
+  recordedBy       String  @map("recorded_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, classId, date])
+  @@index([tenantId, studentId, classId, date])
+  @@index([tenantId, institutionId, date])
+  @@index([tenantId, studentId, date])
+  @@map("student_attendance")
+}
+
+// ============================================================================
+// STAFF ATTENDANCE (Requirement 9.1-9.3)
+// ============================================================================
+
+/// A single staff attendance record for a date. One record per
+/// (tenant, staff, date) — enforced by the unique constraint below.
+model StaffAttendance {
+  id            String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId      String  @map("tenant_id") @db.Uuid
+  staffId       String  @map("staff_id") @db.Uuid
+  institutionId String  @map("institution_id") @db.Uuid
+  date          DateTime @db.Date
+  status        String  @db.VarChar(20)
+  leaveTypeId   String? @map("leave_type_id") @db.Uuid
+  comment       String? @db.Text
+  recordedBy    String  @map("recorded_by") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, staffId, date])
+  @@index([tenantId, institutionId, date])
+  @@map("staff_attendance")
+}
+
+// ============================================================================
+// ATTENDANCE AUDIT (Requirement 9.6 - change trail with previous status)
+// ============================================================================
+
+/// Append-only trail of student-attendance status changes.
+///
+/// The repository contract (`createAuditEntry` / `getAuditEntriesForAttendance`)
+/// carries no tenant id, so — like `PrismaInstitutionRepository.findByCode` —
+/// this table is NOT under RLS. Isolation rests on the unguessable parent
+/// `student_attendance.id` (UUID v4) it references, and that parent table IS
+/// RLS-protected. Promoting this to full RLS requires adding `tenantId` to the
+/// `AttendanceAuditEntry` contract (tracked as follow-up).
+model AttendanceAudit {
+  id             String   @id @db.Uuid
+  attendanceId   String   @map("attendance_id") @db.Uuid
+  previousStatus String?  @map("previous_status") @db.VarChar(20)
+  newStatus      String   @map("new_status") @db.VarChar(20)
+  changedBy      String   @map("changed_by") @db.Uuid
+  changedAt      DateTime @map("changed_at")
+
+  @@index([attendanceId])
+  @@map("attendance_audit")
+}
+
+// ============================================================================
+// STAFF ASSIGNMENT (Requirement 7.2 - non-overlap + allocation constraints)
+// ============================================================================
+
+/// A staff member's teaching assignment to an institution/subject/class for a
+/// date range. `endDate` null means ongoing. Overlap and total-allocation
+/// constraints are enforced in StaffAssignmentService (find-then-write), not
+/// by DB constraints, mirroring the prior in-memory behavior. Hard delete.
+model StaffAssignment {
+  id                   String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId             String    @map("tenant_id") @db.Uuid
+  staffId              String    @map("staff_id") @db.Uuid
+  institutionId        String    @map("institution_id") @db.Uuid
+  subjectId            String    @map("subject_id") @db.Uuid
+  classId              String    @map("class_id") @db.Uuid
+  role                 String    @db.VarChar(100)
+  allocationPercentage Int       @map("allocation_percentage") @db.SmallInt
+  startDate            DateTime  @map("start_date") @db.Date
+  endDate              DateTime? @map("end_date") @db.Date
+  status               String    @default("ACTIVE") @db.VarChar(20)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, staffId, status])
+  @@index([tenantId, institutionId])
+  @@index([tenantId, staffId, institutionId, subjectId, classId])
+  @@map("staff_assignments")
+}
+
+// ============================================================================
+// EXAMINATION (Requirement 10.x)
+// ============================================================================
+
+/// A formal examination. The nested collections (subjects, centers, sessions,
+/// gradingSchemes) are owned 1:N value objects always read/written with the
+/// parent, so they are stored as JSONB arrays on this row — same envelope
+/// strategy as Institution/Staff `__profile` — rather than as child tables.
+model Examination {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  name             String   @db.VarChar(255)
+  code             String   @db.VarChar(50)
+  description      String?  @db.Text
+  academicPeriodId String   @map("academic_period_id") @db.Uuid
+  startDate        DateTime @map("start_date") @db.Date
+  endDate          DateTime @map("end_date") @db.Date
+  status           String   @default("DRAFT") @db.VarChar(20)
+  subjects         Json     @default("[]") @db.JsonB
+  centers          Json     @default("[]") @db.JsonB
+  sessions         Json     @default("[]") @db.JsonB
+  gradingSchemes   Json     @default("[]") @map("grading_schemes") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, code])
+  @@index([tenantId, academicPeriodId])
+  @@index([tenantId, status])
+  @@map("examinations")
+}
+
+/// A student's registration as an examination candidate (Req 10.2).
+model ExaminationCandidateRegistration {
+  id            String   @id @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  examinationId String   @map("examination_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  centerId      String   @map("center_id") @db.Uuid
+  subjectIds    Json     @default("[]") @map("subject_ids") @db.JsonB
+  status        String   @default("REGISTERED") @db.VarChar(20)
+  registeredAt  DateTime @map("registered_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, examinationId, studentId])
+  @@map("examination_candidate_registrations")
+}
+
+/// An examination candidate with per-subject score entries, used by result
+/// publication. `subjectResults` is a JSONB array of
+/// {candidateId, subjectId, score, isComplete}.
+model ExaminationCandidate {
+  id             String @id @db.Uuid
+  tenantId       String @map("tenant_id") @db.Uuid
+  examinationId  String @map("examination_id") @db.Uuid
+  studentId      String @map("student_id") @db.Uuid
+  centerId       String @map("center_id") @db.Uuid
+  gender         String @db.VarChar(10)
+  areaId         String @map("area_id") @db.Uuid
+  subjectResults Json   @default("[]") @map("subject_results") @db.JsonB
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, examinationId, studentId])
+  @@index([tenantId, examinationId, centerId])
+  @@map("examination_candidates")
+}
+
+/// Snapshot of a result-publication run (one per examination). The full
+/// PublicationResult aggregate (grade results + incomplete records) is stored
+/// as JSONB — it is written/read whole, never queried by parts.
+model ExaminationPublication {
+  examinationId String   @map("examination_id") @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  publishedAt   DateTime @map("published_at")
+  payload       Json     @db.JsonB
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@id([tenantId, examinationId])
+  @@map("examination_publications")
+}
+
+/// Snapshot of a generated ResultAnalysis aggregate (one per examination),
+/// stored whole as JSONB (read/written atomically, never queried by parts).
+model ExaminationResultAnalysis {
+  examinationId String   @map("examination_id") @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  generatedAt   DateTime @map("generated_at")
+  payload       Json     @db.JsonB
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@id([tenantId, examinationId])
+  @@map("examination_result_analyses")
+}
+
+/// Append-only academic-record updates pushed at publication time
+/// (one row per student × subject × examination).
+model ExaminationAcademicRecord {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  examinationId String   @map("examination_id") @db.Uuid
+  subjectId     String   @map("subject_id") @db.Uuid
+  score         Float
+  grade         String   @db.VarChar(20)
+  passed        Boolean
+  publishedAt   DateTime @map("published_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, examinationId])
+  @@map("examination_academic_records")
+}
+
+/// A document-generation job (admit cards, seating plans, certificates).
+model ExaminationDocumentJob {
+  id              String    @id @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  examinationId   String    @map("examination_id") @db.Uuid
+  documentType    String    @map("document_type") @db.VarChar(30)
+  status          String    @default("queued") @db.VarChar(20)
+  candidateIds    Json      @default("[]") @map("candidate_ids") @db.JsonB
+  totalCandidates Int       @map("total_candidates")
+  processedCount  Int       @default(0) @map("processed_count")
+  failedCount     Int       @default(0) @map("failed_count")
+  errorMessage    String?   @map("error_message") @db.Text
+  outputPath      String?   @map("output_path") @db.Text
+  durationMs      Int?      @map("duration_ms")
+  createdAt       DateTime  @map("created_at")
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, examinationId])
+  @@map("examination_document_jobs")
+}
+
+// ============================================================================
+// ASSESSMENT (Requirement 8.x - continuous assessment)
+// ============================================================================
+
+/// A grading scheme (numeric/letter/competency) with its grade thresholds
+/// stored as a JSONB array of {grade, minScore, maxScore, descriptor?}.
+/// Name uniqueness is enforced in the service via case-insensitive findByName
+/// (no DB unique, matching the prior in-memory behavior).
+model GradingScheme {
+  id         String @id @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  name       String @db.VarChar(255)
+  type       String @db.VarChar(20)
+  minValue   Float  @map("min_value")
+  maxValue   Float  @map("max_value")
+  thresholds Json   @default("[]") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, name])
+  @@index([tenantId, type])
+  @@map("grading_schemes")
+}
+
+/// A weighted assessment item within a subject + academic period.
+/// All items for a subject/period are replaced atomically
+/// (replaceItemsForSubjectPeriod), and their weights must total 100.
+model AssessmentItem {
+  id               String @id @db.Uuid
+  tenantId         String @map("tenant_id") @db.Uuid
+  subjectId        String @map("subject_id") @db.Uuid
+  academicPeriodId String @map("academic_period_id") @db.Uuid
+  gradingSchemeId  String @map("grading_scheme_id") @db.Uuid
+  name             String @db.VarChar(255)
+  weight           Float
+  maxScore         Float  @map("max_score")
+  minScore         Float  @map("min_score")
+  outcomeIds       Json   @default("[]") @map("outcome_ids") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, subjectId, academicPeriodId])
+  @@map("assessment_items")
+}
+
+/// A curriculum outcome that assessment items can map to.
+model AssessmentOutcome {
+  id          String  @id @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  name        String  @db.VarChar(255)
+  code        String  @db.VarChar(50)
+  description String? @db.Text
+  subjectId   String  @map("subject_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, subjectId])
+  @@map("assessment_outcomes")
+}
+
+/// A student's score on one assessment item. Upsert key:
+/// (tenant, student, assessment item) — enforced by the unique below.
+model AssessmentResult {
+  id               String @id @db.Uuid
+  tenantId         String @map("tenant_id") @db.Uuid
+  studentId        String @map("student_id") @db.Uuid
+  assessmentItemId String @map("assessment_item_id") @db.Uuid
+  subjectId        String @map("subject_id") @db.Uuid
+  academicPeriodId String @map("academic_period_id") @db.Uuid
+  score            Float
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, studentId, assessmentItemId])
+  @@index([tenantId, subjectId, academicPeriodId])
+  @@index([tenantId, assessmentItemId])
+  @@map("assessment_results")
 }

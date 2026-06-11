@@ -6,7 +6,10 @@
  */
 import { createPrismaClient } from '@proctira/database';
 
+import type { StaffAssignmentRepository } from './assignment-repository.js';
+import { InMemoryAssignmentRepository } from './in-memory-assignment-repository.js';
 import { InMemoryStaffRepository } from './in-memory-repository.js';
+import { PrismaAssignmentRepository } from './prisma-assignment-repository.js';
 import { PrismaStaffRepository } from './prisma-staff-repository.js';
 import type { StaffRepository } from './staff-repository.js';
 
@@ -22,6 +25,18 @@ export function createStaffRepository(
     return new InMemoryStaffRepository();
   }
   return new PrismaStaffRepository(
+    createPrismaClient({ datasourceUrl: databaseUrl }),
+  );
+}
+
+export function createAssignmentRepository(
+  config: StaffRepositoryConfig = {},
+): StaffAssignmentRepository {
+  const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
+  if (!databaseUrl) {
+    return new InMemoryAssignmentRepository();
+  }
+  return new PrismaAssignmentRepository(
     createPrismaClient({ datasourceUrl: databaseUrl }),
   );
 }

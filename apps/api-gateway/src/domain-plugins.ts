@@ -8,41 +8,39 @@
  * domains that are deployed as separate services).
  *
  * Persistence status (current schema):
- *  - student: Prisma-backed (Postgres + RLS) via createStudentRepository.
- *  - institution / staff: Postgres tables exist, but only in-memory repos ship
- *    today — wired in-memory so the API is functional; swap to Prisma repos
- *    for durable persistence (next step).
- *  - attendance / assessment / examination: no Postgres tables yet — in-memory
- *    only (functional within a gateway process; durable persistence needs
- *    schema + Prisma repos).
+ *  - student / institution / staff (incl. assignments) / attendance /
+ *    assessment / examination: Prisma-backed (Postgres + RLS) via their
+ *    create*Repository factories when DATABASE_URL is set, else in-memory.
+ *  - assessment report-card repositories are not wired yet (no Prisma
+ *    implementation); report-card routes stay disabled.
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
 import type { FastifyInstance } from 'fastify';
 import {
   assessmentPlugin,
-  InMemoryAssessmentItemRepository,
-  InMemoryAssessmentResultRepository,
-  InMemoryGradingSchemeRepository,
-  InMemoryOutcomeRepository,
+  createAssessmentItemRepository,
+  createAssessmentResultRepository,
+  createGradingSchemeRepository,
+  createOutcomeRepository,
 } from '@proctira/backend-assessment';
 import {
   attendancePlugin,
-  InMemoryAttendanceRepository,
+  createAttendanceRepository,
 } from '@proctira/backend-attendance';
 import {
+  createDocumentRepository,
+  createExaminationRepository,
+  createResultRepository,
   examinationPlugin,
-  InMemoryDocumentRepository,
-  InMemoryExaminationRepository,
-  InMemoryResultRepository,
 } from '@proctira/backend-examination';
 import {
   createInstitutionRepository,
   institutionPlugin,
 } from '@proctira/backend-institution';
 import {
+  createAssignmentRepository,
   createStaffRepository,
-  InMemoryAssignmentRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
@@ -89,11 +87,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'staff',
     proxyPrefixes: ['/staff'],
     register: async (scope) => {
-      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
-      // Assignments remain in-memory (no staff_assignment table yet).
+      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory —
+      // for both staff profiles and assignments.
       await scope.register(staffPlugin, {
         repository: createStaffRepository(),
-        assignmentRepository: new InMemoryAssignmentRepository(),
+        assignmentRepository: createAssignmentRepository(),
         prefix: '/staff',
       });
     },
@@ -102,8 +100,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'attendance',
     proxyPrefixes: ['/attendance'],
     register: async (scope) => {
+      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       await scope.register(attendancePlugin, {
-        repository: new InMemoryAttendanceRepository(),
+        repository: createAttendanceRepository(),
         prefix: '/attendance',
       });
     },
@@ -112,10 +111,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'examination',
     proxyPrefixes: ['/examinations'],
     register: async (scope) => {
+      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       await scope.register(examinationPlugin, {
-        repository: new InMemoryExaminationRepository(),
-        resultRepository: new InMemoryResultRepository(),
-        documentRepository: new InMemoryDocumentRepository(),
+        repository: createExaminationRepository(),
+        resultRepository: createResultRepository(),
+        documentRepository: createDocumentRepository(),
         prefix: '/examinations',
       });
     },
@@ -127,11 +127,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     // legacy '/assessments' proxy is superseded and excluded.
     proxyPrefixes: ['/assessments'],
     register: async (scope) => {
+      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
+      // Report-card repositories are intentionally not wired (no Prisma
+      // implementation yet) — report-card routes stay disabled.
       await scope.register(assessmentPlugin, {
-        gradingSchemeRepository: new InMemoryGradingSchemeRepository(),
-        assessmentItemRepository: new InMemoryAssessmentItemRepository(),
-        outcomeRepository: new InMemoryOutcomeRepository(),
-        resultRepository: new InMemoryAssessmentResultRepository(),
+        gradingSchemeRepository: createGradingSchemeRepository(),
+        assessmentItemRepository: createAssessmentItemRepository(),
+        outcomeRepository: createOutcomeRepository(),
+        resultRepository: createAssessmentResultRepository(),
       });
     },
   },

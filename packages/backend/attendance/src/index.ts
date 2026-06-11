@@ -47,6 +47,11 @@ export { InMemoryAttendanceRepository } from './in-memory-repository.js';
 // Cached repository decorator
 export { CachedAttendanceRepository } from './cached-attendance-repository.js';
 
+// Prisma repository (Postgres + RLS) + factory
+export { PrismaAttendanceRepository } from './prisma-attendance-repository.js';
+export { createAttendanceRepository } from './repository-factory.js';
+export type { AttendanceRepositoryConfig } from './repository-factory.js';
+
 // Bulk attendance producer (queue-first pattern)
 export { BulkAttendanceProducer } from './bulk-attendance-producer.js';
 export type {
