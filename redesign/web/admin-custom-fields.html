@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Custom fields · Administration · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .req-pill { font-size: var(--fs-2xs); font-weight: 700; padding: 1px 8px; border-radius: var(--r-full); }
+  .req-yes { background: var(--brand-50); color: var(--brand-700); }
+  .req-no  { background: var(--bg-subtle); color: var(--text-3); }
+  .opt-list { display: flex; flex-direction: column; gap: 6px; }
+  .opt-item {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 10px;
+    border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2);
+    font-size: var(--fs-sm);
+  }
+  .opt-item .grip { color: var(--text-3); cursor: grab; display: inline-flex; }
+  .opt-item .grip svg, .opt-item .rm svg { width: 13px; height: 13px; }
+  .opt-item .rm { margin-left: auto; border: none; background: none; color: var(--text-3); cursor: pointer; display: inline-flex; padding: 2px; border-radius: 4px; }
+  .opt-item .rm:hover { color: var(--red-600); background: var(--red-50); }
+  .minmax { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .disabled-section { opacity: .5; pointer-events: none; }
+</style>
+</head>
+<body data-active="admin">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="admin-overview.html">Administration</a><span class="sep">/</span><span class="current">Custom fields</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Custom fields</h1>
+          <p class="page-sub">Extend student, staff and institution records with district-specific data points · keys are stable across API and exports.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New field</button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">Students <span class="count">6</span></a>
+        <a class="tab" href="#" role="tab">Staff <span class="count">3</span></a>
+        <a class="tab" href="#" role="tab">Institutions <span class="count">4</span></a>
+      </div>
+
+      <div class="alert warn mb-20">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="a-body"><b>Deactivating a field never deletes data</b>Existing values stay on records and in exports; the field simply stops appearing on new forms. Reactivate any time to resume collection.</div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+          <div class="card">
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Required</th>
+                    <th>Used in</th>
+                    <th>Active</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Field"><div class="cell-main">Blood Group</div><div class="cell-sub mono">student.blood_group</div></td>
+                    <td data-label="Type"><span class="tag">Select</span></td>
+                    <td data-label="Required"><span class="req-pill req-yes">Required</span></td>
+                    <td data-label="Used in">24,610 records · 3 forms</td>
+                    <td data-label="Active" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Active"></button></td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Field"><div class="cell-main">Mother Tongue</div><div class="cell-sub mono">student.mother_tongue</div></td>
+                    <td data-label="Type"><span class="tag">Select</span></td>
+                    <td data-label="Required"><span class="req-pill req-yes">Required</span></td>
+                    <td data-label="Used in">24,812 records · 2 forms</td>
+                    <td data-label="Active" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Active"></button></td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Field"><div class="cell-main">Distance to School (km)</div><div class="cell-sub mono">student.distance_km</div></td>
+                    <td data-label="Type"><span class="tag">Number</span></td>
+                    <td data-label="Required"><span class="req-pill req-no">Optional</span></td>
+                    <td data-label="Used in">19,348 records · 2 forms</td>
+                    <td data-label="Active" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Active"></button></td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Field"><div class="cell-main">Aadhaar Enrolment Date</div><div class="cell-sub mono">student.aadhaar_enrolment_date</div></td>
+                    <td data-label="Type"><span class="tag">Date</span></td>
+                    <td data-label="Required"><span class="req-pill req-no">Optional</span></td>
+                    <td data-label="Used in">22,975 records · 1 form</td>
+                    <td data-label="Active" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Active"></button></td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Field"><div class="cell-main">Hostel Resident</div><div class="cell-sub mono">student.hostel_resident</div></td>
+                    <td data-label="Type"><span class="tag">Checkbox</span></td>
+                    <td data-label="Required"><span class="req-pill req-no">Optional</span></td>
+                    <td data-label="Used in">3,412 records · 1 form</td>
+                    <td data-label="Active" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Active"></button></td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Field"><div class="cell-main">CWSN Category</div><div class="cell-sub mono">student.cwsn_category</div></td>
+                    <td data-label="Type"><span class="tag">Select</span></td>
+                    <td data-label="Required"><span class="req-pill req-no">Optional</span></td>
+                    <td data-label="Used in">486 records · <span class="muted-3">no active forms</span></td>
+                    <td data-label="Active" class="td-flex"><button class="switch" type="button" role="switch" aria-checked="false" aria-label="Active"></button></td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card-foot">
+              <span class="fs-xs muted">6 student fields · 5 active · field keys are immutable after first save</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Edit field</h3><div class="sub">Blood Group · Students</div></div>
+              <div class="spacer"><span class="pill green">Active</span></div>
+            </div>
+            <div class="card-pad" style="display:flex;flex-direction:column;gap:16px">
+              <div class="field">
+                <label for="cf-label">Field label<span class="req">*</span></label>
+                <input class="input" id="cf-label" type="text" value="Blood Group">
+              </div>
+              <div class="field">
+                <label>Key</label>
+                <div class="input mono" style="background:var(--bg-subtle);cursor:not-allowed" aria-readonly="true">student.blood_group</div>
+                <span class="hint">Auto-generated from label · used in API &amp; exports · locked after first save</span>
+              </div>
+              <div class="field">
+                <label for="cf-type">Type</label>
+                <select class="select" id="cf-type">
+                  <option>Text</option><option>Number</option><option>Date</option><option selected>Select</option><option>Checkbox</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Options <span class="hint" style="font-weight:400">(shown for Select type)</span></label>
+                <div class="opt-list">
+                  <div class="opt-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span>A+<button class="rm" aria-label="Remove option"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+                  <div class="opt-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span>B+<button class="rm" aria-label="Remove option"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+                  <div class="opt-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span>O+<button class="rm" aria-label="Remove option"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+                  <div class="opt-item"><span class="grip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg></span>AB+<button class="rm" aria-label="Remove option"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+                </div>
+                <button class="btn btn-ghost btn-sm" type="button" style="align-self:flex-start"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add option (4 more incl. negatives)</button>
+              </div>
+              <div class="field disabled-section" aria-disabled="true">
+                <label>Validation</label>
+                <div class="minmax">
+                  <input class="input" type="text" placeholder="Min" aria-label="Minimum value" disabled>
+                  <input class="input" type="text" placeholder="Max" aria-label="Maximum value" disabled>
+                </div>
+                <span class="hint">Min / max applies to Number and Date types</span>
+              </div>
+              <div class="flex aic jcsb">
+                <label class="checkbox-row" style="gap:10px">Required on admission form</label>
+                <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Required"></button>
+              </div>
+            </div>
+            <div class="card-foot" style="justify-content:flex-end;gap:8px">
+              <button class="btn btn-ghost" type="button">Cancel</button>
+              <button class="btn btn-primary" type="button">Save field</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

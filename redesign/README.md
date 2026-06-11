@@ -1,6 +1,6 @@
-# ProctiraERP Redesign v2.0
+# CivitasOne Redesign v2.0
 
-World-class redesign of all 124 ProctiraERP screens as responsive HTML mockups — web app, all portals, and the native (Flutter) mobile app. Open **index.html** in a browser to browse everything with a Desktop / Tablet / Mobile toggle.
+World-class redesign of all 124 CivitasOne screens as responsive HTML mockups — web app, all portals, and the native (Flutter) mobile app. Open **index.html** in a browser to browse everything with a Desktop / Tablet / Mobile toggle.
 
 ## What changed vs. the current product
 

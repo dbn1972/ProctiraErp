@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Surveys · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .completion-cell { display: flex; align-items: center; gap: 10px; }
+  .completion-cell .progress { flex: 1; max-width: 110px; }
+  .deadline-overdue { color: var(--red-600); font-weight: 600; }
+</style>
+</head>
+<body data-active="surveys">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Surveys</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Surveys</h1>
+          <p class="page-sub">Design, distribute and track surveys across 142 institutions in Puri district</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="surveys-results.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Results</a>
+          <a class="btn btn-primary" href="surveys-builder.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New survey</a>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg></span>
+            <span class="k-label">Active surveys</span>
+          </div>
+          <div class="k-value">3</div>
+          <div class="k-foot">2 drafts in progress</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <span class="k-label">Avg. completion</span>
+          </div>
+          <div class="k-value">74%</div>
+          <div class="k-foot"><span class="delta up">↑ 8%</span> vs last cycle</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>
+            <span class="k-label">Responses this week</span>
+          </div>
+          <div class="k-value">412</div>
+          <div class="k-foot">peak day Tue · 118 responses</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+            <span class="k-label">Past deadline</span>
+          </div>
+          <div class="k-value" style="color:var(--red-600)">1</div>
+          <div class="k-foot">Mid-Day Meal Feedback · 7 days over</div>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">8</span></a>
+        <a class="tab" href="#" role="tab">Active <span class="count">3</span></a>
+        <a class="tab" href="#" role="tab">Draft <span class="count">2</span></a>
+        <a class="tab" href="#" role="tab">Closed <span class="count">3</span></a>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search surveys" aria-label="Search surveys">
+        </div>
+        <select class="select" aria-label="Audience"><option>All audiences</option><option>Headmasters</option><option>Teachers</option><option>Parents</option></select>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">Survey <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Audience</th>
+                <th class="num">Questions</th>
+                <th class="num">Distributed to</th>
+                <th>Completion</th>
+                <th>Deadline</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Survey"><a href="surveys-distribute.html" style="text-decoration:none;color:inherit"><div class="cell-main">Annual School Infrastructure Census 2026</div><div class="cell-sub">SED Odisha mandate · launched 19 May 2026</div></a></td>
+                <td data-label="Audience"><span class="tag">Headmasters</span></td>
+                <td data-label="Questions" class="num">24</td>
+                <td data-label="Distributed to" class="num">142 schools</td>
+                <td data-label="Completion"><div class="completion-cell"><div class="progress"><span style="width:74%"></span></div><span class="fs-xs fw-7">74%</span></div></td>
+                <td data-label="Deadline">16 Jun 2026 <span class="fs-xs muted-3">· 9 days left</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-distribute.html" aria-label="Track distribution"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="surveys-results.html" aria-label="Results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Survey"><div class="cell-main">Mid-Day Meal Quality Feedback</div><div class="cell-sub">Monthly parent pulse · May cycle</div></td>
+                <td data-label="Audience"><span class="tag">Parents</span></td>
+                <td data-label="Questions" class="num">12</td>
+                <td data-label="Distributed to" class="num">2,450 parents</td>
+                <td data-label="Completion"><div class="completion-cell"><div class="progress amber"><span style="width:58%"></span></div><span class="fs-xs fw-7">58%</span></div></td>
+                <td data-label="Deadline"><span class="deadline-overdue">31 May 2026 · 7 days overdue</span></td>
+                <td data-label="Status"><span class="pill red">Overdue</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-distribute.html" aria-label="Track distribution"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="surveys-results.html" aria-label="Results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Survey"><div class="cell-main">Teacher Training Needs Assessment</div><div class="cell-sub">Feeds DIET Puri annual training calendar</div></td>
+                <td data-label="Audience"><span class="tag">Teachers</span></td>
+                <td data-label="Questions" class="num">18</td>
+                <td data-label="Distributed to" class="num">1,427 teachers</td>
+                <td data-label="Completion"><div class="completion-cell"><div class="progress green"><span style="width:81%"></span></div><span class="fs-xs fw-7">81%</span></div></td>
+                <td data-label="Deadline">30 Jun 2026 <span class="fs-xs muted-3">· 23 days left</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-distribute.html" aria-label="Track distribution"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                  <a class="icon-btn" href="surveys-results.html" aria-label="Results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Survey"><a href="surveys-builder.html" style="text-decoration:none;color:inherit"><div class="cell-main">Digital Classroom Readiness Survey</div><div class="cell-sub">Draft · last edited today, 10:42</div></a></td>
+                <td data-label="Audience"><span class="tag">Headmasters</span></td>
+                <td data-label="Questions" class="num">5</td>
+                <td data-label="Distributed to" class="num muted-3">—</td>
+                <td data-label="Completion"><span class="muted-3 fs-xs">Not distributed</span></td>
+                <td data-label="Deadline" class="muted-3">—</td>
+                <td data-label="Status"><span class="pill slate">Draft</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-builder.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                  <button class="icon-btn" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Survey"><div class="cell-main">Inclusive Education Facilities Audit</div><div class="cell-sub">Draft · ramps, CWSN resources, aids</div></td>
+                <td data-label="Audience"><span class="tag">Headmasters</span></td>
+                <td data-label="Questions" class="num">16</td>
+                <td data-label="Distributed to" class="num muted-3">—</td>
+                <td data-label="Completion"><span class="muted-3 fs-xs">Not distributed</span></td>
+                <td data-label="Deadline" class="muted-3">—</td>
+                <td data-label="Status"><span class="pill slate">Draft</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-builder.html" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                  <button class="icon-btn" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Survey"><div class="cell-main">Cyclone Preparedness Drill Audit</div><div class="cell-sub">Pre-monsoon safety check · OSDMA aligned</div></td>
+                <td data-label="Audience"><span class="tag">Headmasters</span></td>
+                <td data-label="Questions" class="num">14</td>
+                <td data-label="Distributed to" class="num">142 schools</td>
+                <td data-label="Completion"><div class="completion-cell"><div class="progress green"><span style="width:97%"></span></div><span class="fs-xs fw-7">97%</span></div></td>
+                <td data-label="Deadline">30 Apr 2026</td>
+                <td data-label="Status"><span class="pill slate">Closed</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-results.html" aria-label="Results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                  <button class="icon-btn" aria-label="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Survey"><div class="cell-main">Library Usage Survey 2025</div><div class="cell-sub">Reading programme evaluation</div></td>
+                <td data-label="Audience"><span class="tag">Teachers</span></td>
+                <td data-label="Questions" class="num">10</td>
+                <td data-label="Distributed to" class="num">1,398 teachers</td>
+                <td data-label="Completion"><div class="completion-cell"><div class="progress green"><span style="width:89%"></span></div><span class="fs-xs fw-7">89%</span></div></td>
+                <td data-label="Deadline">12 Dec 2025</td>
+                <td data-label="Status"><span class="pill slate">Closed</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-results.html" aria-label="Results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                  <button class="icon-btn" aria-label="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Survey"><div class="cell-main">Annual School Infrastructure Census 2025</div><div class="cell-sub">Previous cycle · baseline for 2026 comparison</div></td>
+                <td data-label="Audience"><span class="tag">Headmasters</span></td>
+                <td data-label="Questions" class="num">22</td>
+                <td data-label="Distributed to" class="num">139 schools</td>
+                <td data-label="Completion"><div class="completion-cell"><div class="progress green"><span style="width:95%"></span></div><span class="fs-xs fw-7">95%</span></div></td>
+                <td data-label="Deadline">20 Jun 2025</td>
+                <td data-label="Status"><span class="pill slate">Closed</span></td>
+                <td><div class="row-actions">
+                  <a class="icon-btn" href="surveys-results.html" aria-label="Results"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                  <button class="icon-btn" aria-label="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <span class="fs-xs muted">Showing all 8 surveys</span>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

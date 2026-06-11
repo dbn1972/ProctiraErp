@@ -1,13 +1,13 @@
 # Claude Code Prompts — Implement the v2.0 Redesign, Screen by Screen
 
-How to use: start Claude Code at the repo root (`ProctiraERP/`). Paste the **Master Prompt** once at the start of every session. Then run one **Screen Prompt** at a time from the checklist below. Keep sessions to 3–5 screens so context stays sharp.
+How to use: start Claude Code at the repo root (`CivitasOne/`). Paste the **Master Prompt** once at the start of every session. Then run one **Screen Prompt** at a time from the checklist below. Keep sessions to 3–5 screens so context stays sharp.
 
 ---
 
 ## 1. Master Prompt (paste once per session)
 
 ```
-You are implementing an approved UI redesign for ProctiraERP. The pixel-accurate
+You are implementing an approved UI redesign for CivitasOne. The pixel-accurate
 reference mockups live in `redesign/` as plain HTML/CSS:
 
 - Design tokens:       redesign/shared/tokens.css   (colors, type scale, radii, shadows, dark theme)

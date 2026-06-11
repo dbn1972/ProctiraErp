@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student assignments · Transport · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .context-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  @media (max-width: 767px) { .context-bar { grid-template-columns: 1fr; } }
+  .seat-summary { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .seat-summary .ss-bar { flex: 1; min-width: 200px; }
+  .stop-select { min-width: 180px; }
+</style>
+</head>
+<body data-active="transport">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="transport-overview.html">Transport</a><span class="sep">/</span><span class="current">Student assignments</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Student route assignments</h1>
+          <p class="page-sub">Assign students to a route and stop · changes sync to the morning manifest at 05:30</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="transport-route-detail.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>View route</a>
+          <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Assign students</button>
+        </div>
+      </div>
+
+      <!-- Context pickers -->
+      <div class="context-bar">
+        <div class="field">
+          <label>Institution</label>
+          <button class="entity-picker" type="button">
+            <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 8-4 8 4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M18 5v17M6 5v17"/><circle cx="12" cy="9" r="2"/></svg></span>
+            <span class="ep-text">
+              <span class="ep-value">Govt. Sr. Sec. School, Puri</span>
+              <span class="ep-meta">UDISE 21180100101 · Puri Sadar block</span>
+            </span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div class="field">
+          <label>Route</label>
+          <button class="entity-picker" type="button">
+            <span class="ep-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></span>
+            <span class="ep-text">
+              <span class="ep-value">Route 7 · Puri Sadar East</span>
+              <span class="ep-meta">PUR-R07 · OD-13-AB-4521 · Banamali Behera</span>
+            </span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Seat capacity summary -->
+      <div class="card card-pad mb-16">
+        <div class="seat-summary">
+          <div>
+            <div class="fs-xs muted-3" style="text-transform:uppercase;letter-spacing:.04em;font-weight:600">Seat capacity</div>
+            <div style="font-size:var(--fs-2xl);font-weight:800;font-variant-numeric:tabular-nums">28 <span class="muted-3" style="font-size:var(--fs-md);font-weight:600">of 32 seats used</span></div>
+          </div>
+          <div class="ss-bar">
+            <div class="progress amber" style="height:8px"><span style="width:87.5%"></span></div>
+            <div class="fs-xs muted-3" style="margin-top:6px">4 seats free · assignments beyond capacity are blocked automatically</div>
+          </div>
+          <span class="pill amber">Near capacity</span>
+        </div>
+      </div>
+
+      <!-- SMS info -->
+      <div class="alert info mb-16" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div class="a-body">
+          <b>Guardians are notified automatically</b>
+          Any assignment, stop change or removal triggers an SMS to the registered guardian number in Odia and English.
+        </div>
+      </div>
+
+      <!-- Assigned students -->
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Assigned students</h3><div class="sub">28 students on Route 7 · sorted by stop order</div></div>
+          <div class="spacer">
+            <div class="input-icon" style="width:220px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input class="input" type="search" placeholder="Find student" aria-label="Find student">
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr><th>Student</th><th>Grade · Section</th><th>Stop</th><th>Pickup</th><th>Status</th><th style="text-align:right">Remove</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Student"><div class="person-cell"><span class="avatar av-1">SD</span><div><div class="cell-main">Sasmita Das</div><div class="cell-sub">Adm. 2024/0381</div></div></div></td>
+                <td data-label="Grade · Section">VII · B</td>
+                <td data-label="Stop"><select class="select stop-select" aria-label="Stop for Sasmita Das"><option selected>Malatipatpur Chhak</option><option>Talabania Square</option><option>Chakratirtha Road</option><option>Gundicha Temple East</option><option>Baseli Sahi</option></select></td>
+                <td data-label="Pickup" class="mono">06:42</td>
+                <td data-label="Status"><span class="pill green">Confirmed</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Remove Sasmita Das" style="color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Student"><div class="person-cell"><span class="avatar av-3">AS</span><div><div class="cell-main">Ankit Sahu</div><div class="cell-sub">Adm. 2024/0297</div></div></div></td>
+                <td data-label="Grade · Section">VIII · A</td>
+                <td data-label="Stop"><select class="select stop-select" aria-label="Stop for Ankit Sahu"><option>Malatipatpur Chhak</option><option selected>Talabania Square</option><option>Chakratirtha Road</option><option>Gundicha Temple East</option><option>Baseli Sahi</option></select></td>
+                <td data-label="Pickup" class="mono">06:51</td>
+                <td data-label="Status"><span class="pill green">Confirmed</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Remove Ankit Sahu" style="color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Student"><div class="person-cell"><span class="avatar av-4">PB</span><div><div class="cell-main">Priyanka Behera</div><div class="cell-sub">Adm. 2024/0312</div></div></div></td>
+                <td data-label="Grade · Section">VI · A</td>
+                <td data-label="Stop"><select class="select stop-select" aria-label="Stop for Priyanka Behera"><option>Malatipatpur Chhak</option><option>Talabania Square</option><option selected>Chakratirtha Road</option><option>Gundicha Temple East</option><option>Baseli Sahi</option></select></td>
+                <td data-label="Pickup" class="mono">07:02</td>
+                <td data-label="Status"><span class="pill amber">SMS pending</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Remove Priyanka Behera" style="color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Student"><div class="person-cell"><span class="avatar av-5">RS</span><div><div class="cell-main">Rakesh Swain</div><div class="cell-sub">Adm. 2024/0344</div></div></div></td>
+                <td data-label="Grade · Section">IX · C</td>
+                <td data-label="Stop"><select class="select stop-select" aria-label="Stop for Rakesh Swain"><option>Malatipatpur Chhak</option><option>Talabania Square</option><option>Chakratirtha Road</option><option selected>Gundicha Temple East</option><option>Baseli Sahi</option></select></td>
+                <td data-label="Pickup" class="mono">07:09</td>
+                <td data-label="Status"><span class="pill green">Confirmed</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Remove Rakesh Swain" style="color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Student"><div class="person-cell"><span class="avatar av-6">JP</span><div><div class="cell-main">Jyoti Pradhan</div><div class="cell-sub">Adm. 2024/0405</div></div></div></td>
+                <td data-label="Grade · Section">VII · A</td>
+                <td data-label="Stop"><select class="select stop-select" aria-label="Stop for Jyoti Pradhan"><option>Malatipatpur Chhak</option><option>Talabania Square</option><option>Chakratirtha Road</option><option>Gundicha Temple East</option><option selected>Baseli Sahi</option></select></td>
+                <td data-label="Pickup" class="mono">07:21</td>
+                <td data-label="Status"><span class="pill green">Confirmed</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Remove Jyoti Pradhan" style="color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Student"><div class="person-cell"><span class="avatar av-2">SM</span><div><div class="cell-main">Smruti Mohanty</div><div class="cell-sub">Adm. 2024/0428</div></div></div></td>
+                <td data-label="Grade · Section">X · B</td>
+                <td data-label="Stop"><select class="select stop-select" aria-label="Stop for Smruti Mohanty"><option>Malatipatpur Chhak</option><option>Talabania Square</option><option>Chakratirtha Road</option><option>Gundicha Temple East</option><option selected>Baseli Sahi</option></select></td>
+                <td data-label="Pickup" class="mono">07:21</td>
+                <td data-label="Status"><span class="pill amber">SMS pending</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Remove Smruti Mohanty" style="color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>
+              </tr>
+              <tr>
+                <td data-label="Student"><div class="person-cell"><span class="avatar av-1">DJ</span><div><div class="cell-main">Debasis Jena</div><div class="cell-sub">Adm. 2024/0467</div></div></div></td>
+                <td data-label="Grade · Section">VIII · C</td>
+                <td data-label="Stop"><select class="select stop-select" aria-label="Stop for Debasis Jena"><option selected>Malatipatpur Chhak</option><option>Talabania Square</option><option>Chakratirtha Road</option><option>Gundicha Temple East</option><option>Baseli Sahi</option></select></td>
+                <td data-label="Pickup" class="mono">06:42</td>
+                <td data-label="Status"><span class="pill green">Confirmed</span></td>
+                <td><div class="row-actions"><button class="icon-btn" aria-label="Remove Debasis Jena" style="color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <span class="fs-xs muted">Showing 7 of 28 assigned students</span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto">Load all</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

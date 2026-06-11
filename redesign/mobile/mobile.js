@@ -1,4 +1,4 @@
-/* ProctiraERP Mobile mockups — injects status bar + tab bar.
+/* CivitasOne Mobile mockups — injects status bar + tab bar.
    <body data-tab="home|students|attendance|services|profile"> ; omit data-tab for bare screens (login etc.) */
 (function () {
   'use strict';

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Transport · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .fleet-stat { margin-bottom: 14px; }
+  .fleet-stat:last-child { margin-bottom: 0; }
+  .fleet-stat .fs-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: var(--fs-sm); }
+  .fleet-stat .fs-top .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body data-active="transport">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Transport</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Transport</h1>
+          <p class="page-sub">Routes, fleet and student assignments across 5 blocks of Puri district · morning shift in progress</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="transport-vehicles.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add vehicle</a>
+          <a class="btn btn-primary" href="transport-routes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New route</a>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg></span>
+            <span class="k-label">Active routes</span>
+          </div>
+          <div class="k-value">18</div>
+          <div class="k-foot"><span class="delta up">↑ 2</span> added this term</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M16 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>
+            <span class="k-label">Vehicles in fleet</span>
+          </div>
+          <div class="k-value">22</div>
+          <div class="k-foot">18 on route · 2 maintenance · 2 idle</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></span>
+            <span class="k-label">Students transported</span>
+          </div>
+          <div class="k-value">1,842</div>
+          <div class="k-foot"><span class="delta up">↑ 3.1%</span> vs last term</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <span class="k-label">Due for fitness check</span>
+          </div>
+          <div class="k-value" style="color:var(--amber-600)">3</div>
+          <div class="k-foot">earliest due 28 Jun 2026</div>
+        </div>
+      </div>
+
+      <!-- Expiring documents alert -->
+      <div class="alert warn mb-20" role="status">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div class="a-body">
+          <b>2 insurance renewals fall due this month</b>
+          <span class="mono">OD-13-CD-1187</span> expires 21 Jun · <span class="mono">OD-13-JK-0954</span> expires 28 Jun. Vehicles without valid insurance are auto-pulled from routes.
+        </div>
+        <a class="btn btn-sm btn-secondary" href="transport-vehicles.html" style="margin-left:auto;flex-shrink:0">Review fleet</a>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+
+          <!-- Routes at a glance -->
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Routes at a glance</h3><div class="sub">18 routes · morning shift departure 06:30–07:10</div></div>
+              <div class="spacer"><a class="btn btn-ghost btn-sm" href="transport-routes.html">All routes →</a></div>
+            </div>
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr><th>Route</th><th>Stops</th><th>Vehicle</th><th>Driver</th><th class="num">Students</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Route"><a href="transport-route-detail.html" style="text-decoration:none;color:inherit"><div class="cell-main">Route 7 · Puri Sadar East</div><div class="cell-sub">Malatipatpur → Govt. Sr. Sec. School, Puri</div></a></td>
+                    <td data-label="Stops">6</td>
+                    <td data-label="Vehicle" class="mono">OD-13-AB-4521</td>
+                    <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-2">BB</span><span class="fs-sm fw-6">Banamali Behera</span></div></td>
+                    <td data-label="Students" class="num">28</td>
+                    <td data-label="Status"><span class="pill green">Active</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Route"><div class="cell-main">Route 3 · Brahmagiri Coastal</div><div class="cell-sub">Rebana Nuagaon → UGME School, Brahmagiri</div></td>
+                    <td data-label="Stops">8</td>
+                    <td data-label="Vehicle" class="mono">OD-13-CD-1187</td>
+                    <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-3">SS</span><span class="fs-sm fw-6">Sukanta Swain</span></div></td>
+                    <td data-label="Students" class="num">34</td>
+                    <td data-label="Status"><span class="pill green">Active</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Route"><div class="cell-main">Route 11 · Gop North</div><div class="cell-sub">Beraboi → Nodal HS, Gop Sadar</div></td>
+                    <td data-label="Stops">5</td>
+                    <td data-label="Vehicle" class="mono">OD-13-EF-3340</td>
+                    <td data-label="Driver"><span class="muted-3 fs-sm">— unassigned</span></td>
+                    <td data-label="Students" class="num">22</td>
+                    <td data-label="Status"><span class="pill amber">No driver</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Route"><div class="cell-main">Route 14 · Krushnaprasad Ferry Link</div><div class="cell-sub">Satapada Jetty → Govt. UP School, Satapada</div></td>
+                    <td data-label="Stops">4</td>
+                    <td data-label="Vehicle" class="mono">OD-13-GH-7782</td>
+                    <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-5">PJ</span><span class="fs-sm fw-6">Prafulla Jena</span></div></td>
+                    <td data-label="Students" class="num">19</td>
+                    <td data-label="Status"><span class="pill green">Active</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Route"><div class="cell-main">Route 5 · Satyabadi Loop</div><div class="cell-sub">Sakhigopal Bazaar → Panchayat HS, Satyabadi</div></td>
+                    <td data-label="Stops">7</td>
+                    <td data-label="Vehicle" class="mono">OD-13-JK-0954</td>
+                    <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-4">RP</span><span class="fs-sm fw-6">Rabindra Pradhan</span></div></td>
+                    <td data-label="Students" class="num">31</td>
+                    <td data-label="Status"><span class="pill red">Maintenance</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Route"><div class="cell-main">Route 9 · Puri Sadar West</div><div class="cell-sub">Baliapanda → Govt. Girls HS, Puri</div></td>
+                    <td data-label="Stops">6</td>
+                    <td data-label="Vehicle" class="mono">OD-13-LM-2218</td>
+                    <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-6">MM</span><span class="fs-sm fw-6">Manas Mohanty</span></div></td>
+                    <td data-label="Students" class="num">26</td>
+                    <td data-label="Status"><span class="pill green">Active</span></td>
+                  </tr>
+                  <tr>
+                    <td data-label="Route"><div class="cell-main">Route 16 · Gop South</div><div class="cell-sub">Nuapada Chhak → Nodal HS, Gop Sadar</div></td>
+                    <td data-label="Stops">5</td>
+                    <td data-label="Vehicle" class="mono">OD-13-NP-6633</td>
+                    <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-1">DS</span><span class="fs-sm fw-6">Dillip Sahoo</span></div></td>
+                    <td data-label="Students" class="num">24</td>
+                    <td data-label="Status"><span class="pill green">Active</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card-foot">
+              <span class="fs-xs muted">Showing 7 of 18 routes</span>
+              <a class="btn btn-ghost btn-sm" href="transport-routes.html" style="margin-left:auto">View all</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <!-- Fleet health -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 4px;font-size:var(--fs-lg)">Fleet health</h3>
+            <p class="fs-xs muted-3" style="margin:0 0 16px">Statutory document validity across 22 vehicles</p>
+            <div class="fleet-stat">
+              <div class="fs-top"><span class="muted">Fitness certificate valid</span><span class="v">19 / 22</span></div>
+              <div class="progress amber"><span style="width:86%"></span></div>
+            </div>
+            <div class="fleet-stat">
+              <div class="fs-top"><span class="muted">Insurance valid</span><span class="v">20 / 22</span></div>
+              <div class="progress amber"><span style="width:91%"></span></div>
+            </div>
+            <div class="fleet-stat">
+              <div class="fs-top"><span class="muted">Pollution certificate valid</span><span class="v">21 / 22</span></div>
+              <div class="progress green"><span style="width:95%"></span></div>
+            </div>
+            <div class="alert warn mt-16" style="padding:10px 12px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span class="fs-xs">Next fitness check: <b>OD-13-JK-0954</b> on 28 Jun — book the RTO slot 7 days ahead.</span>
+            </div>
+          </div>
+
+          <!-- Quick actions -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 12px;font-size:var(--fs-lg)">Quick actions</h3>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <a class="btn btn-secondary" href="transport-routes.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>New route</a>
+              <a class="btn btn-secondary" href="transport-vehicles.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M16 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg>Add vehicle</a>
+              <a class="btn btn-secondary" href="transport-assignments.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Assign students</a>
+            </div>
+          </div>
+
+          <!-- Today on the road -->
+          <div class="card card-pad">
+            <h3 style="margin:0 0 6px;font-size:var(--fs-lg)">Today on the road</h3>
+            <div class="stat-row"><span class="sr-label">Morning trips completed</span><span class="sr-value">17 / 18</span></div>
+            <div class="stat-row"><span class="sr-label">Avg. seat occupancy</span><span class="sr-value">84%</span></div>
+            <div class="stat-row"><span class="sr-label">Late departures</span><span class="sr-value" style="color:var(--amber-600)">1</span></div>
+            <div class="stat-row"><span class="sr-label">Breakdown reports</span><span class="sr-value">0</span></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

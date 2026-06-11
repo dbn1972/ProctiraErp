@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Access policies · Administration · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .rule-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 11px 0;
+    border-bottom: 1px solid var(--border); font-size: var(--fs-sm);
+  }
+  .rule-row:last-child { border-bottom: none; }
+  .rule-row .rr-text { flex: 1; color: var(--text); line-height: 1.5; }
+  .rule-row .rr-text .scope-hint { display: block; font-size: var(--fs-2xs); color: var(--text-3); margin-top: 1px; }
+  .verdict { font-size: var(--fs-2xs); font-weight: 700; padding: 2px 9px; border-radius: var(--r-full); flex-shrink: 0; margin-top: 1px; }
+  .verdict.allow { background: var(--green-50); color: var(--green-700); }
+  .verdict.deny  { background: var(--red-50);  color: var(--red-700); }
+</style>
+</head>
+<body data-active="admin">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="admin-overview.html">Administration</a><span class="sep">/</span><span class="current">Access policies</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Access policies</h1>
+          <p class="page-sub">Role-based rules controlling who can view, edit and export records across Puri district · versioned, with full audit trail.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>Change history</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New policy</button>
+        </div>
+      </div>
+
+      <div class="alert info mb-20">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div class="a-body"><b>Changes apply within 5 minutes</b>Policy updates propagate to all active sessions as access caches refresh. Users do not need to sign out and back in.</div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+          <div class="card">
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Policy</th>
+                    <th>Scope</th>
+                    <th>Rules</th>
+                    <th>Status</th>
+                    <th>Version</th>
+                    <th>Updated</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Policy"><div class="cell-main">Teacher gradebook access</div><div class="cell-sub">Attendance and marks editing for class teachers</div></td>
+                    <td data-label="Scope"><span class="tag">School</span></td>
+                    <td data-label="Rules" class="num">3</td>
+                    <td data-label="Status" class="td-flex"><span class="flex aic g8"><span class="pill green">Active</span><button class="btn btn-ghost btn-sm" type="button">Deactivate</button></span></td>
+                    <td data-label="Version"><span class="mono">v2</span></td>
+                    <td data-label="Updated">02 Jun 2026</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#view" aria-label="View policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        <a class="icon-btn" href="#edit" aria-label="Edit policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Policy"><div class="cell-main">Headmaster staff management</div><div class="cell-sub">Leave approval, timetable and staff records</div></td>
+                    <td data-label="Scope"><span class="tag">School</span></td>
+                    <td data-label="Rules" class="num">6</td>
+                    <td data-label="Status" class="td-flex"><span class="flex aic g8"><span class="pill green">Active</span><button class="btn btn-ghost btn-sm" type="button">Deactivate</button></span></td>
+                    <td data-label="Version"><span class="mono">v5</span></td>
+                    <td data-label="Updated">28 May 2026</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#view" aria-label="View policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        <a class="icon-btn" href="#edit" aria-label="Edit policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Policy"><div class="cell-main">District attendance oversight</div><div class="cell-sub">Read and correction rights for district officers</div></td>
+                    <td data-label="Scope"><span class="tag">District</span></td>
+                    <td data-label="Rules" class="num">4</td>
+                    <td data-label="Status" class="td-flex"><span class="flex aic g8"><span class="pill green">Active</span><button class="btn btn-ghost btn-sm" type="button">Deactivate</button></span></td>
+                    <td data-label="Version"><span class="mono">v3</span></td>
+                    <td data-label="Updated">21 May 2026</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#view" aria-label="View policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        <a class="icon-btn" href="#edit" aria-label="Edit policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Policy"><div class="cell-main">Exam controller results</div><div class="cell-sub">Marks entry lock, moderation and publishing</div></td>
+                    <td data-label="Scope"><span class="tag">District</span></td>
+                    <td data-label="Rules" class="num">7</td>
+                    <td data-label="Status" class="td-flex"><span class="flex aic g8"><span class="pill green">Active</span><button class="btn btn-ghost btn-sm" type="button">Deactivate</button></span></td>
+                    <td data-label="Version"><span class="mono">v4</span></td>
+                    <td data-label="Updated">16 May 2026</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#view" aria-label="View policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        <a class="icon-btn" href="#edit" aria-label="Edit policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Policy"><div class="cell-main">Health officer screening records</div><div class="cell-sub">RBSK screening data, consent-gated access</div></td>
+                    <td data-label="Scope"><span class="tag">District</span></td>
+                    <td data-label="Rules" class="num">4</td>
+                    <td data-label="Status" class="td-flex"><span class="flex aic g8"><span class="pill green">Active</span><button class="btn btn-ghost btn-sm" type="button">Deactivate</button></span></td>
+                    <td data-label="Version"><span class="mono">v1</span></td>
+                    <td data-label="Updated">04 May 2026</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#view" aria-label="View policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        <a class="icon-btn" href="#edit" aria-label="Edit policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Policy"><div class="cell-main">Clerk fee collection</div><div class="cell-sub">Receipt issuing and daily reconciliation</div></td>
+                    <td data-label="Scope"><span class="tag">School</span></td>
+                    <td data-label="Rules" class="num">5</td>
+                    <td data-label="Status" class="td-flex"><span class="flex aic g8"><span class="pill slate">Inactive</span><button class="btn btn-secondary btn-sm" type="button">Activate</button></span></td>
+                    <td data-label="Version"><span class="mono">v1</span></td>
+                    <td data-label="Updated">12 Apr 2026</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#view" aria-label="View policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        <a class="icon-btn" href="#edit" aria-label="Edit policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Policy"><div class="cell-main">Guardian portal read-only</div><div class="cell-sub">Own-ward visibility for parent accounts</div></td>
+                    <td data-label="Scope"><span class="tag">District</span></td>
+                    <td data-label="Rules" class="num">2</td>
+                    <td data-label="Status" class="td-flex"><span class="flex aic g8"><span class="pill slate">Inactive</span><button class="btn btn-secondary btn-sm" type="button">Activate</button></span></td>
+                    <td data-label="Version"><span class="mono">v2</span></td>
+                    <td data-label="Updated">30 Mar 2026</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#view" aria-label="View policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></a>
+                        <a class="icon-btn" href="#edit" aria-label="Edit policy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card-foot">
+              <span class="fs-xs muted">7 policies · 5 active · deactivated policies deny by default and keep their version history</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Teacher gradebook access</h3><div class="sub"><span class="mono">v2</span> · School scope · updated 02 Jun 2026 by D. Nayak</div></div>
+              <div class="spacer"><span class="pill green">Active</span></div>
+            </div>
+            <div class="card-pad" style="padding-top:6px;padding-bottom:8px">
+              <div class="rule-row">
+                <span class="verdict allow">Allow</span>
+                <span class="rr-text">Teachers can <b>edit attendance</b><span class="scope-hint">Own classes only · within 30 days of the session date</span></span>
+              </div>
+              <div class="rule-row">
+                <span class="verdict allow">Allow</span>
+                <span class="rr-text">Teachers can <b>view student profiles</b><span class="scope-hint">Own classes only · health records excluded</span></span>
+              </div>
+              <div class="rule-row">
+                <span class="verdict deny">Deny</span>
+                <span class="rr-text">Teachers can <b>export student data</b><span class="scope-hint">Applies district-wide · request exports via headmaster</span></span>
+              </div>
+            </div>
+            <div class="card-foot" style="gap:8px">
+              <button class="btn btn-secondary btn-sm" type="button">Edit rules</button>
+              <button class="btn btn-ghost btn-sm" type="button">Compare v1 ↔ v2</button>
+              <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto;color:var(--red-600)">Deactivate</button>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <h3 style="margin:0 0 6px;font-size:var(--fs-lg)">Affected today</h3>
+            <div class="stat-row"><span class="sr-label">Users under this policy</span><span class="sr-value">1,148 teachers</span></div>
+            <div class="stat-row"><span class="sr-label">Access checks (24 h)</span><span class="sr-value">38,420</span></div>
+            <div class="stat-row"><span class="sr-label">Denied by rule 3</span><span class="sr-value" style="color:var(--red-600)">17</span></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

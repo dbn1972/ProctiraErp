@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fleet · Transport · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+</head>
+<body data-active="transport">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="transport-overview.html">Transport</a><span class="sep">/</span><span class="current">Fleet</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Fleet</h1>
+          <p class="page-sub">22 vehicles · statutory documents are tracked automatically and flagged 60 days before expiry</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
+          <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add vehicle</button>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6v6M16 6v6M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/></svg></span>
+            <span class="k-label">Total vehicles</span>
+          </div>
+          <div class="k-value">22</div>
+          <div class="k-foot">17 buses · 5 vans</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <span class="k-label">On route</span>
+          </div>
+          <div class="k-value">18</div>
+          <div class="k-foot"><span class="delta up">82%</span> fleet utilisation</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <span class="k-label">In maintenance</span>
+          </div>
+          <div class="k-value" style="color:var(--red-600)">2</div>
+          <div class="k-foot">1 back by 10 Jun</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--bg-subtle);color:var(--text-2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+            <span class="k-label">Idle</span>
+          </div>
+          <div class="k-value">2</div>
+          <div class="k-foot">available as standby</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="input-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="input" type="search" placeholder="Search by registration no. or route" aria-label="Search vehicles">
+        </div>
+        <select class="select" aria-label="Type"><option>All types</option><option>Bus</option><option>Van</option></select>
+        <select class="select" aria-label="Status"><option>All statuses</option><option>On route</option><option>Maintenance</option><option>Idle</option></select>
+        <span class="filter-chip">Documents expiring &lt;60d <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
+        <button class="btn btn-ghost btn-sm" type="button" style="margin-left:auto">Reset</button>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th><span class="sort">Reg. no <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></span></th>
+                <th>Type</th>
+                <th class="num">Capacity</th>
+                <th>Route</th>
+                <th>Driver</th>
+                <th>Fitness expiry</th>
+                <th>Insurance expiry</th>
+                <th>Status</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-AB-4521</span><div class="cell-sub">Tata LP 410 · 2021</div></td>
+                <td data-label="Type"><span class="tag">Bus</span></td>
+                <td data-label="Capacity" class="num">32</td>
+                <td data-label="Route"><a href="transport-route-detail.html" style="color:var(--link);text-decoration:none">Route 7 · Puri Sadar East</a></td>
+                <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-2">BB</span><span class="fs-sm fw-6">Banamali Behera</span></div></td>
+                <td data-label="Fitness expiry">11 Mar 2027</td>
+                <td data-label="Insurance expiry">04 Jan 2027</td>
+                <td data-label="Status"><span class="pill green">On route</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-CD-1187</span><div class="cell-sub">Ashok Leyland MiTR · 2019</div></td>
+                <td data-label="Type"><span class="tag">Bus</span></td>
+                <td data-label="Capacity" class="num">40</td>
+                <td data-label="Route">Route 3 · Brahmagiri Coastal</td>
+                <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-3">SS</span><span class="fs-sm fw-6">Sukanta Swain</span></div></td>
+                <td data-label="Fitness expiry">02 Nov 2026</td>
+                <td data-label="Insurance expiry"><span class="pill red">21 Jun 2026 · in 14 days</span></td>
+                <td data-label="Status"><span class="pill green">On route</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-EF-3340</span><div class="cell-sub">Force Traveller · 2022</div></td>
+                <td data-label="Type"><span class="tag">Van</span></td>
+                <td data-label="Capacity" class="num">17</td>
+                <td data-label="Route">Route 11 · Gop North</td>
+                <td data-label="Driver"><span class="muted-3 fs-sm">— unassigned</span></td>
+                <td data-label="Fitness expiry"><span class="pill amber">02 Aug 2026 · in 56 days</span></td>
+                <td data-label="Insurance expiry">18 Feb 2027</td>
+                <td data-label="Status"><span class="pill green">On route</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-GH-7782</span><div class="cell-sub">Mahindra Supro · 2023</div></td>
+                <td data-label="Type"><span class="tag">Van</span></td>
+                <td data-label="Capacity" class="num">14</td>
+                <td data-label="Route">Route 14 · Krushnaprasad Ferry Link</td>
+                <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-5">PJ</span><span class="fs-sm fw-6">Prafulla Jena</span></div></td>
+                <td data-label="Fitness expiry">29 Apr 2027</td>
+                <td data-label="Insurance expiry">07 Oct 2026</td>
+                <td data-label="Status"><span class="pill green">On route</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-JK-0954</span><div class="cell-sub">Tata Starbus · 2018</div></td>
+                <td data-label="Type"><span class="tag">Bus</span></td>
+                <td data-label="Capacity" class="num">36</td>
+                <td data-label="Route">Route 5 · Satyabadi Loop</td>
+                <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-4">RP</span><span class="fs-sm fw-6">Rabindra Pradhan</span></div></td>
+                <td data-label="Fitness expiry"><span class="pill amber">28 Jun 2026 · in 21 days</span></td>
+                <td data-label="Insurance expiry"><span class="pill red">28 Jun 2026 · in 21 days</span></td>
+                <td data-label="Status"><span class="pill red">Maintenance</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-LM-2218</span><div class="cell-sub">Eicher Skyline · 2020</div></td>
+                <td data-label="Type"><span class="tag">Bus</span></td>
+                <td data-label="Capacity" class="num">34</td>
+                <td data-label="Route">Route 9 · Puri Sadar West</td>
+                <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-6">MM</span><span class="fs-sm fw-6">Manas Mohanty</span></div></td>
+                <td data-label="Fitness expiry"><span class="pill amber">14 Jul 2026 · in 37 days</span></td>
+                <td data-label="Insurance expiry">30 Nov 2026</td>
+                <td data-label="Status"><span class="pill green">On route</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-NP-6633</span><div class="cell-sub">Tata LP 410 · 2022</div></td>
+                <td data-label="Type"><span class="tag">Bus</span></td>
+                <td data-label="Capacity" class="num">32</td>
+                <td data-label="Route">Route 16 · Gop South</td>
+                <td data-label="Driver"><div class="person-cell"><span class="avatar sm av-1">DS</span><span class="fs-sm fw-6">Dillip Sahoo</span></div></td>
+                <td data-label="Fitness expiry">15 Sep 2026</td>
+                <td data-label="Insurance expiry">22 Mar 2027</td>
+                <td data-label="Status"><span class="pill green">On route</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+              <tr>
+                <td data-label="Reg. no"><span class="mono fw-7" style="color:var(--text)">OD-13-QR-8810</span><div class="cell-sub">Force Traveller · 2021</div></td>
+                <td data-label="Type"><span class="tag">Van</span></td>
+                <td data-label="Capacity" class="num">17</td>
+                <td data-label="Route"><span class="muted-3">— standby</span></td>
+                <td data-label="Driver"><span class="muted-3 fs-sm">— unassigned</span></td>
+                <td data-label="Fitness expiry">08 Dec 2026</td>
+                <td data-label="Insurance expiry">25 Aug 2026</td>
+                <td data-label="Status"><span class="pill slate">Idle</span></td>
+                <td><div class="row-actions">
+                  <button class="icon-btn" aria-label="View"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                  <button class="icon-btn" aria-label="Edit"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>
+                  <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                </div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <div class="pagination" style="width:100%">
+            <span>Showing <b>1–8</b> of <b>22</b> vehicles</span>
+            <div class="pages">
+              <button class="page-btn" aria-label="Previous"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg></button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">2</button>
+              <button class="page-btn">3</button>
+              <button class="page-btn" aria-label="Next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m9 18 6-6-6-6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

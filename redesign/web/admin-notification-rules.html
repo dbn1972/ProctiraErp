@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notification rules · Administration · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .ch-chip {
+    display: inline-flex; align-items: center; font-size: var(--fs-2xs); font-weight: 700;
+    padding: 1px 7px; border-radius: var(--r-sm); letter-spacing: .02em;
+  }
+  .ch-sms   { background: var(--sky-50);    color: var(--sky-700); }
+  .ch-push  { background: var(--violet-50); color: var(--violet-600); }
+  .ch-email { background: var(--amber-50);  color: var(--amber-700); }
+  .ch-row { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+  .tpl-preview {
+    background: var(--bg-subtle); border: 1px dashed var(--border-strong); border-radius: var(--r-md);
+    padding: 12px 14px; font-size: var(--fs-sm); line-height: 1.65; color: var(--text);
+  }
+  .ph {
+    font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500;
+    background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--brand-200);
+    border-radius: 5px; padding: 0 5px; white-space: nowrap;
+  }
+  .char-count { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--fs-2xs); color: var(--text-3); margin-top: 8px; }
+  .char-count .ok { color: var(--green-600); font-weight: 600; }
+</style>
+</head>
+<body data-active="admin">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><a href="admin-overview.html">Administration</a><span class="sep">/</span><span class="current">Notification rules</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Notification rules</h1>
+          <p class="page-sub">Event-driven messaging for Puri district · maps system events to audiences, channels and templates.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-secondary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Delivery log</button>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New rule</button>
+        </div>
+      </div>
+
+      <div class="alert info mb-20">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div class="a-body"><b>DND window: 21:00–07:00 IST</b>SMS and push triggered during do-not-disturb hours are held and retried at 07:00. Email is unaffected. Emergency-class events bypass DND.</div>
+      </div>
+
+      <div class="layout-2col">
+        <div class="layout-main">
+          <div class="card">
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Event</th>
+                    <th>Audience</th>
+                    <th>Channels</th>
+                    <th>Template</th>
+                    <th>Enabled</th>
+                    <th>Last triggered</th>
+                    <th style="text-align:right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-label="Event"><span class="mono">attendance.absent_3days</span><div class="cell-sub">Absence streak alert</div></td>
+                    <td data-label="Audience">Guardians</td>
+                    <td data-label="Channels"><span class="ch-row"><span class="ch-chip ch-sms">SMS</span><span class="ch-chip ch-push">Push</span></span></td>
+                    <td data-label="Template">Absence alert (Odia)</td>
+                    <td data-label="Enabled" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Enable rule"></button></td>
+                    <td data-label="Last triggered">Today, 07:35</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Event"><span class="mono">attendance.below_75pct</span><div class="cell-sub">Monthly attendance warning</div></td>
+                    <td data-label="Audience">Guardians, Headmaster</td>
+                    <td data-label="Channels"><span class="ch-row"><span class="ch-chip ch-sms">SMS</span></span></td>
+                    <td data-label="Template">Attendance shortfall</td>
+                    <td data-label="Enabled" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Enable rule"></button></td>
+                    <td data-label="Last triggered">1 Jun, 08:00</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Event"><span class="mono">exam.result_published</span><div class="cell-sub">Result announcement</div></td>
+                    <td data-label="Audience">Guardians</td>
+                    <td data-label="Channels"><span class="ch-row"><span class="ch-chip ch-sms">SMS</span><span class="ch-chip ch-push">Push</span><span class="ch-chip ch-email">Email</span></span></td>
+                    <td data-label="Template">Result declared</td>
+                    <td data-label="Enabled" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Enable rule"></button></td>
+                    <td data-label="Last triggered">28 May, 16:10</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Event"><span class="mono">scholarship.disbursed</span><div class="cell-sub">Scholarship credit confirmation</div></td>
+                    <td data-label="Audience">Guardians</td>
+                    <td data-label="Channels"><span class="ch-row"><span class="ch-chip ch-sms">SMS</span></span></td>
+                    <td data-label="Template">Scholarship credited</td>
+                    <td data-label="Enabled" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Enable rule"></button></td>
+                    <td data-label="Last triggered">22 May, 11:40</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Event"><span class="mono">health.screening_scheduled</span><div class="cell-sub">Health camp consent reminder</div></td>
+                    <td data-label="Audience">Guardians</td>
+                    <td data-label="Channels"><span class="ch-row"><span class="ch-chip ch-sms">SMS</span><span class="ch-chip ch-push">Push</span></span></td>
+                    <td data-label="Template">Health camp reminder</td>
+                    <td data-label="Enabled" class="td-flex"><button class="switch" type="button" role="switch" aria-checked="false" aria-label="Enable rule"></button></td>
+                    <td data-label="Last triggered"><span class="muted-3">14 Apr, 09:00</span></td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Event"><span class="mono">staff.transfer_approved</span><div class="cell-sub">Transfer order issued</div></td>
+                    <td data-label="Audience">Staff member, Headmaster</td>
+                    <td data-label="Channels"><span class="ch-row"><span class="ch-chip ch-email">Email</span><span class="ch-chip ch-push">Push</span></span></td>
+                    <td data-label="Template">Transfer order</td>
+                    <td data-label="Enabled" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Enable rule"></button></td>
+                    <td data-label="Last triggered">3 Jun, 14:22</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-label="Event"><span class="mono">workflow.approval_pending</span><div class="cell-sub">Approval reminder (24 h nudge)</div></td>
+                    <td data-label="Audience">Pending approver</td>
+                    <td data-label="Channels"><span class="ch-row"><span class="ch-chip ch-push">Push</span><span class="ch-chip ch-email">Email</span></span></td>
+                    <td data-label="Template">Approval reminder</td>
+                    <td data-label="Enabled" class="td-flex"><button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Enable rule"></button></td>
+                    <td data-label="Last triggered">Today, 09:00</td>
+                    <td>
+                      <div class="row-actions">
+                        <a class="icon-btn" href="#edit" aria-label="Edit rule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></a>
+                        <button class="icon-btn" aria-label="More"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card-foot">
+              <span class="fs-xs muted">7 rules · 6 enabled · disabled rules keep their delivery history</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="layout-side">
+          <div class="card">
+            <div class="card-head">
+              <div><h3>Template preview</h3><div class="sub"><span class="mono">attendance.absent_3days</span> · Absence alert (Odia)</div></div>
+            </div>
+            <div class="card-pad">
+              <div class="fs-xs fw-7 muted mb-0" style="text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">SMS <span class="ch-chip ch-sms" style="margin-left:6px">Primary</span></div>
+              <div class="tpl-preview">
+                Dear <span class="ph">{{guardian_name}}</span>, your ward <span class="ph">{{student_name}}</span> (<span class="ph">{{class_section}}</span>) has been absent for 3 days in a row at <span class="ph">{{school_name}}</span>. Please contact the class teacher. – Puri DEO
+              </div>
+              <div class="char-count">
+                <span><span class="ok">134 / 160 characters</span> · 1 SMS segment at longest placeholder values</span>
+              </div>
+
+              <div class="fs-xs fw-7 muted" style="text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">Push <span class="ch-chip ch-push" style="margin-left:6px">Secondary</span></div>
+              <div class="tpl-preview">
+                <b><span class="ph">{{student_name}}</span> absent 3 days running</b><br>
+                Tap to view attendance and contact <span class="ph">{{class_teacher}}</span>.
+              </div>
+              <div class="char-count"><span><span class="ok">72 / 120 characters</span> · title + body within push limits</span></div>
+
+              <div class="mt-16 flex g8">
+                <button class="btn btn-secondary btn-sm" type="button">Send test to me</button>
+                <button class="btn btn-ghost btn-sm" type="button">Edit template</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card card-pad">
+            <h3 style="margin:0 0 6px;font-size:var(--fs-lg)">Delivery last 24 h</h3>
+            <div class="stat-row"><span class="sr-label">Sent</span><span class="sr-value">1,284</span></div>
+            <div class="stat-row"><span class="sr-label">Delivered</span><span class="sr-value">1,261 · 98.2%</span></div>
+            <div class="stat-row"><span class="sr-label">Held for DND</span><span class="sr-value">41</span></div>
+            <div class="stat-row"><span class="sr-label">Failed (invalid number)</span><span class="sr-value" style="color:var(--red-600)">23</span></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

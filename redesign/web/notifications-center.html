@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Notifications · CivitasOne</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<style>
+  .notif { display: flex; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--border); transition: background var(--t-fast); }
+  .notif:hover { background: var(--bg-subtle); }
+  .notif:last-child { border-bottom: none; }
+  .notif.unread { background: color-mix(in srgb, var(--brand-50) 55%, transparent); }
+  .notif.unread:hover { background: color-mix(in srgb, var(--brand-50) 80%, transparent); }
+  .n-icon { width: 38px; height: 38px; border-radius: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .n-icon svg { width: 18px; height: 18px; }
+  .n-body { flex: 1; min-width: 0; }
+  .n-title { font-size: var(--fs-sm); font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .n-excerpt { font-size: var(--fs-xs); color: var(--text-2); margin-top: 2px; max-width: 78ch; }
+  .n-meta { font-size: var(--fs-2xs); color: var(--text-3); margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .n-meta .sep-dot::before { content: '·'; }
+  .n-side { display: flex; align-items: flex-start; gap: 4px; flex-shrink: 0; }
+  .unread-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand-500); flex-shrink: 0; margin: 14px 4px 0 0; }
+  .day-label {
+    font-size: var(--fs-2xs); font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
+    color: var(--text-3); background: var(--surface-2); padding: 8px 20px 7px; border-bottom: 1px solid var(--border);
+  }
+  .n-time { font-size: var(--fs-2xs); color: var(--text-3); white-space: nowrap; margin-top: 10px; }
+  @media (max-width: 767px) { .n-time { display: none; } }
+</style>
+</head>
+<body data-active="dashboard">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <nav class="breadcrumbs" aria-label="Breadcrumb">
+        <a href="dashboard-overview.html">Home</a><span class="sep">/</span><span class="current">Notifications</span>
+      </nav>
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Notifications</h1>
+          <p class="page-sub">Alerts, approvals and system messages for your district account · 6 unread.</p>
+        </div>
+        <div class="page-actions">
+          <select class="select" aria-label="Filter by channel" style="width:auto"><option>All channels</option><option>In-app only</option><option>Delivered via SMS</option><option>Delivered via Push</option><option>Delivered via Email</option></select>
+          <button class="btn btn-secondary" type="button" title="Marks 6 unread notifications as read"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg>Mark all read</button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">24</span></a>
+        <a class="tab" href="#" role="tab">Unread <span class="count">6</span></a>
+        <a class="tab" href="#" role="tab">Approvals <span class="count">4</span></a>
+        <a class="tab" href="#" role="tab">System</a>
+      </div>
+
+      <div class="card">
+        <div class="day-label">Today · Sunday, 7 June</div>
+
+        <div class="notif unread">
+          <span class="unread-dot" aria-label="Unread"></span>
+          <span class="n-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">Transfer certificate request awaiting approval <span class="pill amber plain">Approval</span></div>
+            <div class="n-excerpt">Ankita Parida (Class IX-B, Govt. Sr. Sec. School, Puri) — TC request submitted by guardian. Reason: family relocation to Bhubaneswar.</div>
+            <div class="n-meta"><span>Delivered: In-app · Push ✓</span><span class="sep-dot"></span><span class="mono">workflow.approval_pending</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">09:42</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="notif unread">
+          <span class="unread-dot" aria-label="Unread"></span>
+          <span class="n-icon" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">12 students absent 3+ consecutive days <span class="pill red plain">Attendance</span></div>
+            <div class="n-excerpt">Nodal HS, Gop Sadar — absence streak alert. Guardians notified by SMS at 07:35; 10 of 12 messages delivered, 2 queued (DND retry at 07:00 tomorrow).</div>
+            <div class="n-meta"><span>Delivered: In-app · SMS 10/12 ✓</span><span class="sep-dot"></span><span class="mono">attendance.absent_3days</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">07:36</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="notif unread">
+          <span class="unread-dot" aria-label="Unread"></span>
+          <span class="n-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">38 Pre-Matric scholarship applications verified <span class="pill green plain">Scholarships</span></div>
+            <div class="n-excerpt">Batch verification completed for Pipili block. 36 approved for disbursal, 2 returned for bank-detail correction.</div>
+            <div class="n-meta"><span>Delivered: In-app · Email ✓</span><span class="sep-dot"></span><span class="mono">scholarship.batch_verified</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">07:05</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="day-label">Yesterday · Saturday, 6 June</div>
+
+        <div class="notif unread">
+          <span class="unread-dot" aria-label="Unread"></span>
+          <span class="n-icon" style="background:var(--violet-50);color:var(--violet-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">Half-Yearly examination timetable published <span class="pill violet plain">Examinations</span></div>
+            <div class="n-excerpt">Classes VI–X · 18–28 August 2026. Hall-ticket generation opens 1 August. Notify class teachers to confirm room allocations by 15 July.</div>
+            <div class="n-meta"><span>Delivered: In-app · Push ✓ · Email ✓</span><span class="sep-dot"></span><span class="mono">exam.timetable_published</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">16:48</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="notif">
+          <span class="n-icon" style="background:var(--sky-50);color:var(--sky-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">SMS daily digest: 1,284 sent, 98.2% delivered <span class="pill sky plain">Messaging</span></div>
+            <div class="n-excerpt">23 failed (invalid numbers flagged for guardian-record review). 41 queued past DND window were retried at 07:00 and delivered.</div>
+            <div class="n-meta"><span>Delivered: In-app</span><span class="sep-dot"></span><span class="mono">sms.daily_digest</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">08:00</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="notif unread">
+          <span class="unread-dot" aria-label="Unread"></span>
+          <span class="n-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">Staff transfer request — Pritam Behera <span class="pill amber plain">Approval</span></div>
+            <div class="n-excerpt">Transfer from Nodal HS, Gop Sadar to Govt. Girls HS, Pipili. Recommended by Headmaster; pending district approval (2 of 3 steps complete).</div>
+            <div class="n-meta"><span>Delivered: In-app · Email ✓</span><span class="sep-dot"></span><span class="mono">workflow.approval_pending</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">11:21</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="day-label">Earlier this week</div>
+
+        <div class="notif unread">
+          <span class="unread-dot" aria-label="Unread"></span>
+          <span class="n-icon" style="background:var(--teal-50);color:var(--teal-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">Health screening camp confirmed — Satapada block <span class="pill plain" style="background:var(--teal-50);color:var(--teal-600)">Health</span></div>
+            <div class="n-excerpt">RBSK team visit on 12 June, 4 schools, 612 students scheduled. Consent SMS to guardians goes out 10 June at 09:00.</div>
+            <div class="n-meta"><span>Delivered: In-app · Push ✓</span><span class="sep-dot"></span><span class="mono">health.screening_scheduled</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">Thu</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="notif">
+          <span class="n-icon" style="background:var(--bg-subtle);color:var(--text-2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg></span>
+          <div class="n-body">
+            <div class="n-title">Scheduled maintenance — Sunday 14 June <span class="pill slate plain">System</span></div>
+            <div class="n-excerpt">CivitasOne will be unavailable 02:00–04:00 IST for a platform upgrade. Attendance marked offline will sync automatically afterwards.</div>
+            <div class="n-meta"><span>Delivered: In-app · Email ✓</span><span class="sep-dot"></span><span class="mono">platform.maintenance_window</span></div>
+          </div>
+          <div class="n-side">
+            <span class="n-time">Wed</span>
+            <button class="icon-btn" aria-label="More options"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+          </div>
+        </div>
+
+        <div class="card-foot" style="justify-content:center">
+          <button class="btn btn-ghost" type="button">Load 16 older notifications<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+        </div>
+      </div>
+
+      <!-- Approvals tab — empty state example -->
+      <div class="card mt-20">
+        <div class="card-head">
+          <div><h3>Approvals</h3><div class="sub">How this tab looks once every request is actioned</div></div>
+          <div class="spacer"><span class="pill green">All clear</span></div>
+        </div>
+        <div class="empty">
+          <span class="e-art"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+          <h4>You're all caught up</h4>
+          <p>No approvals are waiting on you. New transfer, leave and certificate requests will appear here the moment they arrive.</p>
+          <div class="e-actions">
+            <a class="btn btn-secondary" href="workflows-list.html">View workflow history</a>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="../shared/app.js"></script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Installation — Run it yourself · ProctiraERP</title>
+<title>Installation — Run it yourself · CivitasOne</title>
 <link rel="stylesheet" href="../shared/tokens.css">
 <link rel="stylesheet" href="../shared/app.css">
 <link rel="stylesheet" href="site.css">
@@ -21,7 +21,7 @@
 
 <header class="site-header">
   <div class="container nav-row">
-    <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+    <a class="brand" href="home.html"><span class="logo-mark">C</span><b>Civitas<span>One</span></b></a>
     <nav class="main-nav" aria-label="Primary">
       <a href="product.html">Product</a>
       <a href="home.html#levels">Solutions</a>
@@ -55,7 +55,7 @@
     <div class="container">
       <span class="chip"><span class="dot"></span>Self-hosting · Apache-2.0</span>
       <h1>Run it <span class="grad">yourself</span></h1>
-      <p class="lead">ProctiraERP is fully self-hostable on your own infrastructure — your servers, your data centre, your sovereignty. Choose cloud-managed for a turnkey experience, or follow this guide for full control.</p>
+      <p class="lead">CivitasOne is fully self-hostable on your own infrastructure — your servers, your data centre, your sovereignty. Choose cloud-managed for a turnkey experience, or follow this guide for full control.</p>
       <div class="hero-ctas">
         <a class="btn btn-grad btn-xl" href="#options">Choose a deployment</a>
         <a class="btn btn-secondary btn-xl" href="about.html#opensource">Browse the source on GitHub</a>
@@ -135,8 +135,8 @@
           <div class="code-card">
             <div class="code-head"><span class="b-dot" style="background:#FC5F57"></span><span class="b-dot" style="background:#FDBC2E"></span><span class="b-dot" style="background:#28C840"></span>terminal</div>
             <pre><span class="c"># Clone and boot the full stack</span>
-<span class="p">$</span> git clone https://github.com/proctira/proctira-erp.git
-<span class="p">$</span> cd proctira-erp
+<span class="p">$</span> git clone https://github.com/proctira/civitasone.git
+<span class="p">$</span> cd civitasone
 <span class="p">$</span> cp .env.example .env
 <span class="p">$</span> docker compose up <span class="k">-d</span>
 <span class="c"># → https://localhost:8443 in about 4 minutes</span></pre>
@@ -152,8 +152,8 @@
           <p>Production-grade, horizontally scalable deployment with managed PostgreSQL and Redis. The Odisha pilot runs this chart.</p>
           <div class="code-card">
             <div class="code-head"><span class="b-dot" style="background:#FC5F57"></span><span class="b-dot" style="background:#FDBC2E"></span><span class="b-dot" style="background:#28C840"></span>terminal</div>
-            <pre><span class="p">$</span> helm repo add proctira https://charts.proctira.org
-<span class="p">$</span> helm install erp proctira/proctira-erp \
+            <pre><span class="p">$</span> helm repo add proctira https://charts.civitasone.org
+<span class="p">$</span> helm install erp proctira/civitasone \
     <span class="k">--namespace</span> education <span class="k">--create-namespace</span> \
     <span class="k">--set</span> tenancy.mode=<span class="s">"multi"</span> \
     <span class="k">--set</span> region=<span class="s">"ap-south-1"</span>
@@ -173,7 +173,7 @@
             <pre><span class="c"># No installation required — request a tenant</span>
 <span class="c"># and receive your workspace within one business day:</span>
 
-  https://cloud.proctira.org/request
+  https://cloud.civitasone.org/request
 
 <span class="c"># Data hosted in MeitY-empanelled Indian regions</span></pre>
           </div>
@@ -188,7 +188,7 @@
           <p>For data centres without container platforms, or fully offline installations in restricted networks.</p>
           <div class="code-card">
             <div class="code-head"><span class="b-dot" style="background:#FC5F57"></span><span class="b-dot" style="background:#FDBC2E"></span><span class="b-dot" style="background:#28C840"></span>terminal</div>
-            <pre><span class="p">$</span> curl <span class="k">-fsSL</span> https://get.proctira.org | sudo bash
+            <pre><span class="p">$</span> curl <span class="k">-fsSL</span> https://get.civitasone.org | sudo bash
 <span class="p">$</span> proctira setup <span class="k">--offline-bundle</span> ./erp-bundle.tar
 <span class="p">$</span> proctira migrate &amp;&amp; proctira start
 <span class="c"># systemd units, log rotation, and nightly</span>
@@ -294,7 +294,7 @@
   <div class="container">
     <div class="foot-grid">
       <div class="foot-brand">
-        <a class="brand" href="home.html"><span class="logo-mark">P</span><b>Proctira<span>ERP</span></b></a>
+        <a class="brand" href="home.html"><span class="logo-mark">C</span><b>Civitas<span>One</span></b></a>
         <p>Open-source education infrastructure for schools, districts, and ministries — built in India, for the world.</p>
         <span class="foot-badge"><svg viewBox="0 0 24 24" fill="currentColor"><path d="m12 2 2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17l-6.2 3.9 1.6-7L2 9.2l7.1-.6z"/></svg>Apache-2.0 · Open source</span>
       </div>
@@ -336,7 +336,7 @@
         <a href="cookies.html">Cookies</a>
         <a href="status.html">Status</a>
       </div>
-      <div class="foot-copy">© 2026 ProctiraERP · open source under <a href="legal.html">Apache-2.0</a></div>
+      <div class="foot-copy">© 2026 CivitasOne · open source under <a href="legal.html">Apache-2.0</a></div>
     </div>
   </div>
 </footer>

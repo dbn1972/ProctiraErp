@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Billing · Subscriptions · CivitasOne Platform Admin</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/app.css">
+<link rel="stylesheet" href="console.css">
+</head>
+<body data-active="billing">
+<div class="shell">
+  <nav class="sidebar" data-shell="sidebar" aria-label="Sidebar"></nav>
+  <div class="shell-main">
+    <header class="topbar" data-shell="topbar"></header>
+    <main class="content">
+
+      <div class="page-head">
+        <div class="ph-text">
+          <h1 class="page-title">Subscriptions</h1>
+          <p class="page-sub">Tenant billing lifecycle · trials, activations, suspensions and plan changes across all districts.</p>
+        </div>
+        <div class="page-actions">
+          <a class="btn btn-secondary" href="billing-usage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Entitlements &amp; usage</a>
+          <button class="btn btn-primary" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>New subscription</button>
+        </div>
+      </div>
+
+      <!-- KPI row -->
+      <div class="kpi-grid">
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--brand-50);color:var(--brand-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></span>
+            <span class="k-label">MRR</span>
+          </div>
+          <div class="k-value">₹61.4 L</div>
+          <div class="k-foot"><span class="delta up">↑ 4.2%</span> MoM · churn <span class="fw-7">0.8%</span></div>
+          <svg class="k-spark" width="72" height="28" viewBox="0 0 72 28"><polyline points="0,22 12,21 24,19 36,18 48,14 60,11 72,7" fill="none" stroke="var(--brand-400)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--green-50);color:var(--green-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
+            <span class="k-label">Active</span>
+          </div>
+          <div class="k-value">31</div>
+          <div class="k-foot"><span class="delta up">↑ 2</span> activated this quarter</div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--amber-50);color:var(--amber-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
+            <span class="k-label">Trials</span>
+          </div>
+          <div class="k-value">4</div>
+          <div class="k-foot">2 end within <span class="countdown">14 days</span></div>
+        </div>
+        <div class="card kpi">
+          <div class="k-top">
+            <span class="k-icon" style="background:var(--red-50);color:var(--red-600)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="10" y1="9" x2="10" y2="15"/><line x1="14" y1="9" x2="14" y2="15"/></svg></span>
+            <span class="k-label">Suspended</span>
+          </div>
+          <div class="k-value">2</div>
+          <div class="k-foot">₹2.6 L MRR paused · grace ends 06 Jul</div>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <a class="tab active" href="#" role="tab" aria-selected="true">All <span class="count">38</span></a>
+        <a class="tab" href="#" role="tab">Active <span class="count">31</span></a>
+        <a class="tab" href="#" role="tab">Trial <span class="count">4</span></a>
+        <a class="tab" href="#" role="tab">Suspended <span class="count">2</span></a>
+        <a class="tab" href="#" role="tab">Cancelled <span class="count">1</span></a>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table dense">
+            <thead>
+              <tr>
+                <th>Tenant</th>
+                <th>Plan</th>
+                <th>Status</th>
+                <th>Schools / seats</th>
+                <th class="num">MRR</th>
+                <th>Renews / ends</th>
+                <th style="text-align:right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Cuttack DEO</div><div class="cell-sub mono">ten-cuttack · since Aug 2024</div></td>
+                <td data-label="Plan"><span class="tag">Premium</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td data-label="Schools / seats">486 schools · 11,200 seats</td>
+                <td data-label="MRR" class="num mono">₹4,80,000</td>
+                <td data-label="Renews / ends">01 Jul 2026</td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="billing-usage.html" aria-label="View usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                    <button class="icon-btn" aria-label="More: change plan, suspend, cancel" title="Change plan · Suspend · Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Ganjam DEO</div><div class="cell-sub mono">ten-ganjam · since Jan 2025</div></td>
+                <td data-label="Plan"><span class="tag">Premium</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td data-label="Schools / seats">412 schools · 9,650 seats</td>
+                <td data-label="MRR" class="num mono">₹3,60,000</td>
+                <td data-label="Renews / ends">01 Jul 2026</td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="billing-usage.html" aria-label="View usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                    <button class="icon-btn" aria-label="More: change plan, suspend, cancel" title="Change plan · Suspend · Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Khordha DEO</div><div class="cell-sub mono">ten-khordha · since Mar 2025</div></td>
+                <td data-label="Plan"><span class="tag">Standard</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td data-label="Schools / seats">298 schools · 7,400 seats</td>
+                <td data-label="MRR" class="num mono">₹2,88,000</td>
+                <td data-label="Renews / ends">15 Jun 2026</td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="billing-usage.html" aria-label="View usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                    <button class="icon-btn" aria-label="More: change plan, suspend, cancel" title="Change plan · Suspend · Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Puri DEO</div><div class="cell-sub mono">ten-puri · since Jun 2024</div></td>
+                <td data-label="Plan"><span class="tag">Standard</span></td>
+                <td data-label="Status"><span class="pill green">Active</span></td>
+                <td data-label="Schools / seats">246 schools · 6,100 seats</td>
+                <td data-label="MRR" class="num mono">₹2,40,000</td>
+                <td data-label="Renews / ends">01 Jul 2026</td>
+                <td>
+                  <div class="row-actions">
+                    <a class="icon-btn" href="billing-usage.html" aria-label="View usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg></a>
+                    <button class="icon-btn" aria-label="More: change plan, suspend, cancel" title="Change plan · Suspend · Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Sambalpur DEO</div><div class="cell-sub mono">ten-sambalpur · provisioned 05 Jun 2026</div></td>
+                <td data-label="Plan"><span class="tag">Standard (trial)</span></td>
+                <td data-label="Status"><span class="pill amber">Trial</span></td>
+                <td data-label="Schools / seats">64 schools · 1,500 seats</td>
+                <td data-label="MRR" class="num mono">₹0</td>
+                <td data-label="Renews / ends">Ends 20 Jul 2026 · <span class="countdown">43 days</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-primary btn-sm" type="button">Activate</button>
+                    <button class="icon-btn" aria-label="More: extend trial, change plan, cancel" title="Extend trial · Change plan · Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Mayurbhanj DEO</div><div class="cell-sub mono">ten-mayurbhanj · provisioned 14 May 2026</div></td>
+                <td data-label="Plan"><span class="tag">Premium (trial)</span></td>
+                <td data-label="Status"><span class="pill amber">Trial</span></td>
+                <td data-label="Schools / seats">118 schools · 2,800 seats</td>
+                <td data-label="MRR" class="num mono">₹0</td>
+                <td data-label="Renews / ends">Ends 28 Jun 2026 · <span class="countdown">21 days</span></td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-primary btn-sm" type="button">Activate</button>
+                    <button class="icon-btn" aria-label="More: extend trial, change plan, cancel" title="Extend trial · Change plan · Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Kalahandi DEO</div><div class="cell-sub mono">ten-kalahandi · suspended 06 Jun 2026</div></td>
+                <td data-label="Plan"><span class="tag">Starter</span></td>
+                <td data-label="Status"><span class="pill red">Suspended</span></td>
+                <td data-label="Schools / seats">92 schools · 2,100 seats</td>
+                <td data-label="MRR" class="num mono">₹1,20,000 <span class="muted-3">paused</span></td>
+                <td data-label="Renews / ends">Grace ends 06 Jul 2026</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-secondary btn-sm" type="button">Reactivate</button>
+                    <button class="icon-btn" aria-label="More: change plan, cancel" title="Change plan · Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tenant"><div class="cell-main">Koraput DEO</div><div class="cell-sub mono">ten-koraput · cancelled 31 Mar 2026</div></td>
+                <td data-label="Plan"><span class="tag">Starter</span></td>
+                <td data-label="Status"><span class="pill slate">Cancelled</span></td>
+                <td data-label="Schools / seats">74 schools · 1,650 seats</td>
+                <td data-label="MRR" class="num mono">—</td>
+                <td data-label="Renews / ends">Data retained until 28 Sep 2026</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn btn-secondary btn-sm" type="button">Reactivate</button>
+                    <button class="icon-btn" aria-label="More: export data, purge" title="Export data · Schedule purge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-foot">
+          <span class="fs-xs muted">Showing <b>8</b> of <b>38</b> tenants · upgrades and downgrades live in the row menu (⋯) — upgrades prorate immediately, downgrades apply at the next renewal.</span>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+<script src="console.js"></script>
+</body>
+</html>

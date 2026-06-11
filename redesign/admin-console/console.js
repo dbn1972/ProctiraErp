@@ -1,5 +1,5 @@
 /* ============================================================
-   ProctiraERP — Platform Admin Console shell renderer
+   CivitasOne — Platform Admin Console shell renderer
    Usage: <body data-active="tenants"> … include this script.
    Page must contain .sidebar[data-shell=sidebar] and
    .topbar[data-shell=topbar] inside .shell markup.
@@ -28,6 +28,7 @@
     chevdown: I('<path d="m6 9 6 6 6-6"/>'),
     logout: I('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>'),
     book: I('<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>'),
+    creditcard: I('<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M6 15h4"/>'),
   };
 
   /* ---------- Navigation config ---------- */
@@ -36,6 +37,7 @@
       { id: 'overview', icon: 'globe',    text: 'Overview', href: 'overview.html' },
       { id: 'tenants',  icon: 'building', text: 'Tenants',  href: 'tenants.html' },
       { id: 'plans',    icon: 'layers',   text: 'Plans',    href: 'plans.html' },
+      { id: 'billing',  icon: 'creditcard', text: 'Billing', href: 'billing-subscriptions.html' },
     ]},
     { label: 'Marketplace', items: [
       { id: 'plugins', icon: 'plug',    text: 'Plugins', href: 'plugins.html', badge: '2' },
@@ -58,8 +60,8 @@
   if (sidebar) {
     sidebar.innerHTML = `
       <div class="sidebar-brand">
-        <div class="logo-mark">P</div>
-        <div class="logo-name">Proctira<span>ERP</span></div>
+        <div class="logo-mark">C</div>
+        <div class="logo-name">Civitas<span>One</span></div>
       </div>
       <span class="pa-badge">Platform Admin</span>
       <nav class="sidebar-nav" aria-label="Primary">
