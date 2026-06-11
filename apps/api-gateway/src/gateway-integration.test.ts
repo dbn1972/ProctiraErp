@@ -13,6 +13,9 @@
  * - Structured error responses for invalid payloads (field-level errors)
  */
 
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { Type } from '@sinclair/typebox';
@@ -20,6 +23,12 @@ import { Type } from '@sinclair/typebox';
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
+
+// The generated Prisma client auto-loads packages/shared/database/.env as an
+// import side effect, which sets DATABASE_URL and would flip the in-process
+// domain repositories to Prisma (and fail without a running Postgres). Unset
+// it so the gateway composes in-memory repositories, keeping tests hermetic.
+delete process.env['DATABASE_URL'];
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────
 
@@ -64,8 +73,13 @@ function createTestConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
     },
     services: {
       auth: {
+        // Auth is the only domain still proxied to a remote service — the
+        // others below are superseded by in-process domain plugins (see
+        // src/domain-plugins.ts). Tests that need a live upstream override
+        // this target with a local stub server; the default refuses
+        // connections deterministically.
         prefix: '/auth',
-        target: 'http://localhost:3001',
+        target: 'http://127.0.0.1:1',
         healthCheck: '/health',
       },
       institutions: {
@@ -97,14 +111,44 @@ function createTestConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
 
 describe('API Gateway Integration: Route Forwarding', () => {
   let app: FastifyInstance;
+  let upstream: Server;
+  /** Requests captured by the stub upstream backing the proxied 'auth' service. */
+  const received: Array<{ method: string; url: string; body: string }> = [];
 
   beforeAll(async () => {
-    app = await buildApp({ config: createTestConfig() });
+    // Stub upstream for the 'auth' service — the only domain still proxied
+    // (institutions/students/staff/assessments are served in-process by the
+    // domain plugins). It records every forwarded request so the tests can
+    // assert that method, path, and query string were proxied intact.
+    upstream = createServer((req, res) => {
+      let body = '';
+      req.on('data', (chunk: Buffer) => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        received.push({ method: req.method ?? '', url: req.url ?? '', body });
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ upstream: 'auth' }));
+      });
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+    const { port } = upstream.address() as AddressInfo;
+
+    const config = createTestConfig();
+    config.services['auth']!.target = `http://127.0.0.1:${port}`;
+    app = await buildApp({ config });
     await app.ready();
+  });
+
+  beforeEach(() => {
+    received.length = 0;
   });
 
   afterAll(async () => {
     await app.close();
+    await new Promise<void>((resolve, reject) =>
+      upstream.close((err) => (err ? reject(err) : resolve())),
+    );
   });
 
   describe('URL prefix versioning (/api/v1)', () => {
@@ -113,19 +157,20 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
       const response = await app.inject({
         method: 'GET',
-        url: '/api/v1/institutions',
+        url: '/api/v1/auth/sessions',
         headers: {
           authorization: `Bearer ${token}`,
           'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
         },
       });
 
-      // 502 indicates the request was routed but backend is unavailable
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('institutions');
-      expect(body.routing.method).toBe('GET');
-      expect(body.routing.target).toContain('http://localhost:3002');
+      // The upstream stub answered, proving the request was proxied.
+      expect(response.statusCode).toBe(200);
+      expect(response.json().upstream).toBe('auth');
+      expect(received).toHaveLength(1);
+      expect(received[0]!.method).toBe('GET');
+      // /api/v1 prefix is stripped; the service prefix + sub-path are forwarded.
+      expect(received[0]!.url).toBe('/auth/sessions');
     });
 
     it('routes POST requests to the correct backend service', async () => {
@@ -133,19 +178,21 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
       const response = await app.inject({
         method: 'POST',
-        url: '/api/v1/students',
+        url: '/api/v1/auth/password-reset',
         headers: {
           authorization: `Bearer ${token}`,
           'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
           'content-type': 'application/json',
         },
-        payload: { name: 'Test Student', dateOfBirth: '2010-01-01' },
+        payload: { email: 'test@example.com' },
       });
 
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('students');
-      expect(body.routing.method).toBe('POST');
+      expect(response.statusCode).toBe(200);
+      expect(received).toHaveLength(1);
+      expect(received[0]!.method).toBe('POST');
+      expect(received[0]!.url).toBe('/auth/password-reset');
+      // The JSON body is forwarded to the upstream unchanged.
+      expect(JSON.parse(received[0]!.body)).toEqual({ email: 'test@example.com' });
     });
 
     it('routes PUT requests to the correct backend service', async () => {
@@ -153,20 +200,20 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
       const response = await app.inject({
         method: 'PUT',
-        url: '/api/v1/staff/staff-456',
+        url: '/api/v1/auth/sessions/sess-456',
         headers: {
           authorization: `Bearer ${token}`,
           'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
           'content-type': 'application/json',
         },
-        payload: { name: 'Updated Staff' },
+        payload: { name: 'Updated Session' },
       });
 
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('staff');
-      expect(body.routing.method).toBe('PUT');
-      expect(body.routing.target).toContain('/staff/staff-456');
+      expect(response.statusCode).toBe(200);
+      expect(received).toHaveLength(1);
+      expect(received[0]!.method).toBe('PUT');
+      expect(received[0]!.url).toBe('/auth/sessions/sess-456');
+      expect(JSON.parse(received[0]!.body)).toEqual({ name: 'Updated Session' });
     });
 
     it('routes DELETE requests to the correct backend service', async () => {
@@ -174,18 +221,17 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
       const response = await app.inject({
         method: 'DELETE',
-        url: '/api/v1/assessments/assess-789',
+        url: '/api/v1/auth/sessions/sess-789',
         headers: {
           authorization: `Bearer ${token}`,
           'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
         },
       });
 
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('assessments');
-      expect(body.routing.method).toBe('DELETE');
-      expect(body.routing.target).toContain('/assessments/assess-789');
+      expect(response.statusCode).toBe(200);
+      expect(received).toHaveLength(1);
+      expect(received[0]!.method).toBe('DELETE');
+      expect(received[0]!.url).toBe('/auth/sessions/sess-789');
     });
 
     it('routes PATCH requests to the correct backend service', async () => {
@@ -193,7 +239,7 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
       const response = await app.inject({
         method: 'PATCH',
-        url: '/api/v1/institutions/inst-001',
+        url: '/api/v1/auth/users/user-001',
         headers: {
           authorization: `Bearer ${token}`,
           'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
@@ -202,11 +248,37 @@ describe('API Gateway Integration: Route Forwarding', () => {
         payload: { status: 'inactive' },
       });
 
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('institutions');
-      expect(body.routing.method).toBe('PATCH');
-      expect(body.routing.target).toContain('/institutions/inst-001');
+      expect(response.statusCode).toBe(200);
+      expect(received).toHaveLength(1);
+      expect(received[0]!.method).toBe('PATCH');
+      expect(received[0]!.url).toBe('/auth/users/user-001');
+      expect(JSON.parse(received[0]!.body)).toEqual({ status: 'inactive' });
+    });
+
+    it('serves superseded prefixes in-process instead of proxying them', async () => {
+      const token = app.jwt.sign(createTestJwtPayload());
+
+      // Institutions and students are configured in SERVICE_ROUTES but are
+      // superseded by in-process domain plugins, so they are answered by the
+      // in-memory repositories and never reach a proxy upstream.
+      for (const url of ['/api/v1/institutions', '/api/v1/students']) {
+        const response = await app.inject({
+          method: 'GET',
+          url,
+          headers: {
+            authorization: `Bearer ${token}`,
+            'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+          },
+        });
+
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body.data).toBeInstanceOf(Array);
+        expect(body.meta.page).toBe(1);
+      }
+
+      // Nothing was forwarded to the proxy upstream.
+      expect(received).toHaveLength(0);
     });
   });
 
@@ -216,19 +288,16 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
       const response = await app.inject({
         method: 'GET',
-        url: '/api/v1/students/stu-001/enrollments/enr-001/history',
+        url: '/api/v1/auth/users/u-001/sessions/s-001/history',
         headers: {
           authorization: `Bearer ${token}`,
           'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
         },
       });
 
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('students');
-      expect(body.routing.target).toContain(
-        '/students/stu-001/enrollments/enr-001/history'
-      );
+      expect(response.statusCode).toBe(200);
+      expect(received).toHaveLength(1);
+      expect(received[0]!.url).toBe('/auth/users/u-001/sessions/s-001/history');
     });
 
     it('preserves query parameters in the original URL', async () => {
@@ -236,19 +305,17 @@ describe('API Gateway Integration: Route Forwarding', () => {
 
       const response = await app.inject({
         method: 'GET',
-        url: '/api/v1/institutions?page=2&limit=20&status=active',
+        url: '/api/v1/auth/sessions?page=2&limit=20&status=active',
         headers: {
           authorization: `Bearer ${token}`,
           'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
         },
       });
 
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('institutions');
-      // The original URL should contain query params
-      expect(body.routing.originalUrl).toContain('page=2');
-      expect(body.routing.originalUrl).toContain('limit=20');
+      expect(response.statusCode).toBe(200);
+      expect(received).toHaveLength(1);
+      // The full query string is forwarded to the upstream.
+      expect(received[0]!.url).toBe('/auth/sessions?page=2&limit=20&status=active');
     });
   });
 
@@ -448,7 +515,8 @@ describe('API Gateway Integration: Rate Limiting Enforcement', () => {
             'x-tenant-id': tenantA,
           },
         });
-        expect(res.statusCode).toBe(502); // Routed successfully
+        // Served by the in-process institution plugin (within quota)
+        expect(res.statusCode).toBe(200);
       }
 
       // tenantA/user-1 should be rate limited
@@ -471,7 +539,7 @@ describe('API Gateway Integration: Rate Limiting Enforcement', () => {
           'x-tenant-id': tenantB,
         },
       });
-      expect(otherTenantResponse.statusCode).toBe(502); // Not rate limited
+      expect(otherTenantResponse.statusCode).toBe(200); // Not rate limited
     } finally {
       await app.close();
     }

@@ -17,6 +17,12 @@ import type { FastifyInstance } from 'fastify';
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
 
+// The generated Prisma client auto-loads packages/shared/database/.env as an
+// import side effect, which sets DATABASE_URL and would flip the in-process
+// domain repositories to Prisma (and fail without a running Postgres). Unset
+// it so the gateway composes in-memory repositories, keeping tests hermetic.
+delete process.env['DATABASE_URL'];
+
 /** Creates a minimal JWT payload for testing. iat/exp are auto-added by jwt.sign() */
 function createTestJwtPayload(overrides?: Record<string, unknown>) {
   // We omit iat/exp since jwt.sign() adds them automatically
@@ -62,8 +68,12 @@ function createTestConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
     },
     services: {
       auth: {
+        // Auth is the only domain still proxied to a remote service (the
+        // others are served in-process — see src/domain-plugins.ts). Point it
+        // at a port that always refuses connections so proxy tests get a
+        // deterministic 502 instead of hitting whatever runs on localhost:3001.
         prefix: '/auth',
-        target: 'http://localhost:3001',
+        target: 'http://127.0.0.1:1',
         healthCheck: '/health',
       },
       institutions: {
@@ -161,7 +171,52 @@ describe('API Gateway', () => {
       expect(serviceNames).toContain('students');
     });
 
-    it('routes requests to services via /api/v1/{service} prefix', async () => {
+    it('routes requests to proxied services via /api/v1/{service} prefix', async () => {
+      // 'auth' is the only configured service still proxied (institutions and
+      // students are served in-process). Its target refuses connections, so a
+      // 502 BAD_GATEWAY proves the request was routed to the proxy handler.
+      const token = app.jwt.sign(createTestJwtPayload());
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/sessions',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+        },
+      });
+
+      // Should return 502 since no actual backend service is running
+      expect(response.statusCode).toBe(502);
+      const body = response.json();
+      expect(body.code).toBe('BAD_GATEWAY');
+      expect(body.message).toBe("Service 'auth' is unreachable.");
+      expect(body.statusCode).toBe(502);
+    });
+
+    it('routes wildcard paths to the correct proxied service', async () => {
+      const token = app.jwt.sign(createTestJwtPayload());
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/auth/sessions/abc-123/devices',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+        },
+      });
+
+      // The nested path matched the auth service's wildcard proxy route.
+      expect(response.statusCode).toBe(502);
+      const body = response.json();
+      expect(body.code).toBe('BAD_GATEWAY');
+      expect(body.message).toBe("Service 'auth' is unreachable.");
+    });
+
+    it('serves in-process domains directly instead of proxying them', async () => {
+      // Institutions are registered as an in-process domain plugin
+      // (see src/domain-plugins.ts), so the request is answered by the
+      // in-memory repository instead of the proxy.
       const token = app.jwt.sign(createTestJwtPayload());
 
       const response = await app.inject({
@@ -173,29 +228,10 @@ describe('API Gateway', () => {
         },
       });
 
-      // Should return 502 since no actual backend service is running
-      expect(response.statusCode).toBe(502);
+      expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(body.code).toBe('SERVICE_UNAVAILABLE');
-      expect(body.routing.service).toBe('institutions');
-    });
-
-    it('routes wildcard paths to the correct service', async () => {
-      const token = app.jwt.sign(createTestJwtPayload());
-
-      const response = await app.inject({
-        method: 'GET',
-        url: '/api/v1/students/abc-123/enrollments',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
-        },
-      });
-
-      expect(response.statusCode).toBe(502);
-      const body = response.json();
-      expect(body.routing.service).toBe('students');
-      expect(body.routing.target).toContain('/students/abc-123/enrollments');
+      expect(body.data).toBeInstanceOf(Array);
+      expect(body.meta.page).toBe(1);
     });
 
     it('returns 404 for unregistered service routes', async () => {
@@ -256,8 +292,11 @@ describe('API Gateway', () => {
         },
       });
 
-      // 502 means the request passed auth and reached the proxy handler
-      expect(response.statusCode).toBe(502);
+      // 200 means the request passed auth and was handled by the in-process
+      // institution plugin (a broken JWT would have been rejected with 401,
+      // as the tests above assert).
+      expect(response.statusCode).toBe(200);
+      expect(response.json().data).toBeInstanceOf(Array);
     });
   });
 
@@ -274,8 +313,11 @@ describe('API Gateway', () => {
         },
       });
 
-      // Request should pass tenant resolution (502 = reached proxy)
-      expect(response.statusCode).toBe(502);
+      // Request passed tenant resolution and was answered by the in-process
+      // institution route (which itself requires a tenant context; a missing
+      // tenant would have been rejected with 401 TENANT_RESOLUTION_FAILED).
+      expect(response.statusCode).toBe(200);
+      expect(response.json().data).toBeInstanceOf(Array);
     });
 
     it('resolves tenant from JWT claim', async () => {
@@ -290,8 +332,10 @@ describe('API Gateway', () => {
         },
       });
 
-      // Should pass tenant resolution via JWT claim
-      expect(response.statusCode).toBe(502);
+      // Should pass tenant resolution via JWT claim and reach the in-process
+      // institution route, which requires a resolved tenant to respond 200.
+      expect(response.statusCode).toBe(200);
+      expect(response.json().data).toBeInstanceOf(Array);
     });
   });
 
