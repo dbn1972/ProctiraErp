@@ -1,6 +1,6 @@
 # Phase 8 — ProctiraERP Staff schema sign-off
 
-**Status:** Complete in repo; EC3 apply + boundary checks pending evidence below.
+**Status:** Complete in repo; EC3 apply + boundary checks (2026-09-04).
 
 ## Delivered
 
@@ -15,9 +15,9 @@
 ## EC3
 
 - Schemas include `staff`; forbidden cross-schema FKs from `staff` = **0**
-- Tables moved (empty seed OK)
+- Tables moved (empty seed OK): `staff` / `staff_assignments`
 - `GET /api/v1/staff` → **200**
-- Regression: students / examinations still **200**
+- Regression: students / examinations still **200**; staff plugin registered on gateway
 
 ## Explicit non-goals (later)
 - Flutter mobile (last)
