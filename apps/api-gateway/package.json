@@ -45,6 +45,7 @@
     "@proctira/backend-transport": "workspace:*",
     "@proctira/backend-workflow": "workspace:*",
     "@proctira/common": "workspace:*",
+    "@proctira/database": "workspace:*",
     "@proctira/logging": "workspace:*",
     "@proctira/observability": "workspace:*",
     "@proctira/tenant": "workspace:*",

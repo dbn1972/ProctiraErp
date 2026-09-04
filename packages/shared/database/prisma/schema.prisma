@@ -2077,13 +2077,34 @@ model FeeStructure {
   @@schema("finance")
 }
 
+model FeeAssignment {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  feeStructureId String @map("fee_structure_id") @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  enrollmentId String? @map("enrollment_id") @db.Uuid
+  institutionId String? @map("institution_id") @db.Uuid
+  concessionAmount Float @default(0) @map("concession_amount")
+  status String @default("active") @map("status") @db.VarChar(255)
+  academicYear String @map("academic_year") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@index([tenantId, feeStructureId])
+  @@index([tenantId, studentId])
+  @@map("fee_assignments")
+  @@schema("finance")
+}
+
 model Invoice {
   id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   tenantId  String   @map("tenant_id") @db.Uuid
   studentId String @map("student_id") @db.Uuid
   enrollmentId String? @map("enrollment_id") @db.Uuid
   feeStructureId String? @map("fee_structure_id") @db.Uuid
+  feeAssignmentId String? @map("fee_assignment_id") @db.Uuid
   institutionId String? @map("institution_id") @db.Uuid
+  invoiceNumber String @map("invoice_number") @db.VarChar(64)
   amountDue Float @map("amount_due")
   amountPaid Float @default(0) @map("amount_paid")
   currency String @default("INR") @map("currency") @db.VarChar(255)
@@ -2093,6 +2114,9 @@ model Invoice {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   @@index([tenantId])
+  @@index([tenantId, studentId])
+  @@index([tenantId, feeAssignmentId])
+  @@unique([tenantId, invoiceNumber])
   @@map("invoices")
   @@schema("finance")
 }
@@ -2105,11 +2129,14 @@ model Payment {
   amount Float @map("amount")
   method String @default("cash") @map("method") @db.VarChar(255)
   reference String? @map("reference") @db.VarChar(255)
+  receiptNumber String @map("receipt_number") @db.VarChar(64)
   paidAt String @map("paid_at") @db.VarChar(255)
   recordedByUserId String? @map("recorded_by_user_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   @@index([tenantId])
+  @@index([tenantId, invoiceId])
+  @@unique([tenantId, receiptNumber])
   @@map("payments")
   @@schema("finance")
 }

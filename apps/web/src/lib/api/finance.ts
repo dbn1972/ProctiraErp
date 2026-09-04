@@ -15,11 +15,55 @@ export interface FeeStructure {
   updatedAt: string;
 }
 
-export async function listFeeStructures(): Promise<FeeStructure[]> {
+export interface FeeAssignment {
+  id: string;
+  feeStructureId: string;
+  studentId: string;
+  concessionAmount: number;
+  status: string;
+  academicYear: string;
+}
+
+export interface Invoice {
+  id: string;
+  studentId: string;
+  feeStructureId: string | null;
+  invoiceNumber: string;
+  amountDue: number;
+  amountPaid: number;
+  currency: string;
+  dueDate: string;
+  status: string;
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  studentId: string;
+  amount: number;
+  method: string;
+  receiptNumber: string;
+  paidAt: string;
+}
+
+async function unwrapList<T>(path: string): Promise<T[]> {
   try {
-    const res = await gatewayFetch<{ data: FeeStructure[] }>('/fees/structures');
-    return Array.isArray(res) ? res : (res.data ?? []);
+    const res = await gatewayFetch<{ data: T[] }>(path);
+    return Array.isArray(res) ? (res as T[]) : (res.data ?? []);
   } catch {
     return [];
   }
+}
+
+export function listFeeStructures() {
+  return unwrapList<FeeStructure>('/fees/structures');
+}
+export function listFeeAssignments() {
+  return unwrapList<FeeAssignment>('/fees/assignments');
+}
+export function listInvoices() {
+  return unwrapList<Invoice>('/fees/invoices');
+}
+export function listPayments() {
+  return unwrapList<Payment>('/fees/payments');
 }

@@ -123,7 +123,7 @@ export interface DraftAutosave<T> {
  */
 function getBrand(): string {
   if (typeof process !== 'undefined' && process.env) {
-    const brand = process.env['NEXT_PUBLIC_BRAND'] ?? process.env['OPENEMIS_BRAND'];
+    const brand = process.env['NEXT_PUBLIC_BRAND'] ?? 'proctira';
     if (brand && brand.length > 0) return brand;
   }
   return 'proctira';

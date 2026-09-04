@@ -1,12 +1,14 @@
 import type {
+  FeeAssignmentEntity,
   FeeStructureEntity,
+  FinanceRepository,
   InvoiceEntity,
   PaymentEntity,
-  FinanceRepository,
 } from './finance-repository.js';
 
 export class InMemoryFinanceRepository implements FinanceRepository {
   private readonly feeStructures = new Map<string, FeeStructureEntity>();
+  private readonly feeAssignments = new Map<string, FeeAssignmentEntity>();
   private readonly invoices = new Map<string, InvoiceEntity>();
   private readonly payments = new Map<string, PaymentEntity>();
 
@@ -24,10 +26,51 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   async updateFeeStructure(tenantId: string, id: string, patch: Partial<FeeStructureEntity>) {
     const cur = await this.getFeeStructure(tenantId, id);
     if (!cur) return null;
-    const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId, updatedAt: new Date().toISOString() };
+    const next = {
+      ...cur,
+      ...patch,
+      id: cur.id,
+      tenantId: cur.tenantId,
+      updatedAt: new Date().toISOString(),
+    };
     this.feeStructures.set(id, next);
     return next;
   }
+
+  async listFeeAssignments(tenantId: string) {
+    return [...this.feeAssignments.values()].filter((x) => x.tenantId === tenantId);
+  }
+  async getFeeAssignment(tenantId: string, id: string) {
+    const row = this.feeAssignments.get(id);
+    return row?.tenantId === tenantId ? row : null;
+  }
+  async createFeeAssignment(row: FeeAssignmentEntity) {
+    this.feeAssignments.set(row.id, row);
+    return row;
+  }
+  async updateFeeAssignment(
+    tenantId: string,
+    id: string,
+    patch: Partial<FeeAssignmentEntity>,
+  ) {
+    const cur = await this.getFeeAssignment(tenantId, id);
+    if (!cur) return null;
+    const next = {
+      ...cur,
+      ...patch,
+      id: cur.id,
+      tenantId: cur.tenantId,
+      updatedAt: new Date().toISOString(),
+    };
+    this.feeAssignments.set(id, next);
+    return next;
+  }
+  async listFeeAssignmentsByStructure(tenantId: string, feeStructureId: string) {
+    return (await this.listFeeAssignments(tenantId)).filter(
+      (a) => a.feeStructureId === feeStructureId && a.status === 'active',
+    );
+  }
+
   async listInvoices(tenantId: string) {
     return [...this.invoices.values()].filter((x) => x.tenantId === tenantId);
   }
@@ -42,10 +85,29 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   async updateInvoice(tenantId: string, id: string, patch: Partial<InvoiceEntity>) {
     const cur = await this.getInvoice(tenantId, id);
     if (!cur) return null;
-    const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId, updatedAt: new Date().toISOString() };
+    const next = {
+      ...cur,
+      ...patch,
+      id: cur.id,
+      tenantId: cur.tenantId,
+      updatedAt: new Date().toISOString(),
+    };
     this.invoices.set(id, next);
     return next;
   }
+  async findOpenInvoiceForAssignment(tenantId: string, feeAssignmentId: string) {
+    return (
+      (await this.listInvoices(tenantId)).find(
+        (i) =>
+          i.feeAssignmentId === feeAssignmentId &&
+          (i.status === 'open' || i.status === 'partial'),
+      ) ?? null
+    );
+  }
+  async countInvoices(tenantId: string) {
+    return (await this.listInvoices(tenantId)).length;
+  }
+
   async listPayments(tenantId: string) {
     return [...this.payments.values()].filter((x) => x.tenantId === tenantId);
   }
@@ -60,8 +122,17 @@ export class InMemoryFinanceRepository implements FinanceRepository {
   async updatePayment(tenantId: string, id: string, patch: Partial<PaymentEntity>) {
     const cur = await this.getPayment(tenantId, id);
     if (!cur) return null;
-    const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId, updatedAt: new Date().toISOString() };
+    const next = {
+      ...cur,
+      ...patch,
+      id: cur.id,
+      tenantId: cur.tenantId,
+      updatedAt: new Date().toISOString(),
+    };
     this.payments.set(id, next);
     return next;
+  }
+  async countPayments(tenantId: string) {
+    return (await this.listPayments(tenantId)).length;
   }
 }

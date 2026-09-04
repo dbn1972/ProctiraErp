@@ -1,6 +1,14 @@
 export { timetablePlugin } from './timetable-plugin.js';
 export type { TimetablePluginOptions } from './timetable-plugin.js';
 export { TimetableService } from './timetable-service.js';
+export {
+  TimetableClashError,
+  isTimetableClashError,
+} from './timetable-clash-error.js';
+export type {
+  TimetableClashConflict,
+  TimetableClashReason,
+} from './timetable-clash-error.js';
 export { createTimetableRepository } from './repository-factory.js';
 export type { TimetableRepositoryConfig } from './repository-factory.js';
 export { InMemoryTimetableRepository } from './in-memory-repository.js';

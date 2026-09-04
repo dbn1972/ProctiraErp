@@ -66,25 +66,26 @@ P2 Auth + P9–16 Prisma wiring + P17 Flutter analyze remain signed off.
 
 ---
 
-## 5. Charter expansion P18–P26 — **MVP scaffolded**
+## 5. Charter expansion P18–P26 — **production MVP**
 
-Built in wave order (A → B → C → D) after charter go-ahead to do A, B, and C sequentially:
+Built in wave order after charter go-ahead. Finance / timetable / payroll deepened beyond CRUD:
 
 | Phase | Module | Schema | Gateway | Web | Status |
 |------:|--------|--------|---------|-----|--------|
-| 18 | Finance / fees | `finance` | `/fees` | `/(dashboard)/finance` | **MVP FULL** (API+web list) |
-| 19 | Timetable | `timetable` | `/timetables` | `/(dashboard)/timetable` | **MVP FULL** |
-| 20 | Library | `library` | `/library` | `/(dashboard)/library` | **MVP FULL** |
-| 21 | Hostel | `hostel` | `/hostels` | `/(dashboard)/hostel` | **MVP FULL** |
-| 22 | Inventory | `inventory` | `/inventory` | `/(dashboard)/inventory` | **MVP FULL** |
-| 23 | Canteen / MDM | `canteen` | `/canteen` | `/(dashboard)/canteen` | **MVP FULL** |
-| 24 | Payroll | `payroll` | `/payroll` | `/(dashboard)/payroll` | **MVP FULL** |
-| 25 | Alumni | `alumni` | `/alumni` | `/(dashboard)/alumni` | **MVP FULL** |
-| 26 | LMS | `lms` | `/lms` | `/(dashboard)/lms` | **MVP FULL** |
+| 18 | Finance / fees | `finance` | `/fees` | `/(dashboard)/finance` | **Ops cycle** — assign → invoice → pay + receipts |
+| 19 | Timetable | `timetable` | `/timetables` | `/(dashboard)/timetable` | **Ops cycle** — clash detection (409) |
+| 20 | Library | `library` | `/library` | `/(dashboard)/library` | **CRUD + web list** |
+| 21 | Hostel | `hostel` | `/hostels` | `/(dashboard)/hostel` | **CRUD + web list** |
+| 22 | Inventory | `inventory` | `/inventory` | `/(dashboard)/inventory` | **CRUD + web list** |
+| 23 | Canteen / MDM | `canteen` | `/canteen` | `/(dashboard)/canteen` | **CRUD + web list** |
+| 24 | Payroll | `payroll` | `/payroll` | `/(dashboard)/payroll` | **Ops cycle** — generate run + payslips |
+| 25 | Alumni | `alumni` | `/alumni` | `/(dashboard)/alumni` | **CRUD + web list** |
+| 26 | LMS | `lms` | `/lms` | `/(dashboard)/lms` | **CRUD + web list** |
 
 Plan + non-goals: [plans/CHARTER_EXPANSION_SECTION5.md](./plans/CHARTER_EXPANSION_SECTION5.md).  
+Production posture: [PRODUCTION_READINESS.md](./PRODUCTION_READINESS.md).  
 Sign-offs: `docs/PHASE_18_FINANCE_SIGNOFF.md` … `docs/PHASE_26_LMS_SIGNOFF.md`.  
-EC3: 9 residual migrations applied; gateway registers all nine in-process.
+EC3: migrations through `20260904_finance_fee_cycle`; gateway registers all nine domains.
 
 ---
 
@@ -108,5 +109,6 @@ EC3: 9 residual migrations applied; gateway registers all nine in-process.
 - `20260904_payroll_schema`
 - `20260904_alumni_schema`
 - `20260904_lms_schema`
+- `20260904_finance_fee_cycle`
 
 Apply via [docs/runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md](./runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md) on deployed databases.

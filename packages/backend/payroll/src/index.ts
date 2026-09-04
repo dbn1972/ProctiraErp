@@ -1,6 +1,13 @@
 export { payrollPlugin } from './payroll-plugin.js';
 export type { PayrollPluginOptions } from './payroll-plugin.js';
-export { PayrollService } from './payroll-service.js';
+export {
+  PayrollService,
+  deriveAmountsFromStructure,
+} from './payroll-service.js';
+export type {
+  GeneratePayrollRunInput,
+  GeneratePayrollRunResult,
+} from './payroll-service.js';
 export { createPayrollRepository } from './repository-factory.js';
 export type { PayrollRepositoryConfig } from './repository-factory.js';
 export { InMemoryPayrollRepository } from './in-memory-repository.js';

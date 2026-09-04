@@ -34,7 +34,7 @@
  *     in Node.
  *
  *   • Database name is namespaced per brand via the `NEXT_PUBLIC_BRAND`
- *     / `OPENEMIS_BRAND` env (default `proctira`) so multiple branded
+ *     / `NEXT_PUBLIC_BRAND` env (default `proctira`) so multiple branded
  *     apps on the same origin do not collide.
  *
  *   • Operations are stored in a single object store with the field
@@ -167,7 +167,7 @@ function getBrand(): string {
   // bundles. We avoid `import.meta.env` here so the module remains
   // usable from both vitest and the Next.js runtime.
   if (typeof process !== 'undefined' && process.env) {
-    const brand = process.env['NEXT_PUBLIC_BRAND'] ?? process.env['OPENEMIS_BRAND'];
+    const brand = process.env['NEXT_PUBLIC_BRAND'] ?? 'proctira';
     if (brand && brand.length > 0) return brand;
   }
   return 'proctira';

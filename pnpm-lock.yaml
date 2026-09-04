@@ -230,6 +230,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../packages/shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../packages/shared/database
       '@proctira/logging':
         specifier: workspace:*
         version: link:../../packages/shared/logging

@@ -39,6 +39,7 @@ import { registerDomainPlugins } from './domain-plugins.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin from './plugins/idempotency.js';
+import rateLimitPlugin from './plugins/rate-limit.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 
 function buildOtpService(): OtpService {
@@ -114,36 +115,47 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     ],
   });
 
-  // 4. Register rate limiting (per tenant/client/IP)
-  await app.register(rateLimit, {
-    max: config.rateLimiting.maxRequests,
-    timeWindow: config.rateLimiting.windowMs,
-    keyGenerator: (request) => {
-      // Rate limit key priority: tenant ID > authenticated user > IP
-      const tenantId = request.tenantId;
-      const userId = (request as unknown as { user?: { sub?: string } }).user?.sub;
+  // 4. Register rate limiting (per tenant/client/IP).
+  // Prefer Redis-backed distributed counters when REDIS_URL is set; otherwise
+  // fall back to the in-memory @fastify/rate-limit store.
+  const redisUrlForRateLimit = process.env['REDIS_URL'];
+  if (redisUrlForRateLimit) {
+    await app.register(rateLimitPlugin, {
+      max: config.rateLimiting.maxRequests,
+      timeWindow: config.rateLimiting.windowMs,
+      redisUrl: redisUrlForRateLimit,
+    });
+  } else {
+    await app.register(rateLimit, {
+      max: config.rateLimiting.maxRequests,
+      timeWindow: config.rateLimiting.windowMs,
+      keyGenerator: (request) => {
+        // Rate limit key priority: tenant ID > authenticated user > IP
+        const tenantId = request.tenantId;
+        const userId = (request as unknown as { user?: { sub?: string } }).user?.sub;
 
-      if (tenantId && userId) {
-        return `${tenantId}:${userId}`;
-      }
-      if (tenantId) {
-        return `tenant:${tenantId}`;
-      }
-      return request.ip;
-    },
-    allowList: [],
-    addHeadersOnExceeding: {
-      'x-ratelimit-limit': true,
-      'x-ratelimit-remaining': true,
-      'x-ratelimit-reset': true,
-    },
-    addHeaders: {
-      'x-ratelimit-limit': true,
-      'x-ratelimit-remaining': true,
-      'x-ratelimit-reset': true,
-      'retry-after': true,
-    },
-  });
+        if (tenantId && userId) {
+          return `${tenantId}:${userId}`;
+        }
+        if (tenantId) {
+          return `tenant:${tenantId}`;
+        }
+        return request.ip;
+      },
+      allowList: [],
+      addHeadersOnExceeding: {
+        'x-ratelimit-limit': true,
+        'x-ratelimit-remaining': true,
+        'x-ratelimit-reset': true,
+      },
+      addHeaders: {
+        'x-ratelimit-limit': true,
+        'x-ratelimit-remaining': true,
+        'x-ratelimit-reset': true,
+        'retry-after': true,
+      },
+    });
+  }
 
   // 5. Register health check (before auth, so it's always accessible)
   await app.register(healthPlugin, {

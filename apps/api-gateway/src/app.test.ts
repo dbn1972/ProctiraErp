@@ -21,7 +21,9 @@ import type { GatewayConfig } from './config.js';
 // import side effect, which sets DATABASE_URL and would flip the in-process
 // domain repositories to Prisma (and fail without a running Postgres). Unset
 // it so the gateway composes in-memory repositories, keeping tests hermetic.
+// Also clear REDIS_URL so readiness probes skip Redis (no live Redis in CI).
 delete process.env['DATABASE_URL'];
+delete process.env['REDIS_URL'];
 delete process.env['KEYCLOAK_ISSUER'];
 delete process.env['KEYCLOAK_CLIENT_ID'];
 
@@ -143,6 +145,19 @@ describe('API Gateway', () => {
       const body = response.json();
       expect(body.status).toBe('up');
       expect(body.services).toBeDefined();
+      // Without DATABASE_URL / REDIS_URL, dependency probes are skipped (not failing).
+      expect(body.services.postgres).toBeUndefined();
+      expect(body.services.redis).toBeUndefined();
+    });
+
+    it('GET /health/live stays up even when readiness dependencies would be checked', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health/live',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().status).toBe('up');
     });
 
     it('health endpoints do not require authentication', async () => {

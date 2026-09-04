@@ -2,6 +2,8 @@
  * API Gateway Configuration
  *
  * Loads configuration from environment variables with sensible defaults.
+ * Production (`NODE_ENV=production`) is fail-closed: insecure JWT secrets
+ * and a missing DATABASE_URL are rejected at startup.
  */
 
 import { Type, type Static } from '@sinclair/typebox';
@@ -76,6 +78,46 @@ export const GatewayConfigSchema = Type.Object({
 
 export type GatewayConfig = Static<typeof GatewayConfigSchema>;
 
+/** Well-known insecure JWT placeholders that must never be used in production. */
+const INSECURE_JWT_SECRETS = new Set([
+  '',
+  'dev-secret-change-in-production',
+  'change-me',
+  'change-me-in-production',
+  'change-me-in-production-please-use-a-long-random-string',
+  'secret',
+  'jwt-secret',
+]);
+
+/**
+ * Fail-closed production checks.
+ *
+ * Requires a non-placeholder JWT_SECRET and DATABASE_URL. Domain plugins
+ * fall back to in-memory repositories without DATABASE_URL, which is not
+ * acceptable for production traffic.
+ */
+export function assertProductionConfig(config: GatewayConfig): void {
+  if (config.env !== 'production') {
+    return;
+  }
+
+  const secret = config.jwt.secret?.trim() ?? '';
+  if (!secret || INSECURE_JWT_SECRETS.has(secret) || secret.toLowerCase().includes('change-me')) {
+    throw new Error(
+      'Production config invalid: JWT_SECRET is missing or uses an insecure default. ' +
+        'Set a cryptographically random secret (e.g. `openssl rand -base64 32`).',
+    );
+  }
+
+  const databaseUrl = process.env['DATABASE_URL']?.trim() ?? '';
+  if (!databaseUrl) {
+    throw new Error(
+      'Production config invalid: DATABASE_URL is required. ' +
+        'Domain plugins persist via Prisma/Postgres; without it the gateway would use in-memory stores.',
+    );
+  }
+}
+
 /**
  * Load gateway configuration from environment variables.
  */
@@ -138,7 +180,7 @@ export function loadConfig(): GatewayConfig {
     };
   }
 
-  return {
+  const config: GatewayConfig = {
     port: parseInt(process.env['PORT'] || process.env['GATEWAY_PORT'] || '3000', 10),
     host: process.env['HOST'] || '0.0.0.0',
     env,
@@ -163,4 +205,7 @@ export function loadConfig(): GatewayConfig {
     },
     services,
   };
+
+  assertProductionConfig(config);
+  return config;
 }
