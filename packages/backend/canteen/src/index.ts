@@ -1,0 +1,10 @@
+export { canteenPlugin } from './canteen-plugin.js';
+export type { CanteenPluginOptions } from './canteen-plugin.js';
+export { CanteenService } from './canteen-service.js';
+export { createCanteenRepository } from './repository-factory.js';
+export type { CanteenRepositoryConfig } from './repository-factory.js';
+export { InMemoryCanteenRepository } from './in-memory-repository.js';
+export { PrismaCanteenRepository } from './prisma-canteen-repository.js';
+export type { CanteenRepository } from './canteen-repository.js';
+export type { MealMenuEntity } from './canteen-repository.js';
+export type { MealServingEntity } from './canteen-repository.js';

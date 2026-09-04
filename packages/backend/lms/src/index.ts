@@ -1,0 +1,11 @@
+export { lmsPlugin } from './lms-plugin.js';
+export type { LmsPluginOptions } from './lms-plugin.js';
+export { LmsService } from './lms-service.js';
+export { createLmsRepository } from './repository-factory.js';
+export type { LmsRepositoryConfig } from './repository-factory.js';
+export { InMemoryLmsRepository } from './in-memory-repository.js';
+export { PrismaLmsRepository } from './prisma-lms-repository.js';
+export type { LmsRepository } from './lms-repository.js';
+export type { LmsCourseEntity } from './lms-repository.js';
+export type { LmsLessonEntity } from './lms-repository.js';
+export type { LmsEnrollmentEntity } from './lms-repository.js';

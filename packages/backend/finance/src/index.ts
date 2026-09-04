@@ -1,0 +1,11 @@
+export { financePlugin } from './finance-plugin.js';
+export type { FinancePluginOptions } from './finance-plugin.js';
+export { FinanceService } from './finance-service.js';
+export { createFinanceRepository } from './repository-factory.js';
+export type { FinanceRepositoryConfig } from './repository-factory.js';
+export { InMemoryFinanceRepository } from './in-memory-repository.js';
+export { PrismaFinanceRepository } from './prisma-finance-repository.js';
+export type { FinanceRepository } from './finance-repository.js';
+export type { FeeStructureEntity } from './finance-repository.js';
+export type { InvoiceEntity } from './finance-repository.js';
+export type { PaymentEntity } from './finance-repository.js';

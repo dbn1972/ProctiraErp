@@ -1,0 +1,11 @@
+export { hostelPlugin } from './hostel-plugin.js';
+export type { HostelPluginOptions } from './hostel-plugin.js';
+export { HostelService } from './hostel-service.js';
+export { createHostelRepository } from './repository-factory.js';
+export type { HostelRepositoryConfig } from './repository-factory.js';
+export { InMemoryHostelRepository } from './in-memory-repository.js';
+export { PrismaHostelRepository } from './prisma-hostel-repository.js';
+export type { HostelRepository } from './hostel-repository.js';
+export type { HostelEntity } from './hostel-repository.js';
+export type { HostelRoomEntity } from './hostel-repository.js';
+export type { HostelAllocationEntity } from './hostel-repository.js';

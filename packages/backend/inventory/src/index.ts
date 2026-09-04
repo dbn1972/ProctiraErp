@@ -1,0 +1,10 @@
+export { inventoryPlugin } from './inventory-plugin.js';
+export type { InventoryPluginOptions } from './inventory-plugin.js';
+export { InventoryService } from './inventory-service.js';
+export { createInventoryRepository } from './repository-factory.js';
+export type { InventoryRepositoryConfig } from './repository-factory.js';
+export { InMemoryInventoryRepository } from './in-memory-repository.js';
+export { PrismaInventoryRepository } from './prisma-inventory-repository.js';
+export type { InventoryRepository } from './inventory-repository.js';
+export type { InventoryItemEntity } from './inventory-repository.js';
+export type { StockMovementEntity } from './inventory-repository.js';

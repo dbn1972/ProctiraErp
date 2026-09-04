@@ -107,6 +107,42 @@ import {
   createWorkflowRepository,
   workflowPlugin,
 } from '@proctira/backend-workflow';
+import {
+  alumniPlugin,
+  createAlumniRepository,
+} from '@proctira/backend-alumni';
+import {
+  canteenPlugin,
+  createCanteenRepository,
+} from '@proctira/backend-canteen';
+import {
+  createFinanceRepository,
+  financePlugin,
+} from '@proctira/backend-finance';
+import {
+  createHostelRepository,
+  hostelPlugin,
+} from '@proctira/backend-hostel';
+import {
+  createInventoryRepository,
+  inventoryPlugin,
+} from '@proctira/backend-inventory';
+import {
+  createLibraryRepository,
+  libraryPlugin,
+} from '@proctira/backend-library';
+import {
+  createLmsRepository,
+  lmsPlugin,
+} from '@proctira/backend-lms';
+import {
+  createPayrollRepository,
+  payrollPlugin,
+} from '@proctira/backend-payroll';
+import {
+  createTimetableRepository,
+  timetablePlugin,
+} from '@proctira/backend-timetable';
 
 import type { GatewayConfig } from './config.js';
 
@@ -349,6 +385,96 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(registrationPlugin, {
         repository: createRegistrationRepository(),
         prefix: '/registrations',
+      });
+    },
+  },
+  {
+    name: 'finance',
+    proxyPrefixes: ['/fees'],
+    register: async (scope) => {
+      await scope.register(financePlugin, {
+        repository: createFinanceRepository(),
+        prefix: '/fees',
+      });
+    },
+  },
+  {
+    name: 'timetable',
+    proxyPrefixes: ['/timetables'],
+    register: async (scope) => {
+      await scope.register(timetablePlugin, {
+        repository: createTimetableRepository(),
+        prefix: '/timetables',
+      });
+    },
+  },
+  {
+    name: 'library',
+    proxyPrefixes: ['/library'],
+    register: async (scope) => {
+      await scope.register(libraryPlugin, {
+        repository: createLibraryRepository(),
+        prefix: '/library',
+      });
+    },
+  },
+  {
+    name: 'hostel',
+    proxyPrefixes: ['/hostels'],
+    register: async (scope) => {
+      await scope.register(hostelPlugin, {
+        repository: createHostelRepository(),
+        prefix: '/hostels',
+      });
+    },
+  },
+  {
+    name: 'inventory',
+    proxyPrefixes: ['/inventory'],
+    register: async (scope) => {
+      await scope.register(inventoryPlugin, {
+        repository: createInventoryRepository(),
+        prefix: '/inventory',
+      });
+    },
+  },
+  {
+    name: 'canteen',
+    proxyPrefixes: ['/canteen'],
+    register: async (scope) => {
+      await scope.register(canteenPlugin, {
+        repository: createCanteenRepository(),
+        prefix: '/canteen',
+      });
+    },
+  },
+  {
+    name: 'payroll',
+    proxyPrefixes: ['/payroll'],
+    register: async (scope) => {
+      await scope.register(payrollPlugin, {
+        repository: createPayrollRepository(),
+        prefix: '/payroll',
+      });
+    },
+  },
+  {
+    name: 'alumni',
+    proxyPrefixes: ['/alumni'],
+    register: async (scope) => {
+      await scope.register(alumniPlugin, {
+        repository: createAlumniRepository(),
+        prefix: '/alumni',
+      });
+    },
+  },
+  {
+    name: 'lms',
+    proxyPrefixes: ['/lms'],
+    register: async (scope) => {
+      await scope.register(lmsPlugin, {
+        repository: createLmsRepository(),
+        prefix: '/lms',
       });
     },
   },

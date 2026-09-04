@@ -1,0 +1,65 @@
+[
+  {
+    "domain": "finance",
+    "schema": "finance",
+    "phase": 18,
+    "prefix": "/fees",
+    "package": "@proctira/backend-finance"
+  },
+  {
+    "domain": "timetable",
+    "schema": "timetable",
+    "phase": 19,
+    "prefix": "/timetables",
+    "package": "@proctira/backend-timetable"
+  },
+  {
+    "domain": "library",
+    "schema": "library",
+    "phase": 20,
+    "prefix": "/library",
+    "package": "@proctira/backend-library"
+  },
+  {
+    "domain": "hostel",
+    "schema": "hostel",
+    "phase": 21,
+    "prefix": "/hostels",
+    "package": "@proctira/backend-hostel"
+  },
+  {
+    "domain": "inventory",
+    "schema": "inventory",
+    "phase": 22,
+    "prefix": "/inventory",
+    "package": "@proctira/backend-inventory"
+  },
+  {
+    "domain": "canteen",
+    "schema": "canteen",
+    "phase": 23,
+    "prefix": "/canteen",
+    "package": "@proctira/backend-canteen"
+  },
+  {
+    "domain": "payroll",
+    "schema": "payroll",
+    "phase": 24,
+    "prefix": "/payroll",
+    "package": "@proctira/backend-payroll"
+  },
+  {
+    "domain": "alumni",
+    "schema": "alumni",
+    "phase": 25,
+    "prefix": "/alumni",
+    "package": "@proctira/backend-alumni"
+  },
+  {
+    "domain": "lms",
+    "schema": "lms",
+    "phase": 26,
+    "prefix": "/lms",
+    "package": "@proctira/backend-lms"
+  }
+]

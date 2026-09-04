@@ -1,0 +1,11 @@
+export { libraryPlugin } from './library-plugin.js';
+export type { LibraryPluginOptions } from './library-plugin.js';
+export { LibraryService } from './library-service.js';
+export { createLibraryRepository } from './repository-factory.js';
+export type { LibraryRepositoryConfig } from './repository-factory.js';
+export { InMemoryLibraryRepository } from './in-memory-repository.js';
+export { PrismaLibraryRepository } from './prisma-library-repository.js';
+export type { LibraryRepository } from './library-repository.js';
+export type { LibraryTitleEntity } from './library-repository.js';
+export type { LibraryCopyEntity } from './library-repository.js';
+export type { LibraryLoanEntity } from './library-repository.js';

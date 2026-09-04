@@ -7,8 +7,8 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 - Charter: service ownership; no cross-service SQL joins/FKs.
 
 ## Module scope inventory
-- [SCHOOL_ERP_MODULE_SCOPE.md](../SCHOOL_ERP_MODULE_SCOPE.md) — fully built vs partial vs marketing-only (not chartered).
-- [CHARTER_EXPANSION_SECTION5.md](../plans/CHARTER_EXPANSION_SECTION5.md) — plan only for §5 modules (P18–P26); do not build until charter expands.
+- [SCHOOL_ERP_MODULE_SCOPE.md](../SCHOOL_ERP_MODULE_SCOPE.md) — P3–P16 FULL; P18–P26 MVP scaffolded.
+- [CHARTER_EXPANSION_SECTION5.md](../plans/CHARTER_EXPANSION_SECTION5.md) — P18–P26 wave plan + non-goals.
 
 ## Phase contracts (source of truth)
 | Phase | Spec / evidence |
@@ -30,6 +30,15 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 | 16 Registration | [PHASE_16_REGISTRATION_SIGNOFF.md](../PHASE_16_REGISTRATION_SIGNOFF.md) |
 | 17 Flutter | [PHASE_17_FLUTTER_SIGNOFF.md](../PHASE_17_FLUTTER_SIGNOFF.md) |
 | 9–16 Prisma wiring | [PHASE_9_16_PRISMA_WIRING_SIGNOFF.md](../PHASE_9_16_PRISMA_WIRING_SIGNOFF.md) |
+| 18 Finance / fees | [PHASE_18_FINANCE_SIGNOFF.md](../PHASE_18_FINANCE_SIGNOFF.md) |
+| 19 Timetable | [PHASE_19_TIMETABLE_SIGNOFF.md](../PHASE_19_TIMETABLE_SIGNOFF.md) |
+| 20 Library | [PHASE_20_LIBRARY_SIGNOFF.md](../PHASE_20_LIBRARY_SIGNOFF.md) |
+| 21 Hostel | [PHASE_21_HOSTEL_SIGNOFF.md](../PHASE_21_HOSTEL_SIGNOFF.md) |
+| 22 Inventory | [PHASE_22_INVENTORY_SIGNOFF.md](../PHASE_22_INVENTORY_SIGNOFF.md) |
+| 23 Canteen / MDM | [PHASE_23_CANTEEN_SIGNOFF.md](../PHASE_23_CANTEEN_SIGNOFF.md) |
+| 24 Payroll | [PHASE_24_PAYROLL_SIGNOFF.md](../PHASE_24_PAYROLL_SIGNOFF.md) |
+| 25 Alumni | [PHASE_25_ALUMNI_SIGNOFF.md](../PHASE_25_ALUMNI_SIGNOFF.md) |
+| 26 LMS | [PHASE_26_LMS_SIGNOFF.md](../PHASE_26_LMS_SIGNOFF.md) |
 
 ## Runbooks (ops detail on demand)
 - [docs/runbooks/](../runbooks/)

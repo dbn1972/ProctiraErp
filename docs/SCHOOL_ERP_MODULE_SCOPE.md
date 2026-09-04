@@ -66,15 +66,29 @@ P2 Auth + P9–16 Prisma wiring + P17 Flutter analyze remain signed off.
 
 ---
 
-## 5. Planned / marketing only — **not chartered**
+## 5. Charter expansion P18–P26 — **MVP scaffolded**
 
-Do **not** build unless charter expands: school finance/fees, payroll, timetable, library, hostel, inventory, canteen/MDM, alumni, LMS.
+Built in wave order (A → B → C → D) after charter go-ahead to do A, B, and C sequentially:
 
-**Expansion plan (phases P18–P26, wave order, MVP/non-goals):** [plans/CHARTER_EXPANSION_SECTION5.md](./plans/CHARTER_EXPANSION_SECTION5.md).
+| Phase | Module | Schema | Gateway | Web | Status |
+|------:|--------|--------|---------|-----|--------|
+| 18 | Finance / fees | `finance` | `/fees` | `/(dashboard)/finance` | **MVP FULL** (API+web list) |
+| 19 | Timetable | `timetable` | `/timetables` | `/(dashboard)/timetable` | **MVP FULL** |
+| 20 | Library | `library` | `/library` | `/(dashboard)/library` | **MVP FULL** |
+| 21 | Hostel | `hostel` | `/hostels` | `/(dashboard)/hostel` | **MVP FULL** |
+| 22 | Inventory | `inventory` | `/inventory` | `/(dashboard)/inventory` | **MVP FULL** |
+| 23 | Canteen / MDM | `canteen` | `/canteen` | `/(dashboard)/canteen` | **MVP FULL** |
+| 24 | Payroll | `payroll` | `/payroll` | `/(dashboard)/payroll` | **MVP FULL** |
+| 25 | Alumni | `alumni` | `/alumni` | `/(dashboard)/alumni` | **MVP FULL** |
+| 26 | LMS | `lms` | `/lms` | `/(dashboard)/lms` | **MVP FULL** |
+
+Plan + non-goals: [plans/CHARTER_EXPANSION_SECTION5.md](./plans/CHARTER_EXPANSION_SECTION5.md).  
+Sign-offs: `docs/PHASE_18_FINANCE_SIGNOFF.md` … `docs/PHASE_26_LMS_SIGNOFF.md`.  
+EC3: 9 residual migrations applied; gateway registers all nine in-process.
 
 ---
 
-## 6. Migrations for partial-completion + §4 residual pass
+## 6. Migrations for partial-completion + §4 residual + §5 expansion
 
 - `20260904_add_institution_infrastructure`
 - `20260904_assessment_report_cards`
@@ -85,5 +99,14 @@ Do **not** build unless charter expands: school finance/fees, payroll, timetable
 - `20260904_workflow_definition_is_active`
 - `20260904_user_invites`
 - `20260904_auth_otp_challenges`
+- `20260904_finance_schema`
+- `20260904_timetable_schema`
+- `20260904_library_schema`
+- `20260904_hostel_schema`
+- `20260904_inventory_schema`
+- `20260904_canteen_schema`
+- `20260904_payroll_schema`
+- `20260904_alumni_schema`
+- `20260904_lms_schema`
 
 Apply via [docs/runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md](./runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md) on deployed databases.

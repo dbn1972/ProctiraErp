@@ -1,0 +1,10 @@
+export { alumniPlugin } from './alumni-plugin.js';
+export type { AlumniPluginOptions } from './alumni-plugin.js';
+export { AlumniService } from './alumni-service.js';
+export { createAlumniRepository } from './repository-factory.js';
+export type { AlumniRepositoryConfig } from './repository-factory.js';
+export { InMemoryAlumniRepository } from './in-memory-repository.js';
+export { PrismaAlumniRepository } from './prisma-alumni-repository.js';
+export type { AlumniRepository } from './alumni-repository.js';
+export type { AlumniProfileEntity } from './alumni-repository.js';
+export type { AlumniEventEntity } from './alumni-repository.js';

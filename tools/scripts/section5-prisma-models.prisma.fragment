@@ -1,0 +1,382 @@
+// --- §5 P18–P26 models ---
+
+model FeeStructure {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name String @map("name") @db.VarChar(255)
+  academicYear String @map("academic_year") @db.VarChar(255)
+  amount Float @map("amount")
+  currency String @default("INR") @map("currency") @db.VarChar(255)
+  frequency String @default("annual") @map("frequency") @db.VarChar(255)
+  status String @default("active") @map("status") @db.VarChar(255)
+  institutionId String? @map("institution_id") @db.Uuid
+  gradeId String? @map("grade_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("fee_structures")
+  @@schema("finance")
+}
+
+model Invoice {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  enrollmentId String? @map("enrollment_id") @db.Uuid
+  feeStructureId String? @map("fee_structure_id") @db.Uuid
+  institutionId String? @map("institution_id") @db.Uuid
+  amountDue Float @map("amount_due")
+  amountPaid Float @default(0) @map("amount_paid")
+  currency String @default("INR") @map("currency") @db.VarChar(255)
+  dueDate String @map("due_date") @db.VarChar(255)
+  status String @default("open") @map("status") @db.VarChar(255)
+  notes String? @map("notes") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("invoices")
+  @@schema("finance")
+}
+
+model Payment {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  invoiceId String @map("invoice_id") @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  amount Float @map("amount")
+  method String @default("cash") @map("method") @db.VarChar(255)
+  reference String? @map("reference") @db.VarChar(255)
+  paidAt String @map("paid_at") @db.VarChar(255)
+  recordedByUserId String? @map("recorded_by_user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("payments")
+  @@schema("finance")
+}
+
+model BellPeriod {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String @map("institution_id") @db.Uuid
+  name String @map("name") @db.VarChar(255)
+  periodOrder Float @map("period_order")
+  startTime String @map("start_time") @db.VarChar(255)
+  endTime String @map("end_time") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("bell_periods")
+  @@schema("timetable")
+}
+
+model TimetableSlot {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String @map("institution_id") @db.Uuid
+  classId String @map("class_id") @db.Uuid
+  subjectId String @map("subject_id") @db.Uuid
+  staffId String @map("staff_id") @db.Uuid
+  bellPeriodId String @map("bell_period_id") @db.Uuid
+  roomId String? @map("room_id") @db.Uuid
+  dayOfWeek Float @map("day_of_week")
+  status String @default("active") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("timetable_slots")
+  @@schema("timetable")
+}
+
+model Substitution {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  slotId String @map("slot_id") @db.Uuid
+  originalStaffId String @map("original_staff_id") @db.Uuid
+  substituteStaffId String @map("substitute_staff_id") @db.Uuid
+  date String @map("date") @db.VarChar(255)
+  reason String? @map("reason") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("substitutions")
+  @@schema("timetable")
+}
+
+model LibraryTitle {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String? @map("institution_id") @db.Uuid
+  title String @map("title") @db.VarChar(255)
+  author String? @map("author") @db.VarChar(255)
+  isbn String? @map("isbn") @db.VarChar(255)
+  category String? @map("category") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("titles")
+  @@schema("library")
+}
+
+model LibraryCopy {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  titleId String @map("title_id") @db.Uuid
+  barcode String @map("barcode") @db.VarChar(255)
+  status String @default("available") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("copies")
+  @@schema("library")
+}
+
+model LibraryLoan {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  copyId String @map("copy_id") @db.Uuid
+  borrowerId String @map("borrower_id") @db.Uuid
+  borrowerType String @default("student") @map("borrower_type") @db.VarChar(255)
+  loanedAt String @map("loaned_at") @db.VarChar(255)
+  dueAt String @map("due_at") @db.VarChar(255)
+  returnedAt String? @map("returned_at") @db.VarChar(255)
+  fineInvoiceId String? @map("fine_invoice_id") @db.Uuid
+  status String @default("active") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("loans")
+  @@schema("library")
+}
+
+model Hostel {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String @map("institution_id") @db.Uuid
+  name String @map("name") @db.VarChar(255)
+  gender String @default("mixed") @map("gender") @db.VarChar(255)
+  capacity Float @map("capacity")
+  status String @default("active") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("hostels")
+  @@schema("hostel")
+}
+
+model HostelRoom {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  hostelId String @map("hostel_id") @db.Uuid
+  name String @map("name") @db.VarChar(255)
+  beds Float @map("beds")
+  status String @default("available") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("rooms")
+  @@schema("hostel")
+}
+
+model HostelAllocation {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  hostelId String @map("hostel_id") @db.Uuid
+  roomId String @map("room_id") @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  startDate String @map("start_date") @db.VarChar(255)
+  endDate String? @map("end_date") @db.VarChar(255)
+  feeInvoiceId String? @map("fee_invoice_id") @db.Uuid
+  status String @default("active") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("allocations")
+  @@schema("hostel")
+}
+
+model InventoryItem {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String? @map("institution_id") @db.Uuid
+  sku String @map("sku") @db.VarChar(255)
+  name String @map("name") @db.VarChar(255)
+  unit String @default("ea") @map("unit") @db.VarChar(255)
+  quantityOnHand Float @default(0) @map("quantity_on_hand")
+  reorderLevel Float @default(0) @map("reorder_level")
+  status String @default("active") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("items")
+  @@schema("inventory")
+}
+
+model StockMovement {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  itemId String @map("item_id") @db.Uuid
+  movementType String @map("movement_type") @db.VarChar(255)
+  quantity Float @map("quantity")
+  issuedToStaffId String? @map("issued_to_staff_id") @db.Uuid
+  notes String? @map("notes") @db.Text
+  movedAt String @map("moved_at") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("stock_movements")
+  @@schema("inventory")
+}
+
+model MealMenu {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String @map("institution_id") @db.Uuid
+  date String @map("date") @db.VarChar(255)
+  mealType String @default("lunch") @map("meal_type") @db.VarChar(255)
+  items String @map("items") @db.Text
+  status String @default("published") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("meal_menus")
+  @@schema("canteen")
+}
+
+model MealServing {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  menuId String @map("menu_id") @db.Uuid
+  institutionId String @map("institution_id") @db.Uuid
+  servedCount Float @map("served_count")
+  wastageCount Float @default(0) @map("wastage_count")
+  servedAt String @map("served_at") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("meal_servings")
+  @@schema("canteen")
+}
+
+model PayStructure {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  name String @map("name") @db.VarChar(255)
+  currency String @default("INR") @map("currency") @db.VarChar(255)
+  components String @default("[]") @map("components") @db.Text
+  status String @default("active") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("pay_structures")
+  @@schema("payroll")
+}
+
+model PayrollRun {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  payStructureId String? @map("pay_structure_id") @db.Uuid
+  periodYear Float @map("period_year")
+  periodMonth Float @map("period_month")
+  status String @default("draft") @map("status") @db.VarChar(255)
+  totalAmount Float @default(0) @map("total_amount")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("payroll_runs")
+  @@schema("payroll")
+}
+
+model Payslip {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  payrollRunId String @map("payroll_run_id") @db.Uuid
+  staffId String @map("staff_id") @db.Uuid
+  grossAmount Float @map("gross_amount")
+  netAmount Float @map("net_amount")
+  status String @default("generated") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("payslips")
+  @@schema("payroll")
+}
+
+model AlumniProfile {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  studentId String? @map("student_id") @db.Uuid
+  institutionId String? @map("institution_id") @db.Uuid
+  fullName String @map("full_name") @db.VarChar(255)
+  graduationYear Float @map("graduation_year")
+  lastClassName String? @map("last_class_name") @db.VarChar(255)
+  email String? @map("email") @db.VarChar(255)
+  phone String? @map("phone") @db.VarChar(255)
+  status String @default("active") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("profiles")
+  @@schema("alumni")
+}
+
+model AlumniEvent {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String? @map("institution_id") @db.Uuid
+  title String @map("title") @db.VarChar(255)
+  eventDate String @map("event_date") @db.VarChar(255)
+  location String? @map("location") @db.VarChar(255)
+  status String @default("scheduled") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("events")
+  @@schema("alumni")
+}
+
+model LmsCourse {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  institutionId String @map("institution_id") @db.Uuid
+  classId String? @map("class_id") @db.Uuid
+  subjectId String? @map("subject_id") @db.Uuid
+  staffId String? @map("staff_id") @db.Uuid
+  title String @map("title") @db.VarChar(255)
+  status String @default("draft") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("courses")
+  @@schema("lms")
+}
+
+model LmsLesson {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  courseId String @map("course_id") @db.Uuid
+  title String @map("title") @db.VarChar(255)
+  contentRef String? @map("content_ref") @db.Text
+  lessonOrder Float @default(1) @map("lesson_order")
+  status String @default("published") @map("status") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("lessons")
+  @@schema("lms")
+}
+
+model LmsEnrollment {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  courseId String @map("course_id") @db.Uuid
+  studentId String @map("student_id") @db.Uuid
+  status String @default("active") @map("status") @db.VarChar(255)
+  progressPct Float @default(0) @map("progress_pct")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([tenantId])
+  @@map("enrollments")
+  @@schema("lms")
+}
+
