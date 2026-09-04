@@ -1,6 +1,6 @@
 # Phase 7 — ProctiraERP Examination schema sign-off
 
-**Status:** Complete in repo; EC3 apply + boundary checks pending evidence below.
+**Status:** Complete in repo; EC3 apply + boundary checks (2026-09-04).
 
 ## Delivered
 
@@ -15,9 +15,9 @@
 ## EC3
 
 - Schemas include `examination`; forbidden cross-schema FKs from `examination` = **0**
-- Tables moved (empty seed OK)
+- Tables moved (empty seed OK): examinations / registrations / candidates / publications / analyses / academic_records / document_jobs
 - `GET /api/v1/examinations` → **200**
-- Regression: students / grading-schemes still **200**
+- Regression: students / grading-schemes still **200**; examination plugin registered on gateway
 
 ## Explicit non-goals (later)
 - Staff schema
