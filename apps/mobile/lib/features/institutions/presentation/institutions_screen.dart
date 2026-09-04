@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:openemis_api_client/openemis_api_client.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/sync/connectivity_monitor.dart';

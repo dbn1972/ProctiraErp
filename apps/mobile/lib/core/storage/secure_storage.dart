@@ -1,7 +1,7 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Thin wrapper over [FlutterSecureStorage] exposing typed accessors for the
-/// values OpenEMIS persists across app launches (tokens, tenant id, biometric
+/// values ProctiraERP persists across app launches (tokens, tenant id, biometric
 /// opt-in flag).
 class SecureStorage {
   SecureStorage(this._storage);

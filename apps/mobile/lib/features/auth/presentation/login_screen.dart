@@ -68,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _onBiometric() async {
     final BiometricService biometric = getIt<BiometricService>();
     final bool ok = await biometric.authenticate(
-      reason: 'Sign in to OpenEMIS with biometrics',
+      reason: 'Sign in to ProctiraERP with biometrics',
     );
     if (!ok || !mounted) {
       return;

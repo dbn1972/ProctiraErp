@@ -11,7 +11,7 @@ class AppDatabase {
   AppDatabase({String? overridePath}) : _overridePath = overridePath;
 
   static const int schemaVersion = 5;
-  static const String _dbFileName = 'openemis_mobile.db';
+  static const String _dbFileName = 'proctira_mobile.db';
 
   final String? _overridePath;
   Database? _db;

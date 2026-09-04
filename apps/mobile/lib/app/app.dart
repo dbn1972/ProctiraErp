@@ -11,7 +11,7 @@ import '../core/theme/app_theme.dart';
 
 /// Tenant-aware MaterialApp wrapper.
 ///
-/// Reads the active tenant from [TenantProvider] and applies the OpenEMIS
+/// Reads the active tenant from [TenantProvider] and applies the ProctiraERP
 /// design tokens (navy primary, teal accent, Inter font) on top of Material 3.
 /// Supports light/dark themes and all 9 locales (en, hi, ta, te, mr, bn, gu, kn, ar).
 class OpenEmisApp extends StatelessWidget {
@@ -34,7 +34,7 @@ class OpenEmisApp extends StatelessWidget {
           final Color? secondaryColor = tenantProvider.secondaryColor;
 
           return MaterialApp.router(
-            title: tenantProvider.displayName ?? 'OpenEMIS',
+            title: tenantProvider.displayName ?? 'ProctiraERP',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(
               primaryColor: primaryColor,

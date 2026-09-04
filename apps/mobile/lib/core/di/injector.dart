@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:openemis_api_client/openemis_api_client.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../features/institutions/data/institution_repository.dart';
 import '../../features/notifications/data/notification_repository.dart';

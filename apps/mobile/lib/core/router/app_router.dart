@@ -10,6 +10,7 @@ import '../../features/examination/presentation/examination_list_screen.dart';
 import '../../features/examination/presentation/examination_results_screen.dart';
 import '../../features/health/presentation/health_records_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/home/presentation/services_screen.dart';
 import '../../features/institutions/presentation/institution_detail_screen.dart';
 import '../../features/institutions/presentation/institutions_screen.dart';
 import '../../features/notifications/presentation/notification_preferences_screen.dart';
@@ -47,6 +48,12 @@ class AppRouter {
           name: 'home',
           builder: (BuildContext context, GoRouterState state) =>
               const HomeScreen(),
+        ),
+        GoRoute(
+          path: '/services',
+          name: 'services',
+          builder: (BuildContext context, GoRouterState state) =>
+              const ServicesScreen(),
         ),
         GoRoute(
           path: '/login',

@@ -21,8 +21,8 @@ class LocalNotifications {
   static const AndroidNotificationChannel defaultChannel =
       AndroidNotificationChannel(
     'openemis_default',
-    'OpenEMIS Notifications',
-    description: 'Real-time alerts from the OpenEMIS platform.',
+    'ProctiraERP Notifications',
+    description: 'Real-time alerts from the ProctiraERP platform.',
     importance: Importance.high,
   );
 

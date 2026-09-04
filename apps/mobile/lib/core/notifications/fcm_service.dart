@@ -5,7 +5,7 @@ import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:openemis_api_client/openemis_api_client.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../features/notifications/data/notification_repository.dart';
 import 'local_notifications.dart';
@@ -179,7 +179,7 @@ class FcmService {
     if (notification != null) {
       await _localNotifications.show(
         id: message.messageId.hashCode,
-        title: notification.title ?? 'OpenEMIS',
+        title: notification.title ?? 'ProctiraERP',
         body: notification.body ?? '',
         payload: message.data,
       );

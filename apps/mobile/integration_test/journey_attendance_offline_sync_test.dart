@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:openemis_mobile/core/sync/sync_engine.dart';
-import 'package:openemis_mobile/core/sync/sync_models.dart';
+import 'package:proctira_mobile/core/sync/sync_engine.dart';
+import 'package:proctira_mobile/core/sync/sync_models.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'helpers/test_setup.dart';

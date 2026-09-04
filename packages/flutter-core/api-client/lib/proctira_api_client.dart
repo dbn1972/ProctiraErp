@@ -1,4 +1,4 @@
-/// Public entry point for the hand-written OpenEMIS Dart API client.
+/// Public entry point for the hand-written ProctiraERP Dart API client.
 ///
 /// Mirror of the typebox schemas exposed by the backend. The package is
 /// intentionally small: it covers the endpoints needed by the mobile sync

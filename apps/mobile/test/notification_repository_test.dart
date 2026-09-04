@@ -2,10 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:openemis_mobile/core/storage/database.dart';
-import 'package:openemis_mobile/core/storage/secure_storage.dart';
-import 'package:openemis_mobile/core/tenant/tenant_provider.dart';
-import 'package:openemis_mobile/features/notifications/data/notification_repository.dart';
+import 'package:proctira_mobile/core/storage/database.dart';
+import 'package:proctira_mobile/core/storage/secure_storage.dart';
+import 'package:proctira_mobile/core/tenant/tenant_provider.dart';
+import 'package:proctira_mobile/features/notifications/data/notification_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 Future<({AppDatabase db, TenantProvider tenant})> _bootstrap({

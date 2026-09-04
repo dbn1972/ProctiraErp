@@ -20,7 +20,7 @@
 
 ## Explicit non-goals
 - Full Prisma repository wiring for this domain (in-memory remains until wired)
-- Flutter mobile (after Phase 16)
+- Flutter mobile (Phase 17)
 
 ## Next
-Flutter mobile (last).
+Flutter — see [PHASE_17_FLUTTER_SIGNOFF.md](./PHASE_17_FLUTTER_SIGNOFF.md).
