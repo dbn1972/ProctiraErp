@@ -10,9 +10,9 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
-  // Charter §19 / Phase 2: service-owned schemas. No cross-service SQL joins.
-  // Auth holds tenant_id as a bare UUID (lookup, not FK join).
-  schemas    = ["platform", "auth", "public"]
+  // Charter §19 / Phase 2–3: service-owned schemas. No cross-service SQL joins.
+  // Auth/institution hold tenant_id as bare UUIDs (lookup, not FK join).
+  schemas    = ["platform", "auth", "institution", "public"]
 }
 
 // ============================================================================
@@ -31,19 +31,13 @@ model Tenant {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  geographicAreas GeographicArea[]
-  boards          Board[]
-  institutions    Institution[]
+  // Relations (public-domain children only — institution/auth own their schemas; bare UUID refs)
   students        Student[]
   staff           Staff[]
   enrollments     Enrollment[]
   enrollmentHistory EnrollmentHistory[]
   studentTransfers  StudentTransfer[]
-  academicPeriods AcademicPeriod[]
-  grades          Grade[]
-  classes         Class[]
-  // Auth identities live in schema "auth" — no Prisma relation / FK (charter §19.3/19.6)
+  // Auth + institution identities live in their schemas — no Prisma relation / FK (charter §19)
   themeVersions   TenantThemeVersion[]
   themeDraft      TenantThemeDraft?
   studentAttendance StudentAttendance[]
@@ -256,8 +250,7 @@ model GeographicArea {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  // Relations (tenant_id is bare UUID — no FK into platform.tenants)
   parent       GeographicArea?  @relation("AreaHierarchy", fields: [parentId], references: [id])
   children     GeographicArea[] @relation("AreaHierarchy")
   institutions Institution[]
@@ -267,7 +260,7 @@ model GeographicArea {
   @@index([tenantId, level])
   @@index([tenantId, lft, rgt])
   @@map("geographic_areas")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
@@ -287,14 +280,13 @@ model Board {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  // Relations (tenant_id is bare UUID — no FK into platform.tenants)
   institutions Institution[]
 
   @@unique([tenantId, code])
   @@index([tenantId, type])
   @@map("boards")
-  @@schema("public")
+  @@schema("institution")
 }
 
 enum BoardType {
@@ -303,7 +295,7 @@ enum BoardType {
   PRIVATE
 
   @@map("board_type")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
@@ -313,6 +305,7 @@ enum BoardType {
 /// Educational institution managed within a tenant.
 model Institution {
   id         String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  /// Bare tenant UUID — resolved via platform lookup, not a cross-schema FK/join.
   tenantId   String  @map("tenant_id") @db.Uuid
   name       String  @db.VarChar(255)
   code       String  @db.VarChar(50)
@@ -328,12 +321,10 @@ model Institution {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant      Tenant         @relation(fields: [tenantId], references: [id])
-  board       Board?         @relation(fields: [boardId], references: [id])
-  area        GeographicArea @relation(fields: [areaId], references: [id])
-  enrollments Enrollment[]
-  classes     Class[]
+  // Relations — board/area stay in-schema; enrollments use bare institutionId from public
+  board   Board?         @relation(fields: [boardId], references: [id])
+  area    GeographicArea @relation(fields: [areaId], references: [id])
+  classes Class[]
 
   @@unique([tenantId, code])
   @@index([tenantId, areaId])
@@ -341,7 +332,7 @@ model Institution {
   @@index([tenantId, status])
   @@index([customData], type: Gin)
   @@map("institutions")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
@@ -426,14 +417,10 @@ model Enrollment {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  student        Student        @relation(fields: [studentId], references: [id])
-  institution    Institution    @relation(fields: [institutionId], references: [id])
-  grade          Grade          @relation(fields: [gradeId], references: [id])
-  class          Class?         @relation(fields: [classId], references: [id])
-  academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
-  history        EnrollmentHistory[]
+  // Relations — institution/grade/class/period are bare UUIDs (Phase 3 boundary; no cross-schema FK)
+  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+  history EnrollmentHistory[]
 
   @@index([tenantId, studentId])
   @@index([tenantId, institutionId, academicPeriodId])
@@ -511,15 +498,13 @@ model AcademicPeriod {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant      Tenant       @relation(fields: [tenantId], references: [id])
-  enrollments Enrollment[]
-  classes     Class[]
+  // Relations (tenant_id bare UUID; enrollments reference by id only)
+  classes Class[]
 
   @@unique([tenantId, code])
   @@index([tenantId, status])
   @@map("academic_periods")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
@@ -538,15 +523,13 @@ model Grade {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant      Tenant       @relation(fields: [tenantId], references: [id])
-  enrollments Enrollment[]
-  classes     Class[]
+  // Relations (tenant_id bare UUID; enrollments reference by id only)
+  classes Class[]
 
   @@unique([tenantId, code])
   @@index([tenantId, order])
   @@map("grades")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
@@ -567,17 +550,15 @@ model Class {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  // Relations — stay inside institution schema; enrollments use bare classId
   institution    Institution    @relation(fields: [institutionId], references: [id])
   grade          Grade          @relation(fields: [gradeId], references: [id])
   academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
-  enrollments    Enrollment[]
 
   @@index([tenantId, institutionId, academicPeriodId])
   @@index([tenantId, gradeId])
   @@map("classes")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
@@ -601,7 +582,7 @@ model Subject {
   @@unique([tenantId, code])
   @@index([tenantId])
   @@map("subjects")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
@@ -626,7 +607,7 @@ model InstitutionSubject {
   @@unique([tenantId, institutionId, subjectId, gradeId])
   @@index([tenantId, institutionId, gradeId])
   @@map("institution_subjects")
-  @@schema("public")
+  @@schema("institution")
 }
 
 // ============================================================================
