@@ -4,7 +4,7 @@
  * Layout per redesign/web/reports-new.html:
  *  - Template + filters form
  *  - Output format selection
- *  - Stub note that generation uses empty ReportDataSource
+ *  - Note which analytical report types the gateway data source supports
  *
  * Validates: Requirement 17.1 — configure filters and generate report.
  */
@@ -75,10 +75,10 @@ export default async function NewReportPage({ searchParams }: PageProps) {
 
       <Alert>
         <Info className="h-4 w-4" aria-hidden="true" />
-        <AlertTitle>Analytical data is stubbed</AlertTitle>
+        <AlertTitle>Supported analytical types</AlertTitle>
         <AlertDescription>
-          Runs use the gateway ReportDataSource stub and may return empty
-          result sets until cross-module queries are wired.
+          Enrollment, students, attendance summary, examination results, and
+          scholarship applications/utilization. Other types return empty rows.
         </AlertDescription>
       </Alert>
 

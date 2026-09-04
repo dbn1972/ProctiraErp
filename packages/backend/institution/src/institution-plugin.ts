@@ -15,7 +15,14 @@ import { AreaHierarchyService } from './area-hierarchy/area-hierarchy.service.js
 import type { AreaHierarchyDbClient } from './area-hierarchy/area-hierarchy.service.js';
 import { registerAreaHierarchyRoutes } from './area-hierarchy/area-hierarchy.routes.js';
 import { BoardService, registerBoardRoutes } from './board/index.js';
-import { ClassService, GradeService, registerClassRoutes, registerGradeRoutes } from './education/index.js';
+import {
+  ClassService,
+  GradeService,
+  SubjectService,
+  registerClassRoutes,
+  registerGradeRoutes,
+  registerSubjectRoutes,
+} from './education/index.js';
 import type { InstitutionRepository } from './institution-repository.js';
 import { InstitutionService } from './institution-service.js';
 import { registerInstitutionRoutes } from './routes.js';
@@ -26,7 +33,12 @@ import { registerInstitutionRoutes } from './routes.js';
 export interface InstitutionPluginOptions {
   /** Institution repository implementation */
   repository: InstitutionRepository;
-  /** Database client for area hierarchy operations (optional - if not provided, area routes are not registered) */
+  /**
+   * Database client for area hierarchy operations.
+   * When omitted, falls back to `prisma` (or the DATABASE_URL singleton) so
+   * GeographicArea routes mount whenever Postgres is available — same pattern
+   * as boards/periods/grades/classes/subjects.
+   */
   areaHierarchyDb?: AreaHierarchyDbClient;
   /** Prisma client for academic structure. Falls back to DATABASE_URL singleton. */
   prisma?: PrismaClient;
@@ -46,7 +58,7 @@ declare module 'fastify' {
 
 /**
  * Fastify plugin that registers the institution service and routes.
- * Optionally registers area hierarchy routes if areaHierarchyDb is provided.
+ * Registers area hierarchy routes when areaHierarchyDb or Prisma is available.
  */
 export const institutionPlugin = fp(
   async function institutionPluginImpl(
@@ -72,9 +84,15 @@ export const institutionPlugin = fp(
       prefix,
     });
 
-    // Register area hierarchy routes if db client is provided
-    if (areaHierarchyDb) {
-      const areaHierarchyService = new AreaHierarchyService(areaHierarchyDb);
+    const prisma = options.prisma ?? (process.env['DATABASE_URL'] ? getPrismaClient() : undefined);
+
+    // GeographicArea lives on the same Prisma client as boards/periods/etc.
+    // Prefer an explicit areaHierarchyDb (tests / custom clients), else Prisma.
+    const areaDb: AreaHierarchyDbClient | undefined =
+      areaHierarchyDb ?? (prisma as AreaHierarchyDbClient | undefined);
+
+    if (areaDb) {
+      const areaHierarchyService = new AreaHierarchyService(areaDb);
       fastify.decorate('areaHierarchyService', areaHierarchyService);
 
       await registerAreaHierarchyRoutes(fastify, {
@@ -83,7 +101,6 @@ export const institutionPlugin = fp(
       });
     }
 
-    const prisma = options.prisma ?? (process.env['DATABASE_URL'] ? getPrismaClient() : undefined);
     if (prisma) {
       await registerBoardRoutes(fastify, { service: new BoardService({ prisma }) });
       await registerAcademicPeriodRoutes(fastify, {
@@ -91,6 +108,7 @@ export const institutionPlugin = fp(
       });
       await registerGradeRoutes(fastify, { service: new GradeService({ prisma }) });
       await registerClassRoutes(fastify, { service: new ClassService({ prisma }) });
+      await registerSubjectRoutes(fastify, { service: new SubjectService({ prisma }) });
     }
   },
   {

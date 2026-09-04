@@ -18,10 +18,13 @@
 Composition root: `apps/api-gateway/src/domain-plugins.ts`.
 
 ## Explicit non-goals
-- Cross-module analytical `ReportDataSource` (stub returns empty rows until wired)
 - Notification role/area recipient expansion beyond explicit user IDs
 - Full web module UI redesign per domain
 - Flutter device / emulator E2E
+
+**Resolved residual:** Cross-module analytical `ReportDataSource` is wired via
+`createReportDataSource` (per-schema repository queries + in-memory UUID joins)
+in `apps/api-gateway/src/domain-plugins.ts`.
 
 ## Verification
 - `pnpm --filter @proctira/api-gateway typecheck` — pass

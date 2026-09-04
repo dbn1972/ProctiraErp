@@ -6,6 +6,9 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 - One Postgres, **schema per domain**, bare UUID across boundaries.
 - Charter: service ownership; no cross-service SQL joins/FKs.
 
+## Module scope inventory
+- [SCHOOL_ERP_MODULE_SCOPE.md](../SCHOOL_ERP_MODULE_SCOPE.md) — fully built vs partial vs marketing-only (not chartered).
+
 ## Phase contracts (source of truth)
 | Phase | Spec / evidence |
 |-------|-----------------|

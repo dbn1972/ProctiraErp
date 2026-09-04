@@ -70,6 +70,12 @@ export const studentPlugin = fp(
       enrollmentService,
       prefix: enrollmentPrefix,
     });
+
+    // Bulk import routes (`registerImportRoutes`) are intentionally not mounted:
+    // ImportService needs its own StudentRepository (findByNameAndDob / flat
+    // StudentRecord shape) and only an in-memory impl exists — no Prisma
+    // adapter. Mounting with InMemoryStudentRepository would not persist to
+    // the real student store.
   },
   {
     name: '@proctira/backend-student',

@@ -6,12 +6,12 @@
  *  - Module-grouped catalog cards with colored icons and Run action
  *
  * Validates: Requirement 17.1 — discover and run report templates.
- * Note: ReportDataSource remains a gateway stub — cards still render from
- * template metadata even when analytical rows are empty.
+ * Note: Cross-module ReportDataSource is wired at the gateway (per-schema
+ * queries + in-memory UUID joins). Cards render from template metadata;
+ * runs return rows when matching domain data exists.
  */
 import Link from 'next/link';
 import {
-  AlertTriangle,
   FileBarChart,
   GraduationCap,
   Play,
@@ -194,14 +194,10 @@ function EmptyState() {
       <FileBarChart className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
       <p className="text-base font-medium">No report templates</p>
       <p className="max-w-[42ch] text-sm text-muted-foreground">
-        Templates appear here when the report service is available. Analytical
-        data sources are still stubbed — runs return empty result sets until
-        wired.
+        Templates appear here when the report service is available. Supported
+        analytical types include enrollment, students, attendance, examinations,
+        and scholarships.
       </p>
-      <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-        ReportDataSource stub — UI only
-      </div>
     </div>
   );
 }

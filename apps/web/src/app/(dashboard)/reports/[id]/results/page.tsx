@@ -7,7 +7,7 @@
  *  - Past runs table
  *
  * Validates: Requirement 17.1 — download generated report outputs.
- * Analytical ReportDataSource remains stubbed at the gateway.
+ * Analytical ReportDataSource is wired for common school report types.
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -133,7 +133,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
               <CardTitle className="text-base">Past runs</CardTitle>
               <CardDescription>
                 {template.module} · reports generated for this template.
-                Result rows stay empty while ReportDataSource is stubbed.
+                Rows populate when the template type matches a wired data source.
               </CardDescription>
             </div>
           </div>

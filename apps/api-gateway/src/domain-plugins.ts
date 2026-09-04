@@ -14,8 +14,13 @@
  *    in-memory.
  *  - scholarship / transport / health / workflow / notification / report /
  *    survey / registration: Prisma-backed the same way (P9–P16).
+ *  - report analytical ReportDataSource: cross-module composition via
+ *    injected domain repositories (per-schema queries + in-memory UUID joins).
  *  - assessment report-card repositories are not wired yet (no Prisma
  *    implementation); report-card routes stay disabled.
+ *  - student bulk-import routes stay disabled (import StudentRepository has
+ *    only an in-memory impl; no Prisma adapter yet).
+ *  - staff appraisal/training stay disabled (no Prisma models).
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -55,8 +60,8 @@ import {
 } from '@proctira/backend-registration';
 import {
   createReportRepository,
+  createReportDataSource,
   reportPlugin,
-  type ReportDataSource,
 } from '@proctira/backend-report';
 import {
   createScholarshipRepository,
@@ -67,7 +72,11 @@ import {
   createStaffRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
-import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import {
+  createEnrollmentRepository,
+  createStudentRepository,
+  studentPlugin,
+} from '@proctira/backend-student';
 import {
   createDistributionRepository,
   createInstitutionLookup,
@@ -87,12 +96,23 @@ import {
 
 import type { GatewayConfig } from './config.js';
 
-/** Stub analytical data source until cross-module report queries are wired. */
-const emptyReportDataSource: ReportDataSource = {
-  async fetchData() {
-    return { rows: [], columns: [], totalRows: 0 };
-  },
-};
+/**
+ * Cross-module analytical ReportDataSource.
+ *
+ * Queries each domain repository/schema sequentially, then joins in memory
+ * by bare UUID (no cross-schema SQL JOINs/FKs).
+ */
+function buildReportDataSource() {
+  return createReportDataSource({
+    students: createStudentRepository(),
+    enrollments: createEnrollmentRepository(),
+    institutions: createInstitutionRepository(),
+    attendance: createAttendanceRepository(),
+    examinations: createExaminationRepository(),
+    examinationResults: createResultRepository(),
+    scholarships: createScholarshipRepository(),
+  });
+}
 
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
@@ -125,9 +145,21 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   },
   {
     name: 'institution',
-    proxyPrefixes: ['/institutions', '/boards', '/academic-periods', '/grades', '/classes'],
+    // /subjects, /institution-subjects, /areas mount when DATABASE_URL is set
+    // (plugin auto-wires Prisma for GeographicArea + Subject).
+    proxyPrefixes: [
+      '/institutions',
+      '/boards',
+      '/academic-periods',
+      '/grades',
+      '/classes',
+      '/subjects',
+      '/institution-subjects',
+      '/areas',
+    ],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
+      // Area hierarchy + subjects register inside the plugin when Prisma is available.
       await scope.register(institutionPlugin, {
         repository: createInstitutionRepository(),
         prefix: '/institutions',
@@ -247,7 +279,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       await scope.register(reportPlugin, {
         repository: createReportRepository(),
-        dataSource: emptyReportDataSource,
+        dataSource: buildReportDataSource(),
         prefix: '/reports',
       });
     },

@@ -106,7 +106,7 @@ export { PrismaInstitutionRepository } from './prisma-institution-repository.js'
 export { createInstitutionRepository } from './repository-factory.js';
 export type { InstitutionRepositoryConfig } from './repository-factory.js';
 
-// Academic structure (boards, periods, grades, classes)
+// Academic structure (boards, periods, grades, classes, subjects)
 export {
   BoardService,
   registerBoardRoutes,
@@ -121,6 +121,9 @@ export {
 export {
   ClassService,
   GradeService,
+  SubjectService,
   registerClassRoutes,
   registerGradeRoutes,
+  registerSubjectRoutes,
 } from './education/index.js';
+export type { SubjectServiceDeps, SubjectRoutesOptions } from './education/index.js';

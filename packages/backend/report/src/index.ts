@@ -49,6 +49,22 @@ export { PrismaReportRepository } from './prisma-report-repository.js';
 export { createReportRepository } from './repository-factory.js';
 export type { ReportRepositoryConfig } from './repository-factory.js';
 
+// Cross-module analytical data source (per-schema queries + in-memory UUID joins)
+export {
+  CrossModuleReportDataSource,
+  createReportDataSource,
+} from './cross-module-report-data-source.js';
+export type {
+  CrossModuleReportDataSourceDeps,
+  ReportStudentPort,
+  ReportEnrollmentPort,
+  ReportInstitutionPort,
+  ReportAttendancePort,
+  ReportExaminationPort,
+  ReportExaminationResultPort,
+  ReportScholarshipPort,
+} from './cross-module-report-data-source.js';
+
 // Schemas
 export {
   ReportFormatSchema,
