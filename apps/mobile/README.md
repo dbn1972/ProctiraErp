@@ -52,11 +52,24 @@ The notification subsystem is composed of:
 - `core/notifications/notification_router.dart` — pure function mapping
   payload `type` values to GoRouter paths
   (`ATTENDANCE_THRESHOLD` → `/attendance/reports`, `WORKFLOW_APPROVAL` →
-  `/notifications`, `REPORT_READY` → `/reports`).
+  `/workflows/approvals`, `REPORT_READY` → `/reports`).
 
 ## Tests
 
 ```sh
-flutter analyze
+flutter analyze lib
 flutter test
 ```
+
+Device / emulator E2E (`integration_test/`) needs an Android SDK + emulator
+or an iOS simulator. This Cloud Agent image has Flutter + Chrome but **no
+Android toolchain**, so run those suites on a developer machine:
+
+```sh
+flutter test integration_test
+# or: flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart
+```
+
+Keycloak login uses `POST /api/v1/auth/login` (password fallback
+`/api/v1/auth/password`) via `AuthRepository`. Biometric unlock refreshes
+tokens with `POST /api/v1/auth/refresh`.

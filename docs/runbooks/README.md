@@ -15,6 +15,10 @@ annotation in `infra/observability/alerts/*.yml`.
 - **Rollback**: the canonical way to revert to the last good build.
 - **Escalation**: who to page if first-line response cannot resolve.
 
+## Ops (cross-cutting)
+
+- [Apply partial-module Prisma migrations + gateway/web redeploy](./APPLY_PARTIAL_MODULE_MIGRATIONS.md)
+
 ## Index
 
 - [api-gateway](./api-gateway.md)

@@ -90,7 +90,12 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthState.loading());
     final String? access = await _storage.readAccessToken();
     final String? refresh = await _storage.readRefreshToken();
-    if (access != null && access.isNotEmpty && refresh != null && refresh.isNotEmpty) {
+    // Access token is required for an authenticated session. A refresh token
+    // alone (kept for biometric unlock after logout) leaves the user on login.
+    if (access != null &&
+        access.isNotEmpty &&
+        refresh != null &&
+        refresh.isNotEmpty) {
       emit(AuthState(
         status: AuthStatus.authenticated,
         accessToken: access,
@@ -113,7 +118,13 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onLogout(AuthLogoutRequested event, Emitter<AuthState> emit) async {
-    await _storage.clearTokens();
+    final bool biometricEnabled = await _storage.readBiometricEnabled();
+    if (biometricEnabled) {
+      // Keep the refresh token so biometric unlock can call /auth/refresh.
+      await _storage.clearAccessToken();
+    } else {
+      await _storage.clearTokens();
+    }
     emit(const AuthState.unauthenticated());
   }
 }

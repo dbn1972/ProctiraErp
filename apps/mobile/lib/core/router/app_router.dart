@@ -21,11 +21,17 @@ import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/scholarship/presentation/scholarship_application_screen.dart';
 import '../../features/scholarship/presentation/scholarship_programs_screen.dart';
 import '../../features/scholarship/presentation/scholarship_status_screen.dart';
+import '../../features/staff/presentation/staff_detail_screen.dart';
+import '../../features/staff/presentation/staff_list_screen.dart';
 import '../../features/students/presentation/document_capture_screen.dart';
 import '../../features/students/presentation/enrollment_history_screen.dart';
 import '../../features/students/presentation/student_profile_screen.dart';
 import '../../features/students/presentation/students_screen.dart';
+import '../../features/survey/presentation/survey_screens.dart';
 import '../../features/tenant/presentation/tenant_selection_screen.dart';
+import '../../features/transport/presentation/transport_overview_screen.dart';
+import '../../features/transport/presentation/transport_screens.dart';
+import '../../features/workflow/presentation/workflow_screens.dart';
 import '../auth/auth_bloc.dart';
 import '../di/injector.dart';
 import '../tenant/tenant_provider.dart';
@@ -219,6 +225,94 @@ class AppRouter {
               HealthRecordsScreen(
             studentId: state.uri.queryParameters['studentId'] ?? '',
           ),
+        ),
+        GoRoute(
+          path: '/staff',
+          name: 'staff',
+          builder: (BuildContext context, GoRouterState state) =>
+              const StaffListScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':id',
+              name: 'staff-detail',
+              builder: (BuildContext context, GoRouterState state) =>
+                  StaffDetailScreen(
+                staffId: state.pathParameters['id'] ?? '',
+              ),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/transport',
+          name: 'transport',
+          builder: (BuildContext context, GoRouterState state) =>
+              const TransportOverviewScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'routes',
+              name: 'transport-routes',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const TransportRoutesScreen(),
+              routes: <RouteBase>[
+                GoRoute(
+                  path: ':id',
+                  name: 'transport-route-detail',
+                  builder: (BuildContext context, GoRouterState state) =>
+                      TransportRouteDetailScreen(
+                    routeId: state.pathParameters['id'] ?? '',
+                  ),
+                ),
+              ],
+            ),
+            GoRoute(
+              path: 'vehicles',
+              name: 'transport-vehicles',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const TransportVehiclesScreen(),
+            ),
+            GoRoute(
+              path: 'assignments',
+              name: 'transport-assignments',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const TransportAssignmentsScreen(),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/workflows',
+          name: 'workflows',
+          builder: (BuildContext context, GoRouterState state) =>
+              const WorkflowsListScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'instances',
+              name: 'workflow-instances',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const WorkflowInstancesScreen(),
+            ),
+            GoRoute(
+              path: 'approvals',
+              name: 'workflow-approvals',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const WorkflowApprovalsScreen(),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: '/surveys',
+          name: 'surveys',
+          builder: (BuildContext context, GoRouterState state) =>
+              const SurveysListScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':id',
+              name: 'survey-detail',
+              builder: (BuildContext context, GoRouterState state) =>
+                  SurveyDetailScreen(
+                surveyId: state.pathParameters['id'] ?? '',
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: '/profile',

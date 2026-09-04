@@ -33,7 +33,7 @@ const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
  * pages must be wrapped; we test a representative sample.
  */
 const DASHBOARD_PAGES = [
-  { name: 'Dashboard Home', path: '/' },
+  { name: 'Dashboard Home', path: '/home' },
   { name: 'Students', path: '/students' },
   { name: 'Staff', path: '/staff' },
   { name: 'Institutions', path: '/institutions' },

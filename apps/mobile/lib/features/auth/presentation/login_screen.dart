@@ -4,11 +4,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/auth/biometric_service.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/storage/secure_storage.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../data/auth_repository.dart';
 
-/// Minimal login scaffold. Real authentication is implemented in subsequent
-/// tasks; this screen wires the form into [AuthBloc] and exposes biometric
-/// unlock when the device supports it.
+/// Login form wired to [AuthRepository] (`POST /api/v1/auth/login`, with
+/// Keycloak password-grant fallback) and optional biometric unlock via
+/// `POST /api/v1/auth/refresh`.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -24,6 +26,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _biometricAvailable = false;
   bool _submitting = false;
   bool _obscurePassword = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -50,35 +53,96 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
 
-    // TODO(auth): replace with API call to /auth/login. For the scaffold we
-    // emit a deterministic token so router redirects can be exercised.
-    context.read<AuthBloc>().add(AuthLoggedIn(
-          userId: _username.text.trim(),
-          accessToken: 'pending-access-token',
-          refreshToken: 'pending-refresh-token',
-        ));
+    try {
+      final AuthSession session = await getIt<AuthRepository>().login(
+        username: _username.text.trim(),
+        password: _password.text,
+      );
+      if (!mounted) return;
 
-    if (mounted) {
-      setState(() => _submitting = false);
+      final BiometricService biometric = getIt<BiometricService>();
+      if (await biometric.isAvailable()) {
+        await biometric.setEnabled(true);
+      }
+
+      if (!mounted) return;
+      context.read<AuthBloc>().add(AuthLoggedIn(
+            userId: session.userId,
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+          ));
+    } on AuthException catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _errorMessage = 'Sign-in failed. Please try again.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _onBiometric() async {
-    final BiometricService biometric = getIt<BiometricService>();
-    final bool ok = await biometric.authenticate(
-      reason: 'Sign in to ProctiraERP with biometrics',
-    );
-    if (!ok || !mounted) {
-      return;
+    setState(() {
+      _submitting = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final BiometricService biometric = getIt<BiometricService>();
+      final bool ok = await biometric.authenticate(
+        reason: 'Sign in to ProctiraERP with biometrics',
+      );
+      if (!ok || !mounted) {
+        return;
+      }
+
+      final String? refreshToken =
+          await getIt<SecureStorage>().readRefreshToken();
+      if (refreshToken == null || refreshToken.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _errorMessage =
+                'Sign in with your password once to enable biometric unlock.';
+          });
+        }
+        return;
+      }
+
+      final AuthSession session =
+          await getIt<AuthRepository>().refresh(refreshToken);
+      if (!mounted) return;
+      context.read<AuthBloc>().add(AuthLoggedIn(
+            userId: session.userId,
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+          ));
+    } on AuthException catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _errorMessage = 'Biometric unlock failed. Use your password.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
-    // TODO(auth): exchange biometric proof for tokens via the backend.
-    context.read<AuthBloc>().add(const AuthLoggedIn(
-          userId: 'biometric-user',
-          accessToken: 'pending-access-token',
-          refreshToken: 'pending-refresh-token',
-        ));
   }
 
   @override
@@ -208,6 +272,15 @@ class _LoginScreenState extends State<LoginScreen> {
                         return null;
                       },
                     ),
+                    if (_errorMessage != null) ...<Widget>[
+                      const SizedBox(height: 12),
+                      Text(
+                        _errorMessage!,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colors.error,
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     FilledButton(
                       onPressed: _submitting ? null : _onSubmit,

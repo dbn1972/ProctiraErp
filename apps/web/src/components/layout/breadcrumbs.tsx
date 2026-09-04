@@ -33,7 +33,7 @@ export function Breadcrumbs() {
       <ol className="flex items-center text-sm text-gray-500" role="list">
         {/* Home link */}
         <li>
-          <Link href="/" className="hover:text-gray-700">
+          <Link href="/home" className="hover:text-gray-700">
             {t('home')}
           </Link>
         </li>

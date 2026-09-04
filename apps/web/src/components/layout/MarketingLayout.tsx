@@ -32,11 +32,20 @@
  * so a single source of truth governs the public chrome.
  */
 
-import React from 'react';
+import React, { createContext, useContext } from 'react';
 
 import { DocumentTitle } from '@/components/DocumentTitle';
 import { MarketingFooter } from './marketing-footer';
 import { MarketingHeader } from './marketing-header';
+
+/**
+ * True when an ancestor already rendered the marketing chrome. SPA feature
+ * pages wrap themselves in `<MarketingLayout>` for the federated router;
+ * App Router pages sit under `app/(marketing)/layout.tsx`, which also
+ * mounts the chrome. Nested instances therefore render only title +
+ * children so header/footer are never duplicated.
+ */
+const MarketingLayoutNestContext = createContext(false);
 
 export interface MarketingLayoutProps {
   /** Routed page content rendered between the header and the footer. */
@@ -78,29 +87,45 @@ export function MarketingLayout({
   skipDocumentTitle = false,
   footerYear,
 }: MarketingLayoutProps) {
+  const isNested = useContext(MarketingLayoutNestContext);
+
+  const title =
+    !skipDocumentTitle && pageTitle ? (
+      <DocumentTitle pageTitle={pageTitle} template={documentTitleTemplate} />
+    ) : null;
+
+  if (isNested) {
+    return (
+      <>
+        {title}
+        {children}
+      </>
+    );
+  }
+
   return (
-    <div
-      data-shell="marketing-layout"
-      className="flex min-h-screen flex-col bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
-    >
-      {/* Brand-aware document title binding. Skipped when the page
-          already mounts its own to avoid a flicker between two competing
-          title sources. */}
-      {!skipDocumentTitle && pageTitle ? (
-        <DocumentTitle pageTitle={pageTitle} template={documentTitleTemplate} />
-      ) : null}
+    <MarketingLayoutNestContext.Provider value={true}>
+      <div
+        data-shell="marketing-layout"
+        className="flex min-h-screen flex-col bg-[hsl(var(--background))] text-[hsl(var(--foreground))]"
+      >
+        {/* Brand-aware document title binding. Skipped when the page
+            already mounts its own to avoid a flicker between two competing
+            title sources. */}
+        {title}
 
-      <MarketingHeader />
+        <MarketingHeader />
 
-      {/* `flex-1` so the footer is pushed to the bottom on short pages.
-          Pages own their own `<main>` semantics inside this slot — the
-          layout intentionally does not impose a `<main>` element so that
-          marketing pages can render hero sections, etc., as siblings if
-          they need to. */}
-      <div className="flex flex-1 flex-col">{children}</div>
+        {/* `flex-1` so the footer is pushed to the bottom on short pages.
+            Pages own their own `<main>` semantics inside this slot — the
+            layout intentionally does not impose a `<main>` element so that
+            marketing pages can render hero sections, etc., as siblings if
+            they need to. */}
+        <div className="flex flex-1 flex-col">{children}</div>
 
-      <MarketingFooter year={footerYear} />
-    </div>
+        <MarketingFooter year={footerYear} />
+      </div>
+    </MarketingLayoutNestContext.Provider>
   );
 }
 

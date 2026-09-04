@@ -4,8 +4,14 @@ import 'package:get_it/get_it.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
+import '../../features/auth/data/auth_repository.dart';
 import '../../features/institutions/data/institution_repository.dart';
 import '../../features/notifications/data/notification_repository.dart';
+import '../../features/scholarship/data/scholarship_repository.dart';
+import '../../features/staff/data/staff_repository.dart';
+import '../../features/survey/data/survey_repository.dart';
+import '../../features/transport/data/transport_repository.dart';
+import '../../features/workflow/data/workflow_repository.dart';
 import '../auth/auth_bloc.dart';
 import '../auth/biometric_service.dart';
 import '../notifications/fcm_service.dart';
@@ -50,7 +56,7 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
     () => BiometricService(getIt<LocalAuthentication>(), getIt<SecureStorage>()),
   );
 
-  // HTTP client (tenant header injected automatically).
+  // HTTP client (tenant + bearer headers injected automatically).
   final Dio dio = Dio(
     BaseOptions(
       baseUrl: apiBaseUrl ?? 'https://api.openemis.org',
@@ -61,16 +67,24 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   );
   dio.interceptors.add(
     InterceptorsWrapper(
-      onRequest: (RequestOptions options, RequestInterceptorHandler handler) {
+      onRequest: (RequestOptions options, RequestInterceptorHandler handler) async {
         final String? tenantId = tenantProvider.tenantId;
         if (tenantId != null && tenantId.isNotEmpty) {
           options.headers['X-Tenant-ID'] = tenantId;
+        }
+        final String? access = await secureStorage.readAccessToken();
+        if (access != null && access.isNotEmpty) {
+          options.headers['Authorization'] = 'Bearer $access';
         }
         handler.next(options);
       },
     ),
   );
   getIt.registerSingleton<Dio>(dio);
+
+  getIt.registerLazySingleton<AuthRepository>(
+    () => AuthRepository(dio: getIt<Dio>()),
+  );
 
   // API clients (typed wrappers around the shared Dio instance — they all
   // benefit from the X-Tenant-ID interceptor configured above).
@@ -116,6 +130,25 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
       tenantProvider: getIt<TenantProvider>(),
       api: getIt<InstitutionApi>(),
     ),
+  );
+  getIt.registerLazySingleton<ScholarshipRepository>(
+    () => ScholarshipRepository(
+      database: getIt<AppDatabase>(),
+      tenantProvider: getIt<TenantProvider>(),
+      dio: getIt<Dio>(),
+    ),
+  );
+  getIt.registerLazySingleton<StaffRepository>(
+    () => StaffRepository(dio: getIt<Dio>()),
+  );
+  getIt.registerLazySingleton<TransportRepository>(
+    () => TransportRepository(dio: getIt<Dio>()),
+  );
+  getIt.registerLazySingleton<WorkflowRepository>(
+    () => WorkflowRepository(dio: getIt<Dio>()),
+  );
+  getIt.registerLazySingleton<SurveyRepository>(
+    () => SurveyRepository(dio: getIt<Dio>()),
   );
 
   // Notification plumbing. [FcmService.start] is intentionally NOT called

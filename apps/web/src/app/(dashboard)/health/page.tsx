@@ -363,7 +363,7 @@ function AccessDeniedCard() {
       </CardHeader>
       <CardContent>
         <Button asChild variant="outline">
-          <Link href="/">Return to dashboard</Link>
+          <Link href="/home">Return to dashboard</Link>
         </Button>
       </CardContent>
     </Card>

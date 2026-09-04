@@ -13,13 +13,13 @@ void main() {
       );
     });
 
-    test('WORKFLOW_APPROVAL maps to /notifications', () {
+    test('WORKFLOW_APPROVAL maps to /workflows/approvals', () {
       expect(
         routeForPayload(<String, dynamic>{
           'type': 'WORKFLOW_APPROVAL',
           'entityId': 'wf-1',
         }),
-        '/notifications',
+        '/workflows/approvals',
       );
     });
 

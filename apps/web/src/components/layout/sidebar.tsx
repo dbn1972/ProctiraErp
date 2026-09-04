@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 /** Navigation items for the sidebar */
 const navItems = [
-  { key: 'dashboard', href: '/', icon: 'HomeIcon' },
+  { key: 'dashboard', href: '/home', icon: 'HomeIcon' },
   { key: 'institutions', href: '/institutions', icon: 'BuildingIcon' },
   { key: 'academicPeriods', href: '/academic-periods', icon: 'CalendarIcon' },
   { key: 'students', href: '/students', icon: 'UsersIcon' },
@@ -47,7 +47,7 @@ export function Sidebar() {
           P
         </span>
         <Link
-          href="/"
+          href="/home"
           className="text-[15px] font-bold tracking-tight text-white"
         >
           Proctira
@@ -63,8 +63,8 @@ export function Sidebar() {
         <ul className="space-y-0.5" role="list">
           {navItems.map((item) => {
             const isActive =
-              item.href === '/'
-                ? pathname === '/'
+              item.href === '/home'
+                ? pathname === '/home'
                 : pathname.startsWith(item.href);
 
             return (

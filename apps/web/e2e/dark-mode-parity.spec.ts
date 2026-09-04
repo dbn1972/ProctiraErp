@@ -37,7 +37,7 @@ const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
  * shared components that dynamic pages inherit.
  */
 const DASHBOARD_ROUTES = [
-  { path: '/', label: 'dashboard home' },
+  { path: '/home', label: 'dashboard home' },
   { path: '/students', label: 'students list' },
   { path: '/staff', label: 'staff list' },
   { path: '/institutions', label: 'institutions list' },

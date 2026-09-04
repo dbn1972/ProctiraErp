@@ -30,6 +30,11 @@ class SecureStorage {
     await _storage.delete(key: refreshTokenKey);
   }
 
+  /// Drop only the access token so a biometric unlock can still refresh.
+  Future<void> clearAccessToken() async {
+    await _storage.delete(key: accessTokenKey);
+  }
+
   Future<String?> readTenantId() => _storage.read(key: tenantIdKey);
 
   Future<String?> readTenantName() => _storage.read(key: tenantNameKey);

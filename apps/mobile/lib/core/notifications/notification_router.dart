@@ -13,7 +13,7 @@
 ///
 /// Mapping:
 /// - `ATTENDANCE_THRESHOLD` → `/attendance/reports`
-/// - `WORKFLOW_APPROVAL`    → `/notifications`
+/// - `WORKFLOW_APPROVAL`    → `/workflows/approvals`
 /// - `REPORT_READY`         → `/reports/:entityId`
 /// - `STUDENT_TRANSFER`     → `/students/:entityId`
 /// - `INSTITUTION_UPDATE`   → `/institutions/:entityId`
@@ -43,7 +43,7 @@ class NotificationRouter {
       case 'ATTENDANCE_THRESHOLD':
         return '/attendance/reports';
       case 'WORKFLOW_APPROVAL':
-        return '/notifications';
+        return '/workflows/approvals';
       case 'REPORT_READY':
         return entityId != null ? '/reports/$entityId' : '/reports';
       case 'STUDENT_TRANSFER':

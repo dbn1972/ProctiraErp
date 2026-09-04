@@ -19,6 +19,18 @@ const PUBLIC_PATHS = [
   // Public Registration Portal (home, school finder, multi-step apply).
   '/register',
   '/apply',
+  // Marketing site (anonymous; chrome from app/(marketing)/layout.tsx).
+  // Exact `/` match only — see isPublicPath (must not treat every path as public).
+  '/',
+  '/features',
+  '/pricing',
+  '/about',
+  '/contact',
+  '/demo',
+  '/legal',
+  '/installation',
+  '/security',
+  '/status',
 ];
 
 /** Cookie name for the access token. */
@@ -323,12 +335,26 @@ export async function middleware(request: NextRequest) {
   response.headers.set('X-Direction', getDirection(locale));
 
   // --- Auth Token Validation ---
-  const isPublicPath = PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  // Root `/` is matched exactly (never via prefix) so adding it to
+  // PUBLIC_PATHS does not open every route.
+  const isPublicPath = PUBLIC_PATHS.some((path) => {
+    if (path === '/') return pathname === '/';
+    return pathname === path || pathname.startsWith(`${path}/`);
+  });
+
+  const accessTokenEarly = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  // Signed-in users hitting the marketing home land in the app shell.
+  if (
+    pathname === '/' &&
+    accessTokenEarly &&
+    isStructurallyValid(accessTokenEarly) &&
+    isAccessTokenFresh(accessTokenEarly)
+  ) {
+    return NextResponse.redirect(new URL('/home', request.url));
+  }
 
   if (!isPublicPath) {
-    const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+    const accessToken = accessTokenEarly;
     const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
     if (!accessToken || !isStructurallyValid(accessToken)) {
