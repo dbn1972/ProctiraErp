@@ -39,7 +39,7 @@ tok_json="$(curl -fsS -X POST "${API_URL}/api/v1/auth/password" \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}")"
 access="$(printf '%s' "$tok_json" | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d.get("accessToken") or "")')"
 test -n "$access" || { echo "FAIL: no accessToken"; exit 1; }
-for path in /api/v1/assessment/grading-schemes /api/v1/assessment/items /api/v1/assessments; do
+for path in /api/v1/grading-schemes /api/v1/assessment-items /api/v1/students; do
   code="$(curl -sS -o /tmp/p6.json -w '%{http_code}' \
     "${API_URL}${path}" -H "Authorization: Bearer ${access}" || true)"
   echo "${path} -> HTTP ${code}"
