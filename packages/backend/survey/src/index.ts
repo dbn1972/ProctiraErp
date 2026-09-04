@@ -49,6 +49,21 @@ export {
   InMemoryInstitutionLookup,
 } from './in-memory-repository.js';
 
+// Prisma repositories (Postgres + RLS) + factories
+export {
+  PrismaSurveyRepository,
+  PrismaDistributionRepository,
+  PrismaSubmissionRepository,
+  PrismaInstitutionLookup,
+} from './prisma-survey-repository.js';
+export {
+  createSurveyRepository,
+  createDistributionRepository,
+  createSubmissionRepository,
+  createInstitutionLookup,
+} from './repository-factory.js';
+export type { SurveyRepositoryConfig } from './repository-factory.js';
+
 // Schemas
 export {
   QuestionTypeEnum,

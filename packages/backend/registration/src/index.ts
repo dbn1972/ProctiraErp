@@ -32,6 +32,12 @@ export type {
 export { InMemoryRegistrationRepository, haversineKm } from './in-memory-repository.js';
 export type { InMemoryInstitution } from './in-memory-repository.js';
 
+// Prisma repository (Postgres + RLS) + factory
+export { PrismaRegistrationRepository } from './prisma-registration-repository.js';
+export type { PrismaRegistrationRepositoryOptions } from './prisma-registration-repository.js';
+export { createRegistrationRepository } from './repository-factory.js';
+export type { RegistrationRepositoryConfig } from './repository-factory.js';
+
 // Schemas
 export {
   SubmitRegistrationSchema,

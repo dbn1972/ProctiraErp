@@ -38,6 +38,11 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryNotificationRepository } from './in-memory-repository.js';
 
+// Prisma repository (Postgres + RLS) + factory
+export { PrismaNotificationRepository } from './prisma-notification-repository.js';
+export { createNotificationRepository } from './repository-factory.js';
+export type { NotificationRepositoryConfig } from './repository-factory.js';
+
 // Schemas
 export {
   DeliveryChannelSchema,

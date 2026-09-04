@@ -1506,9 +1506,15 @@ importers:
 
   packages/backend/registration:
     dependencies:
+      '@prisma/client':
+        specifier: ^5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/i18n':
         specifier: workspace:*
         version: link:../../shared/i18n
