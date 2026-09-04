@@ -10,9 +10,9 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
-  // Charter §19 / Phase 2–5: service-owned schemas. No cross-service SQL joins.
-  // Auth/institution/student/attendance hold tenant_id as bare UUIDs (lookup, not FK join).
-  schemas    = ["platform", "auth", "institution", "student", "attendance", "public"]
+  // Charter §19 / Phase 2–6: service-owned schemas. No cross-service SQL joins.
+  // Domain schemas hold tenant_id as bare UUIDs (lookup, not FK join).
+  schemas    = ["platform", "auth", "institution", "student", "attendance", "assessment", "public"]
 }
 
 // ============================================================================
@@ -31,7 +31,7 @@ model Tenant {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations (remaining public-domain children — student/attendance/institution/auth own schemas)
+  // Relations (remaining public-domain children — owned schemas use bare UUID tenant_id)
   staff           Staff[]
   // Auth/institution/student/attendance — no Prisma relation / FK (charter §19)
   themeVersions   TenantThemeVersion[]
@@ -44,10 +44,7 @@ model Tenant {
   examinationResultAnalyses         ExaminationResultAnalysis[]
   examinationAcademicRecords        ExaminationAcademicRecord[]
   examinationDocumentJobs           ExaminationDocumentJob[]
-  gradingSchemes     GradingScheme[]
-  assessmentItems    AssessmentItem[]
-  assessmentOutcomes AssessmentOutcome[]
-  assessmentResults  AssessmentResult[]
+  // Assessment owns schema "assessment" — no Prisma relation / FK (Phase 6)
 
   @@map("tenants")
   @@schema("platform")
@@ -896,12 +893,12 @@ model GradingScheme {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id bare UUID — no FK into platform.tenants (Phase 6)
 
   @@index([tenantId, name])
   @@index([tenantId, type])
   @@map("grading_schemes")
-  @@schema("public")
+  @@schema("assessment")
 }
 
 /// A weighted assessment item within a subject + academic period.
@@ -922,11 +919,11 @@ model AssessmentItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / subject_id / academic_period_id / grading_scheme_id bare UUIDs (Phase 6)
 
   @@index([tenantId, subjectId, academicPeriodId])
   @@map("assessment_items")
-  @@schema("public")
+  @@schema("assessment")
 }
 
 /// A curriculum outcome that assessment items can map to.
@@ -941,11 +938,11 @@ model AssessmentOutcome {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / subject_id bare UUIDs (Phase 6)
 
   @@index([tenantId, subjectId])
   @@map("assessment_outcomes")
-  @@schema("public")
+  @@schema("assessment")
 }
 
 /// A student's score on one assessment item. Upsert key:
@@ -962,11 +959,11 @@ model AssessmentResult {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / student_id / assessment_item_id / subject_id / academic_period_id bare UUIDs (Phase 6)
 
   @@unique([tenantId, studentId, assessmentItemId])
   @@index([tenantId, subjectId, academicPeriodId])
   @@index([tenantId, assessmentItemId])
   @@map("assessment_results")
-  @@schema("public")
+  @@schema("assessment")
 }

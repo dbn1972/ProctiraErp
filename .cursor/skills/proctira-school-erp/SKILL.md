@@ -21,6 +21,7 @@ description: >-
 | Institution | `institution` | institutions, areas, boards, periods, grades, classes, subjects |
 | Student | `student` | students, enrollments, enrollment_history, transfers |
 | Attendance | `attendance` | student_attendance, staff_attendance, audit |
+| Assessment | `assessment` | grading_schemes, assessment_items, outcomes, results |
 
 ## Patterns
 - Resolve foreign domain rows with `findMany({ where: { id: { in: ids } } })` — never `include` across schemas.
