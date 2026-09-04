@@ -1383,9 +1383,15 @@ importers:
 
   packages/backend/notification:
     dependencies:
+      '@prisma/client':
+        specifier: ^5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/events':
         specifier: workspace:*
         version: link:../../shared/events
@@ -1549,9 +1555,15 @@ importers:
 
   packages/backend/report:
     dependencies:
+      '@prisma/client':
+        specifier: ^5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/events':
         specifier: workspace:*
         version: link:../../shared/events
@@ -1908,12 +1920,18 @@ importers:
 
   packages/backend/workflow:
     dependencies:
+      '@prisma/client':
+        specifier: ^5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@proctira/cache':
         specifier: workspace:*
         version: link:../../shared/cache
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation

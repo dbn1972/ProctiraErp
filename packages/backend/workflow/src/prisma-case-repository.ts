@@ -10,8 +10,8 @@
  * Schema mapping: `attachments`, `resolution`, and `metadata` are JSONB.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { withTenantTransaction } from '@proctira/database';
-import type { Prisma, PrismaClient } from '@proctira/database';
+import { Prisma, withTenantTransaction } from '@proctira/database';
+import type { PrismaClient } from '@proctira/database';
 
 import type {
   CaseAttachmentInput,

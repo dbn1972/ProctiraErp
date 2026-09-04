@@ -13,8 +13,8 @@
  *  - Approval `timestamp` values may round-trip as ISO strings through JSONB.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import { withTenantTransaction } from '@proctira/database';
-import type { Prisma, PrismaClient } from '@proctira/database';
+import { Prisma, withTenantTransaction } from '@proctira/database';
+import type { PrismaClient } from '@proctira/database';
 
 import type {
   EscalationRuleInput,
