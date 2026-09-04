@@ -1,6 +1,6 @@
 # Phase 2 — ProctiraERP Auth sign-off
 
-**Status:** Complete in repo; EC3 schema/API validation passed (2026-09-04).
+**Status:** Complete in repo; EC3 schema/API + AuthShell `/login` validation passed (2026-09-04).
 
 ## Delivered
 
@@ -20,7 +20,7 @@ Applied migration `20260904_platform_auth_schemas`. Checklist results:
 - Keycloak password grant, `POST /api/v1/auth/password`, `GET /api/v1/auth/me`, web `POST /api/auth/login` → success
 - `/login` branding: ProctiraERP; no CivitasOne / Keycloak chrome
 
-**Follow-up (ops):** Redeploy/sync web from this branch so EC3 serves the latest `AuthShell` login layout if the host is still on an older build. Re-run `./tools/scripts/validate-phase2-auth-ec3.sh` after deploy.
+**AuthShell sync (2026-09-04):** Copied login/`AuthShell`, forgot-password, MFA, redesign auth HTML, and validate script onto EC3 `~/ProctiraErp`. Live `/login` now serves the ProctiraERP `AuthShell` hero; web login cookies and gateway password/`/me` re-verified OK.
 
 ## Explicitly out of scope
 

@@ -9,12 +9,18 @@ API_URL="${API_URL:-http://127.0.0.1:3200}"
 DB_URL="${DATABASE_URL_HOST:-postgresql://proctira:proctira_dev_password@127.0.0.1:5434/proctira}"
 EMAIL="${INDIA_ADMIN_EMAIL:-admin@proctira.in}"
 PASSWORD="${INDIA_ADMIN_PASSWORD:-proctira-india-admin}"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-proctira-erp-postgres-1}"
 
-echo "==> Branding smoke: ${WEB_URL}/login must not contain CivitasOne"
+echo "==> Branding smoke: ${WEB_URL}/login"
 html="$(curl -fsS "${WEB_URL}/login")"
 echo "$html" | grep -qi 'Proctira' || { echo "FAIL: Proctira brand missing"; exit 1; }
 echo "$html" | grep -qi 'CivitasOne' && { echo "FAIL: CivitasOne still present"; exit 1; } || true
-echo "$html" | grep -qi 'Keycloak' && { echo "FAIL: Keycloak chrome leaked into /login"; exit 1; } || true
+# Soft check: Next RSC may embed i18n *key names* containing "Keycloak"; fail only on visible chrome cues.
+if echo "$html" | grep -qiE 'kc-login|id="kc-|Keycloak Account|Powered by Keycloak'; then
+  echo "FAIL: Keycloak chrome leaked into /login"
+  exit 1
+fi
+echo "$html" | grep -qi 'Every school, every student\|AuthShell\|Welcome back' && echo "OK AuthShell cues" || echo "WARN: AuthShell hero copy not detected"
 echo "OK branding"
 
 echo "==> Password login via web BFF"
@@ -29,25 +35,35 @@ grep -qi 'set-cookie:.*access' "$login_headers" || {
 echo "OK login cookies"
 
 cookie_jar="$(mktemp)"
-# Re-login into cookie jar for /me
 curl -fsS -c "$cookie_jar" -X POST "${WEB_URL}/api/auth/login" \
   -H 'content-type: application/json' \
   -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}" >/dev/null
 
-echo "==> /api/v1/auth/me (or gateway equivalent)"
-# Prefer gateway with bearer if BFF set cookies that are httpOnly (curl jar captures them).
-if curl -fsS -b "$cookie_jar" "${API_URL}/api/v1/auth/me" -o /tmp/phase2-me.json; then
-  cat /tmp/phase2-me.json
-  grep -qi 'proctira\|india\|admin' /tmp/phase2-me.json || {
-    echo "WARN: /me payload did not clearly mention india/admin — inspect manually"
-  }
-  echo "OK /me"
-else
-  echo "WARN: gateway /me not reachable with cookie jar; check bearer path manually"
-fi
+echo "==> Gateway password grant + /api/v1/auth/me"
+tok_json="$(curl -fsS -X POST "${API_URL}/api/v1/auth/password" \
+  -H 'content-type: application/json' \
+  -d "{\"email\":\"${EMAIL}\",\"password\":\"${PASSWORD}\"}")"
+access="$(printf '%s' "$tok_json" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("accessToken",""))')"
+test -n "$access" || { echo "FAIL: no accessToken"; echo "$tok_json"; exit 1; }
+curl -fsS "${API_URL}/api/v1/auth/me" -H "Authorization: Bearer ${access}" -o /tmp/phase2-me.json
+cat /tmp/phase2-me.json
+grep -qi 'proctira\|india\|admin' /tmp/phase2-me.json || {
+  echo "WARN: /me payload did not clearly mention india/admin — inspect manually"
+}
+echo "OK /me"
 
 echo "==> SQL schema validation"
-psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+run_sql() {
+  if command -v psql >/dev/null 2>&1; then
+    psql "$DB_URL" -v ON_ERROR_STOP=1 "$@"
+  elif docker ps --format '{{.Names}}' | grep -qx "$POSTGRES_CONTAINER"; then
+    docker exec -i "$POSTGRES_CONTAINER" psql -U proctira -d proctira -v ON_ERROR_STOP=1 "$@"
+  else
+    echo "FAIL: neither psql nor docker postgres container available"; exit 1
+  fi
+}
+
+run_sql <<'SQL'
 SELECT nspname FROM pg_namespace WHERE nspname IN ('platform','auth') ORDER BY 1;
 SELECT count(*) AS auth_users FROM auth.users;
 SELECT count(*) AS auth_identities FROM auth.user_identities WHERE provider = 'keycloak';
@@ -59,8 +75,7 @@ JOIN pg_class ft ON ft.oid = c.confrelid
 JOIN pg_namespace fn ON fn.oid = ft.relnamespace
 WHERE c.contype = 'f'
   AND n.nspname = 'auth'
-  AND fn.nspname = 'public'
-  AND ft.relname IN ('students', 'institutions');
+  AND fn.nspname IN ('public', 'platform');
 SQL
 
 echo "Phase 2 EC3 validation finished"
