@@ -20,8 +20,7 @@
 - Regression: students / grading-schemes still **200**; examination plugin registered on gateway
 
 ## Explicit non-goals (later)
-- Staff schema
 - Flutter mobile (last)
 
 ## Next
-Staff schema (residual `public`), then Flutter last.
+Staff schema — see [PHASE_8_STAFF_SIGNOFF.md](./PHASE_8_STAFF_SIGNOFF.md).

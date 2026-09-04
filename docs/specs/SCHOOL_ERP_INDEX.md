@@ -15,6 +15,7 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 | 5 Attendance | [PHASE_5_ATTENDANCE_SIGNOFF.md](../PHASE_5_ATTENDANCE_SIGNOFF.md) |
 | 6 Assessment | [PHASE_6_ASSESSMENT_SIGNOFF.md](../PHASE_6_ASSESSMENT_SIGNOFF.md) |
 | 7 Examination | [PHASE_7_EXAMINATION_SIGNOFF.md](../PHASE_7_EXAMINATION_SIGNOFF.md) |
+| 8 Staff | [PHASE_8_STAFF_SIGNOFF.md](../PHASE_8_STAFF_SIGNOFF.md) |
 
 ## Runbooks (ops detail on demand)
 - [docs/runbooks/](../runbooks/)
@@ -28,6 +29,7 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 - `tools/scripts/validate-phase4-5-student-attendance-ec3.sh`
 - `tools/scripts/validate-phase6-assessment-ec3.sh`
 - `tools/scripts/validate-phase7-examination-ec3.sh`
+- `tools/scripts/validate-phase8-staff-ec3.sh`
 
 ## Token policy for agents
 1. Start from this index.

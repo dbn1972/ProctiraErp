@@ -34,7 +34,7 @@ describe('Phase 6 assessment schema boundaries', () => {
 
   it('declares assessment among service-owned schemas', () => {
     expect(schema).toMatch(
-      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"public"\]/,
+      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"staff",\s*"public"\]/,
     );
   });
 

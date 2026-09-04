@@ -10,9 +10,9 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
-  // Charter §19 / Phase 2–7: service-owned schemas. No cross-service SQL joins.
+  // Charter §19 / Phase 2–8: service-owned schemas. No cross-service SQL joins.
   // Domain schemas hold tenant_id as bare UUIDs (lookup, not FK join).
-  schemas    = ["platform", "auth", "institution", "student", "attendance", "assessment", "examination", "public"]
+  schemas    = ["platform", "auth", "institution", "student", "attendance", "assessment", "examination", "staff", "public"]
 }
 
 // ============================================================================
@@ -31,14 +31,13 @@ model Tenant {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations (remaining public-domain children — owned schemas use bare UUID tenant_id)
-  staff           Staff[]
-  // Auth/institution/student/attendance/assessment/examination — no Prisma relation / FK (charter §19)
+  // Relations — owned schemas use bare UUID tenant_id (charter §19)
+  // Auth/institution/student/attendance/assessment/examination/staff — no Prisma relation / FK
   themeVersions   TenantThemeVersion[]
   themeDraft      TenantThemeDraft?
-  staffAssignments  StaffAssignment[]
   // Assessment owns schema "assessment" — no Prisma relation / FK (Phase 6)
   // Examination owns schema "examination" — no Prisma relation / FK (Phase 7)
+  // Staff owns schema "staff" — no Prisma relation / FK (Phase 8)
 
   @@map("tenants")
   @@schema("platform")
@@ -370,15 +369,14 @@ model Staff {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id bare UUID — no FK into platform.tenants (Phase 8)
 
   @@unique([tenantId, identityNumber])
   @@index([tenantId, lastName, firstName])
   @@index([customData], type: Gin)
   @@index([searchVector], type: Gin)
   @@map("staff")
-  @@schema("public")
+  @@schema("staff")
 }
 
 // ============================================================================
@@ -707,13 +705,14 @@ model StaffAssignment {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / staff_id / institution_id / subject_id / class_id bare UUIDs (Phase 8)
+  // staff_id stays bare (no Prisma Staff @relation; matches prior DB — no staff FK)
 
   @@index([tenantId, staffId, status])
   @@index([tenantId, institutionId])
   @@index([tenantId, staffId, institutionId, subjectId, classId])
   @@map("staff_assignments")
-  @@schema("public")
+  @@schema("staff")
 }
 
 // ============================================================================
