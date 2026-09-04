@@ -27,7 +27,7 @@ describe('Phase 4 student schema boundaries', () => {
 
   it('declares student among service-owned schemas', () => {
     expect(schema).toMatch(
-      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"public"\]/,
+      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"public"\]/,
     );
   });
 

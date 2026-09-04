@@ -20,9 +20,8 @@
 - Regression: students/institutions still **200**; assessment plugin registered on gateway
 
 ## Explicit non-goals (later)
-- Examination schema (Phase 7)
 - Staff schema
 - Flutter mobile (last)
 
 ## Next
-Phase 7: **examination** schema (same boundary pattern).
+Phase 7 examination — see [PHASE_7_EXAMINATION_SIGNOFF.md](./PHASE_7_EXAMINATION_SIGNOFF.md).

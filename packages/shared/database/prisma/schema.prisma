@@ -10,9 +10,9 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
-  // Charter §19 / Phase 2–6: service-owned schemas. No cross-service SQL joins.
+  // Charter §19 / Phase 2–7: service-owned schemas. No cross-service SQL joins.
   // Domain schemas hold tenant_id as bare UUIDs (lookup, not FK join).
-  schemas    = ["platform", "auth", "institution", "student", "attendance", "assessment", "public"]
+  schemas    = ["platform", "auth", "institution", "student", "attendance", "assessment", "examination", "public"]
 }
 
 // ============================================================================
@@ -33,18 +33,12 @@ model Tenant {
 
   // Relations (remaining public-domain children — owned schemas use bare UUID tenant_id)
   staff           Staff[]
-  // Auth/institution/student/attendance — no Prisma relation / FK (charter §19)
+  // Auth/institution/student/attendance/assessment/examination — no Prisma relation / FK (charter §19)
   themeVersions   TenantThemeVersion[]
   themeDraft      TenantThemeDraft?
   staffAssignments  StaffAssignment[]
-  examinations      Examination[]
-  examinationCandidateRegistrations ExaminationCandidateRegistration[]
-  examinationCandidates             ExaminationCandidate[]
-  examinationPublications           ExaminationPublication[]
-  examinationResultAnalyses         ExaminationResultAnalysis[]
-  examinationAcademicRecords        ExaminationAcademicRecord[]
-  examinationDocumentJobs           ExaminationDocumentJob[]
   // Assessment owns schema "assessment" — no Prisma relation / FK (Phase 6)
+  // Examination owns schema "examination" — no Prisma relation / FK (Phase 7)
 
   @@map("tenants")
   @@schema("platform")
@@ -748,13 +742,13 @@ model Examination {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / academic_period_id bare UUIDs — no FK into platform/institution (Phase 7)
 
   @@unique([tenantId, code])
   @@index([tenantId, academicPeriodId])
   @@index([tenantId, status])
   @@map("examinations")
-  @@schema("public")
+  @@schema("examination")
 }
 
 /// A student's registration as an examination candidate (Req 10.2).
@@ -768,11 +762,11 @@ model ExaminationCandidateRegistration {
   status        String   @default("REGISTERED") @db.VarChar(20)
   registeredAt  DateTime @map("registered_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / examination_id / student_id / center_id bare UUIDs (Phase 7)
 
   @@unique([tenantId, examinationId, studentId])
   @@map("examination_candidate_registrations")
-  @@schema("public")
+  @@schema("examination")
 }
 
 /// An examination candidate with per-subject score entries, used by result
@@ -788,12 +782,12 @@ model ExaminationCandidate {
   areaId         String @map("area_id") @db.Uuid
   subjectResults Json   @default("[]") @map("subject_results") @db.JsonB
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / examination_id / student_id / center_id / area_id bare UUIDs (Phase 7)
 
   @@unique([tenantId, examinationId, studentId])
   @@index([tenantId, examinationId, centerId])
   @@map("examination_candidates")
-  @@schema("public")
+  @@schema("examination")
 }
 
 /// Snapshot of a result-publication run (one per examination). The full
@@ -805,11 +799,11 @@ model ExaminationPublication {
   publishedAt   DateTime @map("published_at")
   payload       Json     @db.JsonB
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / examination_id bare UUIDs (Phase 7)
 
   @@id([tenantId, examinationId])
   @@map("examination_publications")
-  @@schema("public")
+  @@schema("examination")
 }
 
 /// Snapshot of a generated ResultAnalysis aggregate (one per examination),
@@ -820,11 +814,11 @@ model ExaminationResultAnalysis {
   generatedAt   DateTime @map("generated_at")
   payload       Json     @db.JsonB
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / examination_id bare UUIDs (Phase 7)
 
   @@id([tenantId, examinationId])
   @@map("examination_result_analyses")
-  @@schema("public")
+  @@schema("examination")
 }
 
 /// Append-only academic-record updates pushed at publication time
@@ -840,12 +834,12 @@ model ExaminationAcademicRecord {
   passed        Boolean
   publishedAt   DateTime @map("published_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / student_id / examination_id / subject_id bare UUIDs (Phase 7)
 
   @@index([tenantId, studentId])
   @@index([tenantId, examinationId])
   @@map("examination_academic_records")
-  @@schema("public")
+  @@schema("examination")
 }
 
 /// A document-generation job (admit cards, seating plans, certificates).
@@ -866,11 +860,11 @@ model ExaminationDocumentJob {
   startedAt       DateTime? @map("started_at")
   completedAt     DateTime? @map("completed_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // tenant_id / examination_id bare UUIDs (Phase 7)
 
   @@index([tenantId, examinationId])
   @@map("examination_document_jobs")
-  @@schema("public")
+  @@schema("examination")
 }
 
 // ============================================================================
