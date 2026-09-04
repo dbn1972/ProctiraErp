@@ -14,6 +14,11 @@ import { createEnrollmentRepository } from './repository-factory.js';
 import type { StudentRepository } from './student-repository.js';
 import { StudentService } from './student-service.js';
 import { registerStudentRoutes } from './routes.js';
+import { ImportService } from './import/import-service.js';
+import { InMemoryImportQueue } from './import/in-memory-import-queue.js';
+import { createImportStudentRepository } from './import/import-repository-factory.js';
+import { registerImportRoutes } from './import/import-routes.js';
+import type { ImportQueue, StudentRepository as ImportStudentRepository } from './import/types.js';
 
 /**
  * Options for the student plugin.
@@ -23,6 +28,13 @@ export interface StudentPluginOptions {
   repository: StudentRepository;
   /** Enrollment repository. Defaults to Prisma when DATABASE_URL is set. */
   enrollmentRepository?: EnrollmentRepository;
+  /**
+   * Import-module student repository (flat StudentRecord shape).
+   * Defaults to Prisma when DATABASE_URL is set, else in-memory.
+   */
+  importStudentRepository?: ImportStudentRepository;
+  /** Import job queue. Defaults to in-memory queue. */
+  importQueue?: ImportQueue;
   /** Route prefix for students (default: '/students') */
   prefix?: string;
   /** Route prefix for enrollments (default: '/enrollments') */
@@ -48,6 +60,8 @@ export const studentPlugin = fp(
     const {
       repository,
       enrollmentRepository = createEnrollmentRepository(),
+      importStudentRepository = createImportStudentRepository(),
+      importQueue = new InMemoryImportQueue(),
       prefix = '/students',
       enrollmentPrefix = '/enrollments',
     } = options;
@@ -71,11 +85,19 @@ export const studentPlugin = fp(
       prefix: enrollmentPrefix,
     });
 
-    // Bulk import routes (`registerImportRoutes`) are intentionally not mounted:
-    // ImportService needs its own StudentRepository (findByNameAndDob / flat
-    // StudentRecord shape) and only an in-memory impl exists — no Prisma
-    // adapter. Mounting with InMemoryStudentRepository would not persist to
-    // the real student store.
+    // Bulk import — mount when DATABASE_URL/Prisma is available so imports
+    // persist to the real student store. In-memory-only env skips mount to
+    // avoid a disconnected secondary student store.
+    if (process.env['DATABASE_URL'] || options.importStudentRepository) {
+      const importService = new ImportService({
+        studentRepository: importStudentRepository,
+        importQueue,
+      });
+      await registerImportRoutes(fastify, {
+        importService,
+        prefix,
+      });
+    }
   },
   {
     name: '@proctira/backend-student',

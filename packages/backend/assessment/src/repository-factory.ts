@@ -28,6 +28,24 @@ import {
   PrismaOutcomeRepository,
 } from './prisma-repository.js';
 import { PrismaAssessmentResultRepository } from './prisma-result-repository.js';
+import {
+  PrismaInstitutionBrandingRepository,
+  PrismaReportCardJobRepository,
+  PrismaReportCardTemplateRepository,
+  PrismaTeacherCommentRepository,
+} from './prisma-report-card-repository.js';
+import {
+  InMemoryInstitutionBrandingRepository,
+  InMemoryReportCardJobRepository,
+  InMemoryReportCardTemplateRepository,
+  InMemoryTeacherCommentRepository,
+} from './in-memory-report-card-repository.js';
+import type {
+  InstitutionBrandingRepository,
+  ReportCardJobRepository,
+  ReportCardTemplateRepository,
+  TeacherCommentRepository,
+} from './report-card-repository.js';
 
 export interface AssessmentRepositoryConfig {
   /** PostgreSQL connection string. Defaults to `process.env.DATABASE_URL`. */
@@ -75,4 +93,36 @@ export function createAssessmentResultRepository(
   const prisma = resolvePrismaClient(config);
   if (!prisma) return new InMemoryAssessmentResultRepository();
   return new PrismaAssessmentResultRepository(prisma);
+}
+
+export function createReportCardTemplateRepository(
+  config: AssessmentRepositoryConfig = {},
+): ReportCardTemplateRepository {
+  const prisma = resolvePrismaClient(config);
+  if (!prisma) return new InMemoryReportCardTemplateRepository();
+  return new PrismaReportCardTemplateRepository(prisma);
+}
+
+export function createTeacherCommentRepository(
+  config: AssessmentRepositoryConfig = {},
+): TeacherCommentRepository {
+  const prisma = resolvePrismaClient(config);
+  if (!prisma) return new InMemoryTeacherCommentRepository();
+  return new PrismaTeacherCommentRepository(prisma);
+}
+
+export function createInstitutionBrandingRepository(
+  config: AssessmentRepositoryConfig = {},
+): InstitutionBrandingRepository {
+  const prisma = resolvePrismaClient(config);
+  if (!prisma) return new InMemoryInstitutionBrandingRepository();
+  return new PrismaInstitutionBrandingRepository(prisma);
+}
+
+export function createReportCardJobRepository(
+  config: AssessmentRepositoryConfig = {},
+): ReportCardJobRepository {
+  const prisma = resolvePrismaClient(config);
+  if (!prisma) return new InMemoryReportCardJobRepository();
+  return new PrismaReportCardJobRepository(prisma);
 }

@@ -23,6 +23,11 @@ import {
   registerGradeRoutes,
   registerSubjectRoutes,
 } from './education/index.js';
+import {
+  createInfrastructureStores,
+  InfrastructureService,
+  registerInfrastructureRoutes,
+} from './infrastructure/index.js';
 import type { InstitutionRepository } from './institution-repository.js';
 import { InstitutionService } from './institution-service.js';
 import { registerInstitutionRoutes } from './routes.js';
@@ -109,6 +114,14 @@ export const institutionPlugin = fp(
       await registerGradeRoutes(fastify, { service: new GradeService({ prisma }) });
       await registerClassRoutes(fastify, { service: new ClassService({ prisma }) });
       await registerSubjectRoutes(fastify, { service: new SubjectService({ prisma }) });
+
+      // Infrastructure hierarchy (Land → Building → Floor → Room)
+      const infraStores = createInfrastructureStores({ prisma });
+      const infrastructureService = new InfrastructureService(infraStores);
+      await registerInfrastructureRoutes(fastify, {
+        infrastructureService,
+        prefix: '/infrastructure',
+      });
     }
   },
   {

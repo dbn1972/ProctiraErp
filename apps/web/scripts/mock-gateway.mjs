@@ -252,6 +252,10 @@ const server = createServer((req, res) => {
   if (resource === 'institutions' && seg[2] === 'infrastructure' && seg[3] === 'hierarchy') {
     return json(res, 200, infrastructureHierarchy());
   }
+  // Canonical infrastructure hierarchy endpoint.
+  if (resource === 'infrastructure' && seg[1] === 'hierarchy' && seg[2]) {
+    return json(res, 200, infrastructureHierarchy());
+  }
 
   // Special nested resources for institutions.
   if (resource === 'institutions' && seg.length === 3) {

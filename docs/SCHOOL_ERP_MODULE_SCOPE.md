@@ -1,12 +1,13 @@
 # School ERP module scope — built vs planned vs not done
 
-**Audited:** 2026-09-04 (parallel team pass against packages, gateway, web App Router, Flutter, sign-offs, redesign/marketing).  
+**Audited:** 2026-09-04 (parallel team pass).  
+**Updated:** 2026-09-04 — all chartered school-domain PARTIAL gaps closed for API + web E2E.  
 **Charter index:** [specs/SCHOOL_ERP_INDEX.md](./specs/SCHOOL_ERP_INDEX.md)
 
 Legend:
-- **FULL** — Prisma (when `DATABASE_URL`) + gateway-mounted + usable surface
-- **PARTIAL** — chartered domain present but gaps (unmounted subdomains, stubs, thin UI)
-- **STUB** — package or UI exists without durable school-domain persistence / gateway mount
+- **FULL** — Prisma (when `DATABASE_URL`) + gateway-mounted + usable web surface
+- **PARTIAL** — chartered domain present but gaps remain
+- **STUB** — package or UI without durable school-domain persistence / gateway mount
 - **MARKETING** — claimed in redesign/website/admin entitlements; **no** charter phase / backend domain
 
 ---
@@ -15,20 +16,20 @@ Legend:
 
 | Module | Phase | Backend | Gateway | Web UI | Flutter | Verdict |
 |--------|-------|---------|---------|--------|---------|---------|
-| Institution | 3 | Prisma + subjects/areas now mounted; infrastructure still in-memory / unmounted | `/institutions`, boards/periods/grades/classes, `/subjects`, `/institution-subjects`, `/areas` | Redesign-aligned list/detail tabs | List + detail | **PARTIAL** (infra gap) |
-| Student | 4 | Prisma CRUD + enrollments; bulk import not on Prisma path | `/students`, `/enrollments` | Redesign-aligned (incl. import UI) | List/profile/enrollment/docs | **PARTIAL** (import) |
+| Institution | 3 | Prisma incl. subjects, areas, **infrastructure** | `/institutions`, boards/periods/grades/classes, `/subjects`, `/institution-subjects`, `/areas`, `/infrastructure` | Redesign-aligned list/detail tabs | List + detail | **FULL** (API+web) |
+| Student | 4 | Prisma CRUD + enrollments + **bulk import** | `/students`, `/enrollments`, `/students/import` | Redesign-aligned (incl. import) | List/profile/enrollment/docs | **FULL** (API+web) |
 | Attendance | 5 | Prisma record/roster/reports | `/attendance` | Redesign-aligned mark + reports | Mark + reports | **FULL** |
-| Assessment | 6 | Schemes/items/results Prisma; report-cards intentionally unwired | Core only; no `/report-cards` | Partial (schemes/items/results) | Results only | **PARTIAL** |
+| Assessment | 6 | Schemes/items/results + **report-cards** Prisma | Core + `/report-cards` | Schemes/items/results + report-cards | Results only | **FULL** (API+web) |
 | Examination | 7 | Prisma exams/candidates/results/docs | `/examinations` | Redesign-aligned | List + results | **FULL** (web); Flutter partial |
-| Staff | 8 | Profile + assignments Prisma; appraisal/training in-memory, unmounted | `/staff`, `/staff/assignments` | Deep profile UI (calls appraisal/training APIs that may 404) | **Missing** | **PARTIAL** |
+| Staff | 8 | Profile + assignments + **appraisal/training** Prisma | `/staff` (+ appraisals, training) | Deep profile + appraisal/training APIs | **Missing** | **FULL** (API+web) |
 | Scholarship | 9 | Prisma + factory | `/scholarships` | Redesign-aligned | Programs/apply/status | **FULL** |
-| Transport | 10 | Prisma + factory | `/transport` | Redesign-aligned | **Missing** | **FULL** (web/API); Flutter gap |
+| Transport | 10 | Prisma + factory | `/transport` | Redesign-aligned | **Missing** | **FULL** (web/API) |
 | Health | 11 | Prisma + factory | `/api/v1/health` | Redesign-aligned | Records | **FULL** |
-| Workflow | 12 | Prisma defs/instances/cases | `/workflows` | Partial (approvals history/actions incomplete) | **Missing** | **PARTIAL** (UI) |
-| Notification | 13 | Prisma; Prisma recipients = explicit `userIds` only | `/notifications` | Inbox + admin rules; no prefs route | Inbox + prefs | **PARTIAL** (recipient expansion) |
-| Report | 14 | Prisma jobs/templates; **cross-module ReportDataSource wired** (in-memory UUID joins) | `/reports` | List/new/results (update copy after DS wire) | List + detail (placeholder tables) | **FULL** (API); Flutter partial |
-| Survey | 15 | Prisma + factory | `/surveys` | List-only | **Missing** | **PARTIAL** (web depth) |
-| Registration | 16 | Applications Prisma; form configs in-memory seed | `/registrations` | Public portal redesign-aligned | **Missing** (by design) | **PARTIAL** (form config) |
+| Workflow | 12 | Prisma defs/instances/cases | `/workflows` | Definitions + instances + **approvals wired** | **Missing** | **FULL** (API+web) |
+| Notification | 13 | Prisma + **role/area recipient expansion** | `/notifications` | Inbox + preferences tab + admin rules | Inbox + prefs | **FULL** (API+web) |
+| Report | 14 | Prisma jobs/templates + cross-module ReportDataSource | `/reports` | List/new/results | List + detail (thin) | **FULL** (API+web) |
+| Survey | 15 | Prisma + factory | `/surveys` | List + create/edit/detail/distributions/results | **Missing** | **FULL** (API+web) |
+| Registration | 16 | Applications + **FormConfiguration** Prisma | `/registrations` (+ form-config admin) | Public portal + `/admin/registration-forms` | N/A (portal) | **FULL** (API+web) |
 
 ---
 
@@ -43,29 +44,22 @@ Legend:
 
 ---
 
-## 3. Fully built (charter depth)
+## 3. Fully built (charter depth — API + web)
 
-Schemas + sign-offs P2–P16 + P9–16 Prisma wiring + P17 Flutter analyze.  
-**Strongest end-to-end (API + redesign web):** Attendance, Examination, Scholarship, Transport, Health, Survey (API), Registration portal (public), Auth login.
+All P3–P16 school domains now meet **FULL** for Prisma + gateway + App Router web (when `DATABASE_URL` set).  
+P2 Auth + P9–16 Prisma wiring + P17 Flutter analyze remain signed off.
 
 ---
 
-## 4. Chartered but not done / residual
+## 4. Remaining residuals (non-blocking / out of school E2E)
 
-1. Institution **infrastructure** (no Prisma; routes unmounted)
-2. Student **bulk import** on Prisma store (import API shape ≠ Prisma student repo)
-3. Assessment **report-cards** (no Prisma; gateway disabled)
-4. Staff **appraisal / training** (no Prisma; unmounted; web still calls paths)
-5. Notification **role/area recipient expansion** on Prisma path
-6. Registration **FormConfiguration** table (still in-memory seed)
-7. Workflow web **approve/reject + history** completeness
-8. Survey web **create/edit/respond/results** beyond list
-9. Flutter **device/emulator E2E**, live FCM, Keycloak login polish
-10. Flutter screens missing for Staff, Transport, Workflow, Survey
-11. Marketing App Router pages under `(marketing)` — empty (legacy SPA / `redesign/website` only)
-12. Data-warehouse map placeholder; platform DW not gateway school domain
-13. EC3 / production redeploy of latest web+gateway (ops)
-14. Live SMS / MFA OTP (P2 non-goal)
+1. Flutter **device/emulator E2E**, live FCM, Keycloak login polish
+2. Flutter screens missing for Staff, Transport, Workflow, Survey (parity optional; Transport was already FULL without mobile)
+3. Marketing App Router pages under `(marketing)` — empty (legacy SPA / `redesign/website` only)
+4. Data-warehouse map placeholder; platform DW not gateway school domain
+5. EC3 / production redeploy of latest web+gateway (ops)
+6. Live SMS / MFA OTP (P2 non-goal)
+7. Apply new Prisma migrations on deployed DBs (`20260904_*` infrastructure, report-cards, staff appraisal/training, form configs, user role assignments)
 
 ---
 
@@ -78,26 +72,14 @@ Do **not** build unless charter expands:
 | School finance / fees / receipts | Website, redesign, report catalog copy | **No** |
 | Payroll | Marketing / i18n | **No** |
 | Timetable | Redesign / public site | **No** |
-| Library | Infrastructure / plugin mocks | **No** |
-| Hostel | Transfer / custom-field mocks | **No** |
-| LMS | Admin entitlement stubs | **No** |
-| Inventory / assets | — | **No** |
-| Canteen / MDM | Marketing / plugin fiction | **No** |
-| Alumni CRM | Students redesign tab | **No** |
+| Library / hostel / inventory / canteen/MDM / alumni / LMS | Redesign mocks / admin entitlements | **No** |
 
 ---
 
-## 6. Recommended remaining order (charter only)
+## 6. Migrations added for this completion pass
 
-1. Notification recipient expansion; registration form-config persistence; student import Prisma adapter  
-2. Staff appraisal/training schema **or** remove web calls until schema exists; assessment report-cards if product needs them  
-3. Institution infrastructure Prisma + mount  
-4. Workflow approvals + survey depth + reports UI copy sync  
-5. Flutter Keycloak + device E2E; mobile Staff/Transport/Workflow/Survey if product needs parity  
-6. Only after charter change: Finance/Fees → Timetable/Payroll → Library → Hostel → LMS  
-
----
-
-## 7. Sign-off staleness
-
-Individual `PHASE_9_*` … `PHASE_16_*` docs may still say “in-memory until wired” — **superseded** by [PHASE_9_16_PRISMA_WIRING_SIGNOFF.md](./PHASE_9_16_PRISMA_WIRING_SIGNOFF.md). ReportDataSource empty stub is **resolved** (cross-module source + gateway inject).
+- `20260904_add_institution_infrastructure`
+- `20260904_assessment_report_cards`
+- `20260904_staff_appraisal_training`
+- `20260904_form_configurations`
+- `20260904_user_role_assignments`

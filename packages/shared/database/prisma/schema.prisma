@@ -135,6 +135,30 @@ model User {
   @@schema("auth")
 }
 
+/// Durable projection of role ↔ user assignments with optional area/institution
+/// scope. Used for notification recipient expansion (and future tenant roles UI)
+/// via sequential auth-schema reads — never joined across schemas.
+model UserRoleAssignment {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  roleId         String   @map("role_id") @db.Uuid
+  areaId         String?  @map("area_id") @db.Uuid
+  institutionId  String?  @map("institution_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // tenant_id / user_id / role_id / area_id / institution_id are bare UUIDs
+  // (charter §19 — no cross-schema FKs)
+
+  @@index([tenantId, roleId])
+  @@index([tenantId, areaId])
+  @@index([tenantId, institutionId])
+  @@index([tenantId, userId])
+  @@map("user_role_assignments")
+  @@schema("auth")
+}
+
 /// External identity link. Phase 2 provider is Keycloak (`keycloak`).
 model UserIdentity {
   id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
@@ -306,9 +330,10 @@ model Institution {
   deletedAt DateTime? @map("deleted_at")
 
   // Relations — board/area stay in-schema; enrollments use bare institutionId from public
-  board   Board?         @relation(fields: [boardId], references: [id])
-  area    GeographicArea @relation(fields: [areaId], references: [id])
-  classes Class[]
+  board               Board?              @relation(fields: [boardId], references: [id])
+  area                GeographicArea      @relation(fields: [areaId], references: [id])
+  classes             Class[]
+  infrastructureItems InfrastructureItem[]
 
   @@unique([tenantId, code])
   @@index([tenantId, areaId])
@@ -316,6 +341,55 @@ model Institution {
   @@index([tenantId, status])
   @@index([customData], type: Gin)
   @@map("institutions")
+  @@schema("institution")
+}
+
+// ============================================================================
+// INFRASTRUCTURE HIERARCHY (Land → Building → Floor → Room)
+// ============================================================================
+
+/// Physical infrastructure item within an institution.
+/// Hierarchy: Land → Building → Floor → Room (parentId self-relation).
+/// tenant_id is a bare UUID (no FK into platform.tenants — charter §19).
+model InfrastructureItem {
+  id            String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId      String  @map("tenant_id") @db.Uuid
+  institutionId String  @map("institution_id") @db.Uuid
+  parentId      String? @map("parent_id") @db.Uuid
+  name          String  @db.VarChar(255)
+  /// LAND | BUILDING | FLOOR | ROOM
+  type          String  @db.VarChar(20)
+  capacity      Int
+  condition     String  @db.VarChar(100)
+  description   String? @db.VarChar(500)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  institution Institution         @relation(fields: [institutionId], references: [id])
+  parent      InfrastructureItem? @relation("InfraHierarchy", fields: [parentId], references: [id])
+  children    InfrastructureItem[] @relation("InfraHierarchy")
+
+  @@index([tenantId, institutionId, type])
+  @@index([tenantId, parentId])
+  @@map("infrastructure_items")
+  @@schema("institution")
+}
+
+/// Configurable condition labels for infrastructure items (per tenant).
+model InfrastructureConditionOption {
+  id          String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
+  name        String  @db.VarChar(100)
+  description String? @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("infrastructure_condition_options")
   @@schema("institution")
 }
 
@@ -716,6 +790,145 @@ model StaffAssignment {
 }
 
 // ============================================================================
+// STAFF APPRAISAL (Requirement 7.3)
+// ============================================================================
+
+/// Configurable appraisal template with criteria stored as JSONB
+/// [{name, description?, weight, maxScore}]. academic_period_id is a bare UUID.
+model StaffAppraisalTemplate {
+  id               String @id @db.Uuid
+  tenantId         String @map("tenant_id") @db.Uuid
+  name             String @db.VarChar(255)
+  description      String? @db.Text
+  academicPeriodId String @map("academic_period_id") @db.Uuid
+  criteria         Json   @default("[]") @db.JsonB
+  scoreMin         Float  @map("score_min")
+  scoreMax         Float  @map("score_max")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // tenant_id / academic_period_id bare UUIDs (Phase 8)
+
+  @@index([tenantId])
+  @@map("staff_appraisal_templates")
+  @@schema("staff")
+}
+
+/// A staff appraisal instance. scores JSONB is
+/// [{criterionName, score, comment?}]. workflow_instance_id is a bare UUID.
+model StaffAppraisal {
+  id                 String  @id @db.Uuid
+  tenantId           String  @map("tenant_id") @db.Uuid
+  staffId            String  @map("staff_id") @db.Uuid
+  templateId         String  @map("template_id") @db.Uuid
+  appraisalDate      String  @map("appraisal_date") @db.VarChar(32)
+  scores             Json    @default("[]") @db.JsonB
+  totalScore         Float   @map("total_score")
+  overallComment     String? @map("overall_comment") @db.Text
+  status             String  @default("DRAFT") @db.VarChar(20)
+  workflowInstanceId String? @map("workflow_instance_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // tenant_id / staff_id / template_id / workflow_instance_id bare UUIDs (Phase 8)
+
+  @@index([tenantId, staffId])
+  @@index([tenantId, templateId])
+  @@index([tenantId, status])
+  @@map("staff_appraisals")
+  @@schema("staff")
+}
+
+// ============================================================================
+// STAFF TRAINING (Requirements 7.4, 7.8)
+// ============================================================================
+
+model StaffTrainingProgram {
+  id                        String  @id @db.Uuid
+  tenantId                  String  @map("tenant_id") @db.Uuid
+  name                      String  @db.VarChar(255)
+  description               String? @db.Text
+  startDate                 String  @map("start_date") @db.VarChar(32)
+  endDate                   String  @map("end_date") @db.VarChar(32)
+  provider                  String? @db.VarChar(255)
+  certificationName         String? @map("certification_name") @db.VarChar(255)
+  certificationValidityDays Int?    @map("certification_validity_days")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // tenant_id bare UUID (Phase 8)
+
+  @@index([tenantId, name])
+  @@map("staff_training_programs")
+  @@schema("staff")
+}
+
+model StaffTrainingSession {
+  id             String  @id @db.Uuid
+  tenantId       String  @map("tenant_id") @db.Uuid
+  programId      String  @map("program_id") @db.Uuid
+  title          String  @db.VarChar(255)
+  date           String  @db.VarChar(32)
+  startTime      String? @map("start_time") @db.VarChar(16)
+  endTime        String? @map("end_time") @db.VarChar(16)
+  location       String? @db.VarChar(255)
+  instructorName String? @map("instructor_name") @db.VarChar(255)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // tenant_id / program_id bare UUIDs (Phase 8)
+
+  @@index([tenantId, programId])
+  @@map("staff_training_sessions")
+  @@schema("staff")
+}
+
+model StaffTrainingAttendance {
+  id        String  @id @db.Uuid
+  tenantId  String  @map("tenant_id") @db.Uuid
+  sessionId String  @map("session_id") @db.Uuid
+  staffId   String  @map("staff_id") @db.Uuid
+  status    String  @db.VarChar(20)
+  comment   String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // tenant_id / session_id / staff_id bare UUIDs (Phase 8)
+
+  @@unique([tenantId, sessionId, staffId])
+  @@index([tenantId, sessionId])
+  @@index([tenantId, staffId])
+  @@map("staff_training_attendance")
+  @@schema("staff")
+}
+
+model StaffCertification {
+  id                String  @id @db.Uuid
+  tenantId          String  @map("tenant_id") @db.Uuid
+  staffId           String  @map("staff_id") @db.Uuid
+  programId         String  @map("program_id") @db.Uuid
+  certificationName String  @map("certification_name") @db.VarChar(255)
+  issuedDate        String  @map("issued_date") @db.VarChar(32)
+  expiryDate        String? @map("expiry_date") @db.VarChar(32)
+  status            String  @default("ACTIVE") @db.VarChar(20)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // tenant_id / staff_id / program_id bare UUIDs (Phase 8)
+
+  @@index([tenantId, staffId])
+  @@index([tenantId, status])
+  @@index([tenantId, programId])
+  @@map("staff_certifications")
+  @@schema("staff")
+}
+
+// ============================================================================
 // EXAMINATION (Requirement 10.x)
 // ============================================================================
 
@@ -958,6 +1171,93 @@ model AssessmentResult {
   @@index([tenantId, subjectId, academicPeriodId])
   @@index([tenantId, assessmentItemId])
   @@map("assessment_results")
+  @@schema("assessment")
+}
+
+// ============================================================================
+// ASSESSMENT REPORT CARDS (Requirement 8.7)
+// ============================================================================
+
+/// Configurable report-card template (HTML/Handlebars content + flags).
+model ReportCardTemplate {
+  id                  String  @id @db.Uuid
+  tenantId            String  @map("tenant_id") @db.Uuid
+  name                String  @db.VarChar(255)
+  templateContent     String  @map("template_content") @db.Text
+  isDefault           Boolean @default(false) @map("is_default")
+  includeLogo         Boolean @default(true) @map("include_logo")
+  includeGradeSummary Boolean @default(true) @map("include_grade_summary")
+  includeComments     Boolean @default(true) @map("include_comments")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // tenant_id bare UUID (Phase 6)
+
+  @@index([tenantId, isDefault])
+  @@map("report_card_templates")
+  @@schema("assessment")
+}
+
+/// Teacher comment for a student on one subject in an academic period.
+model TeacherComment {
+  id               String @id @db.Uuid
+  tenantId         String @map("tenant_id") @db.Uuid
+  studentId        String @map("student_id") @db.Uuid
+  subjectId        String @map("subject_id") @db.Uuid
+  academicPeriodId String @map("academic_period_id") @db.Uuid
+  teacherId        String @map("teacher_id") @db.Uuid
+  comment          String @db.VarChar(500)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // tenant_id / student_id / subject_id / academic_period_id / teacher_id bare UUIDs (Phase 6)
+
+  @@unique([tenantId, studentId, subjectId, academicPeriodId])
+  @@index([tenantId, studentId, academicPeriodId])
+  @@map("teacher_comments")
+  @@schema("assessment")
+}
+
+/// Institution branding snapshot for report cards (assessment-owned copy;
+/// institution_id is a bare UUID — no cross-schema FK/join).
+model InstitutionBranding {
+  institutionId String  @map("institution_id") @db.Uuid
+  tenantId      String  @map("tenant_id") @db.Uuid
+  name          String  @db.VarChar(255)
+  logoUrl       String? @map("logo_url") @db.Text
+  address       String? @db.Text
+  contactPhone  String? @map("contact_phone") @db.VarChar(50)
+  contactEmail  String? @map("contact_email") @db.VarChar(255)
+
+  // tenant_id / institution_id bare UUIDs (Phase 6)
+
+  @@id([tenantId, institutionId])
+  @@map("institution_brandings")
+  @@schema("assessment")
+}
+
+/// Background job tracking report-card PDF generation.
+model ReportCardJob {
+  id               String    @id @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  studentId        String    @map("student_id") @db.Uuid
+  academicPeriodId String    @map("academic_period_id") @db.Uuid
+  templateId       String    @map("template_id") @db.Uuid
+  institutionId    String    @map("institution_id") @db.Uuid
+  status           String    @default("queued") @db.VarChar(20)
+  errorMessage     String?   @map("error_message") @db.Text
+  outputUrl        String?   @map("output_url") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  completedAt      DateTime? @map("completed_at")
+
+  // tenant_id / student_id / academic_period_id / template_id / institution_id bare UUIDs (Phase 6)
+
+  @@index([tenantId, studentId, academicPeriodId])
+  @@index([tenantId, status])
+  @@map("report_card_jobs")
   @@schema("assessment")
 }
 
@@ -1669,6 +1969,24 @@ model RegistrationApplication {
   @@index([tenantId, status])
   @@index([tenantId, institutionId])
   @@map("registration_applications")
+  @@schema("registration")
+}
+
+/// Configurable registration form fields per institution type (Req 16.1).
+/// `fields` is a JSONB array of FormFieldDefinition envelopes.
+model FormConfiguration {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  institutionTypeId String   @map("institution_type_id") @db.VarChar(100)
+  fields            Json     @default("[]") @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  // tenant_id / institution_type_id bare — no cross-schema FKs (charter §19)
+
+  @@unique([tenantId, institutionTypeId])
+  @@index([tenantId])
+  @@map("form_configurations")
   @@schema("registration")
 }
 

@@ -95,6 +95,8 @@ export interface NotificationPreferencesProps {
   loadPreferences?: typeof getNotificationPreferences;
   /** Override the mutator (tests inject in-memory implementations). */
   savePreferences?: typeof updateNotificationPreferences;
+  /** Hide page chrome when embedded in the notifications App Router tabs. */
+  embedded?: boolean;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────
@@ -102,6 +104,7 @@ export interface NotificationPreferencesProps {
 export default function NotificationPreferences({
   loadPreferences = getNotificationPreferences,
   savePreferences = updateNotificationPreferences,
+  embedded = false,
 }: NotificationPreferencesProps = {}): JSX.Element {
   const { t } = useLanguage();
   const announce = useAnnounce();
@@ -237,7 +240,7 @@ export default function NotificationPreferences({
   if (loading) {
     return (
       <div
-        className="space-y-6 p-6"
+        className={embedded ? 'space-y-6' : 'space-y-6 p-6'}
         role="status"
         aria-label={t('common.loading')}
       >
@@ -250,7 +253,7 @@ export default function NotificationPreferences({
 
   if (loadError) {
     return (
-      <div className="p-6">
+      <div className={embedded ? undefined : 'p-6'}>
         <Alert variant="destructive">
           <AlertTitle>{t('settings.notifications.loadFailedTitle')}</AlertTitle>
           <AlertDescription>{loadError}</AlertDescription>
@@ -262,15 +265,20 @@ export default function NotificationPreferences({
   // ─── Render: Main ─────────────────────────────────────────────────────
 
   return (
-    <div className="p-6" data-testid="notification-preferences">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">
-          {t('settings.notifications.title')}
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          {t('settings.notifications.description')}
-        </p>
-      </header>
+    <div
+      className={embedded ? undefined : 'p-6'}
+      data-testid="notification-preferences"
+    >
+      {embedded ? null : (
+        <header className="mb-6">
+          <h1 className="text-2xl font-semibold text-foreground">
+            {t('settings.notifications.title')}
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {t('settings.notifications.description')}
+          </p>
+        </header>
+      )}
 
       {submitState.kind === 'error' && (
         <Alert variant="destructive" className="mb-6" data-testid="notification-prefs-error">

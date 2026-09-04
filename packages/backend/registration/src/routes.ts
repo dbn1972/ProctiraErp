@@ -6,6 +6,8 @@
  * GET    /registrations/:trackingNumber/status - Check application status
  * GET    /registrations/institutions  - Get institution locations for map
  * GET    /registrations/form-config/:institutionId - Get form configuration
+ * GET    /registrations/form-configs  - List all form configurations (admin)
+ * PUT    /registrations/form-config   - Upsert a form configuration (admin)
  * POST   /registrations/language      - Set language preference (session)
  *
  * Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6
@@ -21,11 +23,13 @@ import {
   InstitutionMapQuerySchema,
   LanguageSelectionSchema,
   SchoolFinderQuerySchema,
+  FormConfigurationSchema,
   type SubmitRegistrationInput,
   type TrackingNumberParams,
   type InstitutionMapQuery,
   type LanguageSelection,
   type SchoolFinderQuery,
+  type FormConfiguration,
 } from './schemas.js';
 
 /**
@@ -273,6 +277,57 @@ export async function registerRegistrationRoutes(
           validation.data as SchoolFinderQuery,
         );
         return reply.status(200).send(result);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /registrations/form-configs
+   * List all form configurations (admin surface).
+   * Requirement 16.1: Configurable fields per institution type.
+   */
+  fastify.get(
+    `${prefix}/form-configs`,
+    async function listFormConfigsHandler(
+      _request: FastifyRequest,
+      reply: FastifyReply,
+    ) {
+      const configs = await registrationService.listFormConfigurations();
+      return reply.status(200).send({ data: configs });
+    },
+  );
+
+  /**
+   * PUT /registrations/form-config
+   * Create or replace a form configuration for an institution type.
+   * Requirement 16.1
+   */
+  fastify.put(
+    `${prefix}/form-config`,
+    async function upsertFormConfigHandler(
+      request: FastifyRequest<{ Body: FormConfiguration }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(FormConfigurationSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      try {
+        const config = await registrationService.upsertFormConfiguration(
+          result.data,
+        );
+        return reply.status(200).send(config);
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

@@ -31,6 +31,8 @@ const INSTITUTION_MODELS = [
   'Class',
   'Subject',
   'InstitutionSubject',
+  'InfrastructureItem',
+  'InfrastructureConditionOption',
 ] as const;
 
 describe('Phase 3 institution schema boundaries', () => {

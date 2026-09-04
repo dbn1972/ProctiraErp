@@ -4,7 +4,7 @@
  * Implements Requirement 8.1 (grading schemes per institution + period).
  */
 import Link from 'next/link';
-import { Eye, ListChecks, MoreVertical, Pencil, Plus } from 'lucide-react';
+import { Eye, FileText, ListChecks, MoreVertical, Pencil, Plus } from 'lucide-react';
 
 import {
   Button,
@@ -90,6 +90,12 @@ export default async function AssessmentsPage({ searchParams }: PageProps) {
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/assessments/results">Enter results</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/assessments/report-cards">
+              <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Report cards
+            </Link>
           </Button>
           <Button asChild size="sm">
             <Link href="/assessments/schemes/new">

@@ -12,6 +12,7 @@ import {
   Bell,
   Building2,
   ChevronRight,
+  ClipboardList,
   FormInput,
   KeyRound,
   ScrollText,
@@ -63,6 +64,14 @@ const sections = [
       'Extend student, staff, and institution records with district-specific data points.',
     icon: FormInput,
     iconClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300',
+  },
+  {
+    href: '/admin/registration-forms',
+    title: 'Registration forms',
+    description:
+      'Configure custom application fields per institution type for the public portal.',
+    icon: ClipboardList,
+    iconClass: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
   },
   {
     href: '/admin/notification-rules',

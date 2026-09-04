@@ -3,17 +3,18 @@
  *
  * Production implementation of {@link RegistrationRepository}. Application CRUD
  * maps to `RegistrationApplication` under RLS via {@link withTenantTransaction}.
+ * Form configurations persist in `FormConfiguration` (same schema).
  *
  * Methods without a tenantId in the signature (`findByTrackingNumber`,
- * `findById`, `updateStatus`, and institution helpers that lack tenant) require
- * {@link PrismaRegistrationRepositoryOptions.defaultTenantId}. Without it they
- * return null / false (same RLS limitation as StaffRepository.findByIdentityNumber).
+ * `findById`, `updateStatus`, form-config helpers, and institution helpers that
+ * lack tenant) require {@link PrismaRegistrationRepositoryOptions.defaultTenantId}.
+ * Without it they return null / false / [] (same RLS limitation as
+ * StaffRepository.findByIdentityNumber).
  *
  * School finder / map / institution helpers read the institution schema
  * (Institution + GeographicArea). Location fields live in `custom_data.__profile`
  * (mirrors PrismaInstitutionRepository). `availableGrades` is read from
- * `custom_data.availableGrades` when present. There is no FormConfiguration
- * table — form configs stay in an optional in-memory seed map.
+ * `custom_data.availableGrades` when present.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
@@ -185,19 +186,37 @@ function toFinderRow(
   return result;
 }
 
-export class PrismaRegistrationRepository implements RegistrationRepository {
-  private readonly formConfigurations = new Map<string, FormConfiguration>();
+interface FormConfigurationRow {
+  id: string;
+  tenantId: string;
+  institutionTypeId: string;
+  fields: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
+function toFormConfiguration(row: FormConfigurationRow): FormConfiguration {
+  return {
+    institutionTypeId: row.institutionTypeId,
+    fields: Array.isArray(row.fields)
+      ? (row.fields as FormConfiguration['fields'])
+      : [],
+  };
+}
+
+export class PrismaRegistrationRepository implements RegistrationRepository {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly options: PrismaRegistrationRepositoryOptions = {},
   ) {}
 
-  /** Seed form configurations (no FormConfiguration table in schema yet). */
-  seedFormConfigurations(configs: FormConfiguration[]): void {
-    this.formConfigurations.clear();
+  /**
+   * Seed / replace form configurations (upserts into FormConfiguration table).
+   * Requires {@link PrismaRegistrationRepositoryOptions.defaultTenantId}.
+   */
+  async seedFormConfigurations(configs: FormConfiguration[]): Promise<void> {
     for (const config of configs) {
-      this.formConfigurations.set(config.institutionTypeId, config);
+      await this.upsertFormConfiguration(config);
     }
   }
 
@@ -282,7 +301,73 @@ export class PrismaRegistrationRepository implements RegistrationRepository {
   async getFormConfiguration(
     institutionTypeId: string,
   ): Promise<FormConfiguration | null> {
-    return this.formConfigurations.get(institutionTypeId) ?? null;
+    const tenantId = this.options.defaultTenantId;
+    if (!tenantId) return null;
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const row = (await tx.formConfiguration.findFirst({
+        where: { tenantId, institutionTypeId },
+      })) as FormConfigurationRow | null;
+      return row ? toFormConfiguration(row) : null;
+    });
+  }
+
+  async listFormConfigurations(): Promise<FormConfiguration[]> {
+    const tenantId = this.options.defaultTenantId;
+    if (!tenantId) return [];
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.formConfiguration.findMany({
+        where: { tenantId },
+        orderBy: { institutionTypeId: 'asc' },
+      })) as FormConfigurationRow[];
+      return rows.map(toFormConfiguration);
+    });
+  }
+
+  async upsertFormConfiguration(
+    config: FormConfiguration,
+  ): Promise<FormConfiguration> {
+    const tenantId = this.options.defaultTenantId;
+    if (!tenantId) {
+      throw new Error(
+        'PrismaRegistrationRepository requires defaultTenantId for form configuration writes',
+      );
+    }
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const existing = (await tx.formConfiguration.findFirst({
+        where: { tenantId, institutionTypeId: config.institutionTypeId },
+      })) as FormConfigurationRow | null;
+
+      if (existing) {
+        const row = (await tx.formConfiguration.update({
+          where: { id: existing.id },
+          data: { fields: config.fields as Prisma.InputJsonValue },
+        })) as FormConfigurationRow;
+        return toFormConfiguration(row);
+      }
+
+      const row = (await tx.formConfiguration.create({
+        data: {
+          tenantId,
+          institutionTypeId: config.institutionTypeId,
+          fields: config.fields as Prisma.InputJsonValue,
+        },
+      })) as FormConfigurationRow;
+      return toFormConfiguration(row);
+    });
+  }
+
+  async deleteFormConfiguration(institutionTypeId: string): Promise<boolean> {
+    const tenantId = this.options.defaultTenantId;
+    if (!tenantId) return false;
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const existing = await tx.formConfiguration.findFirst({
+        where: { tenantId, institutionTypeId },
+        select: { id: true },
+      });
+      if (!existing) return false;
+      await tx.formConfiguration.delete({ where: { id: existing.id } });
+      return true;
+    });
   }
 
   async getInstitutionLocations(

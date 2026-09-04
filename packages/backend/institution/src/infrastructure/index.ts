@@ -25,6 +25,11 @@ export type { InfrastructureRoutesOptions } from './routes.js';
 // In-memory stores (for testing)
 export { InMemoryInfrastructureStore, InMemoryConditionOptionStore } from './in-memory-store.js';
 
+// Prisma stores + factory
+export { PrismaInfrastructureStore, PrismaConditionOptionStore } from './prisma-store.js';
+export { createInfrastructureStores } from './store-factory.js';
+export type { InfrastructureStoreConfig, InfrastructureStores } from './store-factory.js';
+
 // Schemas
 export {
   InfrastructureType,

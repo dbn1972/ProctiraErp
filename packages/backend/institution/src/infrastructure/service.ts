@@ -30,6 +30,7 @@ import {
  */
 export interface InfrastructureRecord {
   id: string;
+  tenantId: string;
   name: string;
   type: InfrastructureTypeValue;
   institutionId: string;
@@ -47,21 +48,27 @@ export interface InfrastructureRecord {
  */
 export interface InfrastructureStore {
   create(record: InfrastructureRecord): Promise<InfrastructureRecord>;
-  findById(id: string): Promise<InfrastructureRecord | null>;
+  findById(tenantId: string, id: string): Promise<InfrastructureRecord | null>;
   findByInstitutionAndType(
+    tenantId: string,
     institutionId: string,
     type: InfrastructureTypeValue,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<{ items: InfrastructureRecord[]; total: number }>;
   findByParent(
+    tenantId: string,
     parentId: string,
     type: InfrastructureTypeValue,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<{ items: InfrastructureRecord[]; total: number }>;
-  findAllByInstitution(institutionId: string): Promise<InfrastructureRecord[]>;
-  update(id: string, data: Partial<Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>>): Promise<InfrastructureRecord | null>;
-  delete(id: string): Promise<boolean>;
-  hasChildren(id: string): Promise<boolean>;
+  findAllByInstitution(tenantId: string, institutionId: string): Promise<InfrastructureRecord[]>;
+  update(
+    tenantId: string,
+    id: string,
+    data: Partial<Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>>,
+  ): Promise<InfrastructureRecord | null>;
+  delete(tenantId: string, id: string): Promise<boolean>;
+  hasChildren(tenantId: string, id: string): Promise<boolean>;
 }
 
 /**
@@ -69,15 +76,16 @@ export interface InfrastructureStore {
  */
 export interface ConditionOptionRecord {
   id: string;
+  tenantId: string;
   name: string;
   description: string | null;
 }
 
 export interface ConditionOptionStore {
   create(record: ConditionOptionRecord): Promise<ConditionOptionRecord>;
-  findAll(): Promise<ConditionOptionRecord[]>;
-  findByName(name: string): Promise<ConditionOptionRecord | null>;
-  delete(id: string): Promise<boolean>;
+  findAll(tenantId: string): Promise<ConditionOptionRecord[]>;
+  findByName(tenantId: string, name: string): Promise<ConditionOptionRecord | null>;
+  delete(tenantId: string, id: string): Promise<boolean>;
 }
 
 /**
@@ -97,16 +105,6 @@ function toResponse(record: InfrastructureRecord): InfrastructureResponse {
     updatedAt: record.updatedAt.toISOString(),
   };
 }
-
-/**
- * Expected parent type for each infrastructure type in the hierarchy.
- */
-const PARENT_TYPE_MAP: Record<string, InfrastructureTypeValue | null> = {
-  [InfrastructureType.LAND]: null,
-  [InfrastructureType.BUILDING]: InfrastructureType.LAND,
-  [InfrastructureType.FLOOR]: InfrastructureType.BUILDING,
-  [InfrastructureType.ROOM]: InfrastructureType.FLOOR,
-};
 
 /**
  * Child type for each infrastructure type.
@@ -141,8 +139,8 @@ export class InfrastructureService {
   /**
    * Validates that the condition value exists in the configurable options.
    */
-  private async validateCondition(condition: string): Promise<void> {
-    const options = await this.conditionStore.findAll();
+  private async validateCondition(tenantId: string, condition: string): Promise<void> {
+    const options = await this.conditionStore.findAll(tenantId);
     // If no condition options are configured, allow any non-empty value
     if (options.length === 0) return;
 
@@ -159,11 +157,12 @@ export class InfrastructureService {
    * Validates that the parent exists and is of the expected type.
    */
   private async validateParent(
+    tenantId: string,
     parentId: string,
     expectedType: InfrastructureTypeValue,
     institutionId: string,
   ): Promise<void> {
-    const parent = await this.store.findById(parentId);
+    const parent = await this.store.findById(tenantId, parentId);
     if (!parent) {
       throw new NotFoundError(`Parent infrastructure item not found: ${parentId}`);
     }
@@ -181,12 +180,13 @@ export class InfrastructureService {
 
   // ─── Land CRUD ───────────────────────────────────────────────────────────────
 
-  async createLand(input: CreateLandInput): Promise<InfrastructureResponse> {
-    await this.validateCondition(input.condition);
+  async createLand(tenantId: string, input: CreateLandInput): Promise<InfrastructureResponse> {
+    await this.validateCondition(tenantId, input.condition);
 
     const now = new Date();
     const record: InfrastructureRecord = {
       id: uuidv4(),
+      tenantId,
       name: input.name,
       type: InfrastructureType.LAND,
       institutionId: input.institutionId,
@@ -204,13 +204,17 @@ export class InfrastructureService {
 
   // ─── Building CRUD ───────────────────────────────────────────────────────────
 
-  async createBuilding(input: CreateBuildingInput): Promise<InfrastructureResponse> {
-    await this.validateCondition(input.condition);
-    await this.validateParent(input.landId, InfrastructureType.LAND, input.institutionId);
+  async createBuilding(
+    tenantId: string,
+    input: CreateBuildingInput,
+  ): Promise<InfrastructureResponse> {
+    await this.validateCondition(tenantId, input.condition);
+    await this.validateParent(tenantId, input.landId, InfrastructureType.LAND, input.institutionId);
 
     const now = new Date();
     const record: InfrastructureRecord = {
       id: uuidv4(),
+      tenantId,
       name: input.name,
       type: InfrastructureType.BUILDING,
       institutionId: input.institutionId,
@@ -228,13 +232,19 @@ export class InfrastructureService {
 
   // ─── Floor CRUD ──────────────────────────────────────────────────────────────
 
-  async createFloor(input: CreateFloorInput): Promise<InfrastructureResponse> {
-    await this.validateCondition(input.condition);
-    await this.validateParent(input.buildingId, InfrastructureType.BUILDING, input.institutionId);
+  async createFloor(tenantId: string, input: CreateFloorInput): Promise<InfrastructureResponse> {
+    await this.validateCondition(tenantId, input.condition);
+    await this.validateParent(
+      tenantId,
+      input.buildingId,
+      InfrastructureType.BUILDING,
+      input.institutionId,
+    );
 
     const now = new Date();
     const record: InfrastructureRecord = {
       id: uuidv4(),
+      tenantId,
       name: input.name,
       type: InfrastructureType.FLOOR,
       institutionId: input.institutionId,
@@ -252,13 +262,14 @@ export class InfrastructureService {
 
   // ─── Room CRUD ───────────────────────────────────────────────────────────────
 
-  async createRoom(input: CreateRoomInput): Promise<InfrastructureResponse> {
-    await this.validateCondition(input.condition);
-    await this.validateParent(input.floorId, InfrastructureType.FLOOR, input.institutionId);
+  async createRoom(tenantId: string, input: CreateRoomInput): Promise<InfrastructureResponse> {
+    await this.validateCondition(tenantId, input.condition);
+    await this.validateParent(tenantId, input.floorId, InfrastructureType.FLOOR, input.institutionId);
 
     const now = new Date();
     const record: InfrastructureRecord = {
       id: uuidv4(),
+      tenantId,
       name: input.name,
       type: InfrastructureType.ROOM,
       institutionId: input.institutionId,
@@ -279,8 +290,8 @@ export class InfrastructureService {
   /**
    * Get a single infrastructure item by ID.
    */
-  async getById(id: string): Promise<InfrastructureResponse> {
-    const record = await this.store.findById(id);
+  async getById(tenantId: string, id: string): Promise<InfrastructureResponse> {
+    const record = await this.store.findById(tenantId, id);
     if (!record) {
       throw new NotFoundError(`Infrastructure item not found: ${id}`);
     }
@@ -290,17 +301,21 @@ export class InfrastructureService {
   /**
    * Update an infrastructure item.
    */
-  async update(id: string, input: UpdateInfrastructureInput): Promise<InfrastructureResponse> {
-    const existing = await this.store.findById(id);
+  async update(
+    tenantId: string,
+    id: string,
+    input: UpdateInfrastructureInput,
+  ): Promise<InfrastructureResponse> {
+    const existing = await this.store.findById(tenantId, id);
     if (!existing) {
       throw new NotFoundError(`Infrastructure item not found: ${id}`);
     }
 
     if (input.condition !== undefined) {
-      await this.validateCondition(input.condition);
+      await this.validateCondition(tenantId, input.condition);
     }
 
-    const updated = await this.store.update(id, {
+    const updated = await this.store.update(tenantId, id, {
       ...(input.name !== undefined && { name: input.name }),
       ...(input.capacity !== undefined && { capacity: input.capacity }),
       ...(input.condition !== undefined && { condition: input.condition }),
@@ -319,15 +334,15 @@ export class InfrastructureService {
    * Delete an infrastructure item.
    * Prevents deletion if the item has children.
    */
-  async delete(id: string): Promise<void> {
-    const existing = await this.store.findById(id);
+  async delete(tenantId: string, id: string): Promise<void> {
+    const existing = await this.store.findById(tenantId, id);
     if (!existing) {
       throw new NotFoundError(`Infrastructure item not found: ${id}`);
     }
 
     const childType = CHILD_TYPE_MAP[existing.type];
     if (childType) {
-      const hasChildren = await this.store.hasChildren(id);
+      const hasChildren = await this.store.hasChildren(tenantId, id);
       if (hasChildren) {
         throw new BusinessRuleError(
           `Cannot delete ${existing.type.toLowerCase()} '${existing.name}' because it has child items. Delete children first.`,
@@ -335,7 +350,7 @@ export class InfrastructureService {
       }
     }
 
-    const deleted = await this.store.delete(id);
+    const deleted = await this.store.delete(tenantId, id);
     if (!deleted) {
       throw new NotFoundError(`Infrastructure item not found: ${id}`);
     }
@@ -345,10 +360,12 @@ export class InfrastructureService {
    * List lands for an institution.
    */
   async listLands(
+    tenantId: string,
     institutionId: string,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<PaginatedResult<InfrastructureResponse>> {
     const { items, total } = await this.store.findByInstitutionAndType(
+      tenantId,
       institutionId,
       InfrastructureType.LAND,
       options,
@@ -369,15 +386,17 @@ export class InfrastructureService {
    * List buildings under a specific land.
    */
   async listBuildings(
+    tenantId: string,
     landId: string,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<PaginatedResult<InfrastructureResponse>> {
-    const parent = await this.store.findById(landId);
+    const parent = await this.store.findById(tenantId, landId);
     if (!parent || parent.type !== InfrastructureType.LAND) {
       throw new NotFoundError(`Land not found: ${landId}`);
     }
 
     const { items, total } = await this.store.findByParent(
+      tenantId,
       landId,
       InfrastructureType.BUILDING,
       options,
@@ -398,15 +417,17 @@ export class InfrastructureService {
    * List floors under a specific building.
    */
   async listFloors(
+    tenantId: string,
     buildingId: string,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<PaginatedResult<InfrastructureResponse>> {
-    const parent = await this.store.findById(buildingId);
+    const parent = await this.store.findById(tenantId, buildingId);
     if (!parent || parent.type !== InfrastructureType.BUILDING) {
       throw new NotFoundError(`Building not found: ${buildingId}`);
     }
 
     const { items, total } = await this.store.findByParent(
+      tenantId,
       buildingId,
       InfrastructureType.FLOOR,
       options,
@@ -427,15 +448,17 @@ export class InfrastructureService {
    * List rooms under a specific floor.
    */
   async listRooms(
+    tenantId: string,
     floorId: string,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<PaginatedResult<InfrastructureResponse>> {
-    const parent = await this.store.findById(floorId);
+    const parent = await this.store.findById(tenantId, floorId);
     if (!parent || parent.type !== InfrastructureType.FLOOR) {
       throw new NotFoundError(`Floor not found: ${floorId}`);
     }
 
     const { items, total } = await this.store.findByParent(
+      tenantId,
       floorId,
       InfrastructureType.ROOM,
       options,
@@ -455,8 +478,11 @@ export class InfrastructureService {
   /**
    * Get the full infrastructure hierarchy for an institution as a tree.
    */
-  async getHierarchy(institutionId: string): Promise<InfrastructureHierarchyResponse> {
-    const allItems = await this.store.findAllByInstitution(institutionId);
+  async getHierarchy(
+    tenantId: string,
+    institutionId: string,
+  ): Promise<InfrastructureHierarchyResponse> {
+    const allItems = await this.store.findAllByInstitution(tenantId, institutionId);
 
     const lands = allItems.filter((item) => item.type === InfrastructureType.LAND);
     const buildings = allItems.filter((item) => item.type === InfrastructureType.BUILDING);
@@ -506,14 +532,19 @@ export class InfrastructureService {
   /**
    * Add a configurable condition option.
    */
-  async addConditionOption(name: string, description?: string): Promise<ConditionOptionRecord> {
-    const existing = await this.conditionStore.findByName(name);
+  async addConditionOption(
+    tenantId: string,
+    name: string,
+    description?: string,
+  ): Promise<ConditionOptionRecord> {
+    const existing = await this.conditionStore.findByName(tenantId, name);
     if (existing) {
       throw new BusinessRuleError(`Condition option '${name}' already exists`);
     }
 
     return this.conditionStore.create({
       id: uuidv4(),
+      tenantId,
       name,
       description: description ?? null,
     });
@@ -522,15 +553,15 @@ export class InfrastructureService {
   /**
    * List all configurable condition options.
    */
-  async listConditionOptions(): Promise<ConditionOptionRecord[]> {
-    return this.conditionStore.findAll();
+  async listConditionOptions(tenantId: string): Promise<ConditionOptionRecord[]> {
+    return this.conditionStore.findAll(tenantId);
   }
 
   /**
    * Delete a condition option.
    */
-  async deleteConditionOption(id: string): Promise<void> {
-    const deleted = await this.conditionStore.delete(id);
+  async deleteConditionOption(tenantId: string, id: string): Promise<void> {
+    const deleted = await this.conditionStore.delete(tenantId, id);
     if (!deleted) {
       throw new NotFoundError(`Condition option not found: ${id}`);
     }

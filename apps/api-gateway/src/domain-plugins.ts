@@ -8,19 +8,18 @@
  * domains that are deployed as separate services).
  *
  * Persistence status (current schema):
- *  - student + enrollment / institution / staff (incl. assignments) /
- *    attendance / assessment / examination: Prisma-backed (Postgres + RLS)
- *    via their create*Repository factories when DATABASE_URL is set, else
- *    in-memory.
+ *  - student + enrollment / institution / staff (incl. assignments,
+ *    appraisals, training) / attendance / assessment (incl. report-cards) /
+ *    examination: Prisma-backed (Postgres + RLS) via their create*Repository
+ *    factories when DATABASE_URL is set, else in-memory.
  *  - scholarship / transport / health / workflow / notification / report /
  *    survey / registration: Prisma-backed the same way (P9–P16).
  *  - report analytical ReportDataSource: cross-module composition via
  *    injected domain repositories (per-schema queries + in-memory UUID joins).
- *  - assessment report-card repositories are not wired yet (no Prisma
- *    implementation); report-card routes stay disabled.
- *  - student bulk-import routes stay disabled (import StudentRepository has
- *    only an in-memory impl; no Prisma adapter yet).
- *  - staff appraisal/training stay disabled (no Prisma models).
+ *  - notification role/area/institution recipients: CrossModule lookup over
+ *    auth `UserRoleAssignment` (sequential per-criterion queries + UUID merge).
+ *  - student bulk-import: Prisma adapter when DATABASE_URL is set.
+ *  - institution infrastructure + registration form configs: Prisma-backed.
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -30,7 +29,11 @@ import {
   createAssessmentItemRepository,
   createAssessmentResultRepository,
   createGradingSchemeRepository,
+  createInstitutionBrandingRepository,
   createOutcomeRepository,
+  createReportCardJobRepository,
+  createReportCardTemplateRepository,
+  createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
 import {
   attendancePlugin,
@@ -68,8 +71,14 @@ import {
   scholarshipPlugin,
 } from '@proctira/backend-scholarship';
 import {
+  createAppraisalRepository,
+  createAppraisalTemplateRepository,
   createAssignmentRepository,
+  createCertificationRepository,
   createStaffRepository,
+  createTrainingAttendanceRepository,
+  createTrainingProgramRepository,
+  createTrainingSessionRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
 import {
@@ -114,6 +123,16 @@ function buildReportDataSource() {
   });
 }
 
+/**
+ * Notification recipient expansion uses the factory's default CrossModule
+ * lookup over auth `UserRoleAssignment` (same sequential + UUID-merge pattern
+ * as ReportDataSource). Override via createNotificationRepository({...}) when
+ * custom ports are needed.
+ */
+function buildNotificationRepository() {
+  return createNotificationRepository();
+}
+
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
   /** Logical name (for logging). */
@@ -156,6 +175,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       '/subjects',
       '/institution-subjects',
       '/areas',
+      '/infrastructure',
     ],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
@@ -171,10 +191,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/staff'],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory —
-      // for both staff profiles and assignments.
+      // for staff profiles, assignments, appraisals, and training.
       await scope.register(staffPlugin, {
         repository: createStaffRepository(),
         assignmentRepository: createAssignmentRepository(),
+        appraisalTemplateRepository: createAppraisalTemplateRepository(),
+        appraisalRepository: createAppraisalRepository(),
+        trainingProgramRepository: createTrainingProgramRepository(),
+        trainingSessionRepository: createTrainingSessionRepository(),
+        trainingAttendanceRepository: createTrainingAttendanceRepository(),
+        certificationRepository: createCertificationRepository(),
         prefix: '/staff',
       });
     },
@@ -206,18 +232,21 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'assessment',
     // The assessment plugin mounts under its own native prefixes
-    // (/grading-schemes, /assessment-items, /outcomes, /results, ...), so the
-    // legacy '/assessments' proxy is superseded and excluded.
-    proxyPrefixes: ['/assessments'],
+    // (/grading-schemes, /assessment-items, /outcomes, /results,
+    // /report-cards), so the legacy '/assessments' proxy is superseded.
+    proxyPrefixes: ['/assessments', '/report-cards'],
     register: async (scope) => {
-      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
-      // Report-card repositories are intentionally not wired (no Prisma
-      // implementation yet) — report-card routes stay disabled.
+      // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory —
+      // including report-card repositories (templates, comments, branding, jobs).
       await scope.register(assessmentPlugin, {
         gradingSchemeRepository: createGradingSchemeRepository(),
         assessmentItemRepository: createAssessmentItemRepository(),
         outcomeRepository: createOutcomeRepository(),
         resultRepository: createAssessmentResultRepository(),
+        reportCardTemplateRepository: createReportCardTemplateRepository(),
+        teacherCommentRepository: createTeacherCommentRepository(),
+        institutionBrandingRepository: createInstitutionBrandingRepository(),
+        reportCardJobRepository: createReportCardJobRepository(),
       });
     },
   },
@@ -268,7 +297,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/notifications'],
     register: async (scope) => {
       await scope.register(notificationPlugin, {
-        repository: createNotificationRepository(),
+        repository: buildNotificationRepository(),
         prefix: '/notifications',
       });
     },

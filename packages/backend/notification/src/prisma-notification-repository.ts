@@ -7,16 +7,14 @@
  * bound on the same connection that executes the query; `tenantId` is also kept
  * in every `where` clause as defense-in-depth.
  *
- * Notes on methods without a dedicated backing store:
- *  - `resolveRecipients` can only honour explicit `userIds` from the query.
- *    Role / area / institution membership live outside the notification schema
- *    (Keycloak + assignment tables) and are not joined here. Callers that need
- *    role-based targeting should resolve IDs upstream or use the in-memory
- *    repository in tests.
+ * `resolveRecipients` merges explicit `userIds` with role / area / institution
+ * expansion via an injected {@link NotificationRecipientLookup} (sequential
+ * per-schema queries + in-memory UUID merge — no cross-schema SQL JOINs).
  */
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
+import type { NotificationRecipientLookup } from './cross-module-recipient-lookup.js';
 import type {
   NotificationEntity,
   NotificationQueryOptions,
@@ -32,6 +30,11 @@ import type {
   Priority,
   RecipientQuery,
 } from './schemas.js';
+
+export interface PrismaNotificationRepositoryOptions {
+  /** Cross-module role/area/institution expander (ReportDataSource pattern). */
+  recipientLookup?: NotificationRecipientLookup;
+}
 
 interface NotificationRow {
   id: string;
@@ -171,7 +174,14 @@ function toTemplate(row: NotificationTemplateRow): NotificationTemplateEntity {
 }
 
 export class PrismaNotificationRepository implements NotificationRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly recipientLookup: NotificationRecipientLookup | undefined;
+
+  constructor(
+    private readonly prisma: PrismaClient,
+    options: PrismaNotificationRepositoryOptions = {},
+  ) {
+    this.recipientLookup = options.recipientLookup;
+  }
 
   // ─── Notifications ───────────────────────────────────────────────────────
 
@@ -447,11 +457,28 @@ export class PrismaNotificationRepository implements NotificationRepository {
   // ─── Recipient Resolution ──────────────────────────────────────────────
 
   async resolveRecipients(
-    _tenantId: string,
+    tenantId: string,
     query: RecipientQuery,
   ): Promise<string[]> {
-    // Explicit user IDs only — role/area/institution resolution requires
-    // cross-domain membership data not owned by the notification schema.
-    return query.userIds ? [...new Set(query.userIds)] : [];
+    const resolved = new Set<string>(query.userIds ?? []);
+
+    const needsExpansion =
+      (query.roleIds && query.roleIds.length > 0) ||
+      (query.areaIds && query.areaIds.length > 0) ||
+      (query.institutionIds && query.institutionIds.length > 0);
+
+    if (needsExpansion && this.recipientLookup) {
+      const expanded = await this.recipientLookup.expandRoleAreaInstitution(
+        tenantId,
+        {
+          roleIds: query.roleIds,
+          areaIds: query.areaIds,
+          institutionIds: query.institutionIds,
+        },
+      );
+      for (const id of expanded) resolved.add(id);
+    }
+
+    return Array.from(resolved);
   }
 }

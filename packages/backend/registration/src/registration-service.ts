@@ -321,8 +321,29 @@ export class RegistrationService {
    */
   async getFormConfiguration(institutionId: string): Promise<FormConfiguration | null> {
     const typeId = await this.repository.getInstitutionTypeId(institutionId);
-    if (!typeId) return null;
-    return this.repository.getFormConfiguration(typeId);
+    if (typeId) {
+      return this.repository.getFormConfiguration(typeId);
+    }
+    // Public portal may pass institution type id directly when the institution
+    // row is unknown — fall back to treating the param as a type key.
+    return this.repository.getFormConfiguration(institutionId);
+  }
+
+  /** List persisted form configurations for the public/default tenant. */
+  async listFormConfigurations(): Promise<FormConfiguration[]> {
+    return this.repository.listFormConfigurations();
+  }
+
+  /** Create or replace a form configuration (Req 16.1). */
+  async upsertFormConfiguration(
+    config: FormConfiguration,
+  ): Promise<FormConfiguration> {
+    return this.repository.upsertFormConfiguration(config);
+  }
+
+  /** Delete a form configuration by institution type id. */
+  async deleteFormConfiguration(institutionTypeId: string): Promise<boolean> {
+    return this.repository.deleteFormConfiguration(institutionTypeId);
   }
 
   /**

@@ -40,8 +40,23 @@ export { InMemoryNotificationRepository } from './in-memory-repository.js';
 
 // Prisma repository (Postgres + RLS) + factory
 export { PrismaNotificationRepository } from './prisma-notification-repository.js';
+export type { PrismaNotificationRepositoryOptions } from './prisma-notification-repository.js';
 export { createNotificationRepository } from './repository-factory.js';
 export type { NotificationRepositoryConfig } from './repository-factory.js';
+
+// Cross-module recipient expansion (role / area / institution)
+export {
+  CrossModuleNotificationRecipientLookup,
+  createNotificationRecipientLookup,
+} from './cross-module-recipient-lookup.js';
+export type {
+  CrossModuleRecipientLookupDeps,
+  NotificationRecipientLookup,
+  RecipientAreaPort,
+  RecipientInstitutionPort,
+  RecipientRolePort,
+} from './cross-module-recipient-lookup.js';
+export { PrismaRecipientMembershipPorts } from './prisma-recipient-lookup.js';
 
 // Schemas
 export {

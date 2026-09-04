@@ -37,10 +37,17 @@ describe('Phase 2 platform/auth schema boundaries', () => {
     expect(modelBody(schema, 'UserIdentity')).toContain('@@schema("auth")');
     expect(modelBody(schema, 'RefreshToken')).toContain('@@schema("auth")');
     expect(modelBody(schema, 'UserSession')).toContain('@@schema("auth")');
+    expect(modelBody(schema, 'UserRoleAssignment')).toContain('@@schema("auth")');
   });
 
   it('keeps auth tenant_id as a bare UUID without Tenant relation/FK', () => {
-    for (const model of ['User', 'UserIdentity', 'RefreshToken', 'UserSession']) {
+    for (const model of [
+      'User',
+      'UserIdentity',
+      'RefreshToken',
+      'UserSession',
+      'UserRoleAssignment',
+    ]) {
       const body = modelBody(schema, model);
       expect(body).toMatch(/tenantId\s+String/);
       expect(body).not.toMatch(/tenant\s+Tenant\s+@relation/);

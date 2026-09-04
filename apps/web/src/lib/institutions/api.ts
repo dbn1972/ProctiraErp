@@ -282,7 +282,7 @@ export async function getInfrastructureHierarchy(
 ): Promise<InfrastructureHierarchy> {
   try {
     const result = await gatewayFetch<InfrastructureHierarchy>(
-      `/institutions/${encodeURIComponent(institutionId)}/infrastructure/hierarchy`,
+      `/infrastructure/hierarchy/${encodeURIComponent(institutionId)}`,
       { method: 'GET', throwOnError: true }
     );
     return unwrap(result, { lands: [] });

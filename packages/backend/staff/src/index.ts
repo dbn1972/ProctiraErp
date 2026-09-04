@@ -210,5 +210,24 @@ export type { TrainingRoutesOptions } from './training-routes.js';
 // Persistence: Prisma repository + env-driven factory
 export { PrismaStaffRepository } from './prisma-staff-repository.js';
 export { PrismaAssignmentRepository } from './prisma-assignment-repository.js';
-export { createStaffRepository, createAssignmentRepository } from './repository-factory.js';
+export {
+  PrismaAppraisalTemplateRepository,
+  PrismaAppraisalRepository,
+} from './prisma-appraisal-repository.js';
+export {
+  PrismaTrainingProgramRepository,
+  PrismaTrainingSessionRepository,
+  PrismaTrainingAttendanceRepository,
+  PrismaCertificationRepository,
+} from './prisma-training-repository.js';
+export {
+  createStaffRepository,
+  createAssignmentRepository,
+  createAppraisalTemplateRepository,
+  createAppraisalRepository,
+  createTrainingProgramRepository,
+  createTrainingSessionRepository,
+  createTrainingAttendanceRepository,
+  createCertificationRepository,
+} from './repository-factory.js';
 export type { StaffRepositoryConfig } from './repository-factory.js';

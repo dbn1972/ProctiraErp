@@ -108,6 +108,15 @@ export interface RegistrationRepository {
   /** Get form configuration for an institution type */
   getFormConfiguration(institutionTypeId: string): Promise<FormConfiguration | null>;
 
+  /** List all form configurations for the default/public tenant */
+  listFormConfigurations(): Promise<FormConfiguration[]>;
+
+  /** Create or replace a form configuration for an institution type */
+  upsertFormConfiguration(config: FormConfiguration): Promise<FormConfiguration>;
+
+  /** Delete a form configuration by institution type; returns false if missing */
+  deleteFormConfiguration(institutionTypeId: string): Promise<boolean>;
+
   /** Get institution locations with filtering for map display */
   getInstitutionLocations(
     tenantId: string,

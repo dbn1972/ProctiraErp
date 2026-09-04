@@ -7,12 +7,23 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { StaffRepository } from './staff-repository.js';
+import type { AppraisalRepository, AppraisalTemplateRepository } from './appraisal-repository.js';
+import { AppraisalService } from './appraisal-service.js';
+import { registerAppraisalRoutes } from './appraisal-routes.js';
 import type { StaffAssignmentRepository } from './assignment-repository.js';
-import { StaffService } from './staff-service.js';
 import { StaffAssignmentService } from './assignment-service.js';
-import { registerStaffRoutes } from './routes.js';
 import { registerAssignmentRoutes } from './assignment-routes.js';
+import type { StaffRepository } from './staff-repository.js';
+import { StaffService } from './staff-service.js';
+import { registerStaffRoutes } from './routes.js';
+import type {
+  CertificationRepository,
+  TrainingAttendanceRepository,
+  TrainingProgramRepository,
+  TrainingSessionRepository,
+} from './training-repository.js';
+import { TrainingService } from './training-service.js';
+import { registerTrainingRoutes } from './training-routes.js';
 
 /**
  * Options for the staff plugin.
@@ -22,6 +33,18 @@ export interface StaffPluginOptions {
   repository: StaffRepository;
   /** Staff assignment repository implementation (optional — if not provided, assignment routes are not registered) */
   assignmentRepository?: StaffAssignmentRepository;
+  /** Appraisal template repository (optional — with appraisalRepository mounts appraisal routes) */
+  appraisalTemplateRepository?: AppraisalTemplateRepository;
+  /** Appraisal repository (optional) */
+  appraisalRepository?: AppraisalRepository;
+  /** Training program repository (optional — with siblings mounts training routes) */
+  trainingProgramRepository?: TrainingProgramRepository;
+  /** Training session repository (optional) */
+  trainingSessionRepository?: TrainingSessionRepository;
+  /** Training attendance repository (optional) */
+  trainingAttendanceRepository?: TrainingAttendanceRepository;
+  /** Certification repository (optional) */
+  certificationRepository?: CertificationRepository;
   /** Route prefix for staff (default: '/staff') */
   prefix?: string;
 }
@@ -31,6 +54,8 @@ declare module 'fastify' {
   interface FastifyInstance {
     staffService: StaffService;
     staffAssignmentService?: StaffAssignmentService;
+    appraisalService?: AppraisalService;
+    trainingService?: TrainingService;
   }
 }
 
@@ -42,7 +67,17 @@ export const staffPlugin = fp(
     fastify: FastifyInstance,
     options: StaffPluginOptions,
   ) {
-    const { repository, assignmentRepository, prefix = '/staff' } = options;
+    const {
+      repository,
+      assignmentRepository,
+      appraisalTemplateRepository,
+      appraisalRepository,
+      trainingProgramRepository,
+      trainingSessionRepository,
+      trainingAttendanceRepository,
+      certificationRepository,
+      prefix = '/staff',
+    } = options;
 
     // Create staff service instance
     const staffService = new StaffService(repository);
@@ -64,6 +99,41 @@ export const staffPlugin = fp(
       await registerAssignmentRoutes(fastify, {
         assignmentService,
         prefix: `${prefix}/assignments`,
+      });
+    }
+
+    // Register appraisal routes when both repositories are provided
+    if (appraisalTemplateRepository && appraisalRepository) {
+      const appraisalService = new AppraisalService(
+        appraisalTemplateRepository,
+        appraisalRepository,
+      );
+      fastify.decorate('appraisalService', appraisalService);
+
+      await registerAppraisalRoutes(fastify, {
+        appraisalService,
+        prefix: `${prefix}/appraisals`,
+      });
+    }
+
+    // Register training routes when all four repositories are provided
+    if (
+      trainingProgramRepository &&
+      trainingSessionRepository &&
+      trainingAttendanceRepository &&
+      certificationRepository
+    ) {
+      const trainingService = new TrainingService(
+        trainingProgramRepository,
+        trainingSessionRepository,
+        trainingAttendanceRepository,
+        certificationRepository,
+      );
+      fastify.decorate('trainingService', trainingService);
+
+      await registerTrainingRoutes(fastify, {
+        trainingService,
+        prefix: `${prefix}/training`,
       });
     }
   },

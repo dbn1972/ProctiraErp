@@ -3,21 +3,26 @@
  *
  * Layout per redesign/web/workflows-approvals.html:
  *  - Page head with All instances CTA
- *  - Pending / history tabs (history stubbed)
+ *  - Pending / history tabs
  *  - Approval cards with subject details and Approve / Reject
  *
  * Validates: Requirement 13.1 — surface approval queue per user.
+ * ProctiraERP — wires POST /workflows/instances/:id/transition.
  */
 import Link from 'next/link';
-import { ArrowLeft, Check, CheckCircle2, ListChecks, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ListChecks } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import {
+  listApprovalHistory,
   listPendingApprovals,
   type WorkflowApproval,
+  type WorkflowApprovalHistoryItem,
 } from '@/lib/api/workflows';
 import { cn } from '@/lib/utils';
+
+import { ApprovalActions } from './_components/approval-actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +38,11 @@ function single(value: string | string[] | undefined): string | undefined {
 export default async function ApprovalsPage({ searchParams }: PageProps) {
   const session = await requireSession('/workflows/approvals');
   const tab = single(searchParams?.tab) === 'history' ? 'history' : 'pending';
-  const approvals = await listPendingApprovals();
+
+  const [approvals, history] = await Promise.all([
+    listPendingApprovals(),
+    tab === 'history' ? listApprovalHistory() : Promise.resolve([]),
+  ]);
 
   return (
     <section aria-labelledby="approvals-heading" className="space-y-6">
@@ -104,12 +113,19 @@ export default async function ApprovalsPage({ searchParams }: PageProps) {
       </div>
 
       {tab === 'history' ? (
-        <Card className="overflow-hidden">
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            Approval history is not available yet. Completed decisions will
-            appear here.
-          </CardContent>
-        </Card>
+        history.length === 0 ? (
+          <Card className="overflow-hidden">
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">
+              No completed decisions yet.
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex max-w-[880px] flex-col gap-4">
+            {history.map((item) => (
+              <HistoryCard key={item.id} item={item} />
+            ))}
+          </div>
+        )
       ) : approvals.length === 0 ? (
         <Card className="overflow-hidden">
           <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
@@ -170,16 +186,50 @@ function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
           </dd>
         </dl>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm">
-            <Check className="me-1 h-4 w-4" aria-hidden="true" />
-            Approve
-          </Button>
-          <Button size="sm" variant="destructive">
-            <X className="me-1 h-4 w-4" aria-hidden="true" />
-            Reject
-          </Button>
+        <ApprovalActions instanceId={a.instanceId} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function HistoryCard({ item }: { item: WorkflowApprovalHistoryItem }) {
+  const statusColour =
+    item.status === 'REJECTED'
+      ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400'
+      : item.status === 'CANCELLED'
+        ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+        : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400';
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="space-y-3 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-foreground">{item.definitionName}</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {item.decidedBy} · {item.decidedAt} · {item.action}
+            </p>
+          </div>
+          <span
+            className={cn(
+              'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
+              statusColour,
+            )}
+          >
+            {item.status}
+          </span>
         </div>
+        <dl className="grid gap-x-4 gap-y-2 text-sm sm:grid-cols-[120px_1fr]">
+          <dt className="text-muted-foreground">Subject</dt>
+          <dd>
+            <span className="text-muted-foreground">{item.subjectType}/</span>
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              {item.subjectId}
+            </code>
+          </dd>
+          <dt className="text-muted-foreground">Step</dt>
+          <dd className="font-medium text-foreground">{item.stepName}</dd>
+        </dl>
       </CardContent>
     </Card>
   );

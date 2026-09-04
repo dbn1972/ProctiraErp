@@ -129,6 +129,41 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     return this.formConfigurations.find((c) => c.institutionTypeId === institutionTypeId) ?? null;
   }
 
+  async listFormConfigurations(): Promise<FormConfiguration[]> {
+    return this.formConfigurations.map((c) => ({
+      institutionTypeId: c.institutionTypeId,
+      fields: c.fields.map((f) => ({ ...f })),
+    }));
+  }
+
+  async upsertFormConfiguration(config: FormConfiguration): Promise<FormConfiguration> {
+    const copy: FormConfiguration = {
+      institutionTypeId: config.institutionTypeId,
+      fields: config.fields.map((f) => ({ ...f })),
+    };
+    const index = this.formConfigurations.findIndex(
+      (c) => c.institutionTypeId === config.institutionTypeId,
+    );
+    if (index === -1) {
+      this.formConfigurations.push(copy);
+    } else {
+      this.formConfigurations[index] = copy;
+    }
+    return {
+      institutionTypeId: copy.institutionTypeId,
+      fields: copy.fields.map((f) => ({ ...f })),
+    };
+  }
+
+  async deleteFormConfiguration(institutionTypeId: string): Promise<boolean> {
+    const index = this.formConfigurations.findIndex(
+      (c) => c.institutionTypeId === institutionTypeId,
+    );
+    if (index === -1) return false;
+    this.formConfigurations.splice(index, 1);
+    return true;
+  }
+
   async getInstitutionLocations(
     tenantId: string,
     filter: InstitutionLocationFilter,

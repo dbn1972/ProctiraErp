@@ -18,13 +18,16 @@
 Composition root: `apps/api-gateway/src/domain-plugins.ts`.
 
 ## Explicit non-goals
-- Notification role/area recipient expansion beyond explicit user IDs
-- Full web module UI redesign per domain
 - Flutter device / emulator E2E
+- Live FCM / production push config
+- Marketing App Router pages (legacy SPA / redesign HTML only)
 
-**Resolved residual:** Cross-module analytical `ReportDataSource` is wired via
-`createReportDataSource` (per-schema repository queries + in-memory UUID joins)
-in `apps/api-gateway/src/domain-plugins.ts`.
+**Resolved residuals (2026-09-04 follow-on):**
+- Cross-module analytical `ReportDataSource` via `createReportDataSource`
+- Notification role/area recipient expansion (sequential lookups + UUID merge)
+- Institution infrastructure, student bulk import, assessment report-cards,
+  staff appraisal/training, and registration form configurations — Prisma +
+  gateway (+ matching web surfaces where listed in `SCHOOL_ERP_MODULE_SCOPE.md`)
 
 ## Verification
 - `pnpm --filter @proctira/api-gateway typecheck` — pass

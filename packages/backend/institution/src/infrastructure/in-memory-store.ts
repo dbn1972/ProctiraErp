@@ -25,24 +25,27 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
     return { ...record };
   }
 
-  async findById(id: string): Promise<InfrastructureRecord | null> {
+  async findById(tenantId: string, id: string): Promise<InfrastructureRecord | null> {
     const item = this.items.get(id);
-    return item ? { ...item } : null;
+    if (!item || item.tenantId !== tenantId) return null;
+    return { ...item };
   }
 
   async findByInstitutionAndType(
+    tenantId: string,
     institutionId: string,
     type: InfrastructureTypeValue,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<{ items: InfrastructureRecord[]; total: number }> {
     let filtered = Array.from(this.items.values()).filter(
-      (item) => item.institutionId === institutionId && item.type === type,
+      (item) =>
+        item.tenantId === tenantId &&
+        item.institutionId === institutionId &&
+        item.type === type,
     );
 
-    // Sort
     filtered = this.sortItems(filtered, options.sortBy, options.sortOrder);
 
-    // Paginate
     const total = filtered.length;
     const start = (options.page - 1) * options.pageSize;
     const items = filtered.slice(start, start + options.pageSize);
@@ -51,18 +54,18 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
   }
 
   async findByParent(
+    tenantId: string,
     parentId: string,
     type: InfrastructureTypeValue,
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<{ items: InfrastructureRecord[]; total: number }> {
     let filtered = Array.from(this.items.values()).filter(
-      (item) => item.parentId === parentId && item.type === type,
+      (item) =>
+        item.tenantId === tenantId && item.parentId === parentId && item.type === type,
     );
 
-    // Sort
     filtered = this.sortItems(filtered, options.sortBy, options.sortOrder);
 
-    // Paginate
     const total = filtered.length;
     const start = (options.page - 1) * options.pageSize;
     const items = filtered.slice(start, start + options.pageSize);
@@ -70,18 +73,24 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
     return { items: items.map((i) => ({ ...i })), total };
   }
 
-  async findAllByInstitution(institutionId: string): Promise<InfrastructureRecord[]> {
+  async findAllByInstitution(
+    tenantId: string,
+    institutionId: string,
+  ): Promise<InfrastructureRecord[]> {
     return Array.from(this.items.values())
-      .filter((item) => item.institutionId === institutionId)
+      .filter((item) => item.tenantId === tenantId && item.institutionId === institutionId)
       .map((i) => ({ ...i }));
   }
 
   async update(
+    tenantId: string,
     id: string,
-    data: Partial<Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>>,
+    data: Partial<
+      Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>
+    >,
   ): Promise<InfrastructureRecord | null> {
     const existing = this.items.get(id);
-    if (!existing) return null;
+    if (!existing || existing.tenantId !== tenantId) return null;
 
     const updated: InfrastructureRecord = {
       ...existing,
@@ -91,13 +100,15 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
     return { ...updated };
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const existing = this.items.get(id);
+    if (!existing || existing.tenantId !== tenantId) return false;
     return this.items.delete(id);
   }
 
-  async hasChildren(id: string): Promise<boolean> {
+  async hasChildren(tenantId: string, id: string): Promise<boolean> {
     for (const item of this.items.values()) {
-      if (item.parentId === id) return true;
+      if (item.tenantId === tenantId && item.parentId === id) return true;
     }
     return false;
   }
@@ -145,18 +156,22 @@ export class InMemoryConditionOptionStore implements ConditionOptionStore {
     return { ...record };
   }
 
-  async findAll(): Promise<ConditionOptionRecord[]> {
-    return Array.from(this.options.values()).map((o) => ({ ...o }));
+  async findAll(tenantId: string): Promise<ConditionOptionRecord[]> {
+    return Array.from(this.options.values())
+      .filter((o) => o.tenantId === tenantId)
+      .map((o) => ({ ...o }));
   }
 
-  async findByName(name: string): Promise<ConditionOptionRecord | null> {
+  async findByName(tenantId: string, name: string): Promise<ConditionOptionRecord | null> {
     for (const option of this.options.values()) {
-      if (option.name === name) return { ...option };
+      if (option.tenantId === tenantId && option.name === name) return { ...option };
     }
     return null;
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    const existing = this.options.get(id);
+    if (!existing || existing.tenantId !== tenantId) return false;
     return this.options.delete(id);
   }
 

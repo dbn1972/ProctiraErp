@@ -1,11 +1,13 @@
 /**
- * Notifications inbox (Server Component).
+ * Notifications inbox + preferences (Server Component).
  *
  * Layout per redesign/web/notifications-center.html:
  *  - Page head with unread count
+ *  - Inbox / Preferences tabs
  *  - Inbox list of in-app / email / push deliveries
- *  - Empty state when no session user or no items
+ *  - Preferences tab reuses NotificationPreferences (settings feature)
  */
+import Link from 'next/link';
 import { Bell } from 'lucide-react';
 
 import {
@@ -21,8 +23,18 @@ import {
   type NotificationItem,
 } from '@/lib/api/notifications';
 import { cn } from '@/lib/utils';
+import NotificationPreferences from '@/features/settings/pages/NotificationPreferences';
 
 export const dynamic = 'force-dynamic';
+
+interface PageProps {
+  searchParams?: Record<string, string | string[] | undefined>;
+}
+
+function single(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
 
 const STATUS_LABELS: Record<DeliveryStatus, string> = {
   pending: 'Pending',
@@ -47,8 +59,9 @@ const CHANNEL_LABELS: Record<NotificationItem['channel'], string> = {
   webhook: 'Webhook',
 };
 
-export default async function NotificationsPage() {
-  const notifications = await listMyNotifications();
+export default async function NotificationsPage({ searchParams }: PageProps) {
+  const tab = single(searchParams?.tab) === 'preferences' ? 'preferences' : 'inbox';
+  const notifications = tab === 'inbox' ? await listMyNotifications() : [];
   const unreadCount = notifications.filter(
     (n) => n.status !== 'read' && n.status !== 'failed',
   ).length;
@@ -63,14 +76,57 @@ export default async function NotificationsPage() {
           Notifications
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Alerts, approvals and system messages for your account
-          {notifications.length > 0
-            ? ` · ${unreadCount.toLocaleString()} unread of ${notifications.length.toLocaleString()}`
-            : null}
+          {tab === 'preferences'
+            ? 'Choose channels, digests, and quiet hours for your account'
+            : `Alerts, approvals and system messages for your account${
+                notifications.length > 0
+                  ? ` · ${unreadCount.toLocaleString()} unread of ${notifications.length.toLocaleString()}`
+                  : ''
+              }`}
         </p>
       </div>
 
-      {notifications.length === 0 ? (
+      <div
+        className="flex flex-wrap gap-1 border-b border-border"
+        role="tablist"
+        aria-label="Notifications sections"
+      >
+        <Link
+          href="/notifications"
+          role="tab"
+          aria-selected={tab === 'inbox'}
+          className={cn(
+            'inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold transition-colors',
+            tab === 'inbox'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Inbox
+          {tab === 'inbox' && notifications.length > 0 ? (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold tabular-nums">
+              {notifications.length.toLocaleString()}
+            </span>
+          ) : null}
+        </Link>
+        <Link
+          href="/notifications?tab=preferences"
+          role="tab"
+          aria-selected={tab === 'preferences'}
+          className={cn(
+            'inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold transition-colors',
+            tab === 'preferences'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Preferences
+        </Link>
+      </div>
+
+      {tab === 'preferences' ? (
+        <NotificationPreferences embedded />
+      ) : notifications.length === 0 ? (
         <EmptyState />
       ) : (
         <Card className="overflow-hidden">

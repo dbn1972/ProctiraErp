@@ -91,6 +91,8 @@ export type {
   ConditionOptionRecord,
   InfrastructureServiceOptions,
   InfrastructureRoutesOptions,
+  InfrastructureStoreConfig,
+  InfrastructureStores,
   InfrastructureTypeValue,
   CreateLandInput,
   CreateBuildingInput,
@@ -105,6 +107,11 @@ export type {
 export { PrismaInstitutionRepository } from './prisma-institution-repository.js';
 export { createInstitutionRepository } from './repository-factory.js';
 export type { InstitutionRepositoryConfig } from './repository-factory.js';
+export {
+  PrismaInfrastructureStore,
+  PrismaConditionOptionStore,
+  createInfrastructureStores,
+} from './infrastructure/index.js';
 
 // Academic structure (boards, periods, grades, classes, subjects)
 export {

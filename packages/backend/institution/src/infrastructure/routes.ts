@@ -57,6 +57,19 @@ export interface InfrastructureRoutesOptions {
   prefix?: string;
 }
 
+function requireTenant(request: FastifyRequest, reply: FastifyReply): string | undefined {
+  const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+  if (!tenantId) {
+    reply.status(400).send({
+      code: 'TENANT_REQUIRED',
+      message: 'Tenant context is required',
+      statusCode: 400,
+    });
+    return undefined;
+  }
+  return tenantId;
+}
+
 /**
  * Extracts pagination options from query parameters with defaults.
  */
@@ -100,8 +113,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        const land = await infrastructureService.createLand(result.data);
+        const land = await infrastructureService.createLand(tenantId, result.data);
         return reply.status(201).send(land);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -141,8 +157,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       const paginationOptions = getPaginationOptions(request.query);
-      const result = await infrastructureService.listLands(institutionId, paginationOptions);
+      const result = await infrastructureService.listLands(tenantId, institutionId, paginationOptions);
       return reply.status(200).send(result);
     },
   );
@@ -169,8 +188,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        const building = await infrastructureService.createBuilding(result.data);
+        const building = await infrastructureService.createBuilding(tenantId, result.data);
         return reply.status(201).send(building);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -200,9 +222,12 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
         const paginationOptions = getPaginationOptions(request.query);
-        const result = await infrastructureService.listBuildings(landId, paginationOptions);
+        const result = await infrastructureService.listBuildings(tenantId, landId, paginationOptions);
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -235,8 +260,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        const floor = await infrastructureService.createFloor(result.data);
+        const floor = await infrastructureService.createFloor(tenantId, result.data);
         return reply.status(201).send(floor);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -266,9 +294,12 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
         const paginationOptions = getPaginationOptions(request.query);
-        const result = await infrastructureService.listFloors(buildingId, paginationOptions);
+        const result = await infrastructureService.listFloors(tenantId, buildingId, paginationOptions);
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -301,8 +332,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        const room = await infrastructureService.createRoom(result.data);
+        const room = await infrastructureService.createRoom(tenantId, result.data);
         return reply.status(201).send(room);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -332,9 +366,12 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
         const paginationOptions = getPaginationOptions(request.query);
-        const result = await infrastructureService.listRooms(floorId, paginationOptions);
+        const result = await infrastructureService.listRooms(tenantId, floorId, paginationOptions);
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -367,8 +404,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        const item = await infrastructureService.getById(paramsResult.data.id);
+        const item = await infrastructureService.getById(tenantId, paramsResult.data.id);
         return reply.status(200).send(item);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -409,8 +449,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        const updated = await infrastructureService.update(paramsResult.data.id, bodyResult.data);
+        const updated = await infrastructureService.update(tenantId, paramsResult.data.id, bodyResult.data);
         return reply.status(200).send(updated);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -441,8 +484,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        await infrastructureService.delete(paramsResult.data.id);
+        await infrastructureService.delete(tenantId, paramsResult.data.id);
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -475,7 +521,13 @@ export async function registerInfrastructureRoutes(
         });
       }
 
-      const hierarchy = await infrastructureService.getHierarchy(paramsResult.data.institutionId);
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
+      const hierarchy = await infrastructureService.getHierarchy(
+        tenantId,
+        paramsResult.data.institutionId,
+      );
       return reply.status(200).send(hierarchy);
     },
   );
@@ -502,8 +554,12 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
         const option = await infrastructureService.addConditionOption(
+          tenantId,
           result.data.name,
           result.data.description,
         );
@@ -524,10 +580,13 @@ export async function registerInfrastructureRoutes(
   fastify.get(
     `${prefix}/condition-options`,
     async function listConditionOptionsHandler(
-      _request: FastifyRequest,
+      request: FastifyRequest,
       reply: FastifyReply,
     ) {
-      const options = await infrastructureService.listConditionOptions();
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
+      const options = await infrastructureService.listConditionOptions(tenantId);
       return reply.status(200).send(options);
     },
   );
@@ -552,8 +611,11 @@ export async function registerInfrastructureRoutes(
         });
       }
 
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
       try {
-        await infrastructureService.deleteConditionOption(paramsResult.data.id);
+        await infrastructureService.deleteConditionOption(tenantId, paramsResult.data.id);
         return reply.status(204).send();
       } catch (error: unknown) {
         if (error instanceof AppError) {

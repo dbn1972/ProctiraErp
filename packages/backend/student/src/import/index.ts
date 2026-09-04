@@ -59,3 +59,8 @@ export type {
 // In-memory implementations (for testing)
 export { InMemoryStudentRepository } from './in-memory-student-repository.js';
 export { InMemoryImportQueue } from './in-memory-import-queue.js';
+
+// Prisma adapter + factory
+export { PrismaImportStudentRepository } from './prisma-import-student-repository.js';
+export { createImportStudentRepository } from './import-repository-factory.js';
+export type { ImportStudentRepositoryConfig } from './import-repository-factory.js';

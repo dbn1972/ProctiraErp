@@ -55,6 +55,12 @@ export {
   PrismaOutcomeRepository,
 } from './prisma-repository.js';
 export { PrismaAssessmentResultRepository } from './prisma-result-repository.js';
+export {
+  PrismaReportCardTemplateRepository,
+  PrismaTeacherCommentRepository,
+  PrismaInstitutionBrandingRepository,
+  PrismaReportCardJobRepository,
+} from './prisma-report-card-repository.js';
 
 // Repository factories
 export {
@@ -62,6 +68,10 @@ export {
   createAssessmentItemRepository,
   createOutcomeRepository,
   createAssessmentResultRepository,
+  createReportCardTemplateRepository,
+  createTeacherCommentRepository,
+  createInstitutionBrandingRepository,
+  createReportCardJobRepository,
 } from './repository-factory.js';
 export type { AssessmentRepositoryConfig } from './repository-factory.js';
 

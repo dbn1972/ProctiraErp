@@ -21,7 +21,7 @@ function modelBody(schemaText: string, modelName: string): string {
   return after.slice(0, end);
 }
 
-const MODELS = ['RegistrationApplication'] as const;
+const MODELS = ['RegistrationApplication', 'FormConfiguration'] as const;
 
 const SCHEMAS_RE = /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"staff",\s*"scholarship",\s*"transport",\s*"health",\s*"workflow",\s*"notification",\s*"report",\s*"survey",\s*"registration",\s*"public"\]/;
 

@@ -27,6 +27,10 @@ const MODELS = [
   'AssessmentItem',
   'AssessmentOutcome',
   'AssessmentResult',
+  'ReportCardTemplate',
+  'TeacherComment',
+  'InstitutionBranding',
+  'ReportCardJob',
 ] as const;
 
 describe('Phase 6 assessment schema boundaries', () => {
@@ -58,5 +62,8 @@ describe('Phase 6 assessment schema boundaries', () => {
     expect(tenant).not.toMatch(/\bassessmentItems\s+AssessmentItem\[\]/);
     expect(tenant).not.toMatch(/\bassessmentOutcomes\s+AssessmentOutcome\[\]/);
     expect(tenant).not.toMatch(/\bassessmentResults\s+AssessmentResult\[\]/);
+    expect(tenant).not.toMatch(/\breportCardTemplates\s+ReportCardTemplate\[\]/);
+    expect(tenant).not.toMatch(/\bteacherComments\s+TeacherComment\[\]/);
+    expect(tenant).not.toMatch(/\breportCardJobs\s+ReportCardJob\[\]/);
   });
 });
