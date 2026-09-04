@@ -3,12 +3,9 @@ import { BarChart3, Shield, Sparkles } from 'lucide-react';
 import { LanguageSelector } from '@/components/LanguageSelector';
 
 /**
- * Shared split-screen shell for the auth flow (signup, forgot/reset password,
- * MFA), matching `redesign/web/auth-*.html`: a deep-navy brand panel on the
- * left (lg+) and the form column on the right with the language selector.
- *
- * The brand copy is intentionally tenant-agnostic; tenant branding surfaces
- * inside the individual forms.
+ * Shared split-screen shell for the auth flow, matching
+ * `redesign/web/auth-login.html`: radial navy brand panel + indigo orb on
+ * lg+, form column on the right. Brand panel is hidden below lg (form-first).
  */
 const POINTS = [
   {
@@ -41,12 +38,24 @@ export function AuthShell({
 }): JSX.Element {
   return (
     <div className="flex min-h-screen flex-col bg-white lg:flex-row">
-      {/* Brand panel — visible on lg+ */}
       <aside
         aria-hidden="true"
-        className="relative hidden flex-1 flex-col overflow-hidden bg-gradient-to-br from-[var(--color-navy-800)] to-[var(--color-navy-950)] p-12 text-white lg:flex"
+        className="relative hidden flex-1 flex-col overflow-hidden p-12 text-white lg:flex"
+        style={{
+          background:
+            'radial-gradient(1200px 800px at -10% 110%, #1E2B66 0%, var(--color-navy-900) 55%), var(--color-navy-900)',
+        }}
       >
-        <div className="flex items-center gap-2.5">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -right-[120px] -top-[120px] h-[420px] w-[420px] rounded-full"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(99,102,241,.25), transparent 65%)',
+          }}
+        />
+
+        <div className="relative z-10 flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-gradient-to-br from-[var(--color-primary-500)] to-[var(--color-primary-700)] text-[17px] font-extrabold">
             P
           </span>
@@ -92,22 +101,6 @@ export function AuthShell({
         </div>
       </aside>
 
-      {/* Mobile brand strip */}
-      <section
-        aria-hidden="true"
-        className="relative bg-gradient-to-br from-[var(--color-navy-800)] to-[var(--color-navy-950)] px-6 pb-10 pt-12 text-white lg:hidden"
-      >
-        <div className="mx-auto flex max-w-md flex-col items-center text-center">
-          <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--color-primary-500)] to-[var(--color-primary-700)] text-xl font-extrabold">
-            P
-          </span>
-          <b className="text-xl font-semibold">
-            Proctira<span className="text-[var(--color-primary-400)]">ERP</span>
-          </b>
-        </div>
-      </section>
-
-      {/* Form column */}
       <section className="flex flex-1 flex-col">
         <header className="flex items-center justify-end px-6 pt-6 lg:px-12">
           <LanguageSelector />

@@ -41,6 +41,9 @@ export default async function DashboardPage() {
   ]);
 
   const activePeriod = periods?.find((p) => p.status === 'active') ?? null;
+  const hour = new Date().getHours();
+  const greeting =
+    hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const today = new Date().toLocaleDateString('en-IN', {
     weekday: 'long',
     day: 'numeric',
@@ -57,11 +60,12 @@ export default async function DashboardPage() {
           id="dashboard-heading"
           className="text-3xl font-extrabold tracking-tight text-foreground"
         >
-          Dashboard
+          {greeting}
         </h1>
         <p className="mt-1 text-sm text-[hsl(var(--muted-foreground))]">
           {today}
           {activePeriod ? ` · ${activePeriod.name}` : ''}
+          {institutions ? ` · ${institutions.length} institutions` : ''}
         </p>
       </div>
 

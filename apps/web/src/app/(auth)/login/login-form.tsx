@@ -16,13 +16,20 @@ import {
   Input,
   Label,
 } from '@proctira/ui/components';
+import { OAuthIcon } from '@/components/auth/oauth-icon';
+import { buildOAuthHref } from '@/features/auth/SignIn';
 import { signIn } from '@/lib/auth';
 
 /**
- * Proctira auth form matching redesign/web/auth-login.html.
- * Passwords are verified by Keycloak via the gateway; the browser stays
- * on this Proctira page (no Keycloak UI). Mobile + OTP will plug in here later.
+ * ProctiraERP login form matching redesign/web/auth-login.html.
+ * Credentials go through the gateway; the browser stays on this branded page.
  */
+
+const SSO_PROVIDERS = [
+  { id: 'microsoft' as const, name: 'Microsoft' },
+  { id: 'google' as const, name: 'Google' },
+];
+
 export function LoginForm(): JSX.Element {
   const t = useTranslations('auth');
   const router = useRouter();
@@ -101,7 +108,7 @@ export function LoginForm(): JSX.Element {
               autoComplete="username"
               required
               disabled={isSubmitting}
-              placeholder="admin@proctira.in"
+              placeholder="name@school.gov.in"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -133,7 +140,9 @@ export function LoginForm(): JSX.Element {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                aria-label={
+                  showPassword ? t('hidePassword') : t('showPassword')
+                }
                 tabIndex={-1}
               >
                 {showPassword ? (
@@ -156,14 +165,49 @@ export function LoginForm(): JSX.Element {
 
           <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting && (
-              <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
+              <Loader2
+                className="me-2 h-4 w-4 animate-spin"
+                aria-hidden="true"
+              />
             )}
             {isSubmitting ? t('signingIn') : t('signIn')}
           </Button>
         </form>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          {t('contactAdmin')}
+        <div className="my-5 flex items-center gap-3">
+          <div className="h-px flex-1 bg-border" />
+          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+            {t('orContinueWith')}
+          </span>
+          <div className="h-px flex-1 bg-border" />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {SSO_PROVIDERS.map((provider) => (
+            <Button
+              key={provider.id}
+              type="button"
+              variant="outline"
+              className="w-full justify-center gap-2"
+              disabled={isSubmitting}
+              asChild
+            >
+              <a href={buildOAuthHref(provider.id, returnTo)}>
+                <OAuthIcon provider={provider.id} />
+                <span>{provider.name}</span>
+              </a>
+            </Button>
+          ))}
+        </div>
+
+        <p className="mt-8 text-center text-sm text-muted-foreground">
+          {t('noAccount')}{' '}
+          <a
+            href="mailto:admin@proctira.in"
+            className="font-semibold text-accent hover:underline"
+          >
+            {t('contactAdministrator')}
+          </a>
         </p>
       </CardContent>
     </Card>

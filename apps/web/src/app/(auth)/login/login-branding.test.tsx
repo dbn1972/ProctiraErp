@@ -19,13 +19,16 @@ vi.mock('next-intl', () => ({
       forgotPassword: 'Forgot password?',
       hidePassword: 'Hide password',
       showPassword: 'Show password',
-      rememberMe: 'Remember me',
+      rememberMe: 'Keep me signed in on this device',
       signingIn: 'Signing in…',
       signIn: 'Sign in',
       contactAdmin: "Don't have an account? Contact your administrator.",
       invalidCredentials: 'Invalid email or password.',
       sessionExpired: 'Session expired',
       oauthFailed: 'OAuth failed',
+      orContinueWith: 'or continue with',
+      noAccount: "Don't have an account?",
+      contactAdministrator: 'Contact your administrator',
     };
     return labels[key] ?? key;
   },
@@ -48,6 +51,8 @@ vi.mock('next/link', () => ({
   ),
 }));
 
+vi.mock('@/components/auth/oauth-icon', () => ({ OAuthIcon: () => <span>icon</span> }));
+vi.mock('@/features/auth/SignIn', () => ({ buildOAuthHref: () => '#' }));
 vi.mock('@/lib/auth', () => ({
   signIn: vi.fn(),
 }));

@@ -75,6 +75,8 @@ export interface MessageSchema {
     sessionExpired: string;
     oauthFailed: string;
     orContinueWith: string;
+    noAccount: string;
+    contactAdministrator: string;
     /** ICU: {provider} */
     continueWith: string;
     contactAdmin: string;

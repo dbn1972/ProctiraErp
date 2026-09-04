@@ -60,7 +60,7 @@ export function ForgotPasswordForm(): JSX.Element {
             {t('forgotPasswordSubtitle')}
           </p>
           <p className="mt-3 text-xs text-muted-foreground">
-            {t('forgotPasswordKeycloakNote')}
+            {t('forgotPasswordIdentityNote')}
           </p>
 
           {error && (
