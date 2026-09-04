@@ -1,20 +1,19 @@
 /**
- * /attendance/reports — Attendance percentage report (Server Component shell).
+ * /attendance/reports — Attendance analytics (Server Component).
  *
- * Implements Requirement 9.4: percentages per student / class / institution
- * for configurable date ranges, rounded to two decimal places.
+ * Layout per redesign/web/attendance-reports.html:
+ *  - Page head with Export CSV + Mark attendance CTAs
+ *  - Scope / date pickers + Run report
+ *  - KPI cards + status breakdown from percentage API result
  */
 import Link from 'next/link';
 
-import { ArrowLeft, ClipboardCheck, Download } from 'lucide-react';
+import { ClipboardCheck, Download } from 'lucide-react';
 
 import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@proctira/ui/components';
 import { listInstitutions } from '@/lib/api/institutions';
 
@@ -27,14 +26,6 @@ export default async function AttendanceReportsPage() {
 
   return (
     <section aria-labelledby="reports-heading" className="space-y-6">
-      <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
-        <Link href="/attendance">
-          <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
-          Back to attendance
-        </Link>
-      </Button>
-
-      {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1
@@ -63,13 +54,7 @@ export default async function AttendanceReportsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Scope &amp; date range</CardTitle>
-          <CardDescription>
-            Choose the scope and date range, then run the report.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-5">
           <AttendanceReportFilters
             institutions={institutions.map((i) => ({
               id: i.id,

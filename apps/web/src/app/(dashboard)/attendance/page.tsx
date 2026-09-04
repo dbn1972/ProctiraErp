@@ -1,8 +1,11 @@
 /**
- * /attendance — Attendance marking page (Server Component shell).
+ * /attendance — Mark attendance (Server Component).
  *
- * Implements Requirement 9.1 + 9.3: per-class roster pre-populated from
- * enrollment for the selected institution / class / date.
+ * Layout per redesign/web/attendance-mark.html:
+ *  - Page head with View reports CTA
+ *  - Context pickers (institution / class / period / date) + Load roster
+ *  - Roster table with present/absent/late/excused toggles, summary chips,
+ *    Mark all present, draft autosave + Submit
  */
 import Link from 'next/link';
 
@@ -12,9 +15,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@proctira/ui/components';
 import {
   getClassRoster,
@@ -69,6 +69,9 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       : Promise.resolve<RosterEntry[]>([]),
   ]);
 
+  const selectedClass = classes.find((c) => c.id === classId);
+  const selectedPeriod = academicPeriods.find((p) => p.id === academicPeriodId);
+
   return (
     <section aria-labelledby="attendance-heading" className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -93,14 +96,7 @@ export default async function AttendancePage({ searchParams }: PageProps) {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Roster</CardTitle>
-          <CardDescription>
-            Choose institution, class, academic period, and date. The roster is
-            pre-populated from active enrollments.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-5">
           <AttendanceMarkingForm
             institutions={institutions.map((i) => ({ id: i.id, name: i.name }))}
             classes={classes.map((c) => ({ id: c.id, name: c.name }))}
@@ -116,9 +112,27 @@ export default async function AttendancePage({ searchParams }: PageProps) {
               date,
             }}
             roster={roster}
+            rosterTitle={
+              selectedClass
+                ? `${selectedClass.name}${selectedPeriod ? ` · ${selectedPeriod.name}` : ''} — ${formatRosterDate(date)}`
+                : undefined
+            }
           />
         </CardContent>
       </Card>
     </section>
   );
+}
+
+function formatRosterDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
 }

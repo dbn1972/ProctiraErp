@@ -3,17 +3,15 @@
 /**
  * Attendance Marking form (Client Component).
  *
- * - Picks institution, class, academic period, date — pushes the selection
- *   to the URL so the server reloads the roster.
- * - Renders the pre-populated roster as a status grid (PRESENT/ABSENT/LATE/
- *   EXCUSED) with optional comments.
- * - Submits via the `markAttendanceAction` Server Action.
- * - Auto-saves the in-progress marking grid to `localStorage` every
- *   30 s (Task 60.5, Requirement 38 AC 8). The draft slot is keyed
- *   `attendance-marking-<academicPeriodId>` so a clerk who loses
- *   power, closes the tab, or drops connectivity can resume the
- *   day's roster on remount. The draft is cleared on a successful
- *   bulk save.
+ * Layout per redesign/web/attendance-mark.html:
+ *  - Context pickers (institution / class / period / date) + Load roster
+ *  - Roster summary chips + Mark all present
+ *  - Segmented Present / Absent / Late / Excused toggles
+ *  - Draft autosave footer + Submit attendance
+ *
+ * Auto-saves the in-progress marking grid to `localStorage` every
+ * 30 s (Task 60.5, Requirement 38 AC 8). The draft slot is keyed
+ * `attendance-marking-<academicPeriodId>`. Cleared on successful bulk save.
  */
 import { CheckCheck, Save } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -74,12 +72,14 @@ interface AttendanceMarkingFormProps {
     date: string;
   };
   roster: RosterEntry[];
+  /** Optional heading for the loaded roster (class · date). */
+  rosterTitle?: string;
 }
 
 interface RowState {
   studentId: string;
   studentName: string;
-  status: AttendanceStatusValue;
+  status: AttendanceStatusValue | '';
   comment: string;
 }
 
@@ -128,7 +128,7 @@ function StatusToggle({
   onChange,
   studentName,
 }: {
-  value: AttendanceStatusValue;
+  value: AttendanceStatusValue | '';
   onChange: (v: AttendanceStatusValue) => void;
   studentName: string;
 }) {
@@ -164,17 +164,14 @@ function rosterToRows(roster: RosterEntry[]): RowState[] {
     studentId: entry.studentId,
     studentName: entry.studentName,
     status:
-      (entry.attendance?.status as AttendanceStatusValue | undefined) ??
-      'PRESENT',
+      (entry.attendance?.status as AttendanceStatusValue | undefined) ?? '',
     comment: entry.attendance?.comment ?? '',
   }));
 }
 
 /**
  * The full snapshot persisted by `useDraftAutosave` for this form.
- * Captures both the selection (so the user does not have to retype
- * institution/class/period/date on remount) and the per-row status
- * grid (so partial markings survive a refresh).
+ * Captures both the selection and the per-row status grid.
  */
 interface AttendanceDraftSnapshot {
   institutionId: string;
@@ -190,6 +187,7 @@ export function AttendanceMarkingForm({
   academicPeriods = [],
   defaults,
   roster,
+  rosterTitle,
 }: AttendanceMarkingFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -206,18 +204,9 @@ export function AttendanceMarkingForm({
     useState<ActionState<BulkAttendanceResponse> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Draft autosave (Task 60.5 / Requirement 38.8). The slot key
-  // includes the academic period so two periods open in different
-  // tabs do not clobber each other; an empty period falls back to
-  // `default` so the slot remains stable while the clerk picks a
-  // period for the first time.
   const draftFormId = `attendance-marking-${academicPeriodId || 'default'}`;
   const draft = useDraftAutosave<AttendanceDraftSnapshot>(draftFormId);
 
-  // Hydrate from the persisted draft once after the autosave layer
-  // re-reads on mount (it returns `null` during SSR / first render).
-  // We only seed once so subsequent edits are not clobbered if the
-  // hook re-emits.
   const hasHydratedDraftRef = useRef<boolean>(false);
   useEffect(() => {
     if (hasHydratedDraftRef.current) return;
@@ -233,13 +222,10 @@ export function AttendanceMarkingForm({
     hasHydratedDraftRef.current = true;
   }, [draft.values]);
 
-  // Re-sync rows whenever the roster prop changes (new selection loaded by RSC).
   useEffect(() => {
     setRows(rosterToRows(roster));
   }, [roster]);
 
-  // Autosave the live snapshot on every change. The hook itself
-  // debounces to 30 s so this is cheap.
   useEffect(() => {
     draft.save({
       institutionId,
@@ -270,11 +256,6 @@ export function AttendanceMarkingForm({
     pushSelection({ institutionId, classId, academicPeriodId, date });
   }
 
-  /**
-   * Institution drives the class/period option lists (loaded server-side
-   * from the URL), so switching it clears the dependent selections and
-   * reloads immediately to fetch fresh options.
-   */
   function handleInstitutionChange(value: string) {
     setInstitutionId(value);
     setClassId('');
@@ -303,18 +284,31 @@ export function AttendanceMarkingForm({
     setRows((prev) => prev.map((r) => ({ ...r, status })));
   }
 
+  function handleSaveDraft() {
+    draft.flush({ institutionId, classId, academicPeriodId, date, rows });
+  }
+
   async function handleSave() {
     const values = {
       institutionId,
       classId,
       academicPeriodId,
       date,
-      records: rows.map((r) => ({
-        studentId: r.studentId,
-        status: r.status,
-        comment: r.comment ?? '',
-      })),
+      records: rows
+        .filter((r): r is RowState & { status: AttendanceStatusValue } => r.status !== '')
+        .map((r) => ({
+          studentId: r.studentId,
+          status: r.status,
+          comment: r.comment ?? '',
+        })),
     };
+    if (values.records.length === 0) {
+      setServerState({
+        status: 'error',
+        message: 'Mark at least one student before submitting.',
+      });
+      return;
+    }
     const parsed = attendanceMarkingFormSchema.safeParse(values);
     if (!parsed.success) {
       setServerState({
@@ -326,15 +320,11 @@ export function AttendanceMarkingForm({
     }
     setIsSaving(true);
     setServerState(null);
-    // Flush before submission so a crash mid-network leaves the
-    // current snapshot recoverable.
     draft.flush({ institutionId, classId, academicPeriodId, date, rows });
     try {
       const result = await markAttendanceAction(parsed.data);
       setServerState(result);
       if (result.status === 'success') {
-        // Successful bulk save — discard the persisted draft so the
-        // next visit starts from the server-supplied roster.
         draft.clear();
       }
     } finally {
@@ -344,15 +334,23 @@ export function AttendanceMarkingForm({
 
   const counts = rows.reduce(
     (acc, r) => {
-      acc[r.status] = (acc[r.status] ?? 0) + 1;
+      if (r.status === '') {
+        acc.UNMARKED += 1;
+      } else {
+        acc[r.status] = (acc[r.status] ?? 0) + 1;
+      }
       return acc;
     },
-    { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 } as Record<AttendanceStatusValue, number>,
+    { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, UNMARKED: 0 } as Record<
+      AttendanceStatusValue | 'UNMARKED',
+      number
+    >,
   );
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-4">
+      {/* Context pickers */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_auto] lg:items-end">
         <div className="space-y-1">
           <Label htmlFor="institutionId">Institution</Label>
           <Select
@@ -447,27 +445,26 @@ export function AttendanceMarkingForm({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <Label htmlFor="date">Date</Label>
-          <Input
-            id="date"
-            type="date"
-            value={date}
-            max={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => setDate(e.target.value)}
-          />
+        <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-1 lg:flex-row lg:items-end lg:gap-3">
+          <div className="min-w-0 flex-1 space-y-1">
+            <Label htmlFor="date">Date</Label>
+            <Input
+              id="date"
+              type="date"
+              value={date}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <Button
+            type="button"
+            onClick={reload}
+            disabled={isPending}
+            className="h-[42px] shrink-0"
+          >
+            {isPending ? 'Loading…' : 'Load roster'}
+          </Button>
         </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={reload}
-          disabled={isPending}
-        >
-          Load roster
-        </Button>
       </div>
 
       {serverState?.status === 'error' && serverState.message && (
@@ -489,7 +486,7 @@ export function AttendanceMarkingForm({
       )}
 
       {rows.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]">
+        <p className="rounded-md border border-dashed p-8 text-center text-sm text-muted-foreground">
           No roster yet. Choose an institution, class, academic period, and
           date, then click <strong>Load roster</strong>.
         </p>
@@ -497,11 +494,21 @@ export function AttendanceMarkingForm({
         <div className="overflow-hidden rounded-lg border border-border">
           {/* Summary header */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/30 px-4 py-3">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              <SummaryChip color="bg-emerald-500" count={counts.PRESENT} label="present" />
-              <SummaryChip color="bg-red-500" count={counts.ABSENT} label="absent" />
-              <SummaryChip color="bg-amber-500" count={counts.LATE} label="late" />
-              <SummaryChip color="bg-sky-500" count={counts.EXCUSED} label="excused" />
+            <div>
+              {rosterTitle ? (
+                <h2 className="text-sm font-semibold text-foreground">
+                  {rosterTitle}
+                </h2>
+              ) : null}
+              <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1', rosterTitle && 'mt-1.5')}>
+                <SummaryChip color="bg-emerald-500" count={counts.PRESENT} label="present" />
+                <SummaryChip color="bg-red-500" count={counts.ABSENT} label="absent" />
+                <SummaryChip color="bg-amber-500" count={counts.LATE} label="late" />
+                {counts.EXCUSED > 0 ? (
+                  <SummaryChip color="bg-sky-500" count={counts.EXCUSED} label="excused" />
+                ) : null}
+                <SummaryChip color="bg-slate-300 dark:bg-slate-600" count={counts.UNMARKED} label="unmarked" />
+              </div>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={() => bulkSet('PRESENT')}>
               <CheckCheck className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -512,16 +519,16 @@ export function AttendanceMarkingForm({
           <div className="overflow-x-auto">
             <Table aria-label="Attendance roster">
               <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="font-semibold">Student</TableHead>
-                  <TableHead className="font-semibold">Today</TableHead>
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableHead className="ps-4 font-semibold">Student</TableHead>
+                  <TableHead className="pe-4 text-end font-semibold">Today</TableHead>
                   <TableHead className="font-semibold">Note</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((row) => (
                   <TableRow key={row.studentId}>
-                    <TableCell>
+                    <TableCell className="ps-4">
                       <div className="flex items-center gap-3">
                         <span
                           aria-hidden="true"
@@ -535,14 +542,16 @@ export function AttendanceMarkingForm({
                         <span className="font-medium text-foreground">{row.studentName}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="min-w-[280px]">
-                      <StatusToggle
-                        value={row.status}
-                        studentName={row.studentName}
-                        onChange={(v) => setRowStatus(row.studentId, v)}
-                      />
+                    <TableCell className="pe-4 text-end">
+                      <div className="flex justify-end">
+                        <StatusToggle
+                          value={row.status}
+                          studentName={row.studentName}
+                          onChange={(v) => setRowStatus(row.studentId, v)}
+                        />
+                      </div>
                     </TableCell>
-                    <TableCell className="min-w-[240px]">
+                    <TableCell className="min-w-[200px]">
                       <Input
                         aria-label={`Comment for ${row.studentName}`}
                         value={row.comment}
@@ -556,18 +565,22 @@ export function AttendanceMarkingForm({
               </TableBody>
             </Table>
           </div>
-        </div>
-      )}
 
-      {rows.length > 0 && (
-        <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/90 px-5 py-3 shadow-lg backdrop-blur">
-          <span className="me-auto text-xs text-muted-foreground">
-            {rows.length} {rows.length === 1 ? 'student' : 'students'} on roster · draft autosaves locally
-          </span>
-          <Button type="button" onClick={handleSave} disabled={isSaving}>
-            <Save className="me-1.5 h-4 w-4" aria-hidden="true" />
-            {isSaving ? 'Submitting…' : 'Submit attendance'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3">
+            <span className="me-auto text-xs text-muted-foreground">
+              {rows.length} {rows.length === 1 ? 'student' : 'students'} on roster
+              {draft.savedAt
+                ? ` · draft saved ${formatRelative(draft.savedAt)}`
+                : ' · draft autosaves locally'}
+            </span>
+            <Button type="button" variant="outline" size="sm" onClick={handleSaveDraft}>
+              Save draft
+            </Button>
+            <Button type="button" size="sm" onClick={handleSave} disabled={isSaving}>
+              <Save className="me-1.5 h-4 w-4" aria-hidden="true" />
+              {isSaving ? 'Submitting…' : 'Submit attendance'}
+            </Button>
+          </div>
         </div>
       )}
     </div>
@@ -581,4 +594,20 @@ function SummaryChip({ color, count, label }: { color: string; count: number; la
       <b className="text-foreground tabular-nums">{count}</b> {label}
     </span>
   );
+}
+
+function formatRelative(isoOrMs: string | number): string {
+  try {
+    const then = typeof isoOrMs === 'number' ? isoOrMs : new Date(isoOrMs).getTime();
+    const secs = Math.max(0, Math.round((Date.now() - then) / 1000));
+    if (secs < 60) return `${secs}s ago`;
+    const mins = Math.round(secs / 60);
+    if (mins < 60) return `${mins}m ago`;
+    return new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(then));
+  } catch {
+    return 'just now';
+  }
 }

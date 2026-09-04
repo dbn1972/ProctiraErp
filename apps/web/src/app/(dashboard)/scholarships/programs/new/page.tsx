@@ -1,6 +1,9 @@
 /**
  * Create scholarship program form.
  *
+ * Layout per redesign/web/scholarships-program-new.html:
+ *  - Page head + program details form (name, code, slots, award, window)
+ *
  * Validates: Requirement 11.1 — define scholarship programs with award
  * amount, slots, and application window.
  */
