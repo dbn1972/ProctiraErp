@@ -60,6 +60,20 @@ describe('decodeTokenPayload', () => {
     expect(payload?.email).toBe('a@b.c');
   });
 
+  it('maps Keycloak tenant_id onto tenantId', () => {
+    const token = makeJwt({
+      sub: 'kc-1',
+      tenant_id: '5a58f9ff-b6a6-43bd-a014-bb622f763e48',
+      preferred_username: 'india-admin',
+      roles: [],
+      iat: 1,
+      exp: 2,
+    });
+    const payload = decodeTokenPayload(token);
+    expect(payload?.tenantId).toBe('5a58f9ff-b6a6-43bd-a014-bb622f763e48');
+    expect(payload?.email).toBe('india-admin');
+  });
+
   it('returns null for malformed tokens', () => {
     expect(decodeTokenPayload('')).toBeNull();
     expect(decodeTokenPayload('not.a.jwt.at.all')).toBeNull();

@@ -17,6 +17,8 @@ export type {
   Student,
   Staff,
   Enrollment,
+  EnrollmentHistory,
+  StudentTransfer,
   AcademicPeriod,
   Grade,
   Class,
@@ -24,6 +26,8 @@ export type {
   InstitutionSubject,
   RefreshToken,
   UserSession,
+  User,
+  UserIdentity,
 } from '@prisma/client';
 
 // Re-export enums

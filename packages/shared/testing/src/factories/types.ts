@@ -16,10 +16,14 @@ export interface Tenant {
 }
 
 export interface TenantConfig {
+  countryCode: string;
   locale: string;
+  locales: string[];
   timezone: string;
+  currency: string;
   dateFormat: string;
   academicYearStart: number;
+  nationalIdLabel: string;
   features: Record<string, boolean>;
 }
 

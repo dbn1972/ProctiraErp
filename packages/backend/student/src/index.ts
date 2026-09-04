@@ -27,8 +27,11 @@ export type {
 export { PrismaStudentRepository } from './prisma-student-repository.js';
 
 // Repository composition (env-driven selection)
-export { createStudentRepository } from './repository-factory.js';
+export { createStudentRepository, createEnrollmentRepository } from './repository-factory.js';
 export type { StudentRepositoryConfig } from './repository-factory.js';
+export { PrismaEnrollmentRepository } from './enrollment/prisma-enrollment-repository.js';
+export { EnrollmentService, registerEnrollmentRoutes } from './enrollment/index.js';
+export type { EnrollmentRepository, EnrollmentEntity } from './enrollment/index.js';
 
 // Cached repository decorator
 export { CachedStudentRepository } from './cached-student-repository.js';

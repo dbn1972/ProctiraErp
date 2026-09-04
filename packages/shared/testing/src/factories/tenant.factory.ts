@@ -1,23 +1,14 @@
 import { faker } from '@faker-js/faker';
+import { defaultTenantConfig } from '@proctira/common';
 
 import type { Tenant, TenantConfig } from './types.js';
 
 /**
- * Creates a TenantConfig with sensible defaults.
+ * Creates a TenantConfig. Defaults are India — the first implemented country.
  */
 export function createTenantConfig(overrides: Partial<TenantConfig> = {}): TenantConfig {
   return {
-    locale: 'en',
-    timezone: faker.location.timeZone(),
-    dateFormat: 'YYYY-MM-DD',
-    academicYearStart: faker.number.int({ min: 1, max: 12 }),
-    features: {
-      attendance: true,
-      assessments: true,
-      examinations: true,
-      scholarships: false,
-      transport: false,
-    },
+    ...defaultTenantConfig(),
     ...overrides,
   };
 }

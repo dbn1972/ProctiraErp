@@ -124,6 +124,28 @@ services:
     networks:
       - proctira
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    command: ["start-dev", "--import-realm"]
+    restart: unless-stopped
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HTTP_PORT: 8080
+      KC_HOSTNAME_STRICT: "false"
+    ports:
+      - "${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - ./infra/keycloak:/opt/keycloak/data/import
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/8080'"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+    networks:
+      - proctira
+
   # ---------------------------------------------------------------------------
   # Application services
   # ---------------------------------------------------------------------------
@@ -152,6 +174,11 @@ services:
       RABBITMQ_URL: ${RABBITMQ_URL}
       JWT_SECRET: ${JWT_SECRET}
       JWT_ISSUER: ${JWT_ISSUER:-proctira-platform}
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://keycloak:8080/realms/proctira}
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_CLIENT_ID:-proctira-gateway}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-proctira-gateway-dev-secret}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-proctira}
+      KEYCLOAK_REDIRECT_URI: ${KEYCLOAK_REDIRECT_URI:-http://localhost:3200/api/v1/auth/callback}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-proctira-api}
       JWT_ACCESS_TOKEN_EXPIRES_IN: ${JWT_ACCESS_TOKEN_EXPIRES_IN:-15m}
       COOKIE_SECRET: ${COOKIE_SECRET}

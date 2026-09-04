@@ -5,15 +5,20 @@
  * Provides the institution service as a decorator for other plugins to use.
  * Also registers area hierarchy routes for geographic area management.
  */
+import type { PrismaClient } from '@proctira/database';
+import { getPrismaClient } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { InstitutionRepository } from './institution-repository.js';
-import { InstitutionService } from './institution-service.js';
-import { registerInstitutionRoutes } from './routes.js';
+import { AcademicPeriodService, registerAcademicPeriodRoutes } from './academic-period/index.js';
 import { AreaHierarchyService } from './area-hierarchy/area-hierarchy.service.js';
 import type { AreaHierarchyDbClient } from './area-hierarchy/area-hierarchy.service.js';
 import { registerAreaHierarchyRoutes } from './area-hierarchy/area-hierarchy.routes.js';
+import { BoardService, registerBoardRoutes } from './board/index.js';
+import { ClassService, GradeService, registerClassRoutes, registerGradeRoutes } from './education/index.js';
+import type { InstitutionRepository } from './institution-repository.js';
+import { InstitutionService } from './institution-service.js';
+import { registerInstitutionRoutes } from './routes.js';
 
 /**
  * Options for the institution plugin.
@@ -23,6 +28,8 @@ export interface InstitutionPluginOptions {
   repository: InstitutionRepository;
   /** Database client for area hierarchy operations (optional - if not provided, area routes are not registered) */
   areaHierarchyDb?: AreaHierarchyDbClient;
+  /** Prisma client for academic structure. Falls back to DATABASE_URL singleton. */
+  prisma?: PrismaClient;
   /** Route prefix for institutions (default: '/institutions') */
   prefix?: string;
   /** Route prefix for areas (default: '/areas') */
@@ -46,7 +53,12 @@ export const institutionPlugin = fp(
     fastify: FastifyInstance,
     options: InstitutionPluginOptions,
   ) {
-    const { repository, areaHierarchyDb, prefix = '/institutions', areaPrefix = '/areas' } = options;
+    const {
+      repository,
+      areaHierarchyDb,
+      prefix = '/institutions',
+      areaPrefix = '/areas',
+    } = options;
 
     // Create institution service instance
     const institutionService = new InstitutionService(repository);
@@ -69,6 +81,16 @@ export const institutionPlugin = fp(
         areaHierarchyService,
         prefix: areaPrefix,
       });
+    }
+
+    const prisma = options.prisma ?? (process.env['DATABASE_URL'] ? getPrismaClient() : undefined);
+    if (prisma) {
+      await registerBoardRoutes(fastify, { service: new BoardService({ prisma }) });
+      await registerAcademicPeriodRoutes(fastify, {
+        service: new AcademicPeriodService({ prisma }),
+      });
+      await registerGradeRoutes(fastify, { service: new GradeService({ prisma }) });
+      await registerClassRoutes(fastify, { service: new ClassService({ prisma }) });
     }
   },
   {

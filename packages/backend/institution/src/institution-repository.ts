@@ -15,6 +15,7 @@ export interface InstitutionEntity {
   name: string;
   code: string;
   areaId: string;
+  boardId: string | null;
   typeId: string;
   sectorId: string;
   ownershipId: string;

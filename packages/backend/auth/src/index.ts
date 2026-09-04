@@ -109,3 +109,33 @@ export type {
   ExternalAuthResult,
   ExternalAuthRoutesOptions,
 } from './external-providers/index.js';
+
+export { keycloakAuthPlugin } from './keycloak/plugin.js';
+export type { KeycloakAuthPluginOptions } from './keycloak/plugin.js';
+export { registerKeycloakAuthRoutes } from './keycloak/routes.js';
+export type { KeycloakRouteConfig } from './keycloak/routes.js';
+export {
+  KEYCLOAK_PROVIDER,
+  KeycloakIdentityError,
+  createPrismaKeycloakIdentityStore,
+  identityInputFromClaims,
+  linkKeycloakIdentity,
+} from './keycloak/identity.js';
+export type {
+  KeycloakIdentityInput,
+  KeycloakIdentityStore,
+  LinkedKeycloakUser,
+} from './keycloak/identity.js';
+export {
+  KEYCLOAK_REALM_ROLES,
+  extractKeycloakRoleNames,
+  keycloakRoleCatalog,
+  mapKeycloakRoles,
+} from './keycloak/roles.js';
+export {
+  KeycloakJwksClient,
+  KeycloakTokenError,
+  loadKeycloakAuthConfig,
+  verifyKeycloakAccessToken,
+} from './keycloak/verify.js';
+export type { KeycloakAuthConfig } from './keycloak/verify.js';

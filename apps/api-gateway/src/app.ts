@@ -17,7 +17,13 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { authPlugin } from '@proctira/backend-auth';
+import {
+  authPlugin,
+  createPrismaKeycloakIdentityStore,
+  keycloakAuthPlugin,
+  loadKeycloakAuthConfig,
+  registerKeycloakAuthRoutes,
+} from '@proctira/backend-auth';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -200,6 +206,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   // 7. Register JWT authentication
+  const keycloak = loadKeycloakAuthConfig();
   const authExcludePaths = [
     '/health',
     '/health/live',
@@ -207,35 +214,56 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/docs',
     '/docs/*',
     '/api/v1/auth/login',
+    '/api/v1/auth/callback',
+    '/api/v1/auth/password',
+    '/api/v1/auth/ticket',
+    '/api/v1/auth/logout',
+    '/api/v1/auth/roles',
     '/api/v1/auth/refresh',
     '/api/v1/services',
   ];
 
-  await app.register(authPlugin, {
-    config: {
-      jwt: {
-        secret: config.jwt.secret,
-        issuer: config.jwt.issuer,
-        audience: config.jwt.audience,
-        accessTokenExpiresIn: 900, // 15 minutes in seconds
+  if (keycloak) {
+    const identityStore = process.env['DATABASE_URL']
+      ? createPrismaKeycloakIdentityStore()
+      : undefined;
+    await app.register(keycloakAuthPlugin, { config: keycloak, identityStore });
+    await registerKeycloakAuthRoutes(app, {
+      ...keycloak,
+      identityStore,
+      clientSecret: process.env['KEYCLOAK_CLIENT_SECRET'],
+      redirectUri:
+        process.env['KEYCLOAK_REDIRECT_URI'] ??
+        `http://localhost:${config.port}/api/v1/auth/callback`,
+      webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
+    });
+  } else {
+    await app.register(authPlugin, {
+      config: {
+        jwt: {
+          secret: config.jwt.secret,
+          issuer: config.jwt.issuer,
+          audience: config.jwt.audience,
+          accessTokenExpiresIn: 900, // 15 minutes in seconds
+        },
+        refreshToken: {
+          maxLifetime: 30 * 24 * 60 * 60, // 30 days in seconds
+        },
+        session: {
+          duration: 8 * 60 * 60, // 8 hours in seconds
+        },
+        password: {
+          saltRounds: 12,
+        },
+        lockout: {
+          maxAttempts: 3,
+          windowSeconds: 900,
+          durationSeconds: 900,
+        },
       },
-      refreshToken: {
-        maxLifetime: 30 * 24 * 60 * 60, // 30 days in seconds
-      },
-      session: {
-        duration: 8 * 60 * 60, // 8 hours in seconds
-      },
-      password: {
-        saltRounds: 12,
-      },
-      lockout: {
-        maxAttempts: 3,
-        windowSeconds: 900,
-        durationSeconds: 900,
-      },
-    },
-    excludePaths: authExcludePaths,
-  });
+      excludePaths: authExcludePaths,
+    });
+  }
 
   // 7b. Global auth enforcement via onRequest hook
   // This ensures JWT is verified before tenant resolution can read JWT claims
@@ -274,6 +302,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/docs',
       '/docs/*',
       '/api/v1/auth/login',
+      '/api/v1/auth/callback',
+      '/api/v1/auth/password',
+      '/api/v1/auth/ticket',
+      '/api/v1/auth/logout',
+      '/api/v1/auth/roles',
+      '/api/v1/auth/me',
       '/api/v1/auth/refresh',
       '/api/v1/services',
     ],
@@ -304,6 +338,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/docs',
       '/docs/*',
       '/api/v1/auth/login',
+      '/api/v1/auth/callback',
+      '/api/v1/auth/password',
+      '/api/v1/auth/ticket',
+      '/api/v1/auth/logout',
+      '/api/v1/auth/roles',
       '/api/v1/auth/refresh',
     ],
   });
@@ -318,7 +357,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(serviceRouterPlugin, {
     services: config.services,
     versionPrefix: '/api/v1',
-    excludePrefixes: inProcessPrefixes,
+    excludePrefixes: keycloak ? [...inProcessPrefixes, '/auth'] : inProcessPrefixes,
   });
 
   return app;

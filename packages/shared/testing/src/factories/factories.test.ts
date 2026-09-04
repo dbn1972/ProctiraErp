@@ -49,12 +49,14 @@ describe('TenantConfig Factory', () => {
   it('creates a valid config with defaults', () => {
     const config = createTenantConfig();
 
+    expect(config.countryCode).toBe('IN');
     expect(config.locale).toBe('en');
-    expect(config.timezone).toBeTruthy();
-    expect(config.dateFormat).toBe('YYYY-MM-DD');
-    expect(config.academicYearStart).toBeGreaterThanOrEqual(1);
-    expect(config.academicYearStart).toBeLessThanOrEqual(12);
-    expect(config.features).toBeDefined();
+    expect(config.timezone).toBe('Asia/Kolkata');
+    expect(config.currency).toBe('INR');
+    expect(config.dateFormat).toBe('DD/MM/YYYY');
+    expect(config.academicYearStart).toBe(4);
+    expect(config.nationalIdLabel).toBe('Aadhaar');
+    expect(config.features.udise).toBe(true);
   });
 
   it('applies overrides', () => {

@@ -81,8 +81,15 @@ export function decodeTokenPayload(token: string): TokenPayload | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]!));
-    return payload as TokenPayload;
+    const payload = JSON.parse(atob(parts[1]!)) as TokenPayload & {
+      tenant_id?: string;
+      preferred_username?: string;
+    };
+    return {
+      ...payload,
+      tenantId: payload.tenantId || payload.tenant_id || '',
+      email: payload.email || payload.preferred_username || '',
+    };
   } catch {
     return null;
   }
@@ -204,19 +211,10 @@ export async function refreshAccessToken(): Promise<boolean> {
  * session and clears all auth cookies. The browser is then redirected to
  * /login.
  */
-export async function signOut(redirectTo: string = '/login'): Promise<void> {
-  try {
-    await fetch(AUTH_ENDPOINTS.LOGOUT, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch {
-    // Even if the API call fails, we redirect to login.
-  }
-
+export async function signOut(_redirectTo: string = '/login'): Promise<void> {
   if (typeof window !== 'undefined') {
-    window.location.href = redirectTo;
+    window.location.href = AUTH_ENDPOINTS.LOGOUT;
+    return;
   }
 }
 

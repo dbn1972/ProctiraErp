@@ -22,6 +22,8 @@ import type { GatewayConfig } from './config.js';
 // domain repositories to Prisma (and fail without a running Postgres). Unset
 // it so the gateway composes in-memory repositories, keeping tests hermetic.
 delete process.env['DATABASE_URL'];
+delete process.env['KEYCLOAK_ISSUER'];
+delete process.env['KEYCLOAK_CLIENT_ID'];
 
 /** Creates a minimal JWT payload for testing. iat/exp are auto-added by jwt.sign() */
 function createTestJwtPayload(overrides?: Record<string, unknown>) {
@@ -232,6 +234,17 @@ describe('API Gateway', () => {
       const body = response.json();
       expect(body.data).toBeInstanceOf(Array);
       expect(body.meta.page).toBe(1);
+
+      const enrollments = await app.inject({
+        method: 'GET',
+        url: '/api/v1/enrollments',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+        },
+      });
+      expect(enrollments.statusCode).toBe(200);
+      expect(enrollments.json().data).toBeInstanceOf(Array);
     });
 
     it('returns 404 for unregistered service routes', async () => {

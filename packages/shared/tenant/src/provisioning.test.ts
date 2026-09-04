@@ -20,8 +20,8 @@ describe('provisionTenant', () => {
     const areaResult = overrides?.areaResult ?? [
       {
         id: '660e8400-e29b-41d4-a716-446655440000',
-        name: 'Test Ministry - Root Area',
-        code: 'ROOT',
+        name: 'India',
+        code: 'IN',
       },
     ];
 
@@ -69,8 +69,8 @@ describe('provisionTenant', () => {
     expect(result.tenant.status).toBe('active');
 
     expect(result.rootArea.id).toBe('660e8400-e29b-41d4-a716-446655440000');
-    expect(result.rootArea.name).toBe('Test Ministry - Root Area');
-    expect(result.rootArea.code).toBe('ROOT');
+    expect(result.rootArea.name).toBe('India');
+    expect(result.rootArea.code).toBe('IN');
 
     expect(result.adminUser.id).toBe('770e8400-e29b-41d4-a716-446655440000');
     expect(result.adminUser.email).toBe('admin@test-ministry.org');
@@ -97,7 +97,7 @@ describe('provisionTenant', () => {
           id: 'tid', name: 'Test Ministry', slug: 'test-ministry',
           status: 'active', created_at: new Date(),
         }])
-        .mockResolvedValueOnce([{ id: 'aid', name: 'Root', code: 'ROOT' }])
+        .mockResolvedValueOnce([{ id: 'aid', name: 'India', code: 'IN' }])
         .mockResolvedValueOnce([{
           id: 'uid', email: 'admin@test.org', first_name: 'A', last_name: 'U',
         }]),
@@ -114,12 +114,14 @@ describe('provisionTenant', () => {
     // Second call creates root area
     const secondCall = mockTx.$queryRawUnsafe.mock.calls[1]!;
     expect(secondCall[0]).toContain('INSERT INTO geographic_areas');
-    expect(secondCall[2]).toBe('Test Ministry - Root Area');
-    expect(secondCall[3]).toBe('ROOT');
+    expect(secondCall[0]).toContain('$1::uuid');
+    expect(secondCall[2]).toBe('India');
+    expect(secondCall[3]).toBe('IN');
 
     // Third call creates admin user
     const thirdCall = mockTx.$queryRawUnsafe.mock.calls[2]!;
     expect(thirdCall[0]).toContain('INSERT INTO users');
+    expect(thirdCall[0]).toContain('$1::uuid');
     expect(thirdCall[2]).toBe('admin@test-ministry.org');
   });
 
@@ -147,7 +149,7 @@ describe('provisionTenant', () => {
     );
   });
 
-  it('should use empty config when none provided', async () => {
+  it('should default tenant config to the India country profile', async () => {
     const db = createMockDb();
     const inputWithoutConfig = { ...validInput, config: undefined };
 
@@ -161,7 +163,7 @@ describe('provisionTenant', () => {
           id: 'tid', name: 'Test Ministry', slug: 'test-ministry',
           status: 'active', created_at: new Date(),
         }])
-        .mockResolvedValueOnce([{ id: 'aid', name: 'Root', code: 'ROOT' }])
+        .mockResolvedValueOnce([{ id: 'aid', name: 'India', code: 'IN' }])
         .mockResolvedValueOnce([{
           id: 'uid', email: 'admin@test.org', first_name: 'A', last_name: 'U',
         }]),
@@ -170,7 +172,41 @@ describe('provisionTenant', () => {
     await txFn(mockTx);
 
     const firstCall = mockTx.$queryRawUnsafe.mock.calls[0]!;
-    // Config should be serialized as empty object
-    expect(firstCall[3]).toBe('{}');
+    const stored = JSON.parse(firstCall[3] as string) as { countryCode: string; currency: string };
+    expect(stored.countryCode).toBe('IN');
+    expect(stored.currency).toBe('INR');
+  });
+
+  it('should seed a planned country when countryCode is supplied', async () => {
+    const db = createMockDb({
+      areaResult: [{ id: '660e8400-e29b-41d4-a716-446655440000', name: 'Kenya', code: 'KE' }],
+    });
+
+    await provisionTenant(db, { ...validInput, countryCode: 'KE', config: undefined });
+
+    const txFn = (db.$transaction as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    const mockTx = {
+      $executeRawUnsafe: vi.fn().mockResolvedValue(1),
+      $queryRawUnsafe: vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'tid', name: 'Test Ministry', slug: 'test-ministry',
+          status: 'active', created_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{ id: 'aid', name: 'Kenya', code: 'KE' }])
+        .mockResolvedValueOnce([{
+          id: 'uid', email: 'admin@test.org', first_name: 'A', last_name: 'U',
+        }]),
+    };
+
+    await txFn(mockTx);
+
+    const tenantInsert = mockTx.$queryRawUnsafe.mock.calls[0]!;
+    const stored = JSON.parse(tenantInsert[3] as string) as { countryCode: string; currency: string };
+    expect(stored.countryCode).toBe('KE');
+    expect(stored.currency).toBe('KES');
+
+    const areaInsert = mockTx.$queryRawUnsafe.mock.calls[1]!;
+    expect(areaInsert[2]).toBe('Kenya');
+    expect(areaInsert[3]).toBe('KE');
   });
 });

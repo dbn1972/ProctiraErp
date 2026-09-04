@@ -77,3 +77,13 @@ export function getAuthServiceUrl(): string {
     'http://localhost:3010'
   );
 }
+
+/** API gateway used for Keycloak login, tickets, and refresh. */
+export function getGatewayUrl(): string {
+  return (
+    process.env.GATEWAY_URL ||
+    process.env.NEXT_PUBLIC_GATEWAY_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'http://127.0.0.1:3200'
+  );
+}

@@ -50,13 +50,28 @@ export async function listInstitutions(
 }
 
 export async function listAcademicPeriods(
-  institutionId: string,
+  _institutionId?: string,
 ): Promise<AcademicPeriod[]> {
-  const result = await gatewayFetch<{ data: AcademicPeriod[] }>(
-    `/institutions/${encodeURIComponent(institutionId)}/academic-periods`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
-  );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  const result = await gatewayFetch<Array<{
+    id: string;
+    name: string;
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    isActive?: boolean;
+  }>>('/academic-periods', {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 30 },
+  });
+  const rows = result.ok && Array.isArray(result.data) ? result.data : [];
+  return rows.map((period) => ({
+    id: period.id,
+    name: period.name,
+    startDate: period.startDate ?? '',
+    endDate: period.endDate ?? '',
+    isActive: period.isActive ?? period.status === 'active',
+  }));
 }
 
 export async function listInstitutionGrades(

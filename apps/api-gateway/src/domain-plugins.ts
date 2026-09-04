@@ -8,9 +8,10 @@
  * domains that are deployed as separate services).
  *
  * Persistence status (current schema):
- *  - student / institution / staff (incl. assignments) / attendance /
- *    assessment / examination: Prisma-backed (Postgres + RLS) via their
- *    create*Repository factories when DATABASE_URL is set, else in-memory.
+ *  - student + enrollment / institution / staff (incl. assignments) /
+ *    attendance / assessment / examination: Prisma-backed (Postgres + RLS)
+ *    via their create*Repository factories when DATABASE_URL is set, else
+ *    in-memory.
  *  - assessment report-card repositories are not wired yet (no Prisma
  *    implementation); report-card routes stay disabled.
  *
@@ -64,17 +65,21 @@ interface DomainRegistrar {
 const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'student',
-    proxyPrefixes: ['/students'],
+    proxyPrefixes: ['/students', '/enrollments'],
     register: async (scope) => {
       // Prisma (+ optional Redis cache) when DATABASE_URL is set, else in-memory.
       // Reads RLS-safely via withTenantTransaction using the request's tenantId.
       const repository = createStudentRepository();
-      await scope.register(studentPlugin, { repository, prefix: '/students' });
+      await scope.register(studentPlugin, {
+        repository,
+        prefix: '/students',
+        enrollmentPrefix: '/enrollments',
+      });
     },
   },
   {
     name: 'institution',
-    proxyPrefixes: ['/institutions'],
+    proxyPrefixes: ['/institutions', '/boards', '/academic-periods', '/grades', '/classes'],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
       await scope.register(institutionPlugin, {

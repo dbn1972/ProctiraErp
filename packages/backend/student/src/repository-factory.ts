@@ -16,6 +16,9 @@ import { CacheClient } from '@proctira/cache';
 import { createPrismaClient } from '@proctira/database';
 
 import { CachedStudentRepository } from './cached-student-repository.js';
+import { InMemoryEnrollmentRepository } from './enrollment/in-memory-enrollment-repository.js';
+import type { EnrollmentRepository } from './enrollment/enrollment-repository.js';
+import { PrismaEnrollmentRepository } from './enrollment/prisma-enrollment-repository.js';
 import { InMemoryStudentRepository } from './in-memory-repository.js';
 import { PrismaStudentRepository } from './prisma-student-repository.js';
 import type { StudentRepository } from './student-repository.js';
@@ -51,4 +54,19 @@ export function createStudentRepository(
   }
 
   return base;
+}
+
+/**
+ * Builds the enrollment repository appropriate for the current configuration.
+ */
+export function createEnrollmentRepository(
+  config: StudentRepositoryConfig = {},
+): EnrollmentRepository {
+  const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
+  if (!databaseUrl) {
+    return new InMemoryEnrollmentRepository();
+  }
+  return new PrismaEnrollmentRepository(
+    createPrismaClient({ datasourceUrl: databaseUrl }),
+  );
 }

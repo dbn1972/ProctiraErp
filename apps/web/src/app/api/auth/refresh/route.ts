@@ -4,6 +4,7 @@ import {
   accessTokenCookieOptions,
   clearCookieOptions,
   getAuthServiceUrl,
+  getGatewayUrl,
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
@@ -29,17 +30,28 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';
 
+  const keycloakEnabled = Boolean(
+    process.env['KEYCLOAK_ISSUER'] || process.env['KEYCLOAK_CLIENT_ID'],
+  );
+
   let upstream: Response;
   try {
-    upstream = await fetch(`${getAuthServiceUrl()}/auth/refresh`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Tenant-ID': tenantId,
-      },
-      body: JSON.stringify({ refreshToken }),
-      cache: 'no-store',
-    });
+    upstream = keycloakEnabled
+      ? await fetch(`${getGatewayUrl()}/api/v1/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+          cache: 'no-store',
+        })
+      : await fetch(`${getAuthServiceUrl()}/auth/refresh`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Tenant-ID': tenantId,
+          },
+          body: JSON.stringify({ refreshToken }),
+          cache: 'no-store',
+        });
   } catch {
     return NextResponse.json(
       { message: 'Authentication service is unavailable.' },
@@ -49,10 +61,16 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const data = (await safeJson(upstream)) as {
     tokens?: { accessToken: string; refreshToken: string; expiresIn: number };
+    accessToken?: string;
+    refreshToken?: string;
+    expiresIn?: number;
     message?: string;
   };
+  const accessToken = data.tokens?.accessToken ?? data.accessToken;
+  const nextRefresh = data.tokens?.refreshToken ?? data.refreshToken;
+  const expiresIn = data.tokens?.expiresIn ?? data.expiresIn;
 
-  if (!upstream.ok || !data.tokens) {
+  if (!upstream.ok || !accessToken) {
     const failure = NextResponse.json(
       { message: data.message || 'Refresh failed.' },
       { status: 401 },
@@ -78,14 +96,16 @@ export async function POST(request: Request): Promise<NextResponse> {
   const response = NextResponse.json({ success: true });
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
-    data.tokens.accessToken,
-    accessTokenCookieOptions(data.tokens.expiresIn),
+    accessToken,
+    accessTokenCookieOptions(expiresIn),
   );
-  response.cookies.set(
-    AUTH_COOKIES.REFRESH_TOKEN,
-    data.tokens.refreshToken,
-    refreshTokenCookieOptions(),
-  );
+  if (nextRefresh) {
+    response.cookies.set(
+      AUTH_COOKIES.REFRESH_TOKEN,
+      nextRefresh,
+      refreshTokenCookieOptions(),
+    );
+  }
   return response;
 }
 

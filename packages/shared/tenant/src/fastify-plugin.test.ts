@@ -98,6 +98,19 @@ describe('tenantPlugin', () => {
     expect(publicResponse.statusCode).toBe(200);
   });
 
+  it('should skip excluded paths that include a query string', async () => {
+    await app.register(tenantPlugin, {
+      excludePaths: ['/api/v1/auth/login'],
+      getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),
+    });
+    app.get('/api/v1/auth/login', async () => ({ ok: true }));
+    const loginWithState = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/login?state=web:/students',
+    });
+    expect(loginWithState.statusCode).toBe(200);
+  });
+
   it('should return 401 when tenant cannot be resolved', async () => {
     await app.register(tenantPlugin, {
       getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),

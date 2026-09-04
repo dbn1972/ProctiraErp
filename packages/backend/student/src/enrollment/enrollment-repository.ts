@@ -32,6 +32,7 @@ export interface EnrollmentEntity {
  */
 export interface EnrollmentHistoryEntity {
   id: string;
+  tenantId?: string;
   enrollmentId: string;
   previousStatus: string | null;
   newStatus: string;

@@ -64,8 +64,15 @@ describe('InstitutionService', () => {
       expect(result.ownershipId).toBe(input.ownershipId);
       expect(result.status).toBe('ACTIVE');
       expect(result.tenantId).toBe(TENANT_ID);
+      expect(result.boardId).toBeNull();
       expect(result.createdAt).toBeInstanceOf(Date);
       expect(result.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it('should persist an education board on create', async () => {
+      const boardId = uuid();
+      const result = await service.create(TENANT_ID, validCreateInput({ boardId }));
+      expect(result.boardId).toBe(boardId);
     });
 
     it('should create an institution with optional fields', async () => {

@@ -35,9 +35,13 @@ model Tenant {
   students        Student[]
   staff           Staff[]
   enrollments     Enrollment[]
+  enrollmentHistory EnrollmentHistory[]
+  studentTransfers  StudentTransfer[]
   academicPeriods AcademicPeriod[]
   grades          Grade[]
   classes         Class[]
+  users           User[]
+  identities      UserIdentity[]
   refreshTokens   RefreshToken[]
   sessions        UserSession[]
   themeVersions   TenantThemeVersion[]
@@ -120,6 +124,53 @@ model TenantThemeDraft {
 
   @@index([savedBy])
   @@map("tenant_theme_drafts")
+}
+
+// ============================================================================
+// AUTH - PLATFORM USERS (Keycloak is the IdP; this is the tenant projection)
+// ============================================================================
+
+/// Local user record linked to a Keycloak identity.
+/// Passwords and realm roles live in Keycloak — this table stores tenant
+/// membership, display fields, and India-first country context.
+model User {
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  email       String    @db.VarChar(255)
+  displayName String    @map("display_name") @db.VarChar(255)
+  firstName   String    @map("first_name") @db.VarChar(100)
+  lastName    String    @map("last_name") @db.VarChar(100)
+  status      String    @default("active") @db.VarChar(20)
+  countryCode String    @default("IN") @map("country_code") @db.VarChar(2)
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  identities UserIdentity[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, status])
+  @@map("users")
+}
+
+/// External identity link. Phase 2 provider is Keycloak (`keycloak`).
+model UserIdentity {
+  id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  provider   String    @db.VarChar(50)
+  externalId String    @map("external_id") @db.VarChar(255)
+  email      String    @db.VarChar(255)
+  realm      String    @default("proctira") @db.VarChar(100)
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([provider, externalId])
+  @@index([tenantId, email])
+  @@map("user_identities")
 }
 
 // ============================================================================
@@ -373,11 +424,51 @@ model Enrollment {
   grade          Grade          @relation(fields: [gradeId], references: [id])
   class          Class?         @relation(fields: [classId], references: [id])
   academicPeriod AcademicPeriod @relation(fields: [academicPeriodId], references: [id])
+  history        EnrollmentHistory[]
 
   @@index([tenantId, studentId])
   @@index([tenantId, institutionId, academicPeriodId])
   @@index([tenantId, status])
   @@map("enrollments")
+}
+
+/// Status-change audit trail for an enrollment.
+model EnrollmentHistory {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  enrollmentId     String   @map("enrollment_id") @db.Uuid
+  previousStatus   String?  @map("previous_status") @db.VarChar(20)
+  newStatus        String   @map("new_status") @db.VarChar(20)
+  effectiveDate    DateTime @map("effective_date") @db.Date
+  institutionId    String   @map("institution_id") @db.Uuid
+  academicPeriodId String   @map("academic_period_id") @db.Uuid
+  reason           String?  @db.VarChar(500)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, enrollmentId])
+  @@map("enrollment_history")
+}
+
+/// Transfer record linking source and destination institutions.
+model StudentTransfer {
+  id                       String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId                 String   @map("tenant_id") @db.Uuid
+  studentId                String   @map("student_id") @db.Uuid
+  sourceInstitutionId      String   @map("source_institution_id") @db.Uuid
+  sourceEnrollmentId       String   @map("source_enrollment_id") @db.Uuid
+  destinationInstitutionId String   @map("destination_institution_id") @db.Uuid
+  destinationEnrollmentId  String   @map("destination_enrollment_id") @db.Uuid
+  transferDate             DateTime @map("transfer_date") @db.Date
+  reason                   String   @db.VarChar(500)
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, studentId])
+  @@map("student_transfers")
 }
 
 enum EnrollmentStatus {

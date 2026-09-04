@@ -19,6 +19,7 @@ export type {
 
 // In-memory repository (for testing)
 export { InMemoryEnrollmentRepository } from './in-memory-enrollment-repository.js';
+export { PrismaEnrollmentRepository } from './prisma-enrollment-repository.js';
 
 // Routes
 export { registerEnrollmentRoutes } from './enrollment-routes.js';

@@ -53,11 +53,12 @@ export interface TenantPluginOptions extends TenantResolutionOptions {
  * Checks if a request path matches any of the excluded paths.
  */
 function isExcludedPath(path: string, excludePaths: string[]): boolean {
+  const pathname = path.split('?')[0] ?? path;
   for (const excluded of excludePaths) {
     if (excluded.endsWith('/*')) {
       const prefix = excluded.slice(0, -2);
-      if (path.startsWith(prefix)) return true;
-    } else if (path === excluded) {
+      if (pathname.startsWith(prefix)) return true;
+    } else if (pathname === excluded) {
       return true;
     }
   }

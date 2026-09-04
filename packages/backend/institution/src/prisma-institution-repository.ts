@@ -47,6 +47,7 @@ interface InstitutionRow {
   name: string;
   code: string;
   areaId: string;
+  boardId: string | null;
   type: string;
   sector: string;
   ownership: string;
@@ -106,6 +107,7 @@ function toEntity(row: InstitutionRow): InstitutionEntity {
     name: row.name,
     code: row.code,
     areaId: row.areaId,
+    boardId: row.boardId,
     typeId: row.type,
     sectorId: row.sector,
     ownershipId: row.ownership,
@@ -135,6 +137,7 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           name: data.name,
           code: data.code,
           areaId: data.areaId,
+          boardId: data.boardId,
           type: data.typeId,
           sector: data.sectorId,
           ownership: data.ownershipId,
@@ -174,6 +177,7 @@ export class PrismaInstitutionRepository implements InstitutionRepository {
           name: merged.name,
           code: merged.code,
           areaId: merged.areaId,
+          boardId: merged.boardId,
           type: merged.typeId,
           sector: merged.sectorId,
           ownership: merged.ownershipId,

@@ -68,6 +68,7 @@ export class InstitutionService {
       name: input.name,
       code: input.code,
       areaId: input.areaId,
+      boardId: input.boardId ?? null,
       typeId: input.typeId,
       sectorId: input.sectorId,
       ownershipId: input.ownershipId,
@@ -135,6 +136,7 @@ export class InstitutionService {
     if (input.name !== undefined) updateData.name = input.name;
     if (input.code !== undefined) updateData.code = input.code;
     if (input.areaId !== undefined) updateData.areaId = input.areaId;
+    if (input.boardId !== undefined) updateData.boardId = input.boardId;
     if (input.typeId !== undefined) updateData.typeId = input.typeId;
     if (input.sectorId !== undefined) updateData.sectorId = input.sectorId;
     if (input.ownershipId !== undefined) updateData.ownershipId = input.ownershipId;

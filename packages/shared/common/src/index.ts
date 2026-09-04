@@ -20,6 +20,32 @@ export {
   PAGINATION_DEFAULTS,
 } from './constants/index.js';
 
+// Multi-country catalog (India is the first implemented market)
+export {
+  DEFAULT_COUNTRY_CODE,
+  academicYearWindow,
+  countryBoardDefinitions,
+  countryDefaultGrades,
+  defaultTenantConfig,
+  getCountry,
+  isCountryImplemented,
+  listCountries,
+  listImplementedCountries,
+  normalizeCountryCode,
+  requireCountry,
+  tenantConfigFromCountry,
+} from './countries/index.js';
+export type {
+  AcademicYearWindow,
+  CountryBoardDefinition,
+  CountryBoardType,
+  CountryFeatureFlags,
+  CountryGradeDefinition,
+  CountryImplementationStatus,
+  CountryProfile,
+  CountryTenantConfig,
+} from './countries/index.js';
+
 // Exceptions
 export { AppError, ValidationError, ConflictError, NotFoundError, BusinessRuleError } from './exceptions/index.js';
 

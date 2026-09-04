@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { clearCookieOptions, getAuthServiceUrl } from '@/lib/auth/cookies';
+import { clearCookieOptions, getAuthServiceUrl, getGatewayUrl } from '@/lib/auth/cookies';
 import { AUTH_COOKIES } from '@/lib/auth/session';
 
 /**
@@ -43,15 +43,18 @@ export async function POST(request: Request): Promise<NextResponse> {
  * graceful degradation when JavaScript is disabled.
  */
 export async function GET(request: Request): Promise<NextResponse> {
-  const result = await POST(request);
-  // Convert the JSON success response into a redirect to /login.
-  const redirect = NextResponse.redirect(new URL('/login', request.url));
-  // Copy cookie clears across.
-  result.cookies.getAll().forEach((cookie) => {
-    redirect.cookies.set(cookie.name, cookie.value, {
-      ...cookie,
-      // Preserve the cookie clearing options.
-    });
-  });
+  await POST(request);
+  const loginUrl = new URL('/login', request.url).toString();
+  const keycloakEnabled = Boolean(
+    process.env['KEYCLOAK_ISSUER'] || process.env['KEYCLOAK_CLIENT_ID'],
+  );
+  const redirect = NextResponse.redirect(
+    keycloakEnabled
+      ? `${getGatewayUrl()}/api/v1/auth/logout?redirect=${encodeURIComponent(loginUrl)}`
+      : loginUrl,
+  );
+  redirect.cookies.set(AUTH_COOKIES.ACCESS_TOKEN, '', clearCookieOptions());
+  redirect.cookies.set(AUTH_COOKIES.REFRESH_TOKEN, '', clearCookieOptions());
+  redirect.cookies.set(AUTH_COOKIES.SESSION_ID, '', clearCookieOptions());
   return redirect;
 }

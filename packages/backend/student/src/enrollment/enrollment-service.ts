@@ -79,6 +79,7 @@ export class EnrollmentService {
     // Record initial history entry
     await this.repository.createHistoryEntry({
       id: uuidv4(),
+      tenantId,
       enrollmentId: enrollment.id,
       previousStatus: null,
       newStatus: EnrollmentStatus.ENROLLED,
@@ -133,6 +134,7 @@ export class EnrollmentService {
     // Record history entry
     await this.repository.createHistoryEntry({
       id: uuidv4(),
+      tenantId,
       enrollmentId,
       previousStatus,
       newStatus,
@@ -222,6 +224,7 @@ export class EnrollmentService {
     // Record history entry for source (transferred out)
     await this.repository.createHistoryEntry({
       id: uuidv4(),
+      tenantId,
       enrollmentId: input.sourceEnrollmentId,
       previousStatus: EnrollmentStatus.ENROLLED,
       newStatus: EnrollmentStatus.TRANSFERRED,
@@ -249,6 +252,7 @@ export class EnrollmentService {
     // Record history entry for destination (enrolled via transfer)
     await this.repository.createHistoryEntry({
       id: uuidv4(),
+      tenantId,
       enrollmentId: destinationEnrollmentId,
       previousStatus: null,
       newStatus: EnrollmentStatus.ENROLLED,

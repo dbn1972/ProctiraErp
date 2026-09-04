@@ -1,31 +1,20 @@
 /**
  * Internationalization configuration for the web application.
- * Defines supported locales, default locale, and RTL languages.
  *
- * The Indian_Language_Set (Requirement 18) is the primary set of supported
- * locales: en, hi, ta, te, mr, bn, gu, kn. Additional locales (ar, fr, es, he)
- * are supported for RTL testing and future expansion.
+ * The platform is multi-country. India is the first implemented market,
+ * so the Indian language set is the default locale list. Additional
+ * locales (ar) stay available for planned countries and RTL testing.
  */
+import { requireCountry } from '@proctira/common';
 
-export const defaultLocale = 'en';
+const india = requireCountry('IN');
+
+export const defaultLocale = india.defaultLocale;
 
 /**
- * All supported locales. The Indian_Language_Set forms the core:
- * en (English), hi (Hindi), ta (Tamil), te (Telugu),
- * mr (Marathi), bn (Bengali), gu (Gujarati), kn (Kannada).
- * Additional: ar (Arabic), fr (French), es (Spanish), he (Hebrew).
+ * India locales first, then extras used by planned countries / RTL pilots.
  */
-export const locales = [
-  'en',
-  'hi',
-  'ta',
-  'te',
-  'mr',
-  'bn',
-  'gu',
-  'kn',
-  'ar',
-] as const;
+export const locales = [...india.locales, 'ar'] as const;
 
 export type Locale = (typeof locales)[number];
 

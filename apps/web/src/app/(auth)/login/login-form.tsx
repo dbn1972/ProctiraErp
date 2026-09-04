@@ -16,18 +16,12 @@ import {
   Input,
   Label,
 } from '@proctira/ui/components';
-import { OAuthIcon } from '@/components/auth/oauth-icon';
-import {
-  OAUTH_PROVIDERS,
-  getOAuthAuthorizeUrl,
-  signIn,
-} from '@/lib/auth';
+import { signIn } from '@/lib/auth';
 
 /**
- * Client component for the login form. Submits credentials to
- * /api/auth/login and either:
- *  - navigates to `returnTo` on a successful login, or
- *  - navigates to /mfa with the challenge token when MFA is required.
+ * Proctira auth form matching redesign/web/auth-login.html.
+ * Passwords are verified by Keycloak via the gateway; the browser stays
+ * on this Proctira page (no Keycloak UI). Mobile + OTP will plug in here later.
  */
 export function LoginForm(): JSX.Element {
   const t = useTranslations('auth');
@@ -39,7 +33,7 @@ export function LoginForm(): JSX.Element {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -59,7 +53,6 @@ export function LoginForm(): JSX.Element {
         router.push(`${mfaUrl.pathname}${mfaUrl.search}`);
         return;
       }
-      // Use a hard navigation so middleware re-evaluates with new cookies.
       window.location.href = returnTo;
       return;
     }
@@ -76,7 +69,7 @@ export function LoginForm(): JSX.Element {
             {t('welcomeBack')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {t('signInSubtitle')}
+            Sign in to your ProctiraERP workspace.
           </p>
         </header>
 
@@ -105,17 +98,25 @@ export function LoginForm(): JSX.Element {
               id="email"
               name="email"
               type="email"
-              autoComplete="email"
+              autoComplete="username"
               required
               disabled={isSubmitting}
-              placeholder="admin@school.edu"
+              placeholder="admin@proctira.in"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">{t('password')}</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">{t('password')}</Label>
+              <Link
+                href="/forgot-password"
+                className="text-xs font-semibold text-accent hover:underline"
+              >
+                {t('forgotPassword')}
+              </Link>
+            </div>
             <div className="relative">
               <Input
                 id="password"
@@ -132,9 +133,7 @@ export function LoginForm(): JSX.Element {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                aria-label={
-                  showPassword ? t('hidePassword') : t('showPassword')
-                }
+                aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                 tabIndex={-1}
               >
                 {showPassword ? (
@@ -146,67 +145,22 @@ export function LoginForm(): JSX.Element {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-foreground">
-              <Checkbox
-                checked={rememberMe}
-                onCheckedChange={(value) => setRememberMe(value === true)}
-                aria-label={t('rememberMe')}
-              />
-              <span>{t('rememberMe')}</span>
-            </label>
-            <Link
-              href="/forgot-password"
-              className="text-sm font-medium text-accent hover:underline"
-            >
-              {t('forgotPassword')}
-            </Link>
-          </div>
+          <label className="flex items-center gap-2 text-sm text-foreground">
+            <Checkbox
+              checked={rememberMe}
+              onCheckedChange={(value) => setRememberMe(value === true)}
+              aria-label={t('rememberMe')}
+            />
+            <span>{t('rememberMe')}</span>
+          </label>
 
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full"
-          >
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting && (
               <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
             )}
             {isSubmitting ? t('signingIn') : t('signIn')}
           </Button>
         </form>
-
-        {OAUTH_PROVIDERS.length > 0 && (
-          <>
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-border" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  {t('orContinueWith')}
-                </span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              {OAUTH_PROVIDERS.map((provider) => (
-                <Button
-                  key={provider.id}
-                  variant="outline"
-                  className="w-full justify-center gap-2"
-                  asChild
-                >
-                  <a
-                    href={getOAuthAuthorizeUrl(provider.id, returnTo)}
-                    aria-label={t('continueWith', { provider: provider.name })}
-                  >
-                    <OAuthIcon provider={provider.icon} />
-                    <span>{provider.name}</span>
-                  </a>
-                </Button>
-              ))}
-            </div>
-          </>
-        )}
 
         <p className="mt-8 text-center text-xs text-muted-foreground">
           {t('contactAdmin')}

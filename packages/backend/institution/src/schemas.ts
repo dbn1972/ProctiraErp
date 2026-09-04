@@ -21,6 +21,10 @@ export const CreateInstitutionSchema = Type.Object({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Area hierarchy node UUID',
   }),
+  boardId: Type.Optional(Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    description: 'Education board UUID (CBSE, ICSE, State)',
+  })),
   typeId: Type.String({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Institution type UUID',
@@ -56,6 +60,10 @@ export const UpdateInstitutionSchema = Type.Object({
   areaId: Type.Optional(Type.String({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Area hierarchy node UUID',
+  })),
+  boardId: Type.Optional(Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    description: 'Education board UUID (CBSE, ICSE, State)',
   })),
   typeId: Type.Optional(Type.String({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
@@ -126,6 +134,7 @@ export const InstitutionResponseSchema = Type.Object({
   name: Type.String({ description: 'Institution name' }),
   code: Type.String({ description: 'Unique institution code' }),
   areaId: Type.String({ description: 'Area hierarchy node UUID' }),
+  boardId: Type.Union([Type.String(), Type.Null()], { description: 'Education board UUID' }),
   typeId: Type.String({ description: 'Institution type UUID' }),
   sectorId: Type.String({ description: 'Sector UUID' }),
   ownershipId: Type.String({ description: 'Ownership UUID' }),

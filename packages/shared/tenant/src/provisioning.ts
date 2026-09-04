@@ -10,6 +10,12 @@
  * (superuser or service role) since the tenant doesn't exist yet when provisioning starts.
  */
 
+import {
+  DEFAULT_COUNTRY_CODE,
+  requireCountry,
+  tenantConfigFromCountry,
+  type CountryProfile,
+} from '@proctira/common';
 import { createLogger } from '@proctira/logging';
 
 const logger = createLogger({ name: 'tenant-provisioning' });
@@ -22,15 +28,17 @@ export interface ProvisionTenantInput {
   name: string;
   /** URL-safe slug for subdomain routing (e.g., 'ministry-edu') */
   slug: string;
-  /** Optional tenant configuration overrides */
+  /** Optional tenant configuration overrides (merged onto the country profile) */
   config?: Record<string, unknown>;
+  /** ISO 3166-1 alpha-2. Defaults to India (`IN`), the first implemented country. */
+  countryCode?: string;
   /** Admin user details */
   admin: {
     firstName: string;
     lastName: string;
     email: string;
-    /** Pre-hashed password (caller is responsible for hashing) */
-    passwordHash: string;
+    /** Unused for Keycloak-backed tenants; kept so existing callers compile. */
+    passwordHash?: string;
   };
 }
 
@@ -95,9 +103,11 @@ export async function provisionTenant(
 ): Promise<ProvisionTenantResult> {
   logger.info({ slug: input.slug, name: input.name }, 'Starting tenant provisioning');
 
+  const country = resolveProvisioningCountry(input);
+
   const result = await db.$transaction(async (tx) => {
-    // Step 1: Create the Tenant record
-    const tenantConfig = JSON.stringify(input.config ?? {});
+    // Step 1: Create the Tenant record with country-aware defaults (India first)
+    const tenantConfig = JSON.stringify(buildTenantConfig(input, country));
     const tenantRows = await tx.$queryRawUnsafe<Array<{
       id: string;
       name: string;
@@ -127,11 +137,11 @@ export async function provisionTenant(
       code: string;
     }>>(
       `INSERT INTO geographic_areas (tenant_id, name, code, level, parent_id, path, lft, rgt, created_at, updated_at)
-       VALUES ($1, $2, $3, 0, NULL, '/', 1, 2, NOW(), NOW())
+       VALUES ($1::uuid, $2, $3, 0, NULL, '/', 1, 2, NOW(), NOW())
        RETURNING id, name, code`,
       tenant.id,
-      `${input.name} - Root Area`,
-      'ROOT',
+      country.name,
+      country.code,
     );
 
     const rootArea = areaRows[0];
@@ -150,14 +160,15 @@ export async function provisionTenant(
       first_name: string;
       last_name: string;
     }>>(
-      `INSERT INTO users (tenant_id, email, first_name, last_name, password_hash, role, status, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, 'admin', 'active', NOW(), NOW())
+      `INSERT INTO users (tenant_id, email, display_name, first_name, last_name, status, country_code, created_at, updated_at)
+       VALUES ($1::uuid, $2, $3, $4, $5, 'active', $6, NOW(), NOW())
        RETURNING id, email, first_name, last_name`,
       tenant.id,
       input.admin.email,
+      `${input.admin.firstName} ${input.admin.lastName}`.trim(),
       input.admin.firstName,
       input.admin.lastName,
-      input.admin.passwordHash,
+      country.code,
     );
 
     const adminUser = adminRows[0];
@@ -198,4 +209,21 @@ export async function provisionTenant(
   );
 
   return result;
+}
+
+function resolveProvisioningCountry(input: ProvisionTenantInput): CountryProfile {
+  const fromConfig =
+    typeof input.config?.['countryCode'] === 'string' ? input.config['countryCode'] : undefined;
+  return requireCountry(input.countryCode ?? fromConfig ?? DEFAULT_COUNTRY_CODE);
+}
+
+function buildTenantConfig(
+  input: ProvisionTenantInput,
+  country: CountryProfile,
+): Record<string, unknown> {
+  return {
+    ...tenantConfigFromCountry(country),
+    ...(input.config ?? {}),
+    countryCode: country.code,
+  };
 }

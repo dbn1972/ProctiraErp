@@ -139,7 +139,7 @@ export function loadConfig(): GatewayConfig {
   }
 
   return {
-    port: parseInt(process.env['PORT'] || '3000', 10),
+    port: parseInt(process.env['PORT'] || process.env['GATEWAY_PORT'] || '3000', 10),
     host: process.env['HOST'] || '0.0.0.0',
     env,
     rateLimiting: {
