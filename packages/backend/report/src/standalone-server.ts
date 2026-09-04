@@ -20,7 +20,7 @@
  */
 import Fastify from 'fastify';
 import { reportPlugin } from './report-plugin.js';
-import { InMemoryReportRepository } from './in-memory-repository.js';
+import { createReportRepository } from './repository-factory.js';
 
 const PORT = parseInt(process.env['PORT'] || '3028', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -60,8 +60,12 @@ async function start() {
     });
   });
 
-  // Register the report domain plugin with repository
-  const repository = new InMemoryReportRepository();
+  // Selects Prisma when DATABASE_URL is set, otherwise in-memory for local/dev.
+  const repository = createReportRepository();
+  app.log.info(
+    { repository: repository.constructor.name },
+    'Report repository initialized',
+  );
   await app.register(reportPlugin as any, {
     prefix: '/reports',
     repository,

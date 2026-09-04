@@ -23,7 +23,7 @@
  */
 import Fastify from 'fastify';
 import { notificationPlugin } from './notification-plugin.js';
-import { InMemoryNotificationRepository } from './in-memory-repository.js';
+import { createNotificationRepository } from './repository-factory.js';
 
 const PORT = parseInt(process.env['PORT'] || '3027', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -63,8 +63,12 @@ async function start() {
     });
   });
 
-  // Register the notification domain plugin with repository
-  const repository = new InMemoryNotificationRepository();
+  // Selects Prisma when DATABASE_URL is set, otherwise in-memory for local/dev.
+  const repository = createNotificationRepository();
+  app.log.info(
+    { repository: repository.constructor.name },
+    'Notification repository initialized',
+  );
   await app.register(notificationPlugin, {
     prefix: '/notifications',
     repository,

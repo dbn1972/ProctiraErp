@@ -44,6 +44,11 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryReportRepository } from './in-memory-repository.js';
 
+// Prisma repository (Postgres + RLS) + factory
+export { PrismaReportRepository } from './prisma-report-repository.js';
+export { createReportRepository } from './repository-factory.js';
+export type { ReportRepositoryConfig } from './repository-factory.js';
+
 // Schemas
 export {
   ReportFormatSchema,

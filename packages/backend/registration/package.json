@@ -17,9 +17,11 @@
   },
   "dependencies": {
     "@proctira/common": "workspace:*",
+    "@proctira/database": "workspace:*",
     "@proctira/i18n": "workspace:*",
     "@proctira/logging": "workspace:*",
     "@proctira/validation": "workspace:*",
+    "@prisma/client": "^5.22.0",
     "@sinclair/typebox": "^0.32.0",
     "fastify-plugin": "^4.5.0",
     "uuid": "^9.0.0"
