@@ -17,7 +17,10 @@
  */
 import Fastify from 'fastify';
 import { workflowPlugin } from './workflow-plugin.js';
-import { InMemoryWorkflowRepository } from './in-memory-repository.js';
+import {
+  createCaseRepository,
+  createWorkflowRepository,
+} from './repository-factory.js';
 
 const PORT = parseInt(process.env['PORT'] || '3026', 10);
 const HOST = process.env['HOST'] || '0.0.0.0';
@@ -58,10 +61,12 @@ async function start() {
   });
 
   // Register the workflow domain plugin with repository
-  const repository = new InMemoryWorkflowRepository();
+  const repository = createWorkflowRepository();
+  const caseRepository = createCaseRepository();
   await app.register(workflowPlugin, {
     prefix: '/workflows',
     repository,
+    caseRepository,
   });
 
   try {

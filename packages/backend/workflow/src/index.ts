@@ -32,6 +32,15 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryWorkflowRepository } from './in-memory-repository.js';
 
+// Prisma repository + factory
+export { PrismaWorkflowRepository } from './prisma-workflow-repository.js';
+export { PrismaCaseRepository } from './prisma-case-repository.js';
+export {
+  createWorkflowRepository,
+  createCaseRepository,
+} from './repository-factory.js';
+export type { WorkflowRepositoryConfig } from './repository-factory.js';
+
 // Cached repository decorator
 export { CachedWorkflowRepository } from './cached-workflow-repository.js';
 

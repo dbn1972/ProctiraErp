@@ -43,6 +43,11 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryHealthRepository } from './in-memory-repository.js';
 
+// Prisma repository + factory
+export { PrismaHealthRepository } from './prisma-health-repository.js';
+export { createHealthRepository } from './repository-factory.js';
+export type { HealthRepositoryConfig } from './repository-factory.js';
+
 // Routes
 export { registerHealthRoutes } from './routes.js';
 export type { HealthRoutesOptions } from './routes.js';
