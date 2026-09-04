@@ -1,24 +1,18 @@
 /**
- * Notification preferences API client (Task 60A.11).
+ * Notification API client.
  *
- * Provides typed helpers for fetching and updating user notification
- * preferences via the Notification Service backend (task 18).
- *
- * Endpoints:
- *   • GET  /api/v1/notifications/preferences — current user preferences
- *   • PATCH /api/v1/notifications/preferences — partial update
- *
- * Uses `browserGatewayFetch` for authenticated browser-side requests.
- *
- * Validates: Requirements 22.1, 22.2, 22.4, 22.5
+ * Browser helpers for notification preferences (settings UI) and
+ * server helpers for the in-app notifications inbox.
  */
 
 import {
   browserGatewayFetch,
   BrowserGatewayError,
 } from './browser-gateway';
+import { gatewayFetch, getSessionContext } from './gateway';
+import { decodeTokenPayload } from '@/lib/auth';
 
-// ─── Types ───────────────────────────────────────────────────────────────
+// ─── Preference types ────────────────────────────────────────────────────
 
 /** Delivery channels supported by the Notification Service. */
 export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook';
@@ -53,38 +47,24 @@ export interface QuietHours {
 
 /** Full notification preferences payload. */
 export interface NotificationPreferencesData {
-  /** Per-category channel toggles. */
   categories: CategoryPreference[];
-  /** Digest frequency setting. */
   digestFrequency: DigestFrequency;
-  /** Quiet hours configuration. */
   quietHours: QuietHours;
 }
 
 /** Patch payload — all fields optional for partial updates. */
 export type NotificationPreferencesPatch = Partial<NotificationPreferencesData>;
 
-// ─── API Endpoints ───────────────────────────────────────────────────────
-
 export const NOTIFICATION_API_ENDPOINTS = {
   PREFERENCES: '/notifications/preferences',
 } as const;
 
-// ─── API Helpers ─────────────────────────────────────────────────────────
-
-/**
- * Fetches the current user's notification preferences.
- */
 export async function getNotificationPreferences(): Promise<NotificationPreferencesData> {
   return browserGatewayFetch<NotificationPreferencesData>(
     NOTIFICATION_API_ENDPOINTS.PREFERENCES,
   );
 }
 
-/**
- * Updates the current user's notification preferences (partial update).
- * Returns the merged preferences snapshot from the server.
- */
 export async function updateNotificationPreferences(
   patch: NotificationPreferencesPatch,
 ): Promise<NotificationPreferencesData> {
@@ -98,3 +78,49 @@ export async function updateNotificationPreferences(
 }
 
 export { BrowserGatewayError as NotificationApiError };
+
+// ─── Inbox (App Router server components) ────────────────────────────────
+
+export type DeliveryChannel = 'email' | 'in_app' | 'push' | 'webhook';
+export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+
+export interface NotificationItem {
+  id: string;
+  channel: DeliveryChannel;
+  templateId: string;
+  recipientUserId: string;
+  variables: Record<string, string>;
+  status: DeliveryStatus;
+  priority: string;
+  sentAt: string | null;
+  deliveredAt: string | null;
+  readAt: string | null;
+  failureReason: string | null;
+  createdAt: string;
+}
+
+function unwrapNotificationList<T>(payload: { data?: T[] } | T[] | null | undefined): T[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  return payload.data ?? [];
+}
+
+function resolveNotificationUserId(): string | null {
+  const { accessToken } = getSessionContext();
+  if (!accessToken) return null;
+  const payload = decodeTokenPayload(accessToken);
+  const sub = payload?.sub;
+  return typeof sub === 'string' && sub.length > 0 ? sub : null;
+}
+
+/** Lists the current user's notifications; empty when no session user. */
+export async function listMyNotifications(): Promise<NotificationItem[]> {
+  const userId = resolveNotificationUserId();
+  if (!userId) return [];
+
+  const result = await gatewayFetch<{ data: NotificationItem[] } | NotificationItem[]>(
+    `/notifications/user/${userId}?pageSize=50`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return unwrapNotificationList(result.data);
+}
