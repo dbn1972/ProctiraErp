@@ -35,6 +35,8 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
   Future<ReportSummary>? _statusFuture;
   bool _downloading = false;
   String? _downloadError;
+  bool _generatingEnrollment = false;
+  String? _enrollmentError;
 
   @override
   void initState() {
@@ -44,6 +46,34 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
       _reportApi = getIt<ReportApi>();
     }
     _loadStatus();
+  }
+
+  Future<void> _generateEnrollmentSummary() async {
+    if (_reportApi == null) {
+      setState(() {
+        _enrollmentError = 'Report API is not configured.';
+      });
+      return;
+    }
+    setState(() {
+      _generatingEnrollment = true;
+      _enrollmentError = null;
+    });
+    try {
+      final ReportSummary job = await _reportApi!.requestReport(
+        reportType: 'enrollment_summary',
+        format: 'pdf',
+      );
+      if (!mounted) return;
+      setState(() => _generatingEnrollment = false);
+      context.push('/reports/${job.id}');
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _generatingEnrollment = false;
+        _enrollmentError = error.toString();
+      });
+    }
   }
 
   Future<void> _loadStatus() async {
@@ -160,18 +190,39 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: <Widget>[
                               Text(
-                                'No enrollment summary endpoint is available '
-                                'on the mobile gateway yet.',
+                                'Generates an enrollment_summary report job on '
+                                'the server (alias of student enrollment).',
                                 style: theme.textTheme.bodyMedium,
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'This shortcut stays as an honest empty state '
-                                'until a dedicated API lands.',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                onPressed: _generatingEnrollment
+                                    ? null
+                                    : _generateEnrollmentSummary,
+                                icon: _generatingEnrollment
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Icon(Icons.play_arrow_outlined),
+                                label: Text(
+                                  _generatingEnrollment
+                                      ? 'Generating…'
+                                      : 'Generate enrollment summary',
                                 ),
                               ),
+                              if (_enrollmentError != null) ...<Widget>[
+                                const SizedBox(height: 8),
+                                Text(
+                                  _enrollmentError!,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.error,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                   ),

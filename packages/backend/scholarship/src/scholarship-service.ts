@@ -42,6 +42,7 @@ import type {
   UpdateDisbursementInput,
   RecipientComplianceInput,
   UtilizationReportQuery,
+  ApplicationDocument,
 } from './schemas.js';
 
 /**
@@ -341,6 +342,29 @@ export class ScholarshipService {
       throw new NotFoundError(`Scholarship application with id '${id}' not found`);
     }
     return application;
+  }
+
+  /**
+   * Attach an uploaded document's metadata to an existing application.
+   */
+  async attachApplicationDocument(
+    tenantId: string,
+    applicationId: string,
+    document: ApplicationDocument,
+  ): Promise<ScholarshipApplicationEntity> {
+    const application = await this.repository.findApplicationById(applicationId, tenantId);
+    if (!application) {
+      throw new NotFoundError(`Scholarship application with id '${applicationId}' not found`);
+    }
+
+    const documents = [...application.documents, document];
+    const updated = await this.repository.updateApplication(applicationId, tenantId, {
+      documents,
+    });
+    if (!updated) {
+      throw new NotFoundError(`Scholarship application with id '${applicationId}' not found`);
+    }
+    return updated;
   }
 
   /**

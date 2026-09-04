@@ -82,6 +82,7 @@ interface DefinitionRow {
   states: unknown;
   transitions: unknown;
   escalationRules: unknown;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -125,6 +126,7 @@ function toDefinition(row: DefinitionRow): WorkflowDefinitionEntity {
       row.escalationRules === null || row.escalationRules === undefined
         ? null
         : jsonArray<EscalationRuleInput>(row.escalationRules),
+    isActive: row.isActive !== false,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -182,6 +184,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
             entity.escalationRules === null || entity.escalationRules === undefined
               ? Prisma.JsonNull
               : (entity.escalationRules as unknown as Prisma.InputJsonValue),
+          isActive: entity.isActive,
         },
       })) as DefinitionRow;
       return toDefinition(row);
@@ -227,6 +230,7 @@ export class PrismaWorkflowRepository implements WorkflowRepository {
             ? Prisma.JsonNull
             : (data.escalationRules as unknown as Prisma.InputJsonValue);
       }
+      if (data.isActive !== undefined) updateData.isActive = data.isActive;
 
       const row = (await tx.workflowDefinition.update({
         where: { id },

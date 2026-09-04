@@ -59,6 +59,8 @@ function formatDefinitionResponse(entity: WorkflowDefinitionEntity) {
     states: entity.states,
     transitions: entity.transitions,
     escalationRules: entity.escalationRules,
+    isActive: entity.isActive,
+    status: entity.isActive ? 'active' : 'paused',
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };

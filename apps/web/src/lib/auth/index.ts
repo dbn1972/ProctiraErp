@@ -22,6 +22,7 @@ export {
   DEFAULT_PRIVACY_VERSION,
   logout,
   verifyMfa,
+  resendMfa,
   refreshAccessToken,
   requestPasswordReset,
   resetPassword,

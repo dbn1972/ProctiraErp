@@ -80,6 +80,7 @@ export const examinationPlugin = fp(
     // Register examination routes
     await registerExaminationRoutes(fastify, {
       examinationService,
+      resultRepository,
       prefix,
     });
 

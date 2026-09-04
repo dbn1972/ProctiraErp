@@ -11,15 +11,18 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Pause, Pencil } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import {
   getWorkflowDefinition,
   listWorkflowInstances,
+  isWorkflowPaused,
   type WorkflowDefinition,
 } from '@/lib/api/workflows';
 import { cn } from '@/lib/utils';
+
+import { PauseResumeButton } from './_components/pause-resume-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +41,7 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
   const running = instances.filter(
     (i) => i.definitionId === definition.id && i.status === 'PENDING',
   ).length;
+  const paused = isWorkflowPaused(definition);
 
   return (
     <div className="space-y-6">
@@ -54,7 +58,7 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
             <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
               {definition.name}
             </h1>
-            <StatusPill active={definition.active} />
+            <StatusPill active={!paused} />
             <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
               {definition.module}
             </span>
@@ -66,16 +70,7 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            disabled
-            title="Coming soon — workflow definitions have no pause/active API"
-          >
-            <Pause className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Pause
-          </Button>
+          <PauseResumeButton definitionId={definition.id} paused={paused} />
           <Button asChild size="sm">
             <Link href="/workflows/definitions/new">
               <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -163,7 +158,7 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
                 <FactRow label="Version" value={`v${definition.version}`} />
                 <FactRow
                   label="Status"
-                  value={definition.active ? 'Active' : 'Inactive'}
+                  value={paused ? 'Paused' : 'Active'}
                 />
                 <FactRow label="Steps" value={String(steps.length)} />
                 <FactRow

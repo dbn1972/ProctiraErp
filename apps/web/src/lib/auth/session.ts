@@ -168,13 +168,14 @@ export async function signIn(
 export async function verifyMfa(
   mfaToken: string,
   code: string,
+  method: 'sms' | 'totp' = 'sms',
 ): Promise<SignInResult> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.VERIFY_MFA, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mfaToken, code }),
+      body: JSON.stringify({ mfaToken, code, method }),
     });
     const data: { message?: string } = await safeJson(response);
     if (response.ok) {
@@ -183,6 +184,34 @@ export async function verifyMfa(
     return {
       success: false,
       message: data.message || 'Invalid verification code.',
+    };
+  } catch {
+    return { success: false, message: 'Network error. Please try again.' };
+  }
+}
+
+/**
+ * Re-sends an SMS OTP for an existing MFA challenge.
+ */
+export async function resendMfa(mfaToken: string): Promise<{
+  success: boolean;
+  mfaToken?: string;
+  message?: string;
+}> {
+  try {
+    const response = await fetch(AUTH_ENDPOINTS.RESEND_MFA, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mfaToken }),
+    });
+    const data: { message?: string; mfaToken?: string } = await safeJson(response);
+    if (response.ok) {
+      return { success: true, mfaToken: data.mfaToken };
+    }
+    return {
+      success: false,
+      message: data.message || 'Unable to resend code.',
     };
   } catch {
     return { success: false, message: 'Network error. Please try again.' };

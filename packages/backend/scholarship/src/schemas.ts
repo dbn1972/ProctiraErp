@@ -126,6 +126,28 @@ export const ApplicationDocumentSchema = Type.Object({
 export type ApplicationDocument = Static<typeof ApplicationDocumentSchema>;
 
 /**
+ * Schema for uploading a scholarship supporting document (JSON + base64 body).
+ * Multipart clients may also post the same fields via form-data; the route
+ * normalises both shapes before validation.
+ */
+export const UploadScholarshipDocumentSchema = Type.Object({
+  documentType: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Document type (e.g., transcript, supporting_document)',
+  }),
+  fileName: Type.String({ minLength: 1, maxLength: 255, description: 'Original file name' }),
+  contentBase64: Type.String({
+    minLength: 1,
+    description: 'Base64-encoded file content',
+  }),
+  mimeType: Type.Optional(Type.String({ maxLength: 100, description: 'MIME type' })),
+  fileSize: Type.Optional(Type.Number({ minimum: 0, description: 'Declared file size in bytes' })),
+});
+
+export type UploadScholarshipDocumentInput = Static<typeof UploadScholarshipDocumentSchema>;
+
+/**
  * Schema for submitting a scholarship application.
  * Requirement 11.2: Accept and track applications with required documents, academic records, and financial information.
  */

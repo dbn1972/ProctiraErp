@@ -13,6 +13,7 @@ export { InfrastructureService } from './service.js';
 export type {
   InfrastructureStore,
   InfrastructureRecord,
+  InfrastructureRepairLogRecord,
   ConditionOptionStore,
   ConditionOptionRecord,
   InfrastructureServiceOptions,
@@ -46,6 +47,9 @@ export {
   InfrastructureListResponseSchema,
   ConditionOptionSchema,
   CreateConditionOptionSchema,
+  InfrastructureRepairParamsSchema,
+  CreateInfrastructureRepairSchema,
+  InfrastructureRepairLogResponseSchema,
   InfrastructureHierarchyResponseSchema,
 } from './schemas.js';
 export type {
@@ -63,5 +67,8 @@ export type {
   InfrastructureListResponse,
   ConditionOption,
   CreateConditionOptionInput,
+  InfrastructureRepairParams,
+  CreateInfrastructureRepairInput,
+  InfrastructureRepairLogResponse,
   InfrastructureHierarchyResponse,
 } from './schemas.js';

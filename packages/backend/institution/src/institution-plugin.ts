@@ -114,15 +114,17 @@ export const institutionPlugin = fp(
       await registerGradeRoutes(fastify, { service: new GradeService({ prisma }) });
       await registerClassRoutes(fastify, { service: new ClassService({ prisma }) });
       await registerSubjectRoutes(fastify, { service: new SubjectService({ prisma }) });
-
-      // Infrastructure hierarchy (Land → Building → Floor → Room)
-      const infraStores = createInfrastructureStores({ prisma });
-      const infrastructureService = new InfrastructureService(infraStores);
-      await registerInfrastructureRoutes(fastify, {
-        infrastructureService,
-        prefix: '/infrastructure',
-      });
     }
+
+    // Infrastructure hierarchy (Land → Building → Floor → Room) + repair logs.
+    // Prisma when available; in-memory otherwise (dev/tests).
+    const infraStores = createInfrastructureStores({ prisma });
+    const infrastructureService = new InfrastructureService(infraStores);
+    await registerInfrastructureRoutes(fastify, {
+      infrastructureService,
+      prefix: '/infrastructure',
+      institutionsPrefix: prefix,
+    });
   },
   {
     name: '@proctira/backend-institution',

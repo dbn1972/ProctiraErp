@@ -33,6 +33,7 @@ const INSTITUTION_MODELS = [
   'InstitutionSubject',
   'InfrastructureItem',
   'InfrastructureConditionOption',
+  'InfrastructureRepairLog',
 ] as const;
 
 describe('Phase 3 institution schema boundaries', () => {

@@ -19,6 +19,7 @@ import type {
   ConditionOptionRecord,
   ConditionOptionStore,
   InfrastructureRecord,
+  InfrastructureRepairLogRecord,
   InfrastructureStore,
 } from './service.js';
 
@@ -44,6 +45,19 @@ interface ConditionOptionRow {
   description: string | null;
 }
 
+interface RepairLogRow {
+  id: string;
+  tenantId: string;
+  institutionId: string;
+  infrastructureItemId: string;
+  repairDate: Date;
+  notes: string;
+  conditionAfter: string;
+  cost: { toNumber(): number } | number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 function toRecord(row: InfrastructureRow): InfrastructureRecord {
   return {
     id: row.id,
@@ -66,6 +80,27 @@ function toConditionRecord(row: ConditionOptionRow): ConditionOptionRecord {
     tenantId: row.tenantId,
     name: row.name,
     description: row.description,
+  };
+}
+
+function toCostNumber(cost: RepairLogRow['cost']): number | null {
+  if (cost === null || cost === undefined) return null;
+  if (typeof cost === 'number') return cost;
+  return cost.toNumber();
+}
+
+function toRepairRecord(row: RepairLogRow): InfrastructureRepairLogRecord {
+  return {
+    id: row.id,
+    tenantId: row.tenantId,
+    institutionId: row.institutionId,
+    infrastructureItemId: row.infrastructureItemId,
+    repairDate: row.repairDate,
+    notes: row.notes,
+    conditionAfter: row.conditionAfter,
+    cost: toCostNumber(row.cost),
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
@@ -210,6 +245,39 @@ export class PrismaInfrastructureStore implements InfrastructureStore {
         where: { tenantId, parentId: id, deletedAt: null },
       });
       return count > 0;
+    });
+  }
+
+  async createRepairLog(
+    record: InfrastructureRepairLogRecord,
+  ): Promise<InfrastructureRepairLogRecord> {
+    return withTenantTransaction(this.prisma, record.tenantId, async (tx) => {
+      const row = (await tx.infrastructureRepairLog.create({
+        data: {
+          id: record.id,
+          tenantId: record.tenantId,
+          institutionId: record.institutionId,
+          infrastructureItemId: record.infrastructureItemId,
+          repairDate: record.repairDate,
+          notes: record.notes,
+          conditionAfter: record.conditionAfter,
+          cost: record.cost,
+        },
+      })) as RepairLogRow;
+      return toRepairRecord(row);
+    });
+  }
+
+  async listRepairLogs(
+    tenantId: string,
+    infrastructureItemId: string,
+  ): Promise<InfrastructureRepairLogRecord[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.infrastructureRepairLog.findMany({
+        where: { tenantId, infrastructureItemId },
+        orderBy: { repairDate: 'desc' },
+      })) as RepairLogRow[];
+      return rows.map(toRepairRecord);
     });
   }
 }

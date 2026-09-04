@@ -151,6 +151,15 @@ export class InMemoryExaminationRepository implements ExaminationRepository {
     return this.candidateRegistrations.get(key) ?? null;
   }
 
+  async listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]> {
+    return [...this.candidateRegistrations.values()].filter(
+      (r) => r.examinationId === examinationId && r.tenantId === tenantId,
+    );
+  }
+
   /** Test helper to set student enrollment data */
   setStudentEnrollment(enrollment: StudentEnrollment): void {
     this.studentEnrollments.set(enrollment.studentId, enrollment);

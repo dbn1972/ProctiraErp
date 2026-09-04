@@ -436,6 +436,60 @@ export async function assignRolesToUser(
   return user;
 }
 
+// ─── Invites ─────────────────────────────────────────────────────────────────
+
+export interface InviteUserInput {
+  email: string;
+  displayName?: string;
+  roleId?: string;
+}
+
+export interface InviteUserResult {
+  id: string;
+  email: string;
+  displayName: string | null;
+  roleId: string | null;
+  status: string;
+  inviteUrl: string;
+  expiresAt: string;
+  emailSent: boolean;
+  createdAt: string;
+}
+
+/**
+ * Invite a user into the active tenant.
+ *
+ * POST /api/v1/admin/users/invite (alias: /api/v1/tenant/users/invite).
+ */
+export async function inviteUser(
+  input: InviteUserInput,
+  options: AdminClientOptions = {},
+): Promise<InviteUserResult> {
+  const email = input.email.trim().toLowerCase();
+  const body = {
+    email,
+    displayName: input.displayName?.trim() || undefined,
+    roleId: input.roleId || undefined,
+  };
+
+  try {
+    return await adminFetch<InviteUserResult>(
+      '/api/v1/admin/users/invite',
+      { method: 'POST', body: JSON.stringify(body) },
+      options,
+    );
+  } catch (error) {
+    if (error instanceof AdminApiError && (error.status === 404 || error.status === 405)) {
+      return adminFetch<InviteUserResult>(
+        `${ADMIN_API_ENDPOINTS.USERS}/invite`,
+        { method: 'POST', body: JSON.stringify(body) },
+        options,
+      );
+    }
+    throw error;
+  }
+}
+
 // ─── Matrix helpers (pure — used by UI and tests) ────────────────────────
 
 /** Stable string key used to identify a permission cell in the matrix. */

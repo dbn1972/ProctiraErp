@@ -28,6 +28,9 @@ export interface WorkflowDefinition {
   version: number;
   steps: WorkflowStep[];
   active: boolean;
+  /** When true, new instances are blocked (pause). */
+  paused?: boolean;
+  status?: string;
   updatedAt: string;
   description?: string | null;
   /** Raw backend states (for create/transition helpers). */
@@ -125,6 +128,10 @@ interface BackendDefinition {
   escalationRules?: unknown;
   createdAt?: string;
   updatedAt: string;
+  paused?: boolean;
+  status?: string;
+  active?: boolean;
+  isActive?: boolean;
 }
 
 interface BackendInstance {
@@ -167,18 +174,66 @@ function mapDefinition(raw: BackendDefinition): WorkflowDefinition {
     approverRole: s.assigneeId,
   }));
 
+  const status = (raw.status ?? '').toLowerCase();
+  const paused =
+    typeof raw.paused === 'boolean'
+      ? raw.paused
+      : typeof raw.isActive === 'boolean'
+        ? !raw.isActive
+        : status === 'paused' || status === 'inactive' || raw.active === false;
+
   return {
     id: raw.id,
     name: raw.name,
     module: raw.entityType,
     version: 1,
     steps,
-    active: true,
+    active: !paused,
+    paused,
+    status: raw.status ?? (paused ? 'paused' : 'active'),
     updatedAt: raw.updatedAt,
     description: raw.description ?? null,
     states: raw.states,
     transitions: raw.transitions,
   };
+}
+
+/**
+ * Pause or resume a workflow definition (server).
+ *
+ * PUT /workflows/:id with `{ paused, status }`.
+ */
+export async function setWorkflowDefinitionPaused(
+  id: string,
+  paused: boolean,
+): Promise<WorkflowDefinition> {
+  const result = await gatewayFetch<BackendDefinition>(`/workflows/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    json: {
+      paused,
+      status: paused ? 'paused' : 'active',
+    },
+  });
+  if (!result.data) {
+    throw new Error(result.error?.message ?? 'Failed to update workflow definition');
+  }
+  return mapDefinition(result.data);
+}
+
+/** Derive whether a definition is paused from active / paused / status fields. */
+export function isWorkflowPaused(
+  definition: Pick<WorkflowDefinition, 'active'> & {
+    paused?: boolean;
+    status?: string;
+  },
+): boolean {
+  if (typeof definition.paused === 'boolean') return definition.paused;
+  if (typeof definition.status === 'string') {
+    const s = definition.status.toLowerCase();
+    if (s === 'paused' || s === 'inactive') return true;
+    if (s === 'active') return false;
+  }
+  return !definition.active;
 }
 
 function mapInstanceStatus(

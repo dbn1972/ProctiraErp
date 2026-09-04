@@ -216,6 +216,42 @@ class ExaminationPublicationSummary {
   }
 }
 
+/// Candidate registration from `GET /examinations/:id/candidates`.
+class ExaminationCandidate {
+  const ExaminationCandidate({
+    required this.id,
+    required this.examinationId,
+    required this.studentId,
+    required this.centerId,
+    required this.status,
+    this.subjectIds = const <String>[],
+    this.registeredAt,
+  });
+
+  final String id;
+  final String examinationId;
+  final String studentId;
+  final String centerId;
+  final String status;
+  final List<String> subjectIds;
+  final String? registeredAt;
+
+  factory ExaminationCandidate.fromJson(Map<String, dynamic> json) {
+    return ExaminationCandidate(
+      id: (json['id'] as String?) ?? '',
+      examinationId: (json['examinationId'] as String?) ?? '',
+      studentId: (json['studentId'] as String?) ?? '',
+      centerId: (json['centerId'] as String?) ?? '',
+      status: (json['status'] as String?) ?? 'REGISTERED',
+      subjectIds: (json['subjectIds'] as List<dynamic>?)
+              ?.map((dynamic e) => e.toString())
+              .toList(growable: false) ??
+          const <String>[],
+      registeredAt: json['registeredAt'] as String?,
+    );
+  }
+}
+
 /// Repository for examination schedules and results with offline caching.
 class ExaminationRepository {
   ExaminationRepository({
@@ -265,6 +301,24 @@ class ExaminationRepository {
       return null;
     }
     return null;
+  }
+
+  /// List registered candidates (`GET /api/v1/examinations/:id/candidates`).
+  Future<List<ExaminationCandidate>> listCandidates(String examinationId) async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/v1/examinations/$examinationId/candidates',
+    );
+    final Object? body = response.data;
+    final Object? data = body is Map ? body['data'] : body;
+    if (data is! List) {
+      return const <ExaminationCandidate>[];
+    }
+    return data
+        .whereType<Map>()
+        .map(
+          (Map e) => ExaminationCandidate.fromJson(Map<String, dynamic>.from(e)),
+        )
+        .toList(growable: false);
   }
 
   /// Fetch upcoming examinations for a student.

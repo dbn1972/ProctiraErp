@@ -19,26 +19,48 @@ in a `try/catch` so the app boots fine on devices that have not been
 configured with Firebase credentials yet — push notifications simply
 no-op until a config file is added.
 
-To enable push notifications on a real device:
+When Firebase initialises successfully, `FcmService` requests permission,
+retrieves the FCM device token, and registers it with the backend via
+`POST /api/v1/notifications/devices` (including `onTokenRefresh`).
+
+### Example config files
+
+Checked-in placeholders (safe to commit):
+
+| Platform | Example | Real destination |
+|----------|---------|------------------|
+| Android  | `android/app/google-services.json.example` | `android/app/google-services.json` |
+| iOS      | `ios/Runner/GoogleService-Info.plist.example` | `ios/Runner/GoogleService-Info.plist` |
+
+### Placing real files on EC3 / CI from secrets
 
 1. Create (or open) the Firebase project for your environment.
 2. Register the Android app (`com.proctira.mobile`) and iOS bundle
    (`com.proctira.mobile`) inside the Firebase console.
-3. Download the platform configuration files and drop them into the
-   following locations:
+3. Download the platform configuration files into a secrets store / vault
+   path on the build host (never commit them).
+4. On EC3 or in CI, export the paths and run the helper script:
 
-   | Platform | File                          | Destination                                      |
-   |----------|-------------------------------|--------------------------------------------------|
-   | Android  | `google-services.json`        | `apps/mobile/android/app/google-services.json`   |
-   | iOS      | `GoogleService-Info.plist`    | `apps/mobile/ios/Runner/GoogleService-Info.plist`|
+```sh
+export FCM_ANDROID_GOOGLE_SERVICES_JSON=/secure/fcm/google-services.json
+export FCM_IOS_GOOGLE_SERVICE_INFO_PLIST=/secure/fcm/GoogleService-Info.plist
+./scripts/apply-fcm-secrets.sh
+```
 
-4. **Do not commit these files.** They contain project-specific keys.
+Or copy manually:
+
+| Platform | File                          | Destination                                      |
+|----------|-------------------------------|--------------------------------------------------|
+| Android  | `google-services.json`        | `apps/mobile/android/app/google-services.json`   |
+| iOS      | `GoogleService-Info.plist`    | `apps/mobile/ios/Runner/GoogleService-Info.plist`|
+
+5. **Do not commit these files.** They contain project-specific keys.
    They are listed in `.gitignore` (the platform-specific `.gitignore`
    files at `android/.gitignore` and `ios/.gitignore` already exclude
    the configuration filenames). Keep them in your local checkout only,
    or distribute them via a secrets manager / CI vault.
 
-5. (Optional) Configure the APNs key inside Firebase so iOS devices can
+6. (Optional) Configure the APNs key inside Firebase so iOS devices can
    receive push notifications.
 
 The notification subsystem is composed of:
@@ -66,8 +88,11 @@ or an iOS simulator. This Cloud Agent image has Flutter + Chrome but **no
 Android toolchain**, so run those suites on a developer machine:
 
 ```sh
+# helper (exits 2 with a clear message when no device is connected)
+../../tools/scripts/run-mobile-e2e.sh
+
+# or directly:
 flutter test integration_test
-# or: flutter drive --driver=test_driver/integration_test.dart --target=integration_test/app_test.dart
 ```
 
 Keycloak login uses `POST /api/v1/auth/login` (password fallback

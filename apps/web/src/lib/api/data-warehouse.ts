@@ -58,3 +58,54 @@ export async function listGeoFeatures(): Promise<DwGeoFeature[]> {
   });
   return result.data?.data ?? [];
 }
+
+/**
+ * Institutions with profile lat/lng used when GIS features are empty.
+ * GET /institutions?pageSize=… — filters client-side for coordinates.
+ */
+export async function listInstitutionMapMarkers(options?: {
+  pageSize?: number;
+}): Promise<DwGeoFeature[]> {
+  const pageSize = options?.pageSize ?? 200;
+  const result = await gatewayFetch<{
+    data: Array<{
+      id: string;
+      name: string;
+      latitude?: number | null;
+      longitude?: number | null;
+      typeId?: string;
+      typeName?: string;
+      customData?: Record<string, unknown> | null;
+    }>;
+  }>(`/institutions?pageSize=${pageSize}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+
+  const rows = result.data?.data ?? [];
+  return rows
+    .filter(
+      (row): row is typeof row & { latitude: number; longitude: number } =>
+        typeof row.latitude === 'number' &&
+        typeof row.longitude === 'number' &&
+        Number.isFinite(row.latitude) &&
+        Number.isFinite(row.longitude),
+    )
+    .map((row) => {
+      const enrolmentRaw = row.customData?.['enrolment'] ?? row.customData?.['enrollment'];
+      const enrolment =
+        typeof enrolmentRaw === 'number'
+          ? enrolmentRaw
+          : typeof enrolmentRaw === 'string'
+            ? Number(enrolmentRaw) || 0
+            : 0;
+      return {
+        institutionId: row.id,
+        name: row.name,
+        latitude: row.latitude,
+        longitude: row.longitude,
+        type: row.typeName ?? row.typeId ?? 'Institution',
+        enrolment,
+      };
+    });
+}

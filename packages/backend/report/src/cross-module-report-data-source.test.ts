@@ -255,6 +255,37 @@ describe('CrossModuleReportDataSource', () => {
     expect(result.rows[0]!['institutionId']).toBe(INST_A);
   });
 
+  it('aggregates enrollment_summary by institution/status/grade in memory', async () => {
+    const ds = new CrossModuleReportDataSource(buildDeps());
+    const result = await ds.fetchData(
+      TENANT,
+      'enrollment_summary',
+      {},
+      null,
+      null,
+      userContext({ institutionIds: [INST_A, INST_B], accessibleAreaIds: [AREA_A, AREA_B] }),
+    );
+
+    expect(result.totalRows).toBe(2);
+    expect(result.rows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          institutionId: INST_A,
+          status: 'ENROLLED',
+          gradeId: 'grade-1',
+          enrollmentCount: 1,
+        }),
+        expect.objectContaining({
+          institutionId: INST_B,
+          status: 'ENROLLED',
+          gradeId: 'grade-1',
+          enrollmentCount: 1,
+        }),
+      ]),
+    );
+    expect(result.columns.some((c) => c.name === 'enrollmentCount')).toBe(true);
+  });
+
   it('returns empty rows when no matching data', async () => {
     const ds = new CrossModuleReportDataSource(
       buildDeps({

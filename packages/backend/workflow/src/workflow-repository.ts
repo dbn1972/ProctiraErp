@@ -22,6 +22,8 @@ export interface WorkflowDefinitionEntity {
   states: WorkflowStateInput[];
   transitions: WorkflowTransitionInput[];
   escalationRules: EscalationRuleInput[] | null;
+  /** When false the definition is paused. */
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

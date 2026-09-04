@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ShieldCheck, Loader2, Smartphone } from 'lucide-react';
+import { ShieldCheck, Loader2, Smartphone, MessageSquare } from 'lucide-react';
 
 import {
   Alert,
   AlertDescription,
   Button,
 } from '@proctira/ui/components';
-import { verifyMfa } from '@/lib/auth';
+import { resendMfa, verifyMfa } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 const CODE_LENGTH = 6;
@@ -19,6 +19,7 @@ const CODE_LENGTH = 6;
 /**
  * Multi-factor authentication code entry form.
  * Six individual input boxes per the Figma 08-mfa-verification.md spec.
+ * When `?method=sms`, uses the SMS OTP verify/resend path.
  */
 export function MfaForm(): JSX.Element {
   const t = useTranslations('auth');
@@ -26,11 +27,19 @@ export function MfaForm(): JSX.Element {
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
   const returnTo = searchParams.get('returnTo') ?? '/';
+  const methodParam = (searchParams.get('method') ?? 'totp').toLowerCase();
+  const isSms = methodParam === 'sms';
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [activeToken, setActiveToken] = useState(token);
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
+
+  useEffect(() => {
+    setActiveToken(token);
+  }, [token]);
 
   // Focus the first box on mount.
   useEffect(() => {
@@ -76,7 +85,7 @@ export function MfaForm(): JSX.Element {
     event.preventDefault();
     setError(null);
 
-    if (!token) {
+    if (!activeToken) {
       setError(t('mfaTokenMissing'));
       return;
     }
@@ -88,7 +97,11 @@ export function MfaForm(): JSX.Element {
     }
 
     setIsSubmitting(true);
-    const result = await verifyMfa(token, code);
+    const result = await verifyMfa(
+      activeToken,
+      code,
+      isSms ? 'sms' : 'totp',
+    );
     setIsSubmitting(false);
 
     if (result.success) {
@@ -98,6 +111,31 @@ export function MfaForm(): JSX.Element {
     setError(result.message ?? t('mfaInvalid'));
     setDigits(Array(CODE_LENGTH).fill(''));
     inputs.current[0]?.focus();
+  }
+
+  async function handleResend() {
+    if (!activeToken || isResending) return;
+    setIsResending(true);
+    setError(null);
+    const result = await resendMfa(activeToken);
+    setIsResending(false);
+    if (!result.success) {
+      setError(result.message ?? t('mfaInvalid'));
+      return;
+    }
+    if (result.mfaToken) {
+      setActiveToken(result.mfaToken);
+      const url = new URL(window.location.href);
+      url.searchParams.set('token', result.mfaToken);
+      url.searchParams.set('method', 'sms');
+      router.replace(`${url.pathname}?${url.searchParams.toString()}`);
+    }
+  }
+
+  function switchToSms() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('method', 'sms');
+    router.replace(`${url.pathname}?${url.searchParams.toString()}`);
   }
 
   return (
@@ -110,21 +148,27 @@ export function MfaForm(): JSX.Element {
       </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">{t('mfaSubtitle')}</p>
 
-      {/* Redesign auth-mfa shell: authenticator device chip; SMS OTP is deferred. */}
       <div className="mt-5 flex items-center gap-2.5 rounded-md border border-border bg-muted/40 px-3 py-2.5">
-        <Smartphone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        {isSms ? (
+          <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        ) : (
+          <Smartphone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        )}
         <div className="min-w-0 flex-1 text-xs text-muted-foreground">
           <b className="block text-sm font-semibold text-foreground">
-            {t('mfaAuthenticatorApp')}
+            {isSms ? t('mfaSmsTitle') : t('mfaAuthenticatorApp')}
           </b>
-          {t('mfaAuthenticatorHint')}
+          {isSms ? t('mfaSmsHint') : t('mfaAuthenticatorHint')}
         </div>
-        <span
-          className="shrink-0 text-xs font-semibold text-muted-foreground"
-          title={t('mfaSmsComingSoon')}
-        >
-          {t('mfaUseSmsInstead')}
-        </span>
+        {!isSms ? (
+          <button
+            type="button"
+            className="shrink-0 text-xs font-semibold text-accent hover:underline"
+            onClick={switchToSms}
+          >
+            {t('mfaUseSmsInstead')}
+          </button>
+        ) : null}
       </div>
 
       {error && (
@@ -181,10 +225,13 @@ export function MfaForm(): JSX.Element {
             {t('didntReceiveCode')}{' '}
             <button
               type="button"
-              className="font-medium text-accent hover:underline"
-              disabled={isSubmitting}
+              className="font-medium text-accent hover:underline disabled:opacity-50"
+              disabled={isSubmitting || isResending || !activeToken}
+              onClick={() => {
+                void handleResend();
+              }}
             >
-              {t('resend')}
+              {isResending ? t('verifying') : t('resend')}
             </button>
           </p>
           <p>

@@ -1,18 +1,22 @@
 /**
  * Infrastructure tab — Server Component — v2.0 redesign.
  *
+ * Cite: redesign/web/institutions-infrastructure.html
+ *
  * Renders the real Land → Building → Floor → Room hierarchy with capacity and
  * colour-coded condition pills, plus a per-tab toolbar and a warning banner
  * summarising any nodes flagged for repair. Powered by the institution
  * service's `/infrastructure/hierarchy` endpoint (Requirement 5.6).
+ *
+ * Repair CTAs: POST /institutions/:id/repairs + repair history list.
  */
-import { AlertTriangle, Building, FileText, Home, Layers, Map as MapIcon, Plus } from 'lucide-react';
+import { AlertTriangle, Building, Home, Layers, Map as MapIcon } from 'lucide-react';
 
 import {
-  Button,
   Card,
   CardContent,
 } from '@proctira/ui/components';
+import { InfrastructureActions } from '@/components/institutions/infrastructure-actions';
 import { cn } from '@/lib/utils';
 import {
   ApiClientError,
@@ -112,9 +116,30 @@ function countRepairs(hierarchy: InfrastructureHierarchy): number {
 
 /* ──────────────────────────────── page ── */
 
+function collectFacilityOptions(
+  hierarchy: InfrastructureHierarchy,
+): Array<{ id: string; label: string }> {
+  const options: Array<{ id: string; label: string }> = [];
+  for (const land of hierarchy.lands) {
+    options.push({ id: land.id, label: `Land · ${land.name}` });
+    for (const b of land.buildings) {
+      options.push({ id: b.id, label: `Building · ${b.name}` });
+      for (const f of b.floors) {
+        options.push({ id: f.id, label: `Floor · ${f.name}` });
+        for (const r of f.rooms) {
+          options.push({ id: r.id, label: `Room · ${r.name}` });
+        }
+      }
+    }
+  }
+  return options;
+}
+
 export default async function InstitutionInfrastructurePage({ params }: InfrastructurePageProps) {
   const result = await loadHierarchy(params.id);
-  const repairs = result.error ? 0 : countRepairs(result.hierarchy as InfrastructureHierarchy);
+  const hierarchy = result.error ? null : (result.hierarchy as InfrastructureHierarchy);
+  const repairs = hierarchy ? countRepairs(hierarchy) : 0;
+  const facilityOptions = hierarchy ? collectFacilityOptions(hierarchy) : [];
 
   return (
     <div className="space-y-4">
@@ -127,22 +152,12 @@ export default async function InstitutionInfrastructurePage({ params }: Infrastr
             Land, buildings, floors, and rooms with capacity and condition
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled
-            title="Coming soon"
-          >
-            <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Verification report
-          </Button>
-          <Button size="sm" disabled title="Coming soon">
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Log repair request
-          </Button>
-        </div>
       </div>
+
+      <InfrastructureActions
+        institutionId={params.id}
+        facilityOptions={facilityOptions}
+      />
 
       {/* ── Repair warning ── */}
       {repairs > 0 && (

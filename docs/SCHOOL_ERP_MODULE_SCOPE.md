@@ -1,7 +1,7 @@
 # School ERP module scope — built vs planned vs not done
 
 **Audited:** 2026-09-04 (parallel team pass).  
-**Updated:** 2026-09-04 — API+web PARTIAL gaps closed; Flutter Staff/Transport/Workflow/Survey + Keycloak login polish + marketing App Router + migrate runbook completed. Device E2E blocked (no Android SDK in this environment).  
+**Updated:** 2026-09-04 — §4 residuals closed in code (CTAs, Flutter thin screens, DW map, SMS OTP abstraction, FCM secret injection, EC3 migrations). Live Twilio/FCM/device E2E remain ops-blocked.  
 **Charter index:** [specs/SCHOOL_ERP_INDEX.md](./specs/SCHOOL_ERP_INDEX.md)
 
 Legend:
@@ -16,18 +16,18 @@ Legend:
 
 | Module | Phase | Backend | Gateway | Web UI | Flutter | Verdict |
 |--------|-------|---------|---------|--------|---------|---------|
-| Institution | 3 | Prisma incl. subjects, areas, **infrastructure** | `/institutions`, boards/periods/grades/classes, `/subjects`, `/institution-subjects`, `/areas`, `/infrastructure` | Redesign-aligned list/detail tabs **incl. Staff tab** | List + detail | **FULL** |
+| Institution | 3 | Prisma incl. subjects, areas, **infrastructure** (+ repair logs) | `/institutions`, boards/periods/grades/classes, `/subjects`, `/institution-subjects`, `/areas`, `/infrastructure` | Redesign-aligned list/detail tabs **incl. Staff tab** + repair CTA | List + detail | **FULL** |
 | Student | 4 | Prisma CRUD + enrollments + **bulk import** | `/students`, `/enrollments`, `/students/import` | Redesign-aligned (incl. import) | List/profile/enrollment/docs | **FULL** |
 | Attendance | 5 | Prisma record/roster/reports | `/attendance` | Redesign-aligned mark + reports | Mark + reports | **FULL** |
 | Assessment | 6 | Schemes/items/results + **report-cards** Prisma | Core + `/report-cards` | Schemes/items/results + report-cards | Results only | **FULL** (API+web); Flutter partial |
-| Examination | 7 | Prisma exams/candidates/results/docs | `/examinations` | Redesign-aligned | List + results | **FULL** (web); Flutter partial |
+| Examination | 7 | Prisma exams/candidates/results/docs | `/examinations` (+ candidates list) | Redesign-aligned | List + detail + candidates | **FULL** |
 | Staff | 8 | Profile + assignments + **appraisal/training** Prisma | `/staff` (+ appraisals, training) | Deep profile + appraisal/training | List + detail (+ appraisals/training) | **FULL** |
-| Scholarship | 9 | Prisma + factory | `/scholarships` | Redesign-aligned | Programs/apply/status | **FULL** |
+| Scholarship | 9 | Prisma + factory + **document upload** | `/scholarships` | Redesign-aligned | Programs/apply/status + upload | **FULL** |
 | Transport | 10 | Prisma + factory | `/transport` | Redesign-aligned | Overview/routes/vehicles/assignments | **FULL** |
 | Health | 11 | Prisma + factory | `/api/v1/health` | Redesign-aligned | Records | **FULL** |
-| Workflow | 12 | Prisma defs/instances/cases | `/workflows` | Definitions + instances + approvals | Definitions/instances/approvals | **FULL** |
+| Workflow | 12 | Prisma defs/instances/cases (+ **pause / isActive**) | `/workflows` | Definitions + instances + approvals + pause | Definitions/instances/approvals | **FULL** |
 | Notification | 13 | Prisma + **role/area recipient expansion** | `/notifications` | Inbox + preferences + admin rules | Inbox + prefs | **FULL** |
-| Report | 14 | Prisma jobs/templates + cross-module ReportDataSource | `/reports` | List/new/results | List + detail (thin) | **FULL** (API+web); Flutter thin |
+| Report | 14 | Prisma jobs/templates + cross-module ReportDataSource (+ **enrollment_summary**) | `/reports` | List/new/results | List + detail + enrollment_summary | **FULL** |
 | Survey | 15 | Prisma + factory | `/surveys` | List + create/edit/detail/distributions/results | List + detail/respond | **FULL** |
 | Registration | 16 | Applications + **FormConfiguration** Prisma | `/registrations` (+ form-config admin) | Public portal + admin forms | N/A (portal) | **FULL** |
 
@@ -37,9 +37,9 @@ Legend:
 
 | Area | Status |
 |------|--------|
-| Auth (P2) | **FULL** on gateway with Keycloak/`DATABASE_URL`; mobile login uses `/auth/login` (+ password/refresh). Live SMS OTP out of scope |
+| Auth (P2) | **FULL** on gateway with Keycloak/`DATABASE_URL`; mobile login uses `/auth/login` (+ password/refresh). SMS MFA OTP: Console + Twilio providers; invite + tenant directory routes mounted |
 | Marketing site | App Router pages under `(marketing)` — home, about, features, pricing, contact, demo, legal, installation, security, status |
-| Tenant / billing / plugin / audit / policy / theme / custom-field / dashboards / DW / admin-dashboard / developer-portal | Mostly **STUB** |
+| Tenant / billing / plugin / audit / policy / theme / custom-field / dashboards / DW / admin-dashboard / developer-portal | Mostly **STUB**; DW map is interactive Leaflet (institution lat/lng + GIS features) |
 | ETL | Worker-side **PARTIAL** |
 | SaaS billing | Platform SaaS — **not** school fees/finance |
 
@@ -47,20 +47,22 @@ Legend:
 
 ## 3. Fully built
 
-All P3–P16 school domains meet **FULL** for Prisma + gateway + App Router web (when `DATABASE_URL` set), with Flutter parity for Staff/Transport/Workflow/Survey added.  
+All P3–P16 school domains meet **FULL** for Prisma + gateway + App Router web (when `DATABASE_URL` set), with Flutter parity for Staff/Transport/Workflow/Survey and §4 thin screens.  
 P2 Auth + P9–16 Prisma wiring + P17 Flutter analyze remain signed off.
 
 ---
 
 ## 4. Remaining residuals
 
-1. **Flutter device/emulator E2E** — blocked here (no Android SDK). Unit/widget tests pass (`flutter test`). Run `flutter test integration_test` on a host with Android SDK + emulator (or iOS). See mobile README.
-2. **Live FCM** — code path ready; needs `google-services.json` / `GoogleService-Info.plist` (not committed). Without configs, FCM no-ops safely.
-3. **EC3 migrate** — residual tables applied on EC3 Postgres (2026-09-04); schema up to date. Redeploy gateway/web only if binary lags the branch.
-4. Data-warehouse map placeholder; platform DW not gateway school domain
-5. Live SMS / MFA OTP (P2 non-goal)
-6. CTAs still intentionally disabled (no API): infra repair/log, district map, admin invite user, workflow pause
-7. Flutter still thin where APIs lack list endpoints: exam candidates list, scholarship binary upload, tenant directory, enrollment-summary report
+| # | Item | Status |
+|---|------|--------|
+| 1 | **Flutter device/emulator E2E** | **Ops-blocked** — `tools/scripts/run-mobile-e2e.sh` + `integration_test` present; exits 2 when no AVD/device. `flutter test` unit/widget suite passes. Needs developer machine or CI emulator. |
+| 2 | **Live FCM** | **Code complete / secrets-blocked** — example configs + `scripts/apply-fcm-secrets.sh`; without real Firebase files FCM no-ops; with secrets, token registers to `POST /api/v1/notifications/devices`. |
+| 3 | **EC3 migrate + redeploy** | **Migrations applied** on EC3 Postgres (`20260904_*` residual tables; schema up to date). Redeploy gateway/web against this branch after sync. |
+| 4 | **Data-warehouse map** | **Done** — interactive Leaflet map (`map-client` / `map-canvas`); institution overview links with `?institutionId=`. |
+| 5 | **Live SMS / MFA OTP** | **Code complete / secrets-blocked** — OTP send/verify + Console/Twilio; hashed store in `auth.otp_challenges`; web MFA SMS path. Set `TWILIO_*` on EC3 for live SMS. |
+| 6 | **Disabled CTAs** | **Done** — infra repair/log, district map link, admin invite user, workflow pause wired to APIs. |
+| 7 | **Flutter thin screens** | **Done** — exam candidates, scholarship document upload, tenant directory (`/auth/tenants`), `enrollment_summary` report generation. |
 
 ---
 
@@ -70,12 +72,16 @@ Do **not** build unless charter expands: school finance/fees, payroll, timetable
 
 ---
 
-## 6. Migrations for partial-completion pass
+## 6. Migrations for partial-completion + §4 residual pass
 
 - `20260904_add_institution_infrastructure`
 - `20260904_assessment_report_cards`
 - `20260904_staff_appraisal_training`
 - `20260904_form_configurations`
 - `20260904_user_role_assignments`
+- `20260904_infrastructure_repair_logs`
+- `20260904_workflow_definition_is_active`
+- `20260904_user_invites`
+- `20260904_auth_otp_challenges`
 
-Apply via the runbook above on deployed databases.
+Apply via [docs/runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md](./runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md) on deployed databases.

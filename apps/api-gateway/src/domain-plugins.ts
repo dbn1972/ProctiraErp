@@ -40,6 +40,11 @@ import {
   createAttendanceRepository,
 } from '@proctira/backend-attendance';
 import {
+  createUserInviteRepository,
+  InviteService,
+  registerInviteAndTenantDirectoryRoutes,
+} from '@proctira/backend-auth';
+import {
   createDocumentRepository,
   createExaminationRepository,
   createResultRepository,
@@ -148,6 +153,16 @@ interface DomainRegistrar {
  * service-router, which proxies them to a standalone service (via SERVICE_ROUTES).
  */
 const DOMAIN_REGISTRARS: DomainRegistrar[] = [
+  {
+    name: 'auth-invite-tenants',
+    proxyPrefixes: ['/admin/users', '/tenant/users', '/tenants/mine', '/auth/tenants'],
+    register: async (scope) => {
+      const inviteService = new InviteService({
+        repository: createUserInviteRepository(),
+      });
+      await registerInviteAndTenantDirectoryRoutes(scope, { inviteService });
+    },
+  },
   {
     name: 'student',
     proxyPrefixes: ['/students', '/enrollments'],

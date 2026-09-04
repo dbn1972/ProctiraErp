@@ -103,6 +103,7 @@ export type CreateWorkflowDefinitionInput = Static<typeof CreateWorkflowDefiniti
 
 /**
  * Schema for updating a workflow definition.
+ * Accepts pause/resume via `isActive`, `paused`, or `status` (`active`/`paused`).
  */
 export const UpdateWorkflowDefinitionSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Workflow name' })),
@@ -110,6 +111,13 @@ export const UpdateWorkflowDefinitionSchema = Type.Object({
   states: Type.Optional(Type.Array(WorkflowStateSchema, { minItems: 2, description: 'Workflow states' })),
   transitions: Type.Optional(Type.Array(WorkflowTransitionSchema, { minItems: 1, description: 'Allowed transitions' })),
   escalationRules: Type.Optional(Type.Array(EscalationRuleSchema, { description: 'Escalation rules' })),
+  isActive: Type.Optional(Type.Boolean({ description: 'Whether the definition is active (not paused)' })),
+  paused: Type.Optional(Type.Boolean({ description: 'When true, pauses the definition (sets isActive=false)' })),
+  status: Type.Optional(
+    Type.Union([Type.Literal('active'), Type.Literal('paused'), Type.Literal('ACTIVE'), Type.Literal('PAUSED')], {
+      description: 'Convenience status alias for pause/resume',
+    }),
+  ),
 });
 
 export type UpdateWorkflowDefinitionInput = Static<typeof UpdateWorkflowDefinitionSchema>;
@@ -209,6 +217,8 @@ export const WorkflowDefinitionResponseSchema = Type.Object({
   states: Type.Array(WorkflowStateSchema),
   transitions: Type.Array(WorkflowTransitionSchema),
   escalationRules: Type.Union([Type.Array(EscalationRuleSchema), Type.Null()]),
+  isActive: Type.Boolean(),
+  status: Type.String({ description: 'active | paused' }),
   createdAt: Type.String(),
   updatedAt: Type.String(),
 });

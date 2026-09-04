@@ -21,8 +21,10 @@ import {
   type CreateFloorInput,
   type CreateRoomInput,
   type UpdateInfrastructureInput,
+  type CreateInfrastructureRepairInput,
   type InfrastructureResponse,
   type InfrastructureHierarchyResponse,
+  type InfrastructureRepairLogResponse,
 } from './schemas.js';
 
 /**
@@ -38,6 +40,22 @@ export interface InfrastructureRecord {
   capacity: number;
   condition: string;
   description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Append-only repair log entry for an infrastructure item.
+ */
+export interface InfrastructureRepairLogRecord {
+  id: string;
+  tenantId: string;
+  institutionId: string;
+  infrastructureItemId: string;
+  repairDate: Date;
+  notes: string;
+  conditionAfter: string;
+  cost: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -69,6 +87,11 @@ export interface InfrastructureStore {
   ): Promise<InfrastructureRecord | null>;
   delete(tenantId: string, id: string): Promise<boolean>;
   hasChildren(tenantId: string, id: string): Promise<boolean>;
+  createRepairLog(record: InfrastructureRepairLogRecord): Promise<InfrastructureRepairLogRecord>;
+  listRepairLogs(
+    tenantId: string,
+    infrastructureItemId: string,
+  ): Promise<InfrastructureRepairLogRecord[]>;
 }
 
 /**
@@ -101,6 +124,20 @@ function toResponse(record: InfrastructureRecord): InfrastructureResponse {
     capacity: record.capacity,
     condition: record.condition,
     description: record.description,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  };
+}
+
+function toRepairResponse(record: InfrastructureRepairLogRecord): InfrastructureRepairLogResponse {
+  return {
+    id: record.id,
+    institutionId: record.institutionId,
+    infrastructureItemId: record.infrastructureItemId,
+    repairDate: record.repairDate.toISOString().slice(0, 10),
+    notes: record.notes,
+    conditionAfter: record.conditionAfter,
+    cost: record.cost,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
@@ -565,5 +602,63 @@ export class InfrastructureService {
     if (!deleted) {
       throw new NotFoundError(`Condition option not found: ${id}`);
     }
+  }
+
+  // ─── Repair Logs ─────────────────────────────────────────────────────────────
+
+  /**
+   * Log a repair for an infrastructure item and update its condition.
+   */
+  async logRepair(
+    tenantId: string,
+    institutionId: string,
+    itemId: string,
+    input: CreateInfrastructureRepairInput,
+  ): Promise<InfrastructureRepairLogResponse> {
+    const item = await this.store.findById(tenantId, itemId);
+    if (!item || item.institutionId !== institutionId) {
+      throw new NotFoundError(`Infrastructure item not found: ${itemId}`);
+    }
+
+    await this.validateCondition(tenantId, input.conditionAfter);
+
+    const now = new Date();
+    const repairDate = new Date(`${input.date}T00:00:00.000Z`);
+    const record = await this.store.createRepairLog({
+      id: uuidv4(),
+      tenantId,
+      institutionId,
+      infrastructureItemId: itemId,
+      repairDate,
+      notes: input.notes,
+      conditionAfter: input.conditionAfter,
+      cost: input.cost ?? null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await this.store.update(tenantId, itemId, {
+      condition: input.conditionAfter,
+      updatedAt: now,
+    });
+
+    return toRepairResponse(record);
+  }
+
+  /**
+   * List repair logs for an infrastructure item.
+   */
+  async listRepairs(
+    tenantId: string,
+    institutionId: string,
+    itemId: string,
+  ): Promise<InfrastructureRepairLogResponse[]> {
+    const item = await this.store.findById(tenantId, itemId);
+    if (!item || item.institutionId !== institutionId) {
+      throw new NotFoundError(`Infrastructure item not found: ${itemId}`);
+    }
+
+    const logs = await this.store.listRepairLogs(tenantId, itemId);
+    return logs.map(toRepairResponse);
   }
 }

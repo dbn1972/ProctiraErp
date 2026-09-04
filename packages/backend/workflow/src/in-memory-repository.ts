@@ -27,6 +27,7 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
     const now = new Date();
     const definition: WorkflowDefinitionEntity = {
       ...entity,
+      isActive: entity.isActive !== false,
       createdAt: now,
       updatedAt: now,
     };
@@ -56,6 +57,7 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       states: data.states ?? existing.states,
       transitions: data.transitions ?? existing.transitions,
       escalationRules: data.escalationRules !== undefined ? data.escalationRules : existing.escalationRules,
+      isActive: data.isActive !== undefined ? data.isActive : existing.isActive,
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };

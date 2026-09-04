@@ -82,6 +82,7 @@ export class WorkflowService {
       states: input.states,
       transitions: input.transitions,
       escalationRules: input.escalationRules ?? null,
+      isActive: true,
     };
 
     return this.repository.createDefinition(definition);
@@ -132,6 +133,11 @@ export class WorkflowService {
     if (input.transitions !== undefined) updateData.transitions = input.transitions;
     if (input.escalationRules !== undefined) updateData.escalationRules = input.escalationRules;
 
+    const resolvedActive = resolveIsActive(input);
+    if (resolvedActive !== undefined) {
+      updateData.isActive = resolvedActive;
+    }
+
     const updated = await this.repository.updateDefinition(id, tenantId, updateData);
     if (!updated) {
       throw new NotFoundError(`Workflow definition with id '${id}' not found`);
@@ -181,6 +187,12 @@ export class WorkflowService {
     if (!definition) {
       throw new NotFoundError(
         `Workflow definition with id '${input.workflowDefinitionId}' not found`,
+      );
+    }
+
+    if (!definition.isActive) {
+      throw new BusinessRuleError(
+        'Cannot create instances for a paused workflow definition. Resume the definition first.',
       );
     }
 
@@ -445,4 +457,19 @@ export class WorkflowService {
       }
     }
   }
+}
+
+/**
+ * Resolve isActive from optional pause/resume fields on an update payload.
+ * Priority: explicit `isActive` > `paused` > `status`.
+ */
+function resolveIsActive(input: UpdateWorkflowDefinitionInput): boolean | undefined {
+  if (input.isActive !== undefined) return input.isActive;
+  if (input.paused !== undefined) return !input.paused;
+  if (input.status !== undefined) {
+    const normalized = input.status.toLowerCase();
+    if (normalized === 'paused') return false;
+    if (normalized === 'active') return true;
+  }
+  return undefined;
 }

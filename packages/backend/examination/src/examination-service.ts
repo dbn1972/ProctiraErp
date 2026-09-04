@@ -519,6 +519,22 @@ export class ExaminationService {
   }
 
   /**
+   * List registered candidates for an examination.
+   *
+   * @throws NotFoundError if examination not found
+   */
+  async listCandidates(
+    tenantId: string,
+    examinationId: string,
+  ): Promise<CandidateRegistration[]> {
+    const examination = await this.repository.findById(examinationId, tenantId);
+    if (!examination) {
+      throw new NotFoundError(`Examination with id '${examinationId}' not found`);
+    }
+    return this.repository.listCandidateRegistrations(examinationId, tenantId);
+  }
+
+  /**
    * Validate candidate eligibility for an examination.
    *
    * Checks:

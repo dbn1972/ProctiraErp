@@ -163,4 +163,10 @@ export interface ExaminationRepository {
     studentId: string,
     tenantId: string,
   ): Promise<CandidateRegistration | null>;
+
+  /** List candidate registrations for an examination */
+  listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]>;
 }

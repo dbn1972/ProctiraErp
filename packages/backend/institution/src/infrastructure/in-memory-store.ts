@@ -9,6 +9,7 @@
 import type {
   InfrastructureStore,
   InfrastructureRecord,
+  InfrastructureRepairLogRecord,
   ConditionOptionStore,
   ConditionOptionRecord,
 } from './service.js';
@@ -19,6 +20,7 @@ import type { InfrastructureTypeValue } from './schemas.js';
  */
 export class InMemoryInfrastructureStore implements InfrastructureStore {
   private items: Map<string, InfrastructureRecord> = new Map();
+  private repairLogs: Map<string, InfrastructureRepairLogRecord> = new Map();
 
   async create(record: InfrastructureRecord): Promise<InfrastructureRecord> {
     this.items.set(record.id, { ...record });
@@ -113,9 +115,30 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
     return false;
   }
 
+  async createRepairLog(
+    record: InfrastructureRepairLogRecord,
+  ): Promise<InfrastructureRepairLogRecord> {
+    this.repairLogs.set(record.id, { ...record });
+    return { ...record };
+  }
+
+  async listRepairLogs(
+    tenantId: string,
+    infrastructureItemId: string,
+  ): Promise<InfrastructureRepairLogRecord[]> {
+    return Array.from(this.repairLogs.values())
+      .filter(
+        (log) =>
+          log.tenantId === tenantId && log.infrastructureItemId === infrastructureItemId,
+      )
+      .sort((a, b) => b.repairDate.getTime() - a.repairDate.getTime())
+      .map((log) => ({ ...log }));
+  }
+
   /** Clear all items (test helper). */
   clear(): void {
     this.items.clear();
+    this.repairLogs.clear();
   }
 
   private sortItems(

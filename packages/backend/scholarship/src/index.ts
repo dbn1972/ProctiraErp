@@ -67,7 +67,7 @@ export {
   EligibilityCriteriaSchema,
   AcademicRecordSchema,
   FinancialInfoSchema,
-  ApplicationDocumentSchema,
+  UploadScholarshipDocumentSchema,
   ScholarshipProgramResponseSchema,
   ApplicationResponseSchema,
   DisbursementResponseSchema,
@@ -87,11 +87,22 @@ export type {
   AcademicRecord,
   FinancialInfo,
   ApplicationDocument,
+  UploadScholarshipDocumentInput,
   ScholarshipProgramResponse,
   ApplicationResponse,
   DisbursementResponse,
   UtilizationReportResponse,
 } from './schemas.js';
+
+// Document upload store
+export {
+  InMemoryScholarshipDocumentStore,
+  defaultScholarshipDocumentStore,
+} from './document-store.js';
+export type {
+  ScholarshipDocumentStore,
+  StoredScholarshipDocument,
+} from './document-store.js';
 
 // Routes
 export { registerScholarshipRoutes } from './routes.js';

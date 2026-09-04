@@ -315,4 +315,17 @@ export class PrismaExaminationRepository implements ExaminationRepository {
       return row ? toRegistration(row) : null;
     });
   }
+
+  async listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.examinationCandidateRegistration.findMany({
+        where: { examinationId, tenantId },
+        orderBy: { registeredAt: 'asc' },
+      })) as RegistrationRow[];
+      return rows.map(toRegistration);
+    });
+  }
 }

@@ -256,3 +256,28 @@ export async function exportData(
   );
   return result;
 }
+
+/** GIS map feature (institution marker) from the warehouse map API. */
+export interface GeoMapFeature {
+  institutionId: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  type: string;
+  enrolment: number;
+}
+
+/**
+ * Fetch geo features for the district map (browser).
+ * GET /data-warehouse/map/features
+ */
+export async function listGeoFeatures(
+  signal?: AbortSignal,
+): Promise<GeoMapFeature[]> {
+  const result = await browserGatewayFetch<{ data: GeoMapFeature[] } | GeoMapFeature[]>(
+    '/data-warehouse/map/features',
+    { signal },
+  );
+  if (Array.isArray(result)) return result;
+  return result?.data ?? [];
+}

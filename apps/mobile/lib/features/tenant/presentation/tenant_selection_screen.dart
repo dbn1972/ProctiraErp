@@ -1,13 +1,40 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
+/// A workspace returned by `GET /api/v1/auth/tenants` (or `/tenants/mine`).
+class TenantDirectoryEntry {
+  const TenantDirectoryEntry({
+    required this.id,
+    required this.name,
+    this.slug,
+    this.status,
+  });
+
+  final String id;
+  final String name;
+  final String? slug;
+  final String? status;
+
+  factory TenantDirectoryEntry.fromJson(Map<String, dynamic> json) {
+    return TenantDirectoryEntry(
+      id: (json['id'] as String?) ?? '',
+      name: (json['name'] as String?) ??
+          (json['slug'] as String?) ??
+          (json['id'] as String?) ??
+          'Workspace',
+      slug: json['slug'] as String?,
+      status: json['status'] as String?,
+    );
+  }
+}
+
 /// Tenant / workspace selection screen.
 ///
-/// The gateway does not expose a personal tenant directory for end users, so
-/// this screen asks for a workspace ID, validates it, and persists the last
-/// successful choice. No fake tenant lists are shown.
+/// Loads a selectable directory from `GET /api/v1/auth/tenants` when available,
+/// and always keeps a manual workspace ID fallback.
 class TenantSelectionScreen extends StatefulWidget {
   const TenantSelectionScreen({super.key});
 
@@ -21,8 +48,10 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   bool _saving = false;
   String? _formError;
+  Future<List<TenantDirectoryEntry>>? _directoryFuture;
 
-  static final RegExp _tenantIdPattern = RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{1,62}$');
+  static final RegExp _tenantIdPattern =
+      RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9._-]{1,62}$');
 
   @override
   void initState() {
@@ -34,6 +63,35 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
     if (tenant.displayName != null) {
       _tenantNameCtrl.text = tenant.displayName!;
     }
+    _directoryFuture = _loadDirectory();
+  }
+
+  Future<List<TenantDirectoryEntry>> _loadDirectory() async {
+    final Dio dio = getIt<Dio>();
+    const List<String> paths = <String>[
+      '/api/v1/auth/tenants',
+      '/api/v1/tenants/mine',
+    ];
+    for (final String path in paths) {
+      try {
+        final Response<dynamic> response = await dio.get(path);
+        final Object? body = response.data;
+        final Object? data = body is Map ? body['data'] : body;
+        if (data is List) {
+          return data
+              .whereType<Map>()
+              .map(
+                (Map e) =>
+                    TenantDirectoryEntry.fromJson(Map<String, dynamic>.from(e)),
+              )
+              .where((TenantDirectoryEntry e) => e.id.isNotEmpty)
+              .toList(growable: false);
+        }
+      } on DioException {
+        continue;
+      }
+    }
+    return const <TenantDirectoryEntry>[];
   }
 
   @override
@@ -41,6 +99,15 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
     _tenantIdCtrl.dispose();
     _tenantNameCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _selectDirectoryEntry(TenantDirectoryEntry entry) async {
+    setState(() {
+      _tenantIdCtrl.text = entry.id;
+      _tenantNameCtrl.text = entry.name;
+      _formError = null;
+    });
+    await _onContinue();
   }
 
   Future<void> _onContinue() async {
@@ -150,11 +217,10 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
                   const SizedBox(height: 6),
                   Text(
                     hasExisting
-                        ? 'Enter another workspace ID to switch. Your offline '
-                            'data stays separate for each school.'
-                        : 'Enter the workspace ID provided by your school or '
-                            'ministry. The last successful ID is remembered '
-                            'on this device.',
+                        ? 'Pick a workspace from your directory or enter '
+                            'another ID. Offline data stays separate per school.'
+                        : 'Select a workspace from your account directory, or '
+                            'enter the workspace ID from your school.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colors.onSurfaceVariant,
                     ),
@@ -169,7 +235,82 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+                  FutureBuilder<List<TenantDirectoryEntry>>(
+                    future: _directoryFuture,
+                    builder: (
+                      BuildContext context,
+                      AsyncSnapshot<List<TenantDirectoryEntry>> snapshot,
+                    ) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                          child: Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      final List<TenantDirectoryEntry> entries =
+                          snapshot.data ?? const <TenantDirectoryEntry>[];
+                      if (entries.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          Text(
+                            'YOUR WORKSPACES',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Card(
+                            margin: EdgeInsets.zero,
+                            child: Column(
+                              children: <Widget>[
+                                for (int i = 0; i < entries.length; i++) ...<Widget>[
+                                  if (i > 0) const Divider(height: 1),
+                                  ListTile(
+                                    leading: const Icon(Icons.apartment_outlined),
+                                    title: Text(entries[i].name),
+                                    subtitle: Text(
+                                      entries[i].slug ?? entries[i].id,
+                                      style: theme.textTheme.bodySmall?.copyWith(
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                    trailing: _saving
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.chevron_right),
+                                    onTap: _saving
+                                        ? null
+                                        : () => _selectDirectoryEntry(entries[i]),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            'OR ENTER AN ID',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.6,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      );
+                    },
+                  ),
                   TextFormField(
                     controller: _tenantIdCtrl,
                     textInputAction: TextInputAction.next,
@@ -229,41 +370,6 @@ class _TenantSelectionScreenState extends State<TenantSelectionScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : Text(hasExisting ? 'Save workspace' : 'Continue'),
-                  ),
-                  const SizedBox(height: 24),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: <Widget>[
-                          Container(
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0EA5E9)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: const Icon(
-                              Icons.info_outline,
-                              size: 18,
-                              color: Color(0xFF0EA5E9),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'A personal tenant directory is not available '
-                              'on this device. Ask your administrator for the '
-                              'correct workspace ID if you are unsure.',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: colors.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
                   ),
                 ],
               ),

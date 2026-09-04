@@ -335,6 +335,87 @@ export async function registerKeycloakAuthRoutes(
     });
   });
 
+  /**
+   * GET /auth/tenants — personal tenant directory for the signed-in user.
+   * Lists platform tenants where auth.users has a row matching the JWT email
+   * (or the single tenantId claim when email lookup is unavailable).
+   */
+  fastify.get(`${prefix}/tenants`, async (request: FastifyRequest, reply: FastifyReply) => {
+    await fastify.authenticate(request, reply);
+    if (reply.sent) return;
+
+    const user = request.user as {
+      email?: string;
+      tenantId?: string;
+      preferred_username?: string;
+    };
+    const email = (user.email ?? user.preferred_username ?? '').trim().toLowerCase();
+    const claimTenantId = user.tenantId;
+
+    if (!config.identityStore || !process.env['DATABASE_URL']) {
+      if (claimTenantId) {
+        return reply.status(200).send({
+          data: [
+            {
+              id: claimTenantId,
+              name: claimTenantId,
+              slug: claimTenantId,
+              status: 'active',
+            },
+          ],
+        });
+      }
+      return reply.status(200).send({ data: [] });
+    }
+
+    try {
+      const { getPrismaClient } = await import('@proctira/database');
+      const prisma = getPrismaClient();
+      let tenantIds: string[] = [];
+      if (email) {
+        const users = await prisma.user.findMany({
+          where: { email, status: 'active' },
+          select: { tenantId: true },
+        });
+        tenantIds = [...new Set(users.map((u) => u.tenantId))];
+      }
+      if (tenantIds.length === 0 && claimTenantId) {
+        tenantIds = [claimTenantId];
+      }
+      if (tenantIds.length === 0) {
+        return reply.status(200).send({ data: [] });
+      }
+      const tenants = await prisma.tenant.findMany({
+        where: {
+          id: { in: tenantIds },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          status: true,
+        },
+        orderBy: { name: 'asc' },
+      });
+      return reply.status(200).send({ data: tenants });
+    } catch {
+      if (claimTenantId) {
+        return reply.status(200).send({
+          data: [
+            {
+              id: claimTenantId,
+              name: claimTenantId,
+              slug: claimTenantId,
+              status: 'active',
+            },
+          ],
+        });
+      }
+      return reply.status(200).send({ data: [] });
+    }
+  });
+
   fastify.get(`${prefix}/roles`, async (_request, reply) => {
     return reply.status(200).send({
       provider: 'keycloak',

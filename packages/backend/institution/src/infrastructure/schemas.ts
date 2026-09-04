@@ -189,6 +189,54 @@ export const CreateConditionOptionSchema = Type.Object({
 export type CreateConditionOptionInput = Static<typeof CreateConditionOptionSchema>;
 
 /**
+ * Path params for institution-scoped infrastructure item repairs.
+ */
+export const InfrastructureRepairParamsSchema = Type.Object({
+  institutionId: Type.String({ pattern: UuidPattern, description: 'Institution UUID' }),
+  itemId: Type.String({ pattern: UuidPattern, description: 'Infrastructure item UUID' }),
+});
+
+export type InfrastructureRepairParams = Static<typeof InfrastructureRepairParamsSchema>;
+
+/**
+ * Body for logging a repair against an infrastructure item.
+ */
+export const CreateInfrastructureRepairSchema = Type.Object({
+  date: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Repair date (YYYY-MM-DD)',
+  }),
+  notes: Type.String({ minLength: 1, maxLength: 5000, description: 'Repair notes' }),
+  conditionAfter: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Condition status after the repair',
+  }),
+  cost: Type.Optional(
+    Type.Number({ minimum: 0, description: 'Optional repair cost' }),
+  ),
+});
+
+export type CreateInfrastructureRepairInput = Static<typeof CreateInfrastructureRepairSchema>;
+
+/**
+ * Repair log response object.
+ */
+export const InfrastructureRepairLogResponseSchema = Type.Object({
+  id: Type.String(),
+  institutionId: Type.String(),
+  infrastructureItemId: Type.String(),
+  repairDate: Type.String({ description: 'Repair date (YYYY-MM-DD)' }),
+  notes: Type.String(),
+  conditionAfter: Type.String(),
+  cost: Type.Union([Type.Number(), Type.Null()]),
+  createdAt: Type.String(),
+  updatedAt: Type.String(),
+});
+
+export type InfrastructureRepairLogResponse = Static<typeof InfrastructureRepairLogResponseSchema>;
+
+/**
  * Schema for the full infrastructure hierarchy response (tree view).
  */
 export const InfrastructureHierarchyResponseSchema = Type.Object({

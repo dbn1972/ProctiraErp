@@ -62,6 +62,32 @@ export { PrismaSessionStore } from './session-store.js';
 export { registerAuthRoutes } from './routes.js';
 export type { AuthRoutesOptions, UserLookup } from './routes.js';
 
+// MFA / SMS OTP
+export {
+  ConsoleSmsProvider,
+  TwilioSmsProvider,
+  createSmsProviderFromEnv,
+} from './sms-provider.js';
+export type { SmsProvider, SmsMessage, TwilioSmsProviderOptions } from './sms-provider.js';
+export {
+  OtpService,
+  InMemoryOtpChallengeStore,
+  hashOtpCode,
+  generateOtpCode,
+  OtpValidationError,
+  OtpAuthError,
+} from './otp-service.js';
+export type {
+  OtpChallengeRecord,
+  OtpChallengeStore,
+  OtpServiceOptions,
+  SendOtpResult,
+  VerifyOtpResult,
+} from './otp-service.js';
+export { PrismaOtpChallengeStore } from './otp-store.js';
+export { registerMfaRoutes } from './mfa-routes.js';
+export type { MfaRoutesOptions } from './mfa-routes.js';
+
 // External Identity Providers (OAuth2, OIDC, SAML)
 export {
   // Types
@@ -139,3 +165,24 @@ export {
   verifyKeycloakAccessToken,
 } from './keycloak/verify.js';
 export type { KeycloakAuthConfig } from './keycloak/verify.js';
+
+// Admin invite + tenant directory (mobile-safe)
+export {
+  validateInviteUserInput,
+  InMemoryUserInviteRepository,
+  PrismaUserInviteRepository,
+  createUserInviteRepository,
+  InviteService,
+  registerInviteAndTenantDirectoryRoutes,
+} from './invite/index.js';
+export type {
+  InviteUserInput,
+  InviteUserResponse,
+  InviteStatus,
+  UserInviteEntity,
+  UserInviteRepository,
+  InviteEmailSender,
+  InviteRepositoryConfig,
+  InviteServiceOptions,
+  InviteRoutesOptions,
+} from './invite/index.js';

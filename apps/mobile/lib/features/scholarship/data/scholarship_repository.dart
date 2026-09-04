@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:sqflite/sqflite.dart';
@@ -219,6 +220,34 @@ class ScholarshipRepository {
 
     return ScholarshipApplication.fromJson(
         response.data as Map<String, dynamic>);
+  }
+
+  /// Upload a supporting document via `POST /api/v1/scholarships/documents`.
+  ///
+  /// Sends JSON with base64 content (multipart-compatible field names). Returns
+  /// metadata for the application `documents[]` array.
+  Future<Map<String, dynamic>> uploadDocument({
+    required String filePath,
+    required String fileName,
+    String documentType = 'supporting_document',
+    String? mimeType,
+  }) async {
+    final List<int> bytes = await File(filePath).readAsBytes();
+    final Response<dynamic> response = await _dio.post(
+      '/api/v1/scholarships/documents',
+      data: <String, dynamic>{
+        'documentType': documentType,
+        'fileName': fileName,
+        'contentBase64': base64Encode(bytes),
+        if (mimeType != null) 'mimeType': mimeType,
+        'fileSize': bytes.length,
+      },
+    );
+    final Object? body = response.data;
+    if (body is Map) {
+      return Map<String, dynamic>.from(body);
+    }
+    throw FormatException('Unexpected document upload response: $body');
   }
 
   /// Fetch applications for a student.

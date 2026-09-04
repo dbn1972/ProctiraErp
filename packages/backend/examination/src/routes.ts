@@ -16,7 +16,8 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { ExaminationService } from './examination-service.js';
-import type { ExaminationEntity } from './examination-repository.js';
+import type { CandidateRegistration, ExaminationEntity } from './examination-repository.js';
+import type { ResultRepository } from './result-repository.js';
 import {
   CreateExaminationSchema,
   UpdateExaminationSchema,
@@ -34,6 +35,8 @@ import {
  */
 export interface ExaminationRoutesOptions {
   examinationService: ExaminationService;
+  /** Optional result repository — GET /candidates falls back to getCandidates. */
+  resultRepository?: ResultRepository;
   /** Route prefix (default: '/examinations') */
   prefix?: string;
 }
@@ -93,7 +96,7 @@ export async function registerExaminationRoutes(
   fastify: FastifyInstance,
   options: ExaminationRoutesOptions,
 ): Promise<void> {
-  const { examinationService, prefix = '/examinations' } = options;
+  const { examinationService, resultRepository, prefix = '/examinations' } = options;
 
   /**
    * POST /examinations
@@ -311,6 +314,93 @@ export async function registerExaminationRoutes(
       try {
         const examination = await examinationService.getById(tenantId, paramsResult.data.id);
         return reply.status(200).send(formatExaminationResponse(examination));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /examinations/:id/candidates
+   * List registered candidates for an examination (paginated).
+   * Prefer registration list; when empty and a result repository is wired,
+   * fall back to {@link ResultRepository.getCandidates}.
+   */
+  fastify.get(
+    `${prefix}/:id/candidates`,
+    async function listCandidatesHandler(
+      request: FastifyRequest<{
+        Params: ExaminationParams;
+        Querystring: { page?: number; pageSize?: number };
+      }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ExaminationParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid examination ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const page = Math.max(1, Number(request.query.page) || 1);
+      const pageSize = Math.min(100, Math.max(1, Number(request.query.pageSize) || 50));
+
+      try {
+        let candidates: CandidateRegistration[] = await examinationService.listCandidates(
+          tenantId,
+          paramsResult.data.id,
+        );
+
+        // Fall back to ResultRepository.getCandidates when no registrations yet.
+        if (candidates.length === 0 && resultRepository) {
+          const resultCandidates = await resultRepository.getCandidates(
+            paramsResult.data.id,
+            tenantId,
+          );
+          candidates = resultCandidates.map((c) => ({
+            id: c.id,
+            examinationId: c.examinationId,
+            studentId: c.studentId,
+            tenantId,
+            centerId: c.centerId,
+            subjectIds: c.subjectResults.map((s) => s.subjectId),
+            status: 'REGISTERED' as const,
+            registeredAt: new Date(),
+          }));
+        }
+
+        const totalItems = candidates.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+        const start = (page - 1) * pageSize;
+        const pageRows = candidates.slice(start, start + pageSize);
+
+        return reply.status(200).send({
+          data: pageRows.map((registration) => ({
+            id: registration.id,
+            examinationId: registration.examinationId,
+            studentId: registration.studentId,
+            centerId: registration.centerId,
+            subjectIds: registration.subjectIds,
+            status: registration.status,
+            registeredAt: registration.registeredAt.toISOString(),
+          })),
+          meta: { page, pageSize, totalItems, totalPages },
+        });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

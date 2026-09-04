@@ -35,7 +35,17 @@ class _ExaminationDetailScreenState extends State<ExaminationDetailScreen> {
         await repo.getExamination(widget.examinationId);
     final ExaminationPublicationSummary? publication =
         await repo.getPublicationSummary(widget.examinationId);
-    return _DetailBundle(detail: detail, publication: publication);
+    List<ExaminationCandidate> candidates = const <ExaminationCandidate>[];
+    try {
+      candidates = await repo.listCandidates(widget.examinationId);
+    } catch (_) {
+      candidates = const <ExaminationCandidate>[];
+    }
+    return _DetailBundle(
+      detail: detail,
+      publication: publication,
+      candidates: candidates,
+    );
   }
 
   @override
@@ -85,6 +95,8 @@ class _ExaminationDetailScreenState extends State<ExaminationDetailScreen> {
           final ExaminationDetail exam = snapshot.data!.detail;
           final ExaminationPublicationSummary? pub =
               snapshot.data!.publication;
+          final List<ExaminationCandidate> candidates =
+              snapshot.data!.candidates;
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -155,6 +167,22 @@ class _ExaminationDetailScreenState extends State<ExaminationDetailScreen> {
                     ),
                 ],
               ),
+              _Section(
+                title: 'Candidates (${candidates.length})',
+                emptyLabel: 'No candidates registered yet',
+                children: <Widget>[
+                  for (final ExaminationCandidate c in candidates)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(c.studentId),
+                      subtitle: Text(
+                        '${c.status}'
+                        '${c.registeredAt != null ? ' · ${c.registeredAt}' : ''}'
+                        ' · ${c.subjectIds.length} subject(s)',
+                      ),
+                    ),
+                ],
+              ),
               if (pub != null) ...<Widget>[
                 const SizedBox(height: 8),
                 Card(
@@ -183,15 +211,6 @@ class _ExaminationDetailScreenState extends State<ExaminationDetailScreen> {
                 icon: const Icon(Icons.assessment_outlined),
                 label: const Text('View results'),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Candidate registration is write-only on the API '
-                '(POST /examinations/:id/candidates); no list endpoint is '
-                'available for mobile.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
             ],
           );
         },
@@ -201,9 +220,14 @@ class _ExaminationDetailScreenState extends State<ExaminationDetailScreen> {
 }
 
 class _DetailBundle {
-  const _DetailBundle({required this.detail, this.publication});
+  const _DetailBundle({
+    required this.detail,
+    this.publication,
+    this.candidates = const <ExaminationCandidate>[],
+  });
   final ExaminationDetail detail;
   final ExaminationPublicationSummary? publication;
+  final List<ExaminationCandidate> candidates;
 }
 
 class _Section extends StatelessWidget {

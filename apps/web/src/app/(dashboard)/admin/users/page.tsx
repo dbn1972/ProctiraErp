@@ -3,8 +3,6 @@
  *
  * Validates: Requirement 4.x — manage users in the active tenant.
  */
-import { Plus } from 'lucide-react';
-
 import {
   Button,
   Card,
@@ -19,6 +17,8 @@ import {
 import { listUsers } from '@/lib/api/admin.server';
 import { type AdminUser } from '@/lib/api/admin';
 import { cn } from '@/lib/utils';
+
+import { InviteUserButton } from '../_components/invite-user-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,10 +68,7 @@ export default async function AdminUsersPage() {
             · invites, roles, and security status.
           </p>
         </div>
-        <Button size="sm" disabled title="Coming soon — invite API not available">
-          <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-          Invite user
-        </Button>
+        <InviteUserButton />
       </div>
 
       <Card className="overflow-hidden">

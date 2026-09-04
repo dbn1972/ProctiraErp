@@ -10,22 +10,24 @@ import '../data/scholarship_repository.dart';
 
 /// Local document selection for a scholarship application.
 ///
-/// There is no dedicated scholarship document upload endpoint; picked files
-/// are attached as document metadata on submit (`documents` array) when the
-/// user chooses files. Without a storage URL from an upload API, `fileUrl`
-/// uses a local `file://` path so the payload matches the API schema.
+/// After the user picks a file, the screen uploads it via
+/// `POST /scholarships/documents` and keeps the returned metadata for submit.
 class _PickedDocument {
   const _PickedDocument({
     required this.documentType,
     required this.fileName,
     required this.fileUrl,
     this.fileSize,
+    this.uploading = false,
+    this.uploadError,
   });
 
   final String documentType;
   final String fileName;
   final String fileUrl;
   final int? fileSize;
+  final bool uploading;
+  final String? uploadError;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
         'documentType': documentType,
@@ -33,6 +35,22 @@ class _PickedDocument {
         'fileUrl': fileUrl,
         if (fileSize != null) 'fileSize': fileSize,
       };
+
+  _PickedDocument copyWith({
+    String? fileUrl,
+    int? fileSize,
+    bool? uploading,
+    String? uploadError,
+  }) {
+    return _PickedDocument(
+      documentType: documentType,
+      fileName: fileName,
+      fileUrl: fileUrl ?? this.fileUrl,
+      fileSize: fileSize ?? this.fileSize,
+      uploading: uploading ?? this.uploading,
+      uploadError: uploadError,
+    );
+  }
 }
 
 /// Screen for submitting a scholarship application.
@@ -98,16 +116,48 @@ class _ScholarshipApplicationFormState
       );
       if (file == null || !mounted) return;
       final int length = await file.length();
+      final int index = _documents.length;
       setState(() {
         _documents.add(
           _PickedDocument(
             documentType: 'supporting_document',
             fileName: file.name,
-            fileUrl: 'file://${file.path}',
+            fileUrl: '',
             fileSize: length,
+            uploading: true,
           ),
         );
       });
+
+      try {
+        final Map<String, dynamic> uploaded =
+            await getIt<ScholarshipRepository>().uploadDocument(
+          filePath: file.path,
+          fileName: file.name,
+          documentType: 'supporting_document',
+          mimeType: file.mimeType,
+        );
+        if (!mounted) return;
+        setState(() {
+          _documents[index] = _documents[index].copyWith(
+            fileUrl: (uploaded['fileUrl'] as String?) ?? '',
+            fileSize: (uploaded['fileSize'] as num?)?.toInt() ?? length,
+            uploading: false,
+            uploadError: null,
+          );
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() {
+          _documents[index] = _documents[index].copyWith(
+            uploading: false,
+            uploadError: '$error',
+          );
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Document upload failed: $error')),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -143,8 +193,8 @@ class _ScholarshipApplicationFormState
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Text(
-                  'No scholarship file-upload API is available. Selected '
-                  'files are sent as document metadata with a local file URL.',
+                  'Files are uploaded immediately via '
+                  'POST /scholarships/documents.',
                   style: TextStyle(fontSize: 12),
                 ),
               ),
@@ -163,6 +213,18 @@ class _ScholarshipApplicationFormState
       );
       return;
     }
+    if (_documents.any((_PickedDocument d) => d.uploading)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Wait for document uploads to finish')),
+      );
+      return;
+    }
+    final List<_PickedDocument> ready = _documents
+        .where(
+          (_PickedDocument d) =>
+              d.fileUrl.isNotEmpty && d.uploadError == null,
+        )
+        .toList(growable: false);
 
     context.read<ScholarshipBloc>().add(
           ScholarshipApplicationSubmitted(
@@ -172,9 +234,9 @@ class _ScholarshipApplicationFormState
               'personalStatement': _statementCtrl.text.trim(),
               if (_incomeCtrl.text.trim().isNotEmpty)
                 'familyIncome': double.tryParse(_incomeCtrl.text.trim()),
-              if (_documents.isNotEmpty)
+              if (ready.isNotEmpty)
                 'documents':
-                    _documents.map((_PickedDocument d) => d.toJson()).toList(),
+                    ready.map((_PickedDocument d) => d.toJson()).toList(),
             },
           ),
         );
@@ -269,12 +331,28 @@ class _ScholarshipApplicationFormState
                           for (int i = 0; i < _documents.length; i++)
                             ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.insert_drive_file_outlined),
+                              leading: _documents[i].uploading
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : Icon(
+                                      _documents[i].uploadError != null
+                                          ? Icons.error_outline
+                                          : Icons.insert_drive_file_outlined,
+                                    ),
                               title: Text(_documents[i].fileName),
                               subtitle: Text(
-                                _documents[i].fileSize == null
-                                    ? _documents[i].documentType
-                                    : '${_documents[i].documentType} · ${_documents[i].fileSize} bytes',
+                                _documents[i].uploading
+                                    ? 'Uploading…'
+                                    : _documents[i].uploadError != null
+                                        ? 'Upload failed'
+                                        : _documents[i].fileSize == null
+                                            ? _documents[i].documentType
+                                            : '${_documents[i].documentType} · ${_documents[i].fileSize} bytes',
                               ),
                               trailing: IconButton(
                                 icon: const Icon(Icons.close),

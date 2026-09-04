@@ -7,6 +7,7 @@
  *
  * Supported report types (aliases in parentheses):
  * - student_enrollment (enrollment)
+ * - enrollment_summary — aggregates enrollments by institution/status/grade
  * - students
  * - attendance_summary (attendance)
  * - examination_results (examinations)
@@ -411,6 +412,9 @@ export class CrossModuleReportDataSource implements ReportDataSource {
       case 'enrollment':
         result = await this.fetchStudentEnrollment(tenantId, filters, userContext);
         break;
+      case 'enrollment_summary':
+        result = await this.fetchEnrollmentSummary(tenantId, filters, userContext);
+        break;
       case 'students':
         result = await this.fetchStudents(tenantId, filters, userContext);
         break;
@@ -549,6 +553,104 @@ export class CrossModuleReportDataSource implements ReportDataSource {
       { name: 'status', type: 'string', label: 'Status' },
       { name: 'enrolledAt', type: 'date', label: 'Enrolled At' },
       { name: 'exitedAt', type: 'date', label: 'Exited At' },
+    ];
+
+    return { rows, columns, totalRows: rows.length };
+  }
+
+  // ── enrollment_summary ─────────────────────────────────────────────────
+
+  /**
+   * Aggregate enrollments by institution / status / grade in application memory
+   * (sequential per-schema reads + UUID joins — no cross-schema SQL).
+   */
+  private async fetchEnrollmentSummary(
+    tenantId: string,
+    filters: Record<string, unknown>,
+    userContext: ReportUserContext,
+  ): Promise<ReportDataResult> {
+    const { enrollments, institutions } = this.deps;
+    if (!enrollments) return emptyResult();
+
+    const statusFilter = asString(filters['status'])?.toUpperCase() as
+      | 'ENROLLED'
+      | 'TRANSFERRED'
+      | 'WITHDRAWN'
+      | 'GRADUATED'
+      | undefined;
+    const institutionId = asString(filters['institutionId']);
+    const academicPeriodId = asString(filters['academicPeriodId']);
+
+    const enrollmentRows = await collectAllPages((page, pageSize) =>
+      enrollments.listEnrollments(
+        tenantId,
+        {
+          institutionId,
+          academicPeriodId,
+          status: statusFilter,
+        },
+        { page, pageSize },
+      ),
+    );
+
+    const institutionCache = new Map<string, ReportInstitutionRow | null>();
+    const buckets = new Map<
+      string,
+      {
+        institutionId: string;
+        institutionName: string | null;
+        status: string;
+        gradeId: string;
+        count: number;
+      }
+    >();
+
+    for (const enrollment of enrollmentRows) {
+      let institution: ReportInstitutionRow | null | undefined =
+        institutionCache.get(enrollment.institutionId);
+      if (institution === undefined && institutions) {
+        institution = await institutions.findById(enrollment.institutionId, tenantId);
+        institutionCache.set(enrollment.institutionId, institution);
+      }
+      if (
+        !institutionAllowed(
+          enrollment.institutionId,
+          institution?.areaId,
+          userContext,
+        )
+      ) {
+        continue;
+      }
+
+      const key = `${enrollment.institutionId}\u0001${enrollment.status}\u0001${enrollment.gradeId}`;
+      const existing = buckets.get(key);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        buckets.set(key, {
+          institutionId: enrollment.institutionId,
+          institutionName: institution?.name ?? null,
+          status: enrollment.status,
+          gradeId: enrollment.gradeId,
+          count: 1,
+        });
+      }
+    }
+
+    const rows: Record<string, unknown>[] = [...buckets.values()].map((b) => ({
+      institutionId: b.institutionId,
+      institutionName: b.institutionName,
+      status: b.status,
+      gradeId: b.gradeId,
+      enrollmentCount: b.count,
+    }));
+
+    const columns: ReportColumn[] = [
+      { name: 'institutionId', type: 'string', label: 'Institution ID' },
+      { name: 'institutionName', type: 'string', label: 'Institution' },
+      { name: 'status', type: 'string', label: 'Status' },
+      { name: 'gradeId', type: 'string', label: 'Grade ID' },
+      { name: 'enrollmentCount', type: 'number', label: 'Enrollments' },
     ];
 
     return { rows, columns, totalRows: rows.length };

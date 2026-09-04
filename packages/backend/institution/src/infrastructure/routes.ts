@@ -38,6 +38,8 @@ import {
   InfrastructureParamsSchema,
   InstitutionScopeParamsSchema,
   CreateConditionOptionSchema,
+  InfrastructureRepairParamsSchema,
+  CreateInfrastructureRepairSchema,
   type CreateLandInput,
   type CreateBuildingInput,
   type CreateFloorInput,
@@ -46,6 +48,8 @@ import {
   type InfrastructureParams,
   type InstitutionScopeParams,
   type InfrastructureListQuery,
+  type InfrastructureRepairParams,
+  type CreateInfrastructureRepairInput,
 } from './schemas.js';
 
 /**
@@ -55,6 +59,12 @@ export interface InfrastructureRoutesOptions {
   infrastructureService: InfrastructureService;
   /** Route prefix (default: '/infrastructure') */
   prefix?: string;
+  /**
+   * Institutions route prefix used for nested repair routes
+   * (`/institutions/:institutionId/infrastructure/:itemId/repairs`).
+   * Default: `/institutions`.
+   */
+  institutionsPrefix?: string;
 }
 
 function requireTenant(request: FastifyRequest, reply: FastifyReply): string | undefined {
@@ -89,7 +99,11 @@ export async function registerInfrastructureRoutes(
   fastify: FastifyInstance,
   options: InfrastructureRoutesOptions,
 ): Promise<void> {
-  const { infrastructureService, prefix = '/infrastructure' } = options;
+  const {
+    infrastructureService,
+    prefix = '/infrastructure',
+    institutionsPrefix = '/institutions',
+  } = options;
 
   // ─── Land Routes ─────────────────────────────────────────────────────────────
 
@@ -617,6 +631,100 @@ export async function registerInfrastructureRoutes(
       try {
         await infrastructureService.deleteConditionOption(tenantId, paramsResult.data.id);
         return reply.status(204).send();
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  // ─── Repair Log Routes ───────────────────────────────────────────────────────
+
+  /**
+   * POST /institutions/:institutionId/infrastructure/:itemId/repairs
+   * Log a repair against an infrastructure item.
+   */
+  fastify.post(
+    `${institutionsPrefix}/:institutionId/infrastructure/:itemId/repairs`,
+    async function createRepairHandler(
+      request: FastifyRequest<{
+        Params: InfrastructureRepairParams;
+        Body: CreateInfrastructureRepairInput;
+      }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(InfrastructureRepairParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid institution or item ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(CreateInfrastructureRepairSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
+      try {
+        const log = await infrastructureService.logRepair(
+          tenantId,
+          paramsResult.data.institutionId,
+          paramsResult.data.itemId,
+          bodyResult.data,
+        );
+        return reply.status(201).send(log);
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /institutions/:institutionId/infrastructure/:itemId/repairs
+   * List repair logs for an infrastructure item.
+   */
+  fastify.get(
+    `${institutionsPrefix}/:institutionId/infrastructure/:itemId/repairs`,
+    async function listRepairsHandler(
+      request: FastifyRequest<{ Params: InfrastructureRepairParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(InfrastructureRepairParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid institution or item ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = requireTenant(request, reply);
+      if (!tenantId) return;
+
+      try {
+        const logs = await infrastructureService.listRepairs(
+          tenantId,
+          paramsResult.data.institutionId,
+          paramsResult.data.itemId,
+        );
+        return reply.status(200).send({ data: logs });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

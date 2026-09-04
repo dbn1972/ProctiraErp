@@ -20,9 +20,14 @@ import swaggerUi from '@fastify/swagger-ui';
 import {
   authPlugin,
   createPrismaKeycloakIdentityStore,
+  createSmsProviderFromEnv,
+  InMemoryOtpChallengeStore,
   keycloakAuthPlugin,
   loadKeycloakAuthConfig,
+  OtpService,
+  PrismaOtpChallengeStore,
   registerKeycloakAuthRoutes,
+  registerMfaRoutes,
 } from '@proctira/backend-auth';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
@@ -35,6 +40,18 @@ import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin from './plugins/idempotency.js';
 import serviceRouterPlugin from './plugins/service-router.js';
+
+function buildOtpService(): OtpService {
+  const sms = createSmsProviderFromEnv();
+  const store = process.env['DATABASE_URL']
+    ? new PrismaOtpChallengeStore()
+    : new InMemoryOtpChallengeStore();
+  return new OtpService({
+    store,
+    sms,
+    exposeCodeInResponse: process.env['MFA_EXPOSE_OTP'] === 'true',
+  });
+}
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -220,6 +237,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/api/v1/auth/logout',
     '/api/v1/auth/roles',
     '/api/v1/auth/refresh',
+    '/api/v1/auth/mfa/otp/send',
+    '/api/v1/auth/mfa/otp/resend',
+    '/api/v1/auth/mfa/resend',
+    '/api/v1/auth/mfa/verify',
+    '/auth/mfa/otp/send',
+    '/auth/mfa/otp/resend',
+    '/auth/mfa/resend',
+    '/auth/mfa/verify',
     '/api/v1/services',
   ];
 
@@ -265,6 +290,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
+  // MFA / SMS OTP challenge endpoints (legacy /auth + versioned /api/v1/auth).
+  const otpService = buildOtpService();
+  await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
+  await registerMfaRoutes(app, { otpService, prefix: '/auth' });
+
   // 7b. Global auth enforcement via onRequest hook
   // This ensures JWT is verified before tenant resolution can read JWT claims
   app.addHook('onRequest', async (request, reply) => {
@@ -309,6 +339,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/api/v1/auth/roles',
       '/api/v1/auth/me',
       '/api/v1/auth/refresh',
+      '/api/v1/auth/mfa/otp/send',
+      '/api/v1/auth/mfa/otp/resend',
+      '/api/v1/auth/mfa/resend',
+      '/api/v1/auth/mfa/verify',
+      '/auth/mfa/otp/send',
+      '/auth/mfa/otp/resend',
+      '/auth/mfa/resend',
+      '/auth/mfa/verify',
       '/api/v1/services',
     ],
     resolveSlugToId: false, // Gateway doesn't have direct DB access

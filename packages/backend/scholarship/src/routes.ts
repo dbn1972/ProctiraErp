@@ -45,6 +45,7 @@ import {
   UtilizationReportQuerySchema,
   ScholarshipParamsSchema,
   ScholarshipListQuerySchema,
+  UploadScholarshipDocumentSchema,
   type CreateScholarshipProgramInput,
   type UpdateScholarshipProgramInput,
   type CreateApplicationInput,
@@ -54,7 +55,12 @@ import {
   type UtilizationReportQuery,
   type ScholarshipParams,
   type ScholarshipListQuery,
+  type UploadScholarshipDocumentInput,
 } from './schemas.js';
+import {
+  defaultScholarshipDocumentStore,
+  type ScholarshipDocumentStore,
+} from './document-store.js';
 
 /**
  * Options for registering scholarship routes.
@@ -63,6 +69,8 @@ export interface ScholarshipRoutesOptions {
   scholarshipService: ScholarshipService;
   /** Route prefix (default: '/scholarships') */
   prefix?: string;
+  /** Optional document store override (defaults to in-memory). */
+  documentStore?: ScholarshipDocumentStore;
 }
 
 /**
@@ -86,7 +94,290 @@ export async function registerScholarshipRoutes(
   fastify: FastifyInstance,
   options: ScholarshipRoutesOptions,
 ): Promise<void> {
-  const { scholarshipService, prefix = '/scholarships' } = options;
+  const {
+    scholarshipService,
+    prefix = '/scholarships',
+    documentStore = defaultScholarshipDocumentStore,
+  } = options;
+
+  // ─── Document upload ───────────────────────────────────────────────────
+
+  /**
+   * POST /scholarships/documents
+   * Upload a supporting document (JSON base64 or multipart form fields).
+   * Returns metadata suitable for the application `documents[]` array.
+   */
+  fastify.post(
+    `${prefix}/documents`,
+    async function uploadDocumentHandler(
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      let payload: unknown = request.body;
+      const contentType = String(request.headers['content-type'] ?? '');
+      if (contentType.includes('multipart/form-data') && payload && typeof payload === 'object') {
+        // When @fastify/multipart (or a gateway pre-parser) materialises fields
+        // onto the body, accept them directly. Otherwise clients should use the
+        // JSON + contentBase64 contract below.
+        const raw = payload as Record<string, unknown>;
+        payload = {
+          documentType: raw['documentType'] ?? raw['document_type'],
+          fileName: raw['fileName'] ?? raw['file_name'] ?? raw['filename'],
+          contentBase64: raw['contentBase64'] ?? raw['content'] ?? raw['file'],
+          mimeType: raw['mimeType'] ?? raw['mime_type'] ?? raw['contentType'],
+          fileSize:
+            typeof raw['fileSize'] === 'number'
+              ? raw['fileSize']
+              : typeof raw['file_size'] === 'number'
+                ? raw['file_size']
+                : undefined,
+        };
+      }
+
+      const result = validate(UploadScholarshipDocumentSchema, payload);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const data = result.data as UploadScholarshipDocumentInput;
+      let content: Buffer;
+      try {
+        content = Buffer.from(data.contentBase64, 'base64');
+      } catch {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'contentBase64 is not valid base64',
+          statusCode: 400,
+        });
+      }
+      if (content.byteLength === 0) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Uploaded document is empty',
+          statusCode: 400,
+        });
+      }
+      // Soft cap ~10 MiB to keep gateway memory bounded.
+      if (content.byteLength > 10 * 1024 * 1024) {
+        return reply.status(413).send({
+          code: 'PAYLOAD_TOO_LARGE',
+          message: 'Document exceeds the 10 MiB limit',
+          statusCode: 413,
+        });
+      }
+
+      const stored = await documentStore.put({
+        tenantId,
+        documentType: data.documentType,
+        fileName: data.fileName,
+        mimeType: data.mimeType,
+        content,
+      });
+
+      return reply.status(201).send({
+        id: stored.id,
+        documentType: stored.documentType,
+        fileName: stored.fileName,
+        fileUrl: stored.fileUrl,
+        fileSize: stored.fileSize,
+        mimeType: stored.mimeType,
+        createdAt: stored.createdAt.toISOString(),
+      });
+    },
+  );
+
+  /**
+   * POST /scholarships/applications/:id/documents
+   * Upload a document and attach its metadata to an existing application.
+   */
+  fastify.post(
+    `${prefix}/applications/:id/documents`,
+    async function uploadApplicationDocumentHandler(
+      request: FastifyRequest<{ Params: ScholarshipParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ScholarshipParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid application ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      let payload: unknown = request.body;
+      const contentType = String(request.headers['content-type'] ?? '');
+      if (contentType.includes('multipart/form-data') && payload && typeof payload === 'object') {
+        const raw = payload as Record<string, unknown>;
+        payload = {
+          documentType: raw['documentType'] ?? raw['document_type'],
+          fileName: raw['fileName'] ?? raw['file_name'] ?? raw['filename'],
+          contentBase64: raw['contentBase64'] ?? raw['content'] ?? raw['file'],
+          mimeType: raw['mimeType'] ?? raw['mime_type'] ?? raw['contentType'],
+          fileSize:
+            typeof raw['fileSize'] === 'number'
+              ? raw['fileSize']
+              : typeof raw['file_size'] === 'number'
+                ? raw['file_size']
+                : undefined,
+        };
+      }
+
+      const result = validate(UploadScholarshipDocumentSchema, payload);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const data = result.data as UploadScholarshipDocumentInput;
+      let content: Buffer;
+      try {
+        content = Buffer.from(data.contentBase64, 'base64');
+      } catch {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'contentBase64 is not valid base64',
+          statusCode: 400,
+        });
+      }
+      if (content.byteLength === 0) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Uploaded document is empty',
+          statusCode: 400,
+        });
+      }
+      if (content.byteLength > 10 * 1024 * 1024) {
+        return reply.status(413).send({
+          code: 'PAYLOAD_TOO_LARGE',
+          message: 'Document exceeds the 10 MiB limit',
+          statusCode: 413,
+        });
+      }
+
+      try {
+        const stored = await documentStore.put({
+          tenantId,
+          documentType: data.documentType,
+          fileName: data.fileName,
+          mimeType: data.mimeType,
+          content,
+        });
+
+        const application = await scholarshipService.attachApplicationDocument(
+          tenantId,
+          paramsResult.data.id,
+          {
+            documentType: stored.documentType,
+            fileName: stored.fileName,
+            fileUrl: stored.fileUrl,
+            fileSize: stored.fileSize,
+          },
+        );
+
+        return reply.status(201).send({
+          document: {
+            id: stored.id,
+            documentType: stored.documentType,
+            fileName: stored.fileName,
+            fileUrl: stored.fileUrl,
+            fileSize: stored.fileSize,
+            mimeType: stored.mimeType,
+            createdAt: stored.createdAt.toISOString(),
+          },
+          application: {
+            ...application,
+            submittedAt: application.submittedAt.toISOString(),
+            reviewedAt: formatDate(application.reviewedAt),
+            createdAt: application.createdAt.toISOString(),
+            updatedAt: application.updatedAt.toISOString(),
+          },
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /scholarships/documents/:id
+   * Fetch a previously uploaded document (bytes) for the current tenant.
+   */
+  fastify.get(
+    `${prefix}/documents/:id`,
+    async function getDocumentHandler(
+      request: FastifyRequest<{ Params: ScholarshipParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ScholarshipParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid document ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const stored = await documentStore.get(paramsResult.data.id, tenantId);
+      if (!stored) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Document not found',
+          statusCode: 404,
+        });
+      }
+
+      return reply
+        .status(200)
+        .header('content-type', stored.mimeType)
+        .header(
+          'content-disposition',
+          `attachment; filename="${stored.fileName.replace(/"/g, '')}"`,
+        )
+        .send(stored.content);
+    },
+  );
 
   // ─── Program Routes ────────────────────────────────────────────────────
 
