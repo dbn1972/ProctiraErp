@@ -121,6 +121,20 @@ export interface ClassSection {
   updatedAt: string;
 }
 
+export interface CreateClassInput {
+  institutionId: string;
+  gradeId: string;
+  academicPeriodId: string;
+  name: string;
+  capacity?: number;
+}
+
+export interface CreateGradeInput {
+  name: string;
+  code: string;
+  order: number;
+}
+
 export type InfrastructureType = 'LAND' | 'BUILDING' | 'FLOOR' | 'ROOM';
 
 export interface InfrastructureItem {

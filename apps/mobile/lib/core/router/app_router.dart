@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/assessment/presentation/assessment_hub_screen.dart';
 import '../../features/assessment/presentation/assessment_results_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/attendance/presentation/attendance_reports_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
+import '../../features/examination/presentation/examination_detail_screen.dart';
 import '../../features/examination/presentation/examination_list_screen.dart';
 import '../../features/examination/presentation/examination_results_screen.dart';
 import '../../features/health/presentation/health_records_screen.dart';
@@ -79,13 +82,12 @@ class AppRouter {
           builder: (BuildContext context, GoRouterState state) =>
               const AttendanceScreen(),
           routes: <RouteBase>[
-            // Push notifications about attendance thresholds deep-link here;
-            // the screen reuses the reports detail placeholder for now.
+            // Push notifications about attendance thresholds deep-link here.
             GoRoute(
               path: 'reports',
               name: 'attendance-reports',
               builder: (BuildContext context, GoRouterState state) =>
-                  const ReportDetailScreen(id: 'attendance-summary'),
+                  const AttendanceReportsScreen(),
             ),
           ],
         ),
@@ -171,9 +173,19 @@ class AppRouter {
           path: '/assessments',
           name: 'assessments',
           builder: (BuildContext context, GoRouterState state) =>
-              AssessmentResultsScreen(
-            studentId: state.uri.queryParameters['studentId'] ?? '',
-          ),
+              const AssessmentHubScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'results',
+              name: 'assessment-results',
+              builder: (BuildContext context, GoRouterState state) =>
+                  AssessmentResultsScreen(
+                studentId: state.uri.queryParameters['studentId'] ?? '',
+                subjectId: state.uri.queryParameters['subjectId'],
+                periodId: state.uri.queryParameters['periodId'],
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: '/examinations',
@@ -188,6 +200,17 @@ class AppRouter {
               name: 'examination-results',
               builder: (BuildContext context, GoRouterState state) =>
                   ExaminationResultsScreen(
+                studentId: state.uri.queryParameters['studentId'] ?? '',
+                examinationId: state.uri.queryParameters['examinationId'] ??
+                    (state.extra is String ? state.extra as String : null),
+              ),
+            ),
+            GoRoute(
+              path: ':id',
+              name: 'examination-detail',
+              builder: (BuildContext context, GoRouterState state) =>
+                  ExaminationDetailScreen(
+                examinationId: state.pathParameters['id'] ?? '',
                 studentId: state.uri.queryParameters['studentId'] ?? '',
               ),
             ),
@@ -358,7 +381,8 @@ class AppRouter {
       return atLogin ? null : '/login';
     }
 
-    if (atLogin || atTenant) {
+    // Authenticated users may open /tenant to switch workspaces.
+    if (atLogin) {
       return '/';
     }
     return null;

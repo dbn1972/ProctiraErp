@@ -93,3 +93,43 @@ export const academicPeriodFormSchema = z
 
 export type AcademicPeriodFormValues = z.input<typeof academicPeriodFormSchema>;
 export type AcademicPeriodFormParsed = z.output<typeof academicPeriodFormSchema>;
+
+export const gradeFormSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Name is required')
+    .max(100, 'Name must be 100 characters or fewer'),
+  code: z
+    .string()
+    .min(1, 'Code is required')
+    .max(50, 'Code must be 50 characters or fewer'),
+  order: z.coerce.number().int().min(0).max(32767),
+});
+
+export type GradeFormValues = z.input<typeof gradeFormSchema>;
+
+export const classSectionFormSchema = z.object({
+  institutionId: uuid('Institution'),
+  gradeId: uuid('Grade'),
+  academicPeriodId: uuid('Academic period'),
+  name: z
+    .string()
+    .min(1, 'Section name is required')
+    .max(100, 'Name must be 100 characters or fewer'),
+  capacity: z
+    .union([z.string(), z.number()])
+    .optional()
+    .or(z.literal(''))
+    .transform((value) => {
+      if (value === undefined || value === null || value === '') return undefined;
+      const num = typeof value === 'number' ? value : Number(value);
+      return Number.isFinite(num) ? num : Number.NaN;
+    })
+    .refine(
+      (value) => value === undefined || (!Number.isNaN(value) && value >= 1 && value <= 32767),
+      'Capacity must be between 1 and 32767',
+    ),
+});
+
+export type ClassSectionFormValues = z.input<typeof classSectionFormSchema>;
+export type ClassSectionFormParsed = z.output<typeof classSectionFormSchema>;

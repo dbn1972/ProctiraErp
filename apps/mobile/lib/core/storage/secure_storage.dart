@@ -8,6 +8,11 @@ class SecureStorage {
 
   static const String accessTokenKey = 'auth.access_token';
   static const String refreshTokenKey = 'auth.refresh_token';
+  static const String userIdKey = 'auth.user_id';
+  static const String userDisplayNameKey = 'auth.display_name';
+  static const String userEmailKey = 'auth.email';
+  static const String userPhoneKey = 'auth.phone';
+  static const String userRoleKey = 'auth.role';
   static const String tenantIdKey = 'tenant.id';
   static const String tenantNameKey = 'tenant.display_name';
   static const String biometricEnabledKey = 'auth.biometric_enabled';
@@ -28,6 +33,45 @@ class SecureStorage {
   Future<void> clearTokens() async {
     await _storage.delete(key: accessTokenKey);
     await _storage.delete(key: refreshTokenKey);
+  }
+
+  Future<String?> readUserId() => _storage.read(key: userIdKey);
+  Future<String?> readUserDisplayName() =>
+      _storage.read(key: userDisplayNameKey);
+  Future<String?> readUserEmail() => _storage.read(key: userEmailKey);
+  Future<String?> readUserPhone() => _storage.read(key: userPhoneKey);
+  Future<String?> readUserRole() => _storage.read(key: userRoleKey);
+
+  Future<void> writeUserProfile({
+    String? userId,
+    String? displayName,
+    String? email,
+    String? phone,
+    String? role,
+  }) async {
+    if (userId != null) {
+      await _storage.write(key: userIdKey, value: userId);
+    }
+    if (displayName != null) {
+      await _storage.write(key: userDisplayNameKey, value: displayName);
+    }
+    if (email != null) {
+      await _storage.write(key: userEmailKey, value: email);
+    }
+    if (phone != null) {
+      await _storage.write(key: userPhoneKey, value: phone);
+    }
+    if (role != null) {
+      await _storage.write(key: userRoleKey, value: role);
+    }
+  }
+
+  Future<void> clearUserProfile() async {
+    await _storage.delete(key: userIdKey);
+    await _storage.delete(key: userDisplayNameKey);
+    await _storage.delete(key: userEmailKey);
+    await _storage.delete(key: userPhoneKey);
+    await _storage.delete(key: userRoleKey);
   }
 
   /// Drop only the access token so a biometric unlock can still refresh.

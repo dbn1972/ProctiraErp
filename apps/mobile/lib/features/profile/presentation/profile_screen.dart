@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/l10n/app_localizations.dart';
+import '../../../core/storage/secure_storage.dart';
 import '../../../core/tenant/tenant_provider.dart';
+import '../../auth/data/auth_repository.dart';
 import '../bloc/profile_bloc.dart';
 
 /// User profile screen with personal info and settings navigation.
@@ -15,7 +17,10 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<ProfileBloc>(
-      create: (_) => ProfileBloc()..add(const ProfileLoaded()),
+      create: (_) => ProfileBloc(
+        secureStorage: getIt<SecureStorage>(),
+        authRepository: getIt<AuthRepository>(),
+      )..add(const ProfileLoaded()),
       child: const _ProfileView(),
     );
   }
@@ -38,6 +43,34 @@ class _ProfileView extends StatelessWidget {
           if (state.status == ProfileStatus.loading ||
               state.status == ProfileStatus.initial) {
             return const _ShimmerLoading();
+          }
+
+          if (state.status == ProfileStatus.error &&
+              state.displayName.isEmpty) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(Icons.error_outline, size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      state.errorMessage ?? 'Unable to load profile',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      onPressed: () => context
+                          .read<ProfileBloc>()
+                          .add(const ProfileLoaded()),
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            );
           }
 
           final TenantProvider tenant = getIt<TenantProvider>();

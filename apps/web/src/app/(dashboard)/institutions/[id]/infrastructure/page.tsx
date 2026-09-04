@@ -128,11 +128,16 @@ export default async function InstitutionInfrastructurePage({ params }: Infrastr
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            title="Coming soon"
+          >
             <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
             Verification report
           </Button>
-          <Button size="sm" disabled>
+          <Button size="sm" disabled title="Coming soon">
             <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
             Log repair request
           </Button>

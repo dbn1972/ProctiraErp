@@ -7,12 +7,35 @@ class AuthSession {
     required this.accessToken,
     required this.refreshToken,
     this.displayName,
+    this.email,
+    this.role,
   });
 
   final String userId;
   final String accessToken;
   final String refreshToken;
   final String? displayName;
+  final String? email;
+  final String? role;
+}
+
+/// Current-user profile from `GET /api/v1/auth/me`.
+class AuthUserProfile {
+  const AuthUserProfile({
+    required this.userId,
+    this.displayName,
+    this.email,
+    this.phone,
+    this.role,
+    this.tenantId,
+  });
+
+  final String userId;
+  final String? displayName;
+  final String? email;
+  final String? phone;
+  final String? role;
+  final String? tenantId;
 }
 
 /// Thin Dio wrapper around gateway auth endpoints.
@@ -66,6 +89,78 @@ class AuthRepository {
     }
   }
 
+  /// Load the authenticated user from `GET /api/v1/auth/me`.
+  Future<AuthUserProfile> fetchCurrentUser() async {
+    try {
+      final Response<dynamic> response = await _dio.get('/api/v1/auth/me');
+      return _parseUserProfile(response.data);
+    } on DioException catch (error) {
+      throw AuthException.fromDio(error);
+    }
+  }
+
+  AuthUserProfile _parseUserProfile(dynamic raw) {
+    if (raw is! Map) {
+      throw const AuthException('Unexpected /auth/me response');
+    }
+    final Map<String, dynamic> data = Map<String, dynamic>.from(raw);
+
+    // Legacy auth: flat { userId, email, displayName, roles, ... }
+    if (data['userId'] is String || data['email'] is String) {
+      return AuthUserProfile(
+        userId: (data['userId'] as String?) ??
+            (data['email'] as String?) ??
+            'user',
+        displayName: data['displayName'] as String?,
+        email: data['email'] as String?,
+        phone: data['phone'] as String?,
+        role: _firstRole(data['roles']),
+        tenantId: data['tenantId'] as String?,
+      );
+    }
+
+    // Keycloak: { provider, realm, user: { sub, email, ... } }
+    final Object? userObj = data['user'];
+    if (userObj is Map) {
+      final Map<String, dynamic> user = Map<String, dynamic>.from(userObj);
+      return AuthUserProfile(
+        userId: (user['sub'] as String?) ??
+            (user['userId'] as String?) ??
+            (user['email'] as String?) ??
+            (user['preferred_username'] as String?) ??
+            'user',
+        displayName: (user['displayName'] as String?) ??
+            (user['name'] as String?) ??
+            (user['preferred_username'] as String?),
+        email: user['email'] as String?,
+        phone: (user['phone'] as String?) ?? (user['phone_number'] as String?),
+        role: _firstRole(user['roles']) ??
+            _firstRole(
+              (user['realm_access'] is Map)
+                  ? (user['realm_access'] as Map)['roles']
+                  : null,
+            ),
+        tenantId: (user['tenantId'] as String?) ?? (user['tid'] as String?),
+      );
+    }
+
+    throw const AuthException('Unexpected /auth/me response');
+  }
+
+  String? _firstRole(Object? roles) {
+    if (roles is List && roles.isNotEmpty) {
+      final Object first = roles.first;
+      if (first is String) return first;
+      if (first is Map) {
+        return (first['roleId'] as String?) ??
+            (first['name'] as String?) ??
+            (first['role'] as String?);
+      }
+    }
+    if (roles is String && roles.isNotEmpty) return roles;
+    return null;
+  }
+
   bool _shouldTryPasswordGrant(DioException error) {
     final int? status = error.response?.statusCode;
     return status == 404 ||
@@ -107,6 +202,8 @@ class AuthRepository {
         accessToken: access,
         refreshToken: refresh,
         displayName: user?['displayName'] as String?,
+        email: user?['email'] as String?,
+        role: _firstRole(user?['roles']),
       );
     }
 
@@ -131,7 +228,10 @@ class AuthRepository {
           fallbackUserId,
       accessToken: access,
       refreshToken: refresh,
-      displayName: user?['displayName'] as String?,
+      displayName: (user?['displayName'] as String?) ??
+          (user?['name'] as String?),
+      email: user?['email'] as String?,
+      role: _firstRole(user?['roles']),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/di/injector.dart';
@@ -51,7 +52,7 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
     if (_reportApi == null) return;
     if (!await _connectivity.isOnline()) return;
     setState(() {
-      _statusFuture = _reportApi!.getReportStatus(widget.id);
+      _statusFuture = _reportApi!.getJobOrTemplate(widget.id);
     });
   }
 
@@ -137,8 +138,42 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: widget.id == 'attendance-summary'
-                        ? const _AttendanceSummaryPlaceholder()
-                        : const _EnrollmentSummaryPlaceholder(),
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Text(
+                                'Attendance totals are not embedded in this '
+                                'shortcut. Open the attendance reports screen '
+                                'to query GET /attendance/percentage.',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 12),
+                              FilledButton.icon(
+                                onPressed: () =>
+                                    context.push('/attendance/reports'),
+                                icon: const Icon(Icons.fact_check_outlined),
+                                label: const Text('Open attendance reports'),
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Text(
+                                'No enrollment summary endpoint is available '
+                                'on the mobile gateway yet.',
+                                style: theme.textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'This shortcut stays as an honest empty state '
+                                'until a dedicated API lands.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ],
@@ -246,6 +281,24 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                 label: 'Format',
                 value: report.format.toUpperCase(),
               ),
+              if (report.reportType != null) ...<Widget>[
+                const Divider(height: 1),
+                _KeyFigureRow(
+                  icon: Icons.category_outlined,
+                  iconColor: _sky,
+                  label: report.isTemplate ? 'Template type' : 'Report type',
+                  value: report.reportType!,
+                ),
+              ],
+              if (report.rowCount != null) ...<Widget>[
+                const Divider(height: 1),
+                _KeyFigureRow(
+                  icon: Icons.table_rows_outlined,
+                  iconColor: _amber,
+                  label: 'Rows',
+                  value: '${report.rowCount}',
+                ),
+              ],
               if (report.createdAt != null) ...<Widget>[
                 const Divider(height: 1),
                 _KeyFigureRow(
@@ -267,8 +320,23 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             ],
           ),
         ),
+        if (report.errorMessage != null &&
+            report.errorMessage!.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 12),
+          Card(
+            margin: EdgeInsets.zero,
+            color: theme.colorScheme.errorContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                report.errorMessage!,
+                style: TextStyle(color: theme.colorScheme.onErrorContainer),
+              ),
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
-        if (report.status == 'completed') ...<Widget>[
+        if (!report.isTemplate && report.status == 'completed') ...<Widget>[
           FilledButton.icon(
             onPressed: _downloading ? null : _downloadReport,
             icon: _downloading
@@ -290,13 +358,14 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
             ),
           ],
         ],
-        if (report.status == 'processing' || report.status == 'pending')
+        if (!report.isTemplate &&
+            (report.status == 'processing' || report.status == 'pending'))
           OutlinedButton.icon(
             onPressed: _loadStatus,
             icon: const Icon(Icons.refresh),
             label: const Text('Refresh Status'),
           ),
-        if (report.status == 'failed')
+        if (!report.isTemplate && report.status == 'failed')
           Card(
             margin: EdgeInsets.zero,
             color: theme.colorScheme.errorContainer,
@@ -316,6 +385,14 @@ class _ReportDetailScreenState extends State<ReportDetailScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        if (report.isTemplate)
+          Text(
+            'This is a report template definition. Generate a job from the '
+            'web console to download output on mobile.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
       ],
@@ -522,110 +599,6 @@ class _StatusPill extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: color,
         ),
-      ),
-    );
-  }
-}
-
-class _AttendanceSummaryPlaceholder extends StatelessWidget {
-  const _AttendanceSummaryPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Text('Today', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Table(
-          border: TableBorder.all(
-            color: theme.colorScheme.outlineVariant,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          columnWidths: const <int, TableColumnWidth>{
-            0: FlexColumnWidth(2),
-            1: FlexColumnWidth(1),
-          },
-          children: const <TableRow>[
-            TableRow(children: <Widget>[
-              _Cell('Status', isHeader: true),
-              _Cell('Count', isHeader: true),
-            ]),
-            TableRow(children: <Widget>[_Cell('Present'), _Cell('—')]),
-            TableRow(children: <Widget>[_Cell('Absent'), _Cell('—')]),
-            TableRow(children: <Widget>[_Cell('Late'), _Cell('—')]),
-            TableRow(children: <Widget>[_Cell('Excused'), _Cell('—')]),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Live data will populate once the attendance report API is wired up.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EnrollmentSummaryPlaceholder extends StatelessWidget {
-  const _EnrollmentSummaryPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: <Widget>[
-        Text('By grade', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
-        Table(
-          border: TableBorder.all(
-            color: theme.colorScheme.outlineVariant,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          columnWidths: const <int, TableColumnWidth>{
-            0: FlexColumnWidth(2),
-            1: FlexColumnWidth(1),
-          },
-          children: const <TableRow>[
-            TableRow(children: <Widget>[
-              _Cell('Grade', isHeader: true),
-              _Cell('Students', isHeader: true),
-            ]),
-            TableRow(children: <Widget>[_Cell('Grade 1'), _Cell('—')]),
-            TableRow(children: <Widget>[_Cell('Grade 2'), _Cell('—')]),
-            TableRow(children: <Widget>[_Cell('Grade 3'), _Cell('—')]),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Live data will populate once the enrollment report API is wired up.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _Cell extends StatelessWidget {
-  const _Cell(this.text, {this.isHeader = false});
-  final String text;
-  final bool isHeader;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Text(
-        text,
-        style: isHeader
-            ? const TextStyle(fontWeight: FontWeight.w700)
-            : null,
       ),
     );
   }

@@ -2,6 +2,9 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/storage/secure_storage.dart';
+import '../../auth/data/auth_repository.dart';
+
 // --- Events ---
 
 abstract class ProfileEvent extends Equatable {
@@ -116,12 +119,20 @@ class ProfileState extends Equatable {
 // --- Bloc ---
 
 class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
-  ProfileBloc() : super(const ProfileState()) {
+  ProfileBloc({
+    required SecureStorage secureStorage,
+    required AuthRepository authRepository,
+  })  : _storage = secureStorage,
+        _authRepository = authRepository,
+        super(const ProfileState()) {
     on<ProfileLoaded>(_onLoaded);
     on<ProfileLocaleChanged>(_onLocaleChanged);
     on<ProfileThemeModeChanged>(_onThemeModeChanged);
     on<ProfileUpdated>(_onUpdated);
   }
+
+  final SecureStorage _storage;
+  final AuthRepository _authRepository;
 
   Future<void> _onLoaded(
     ProfileLoaded event,
@@ -129,16 +140,70 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
   ) async {
     emit(state.copyWith(status: ProfileStatus.loading));
 
-    // In a real app, this would fetch from secure storage / API.
-    // For now, emit a loaded state with placeholder data.
-    emit(state.copyWith(
-      status: ProfileStatus.loaded,
-      displayName: 'User',
-      email: '',
-      phone: '',
-      userId: '',
-      role: 'parent',
-    ));
+    final String? cachedId = await _storage.readUserId();
+    final String? cachedName = await _storage.readUserDisplayName();
+    final String? cachedEmail = await _storage.readUserEmail();
+    final String? cachedPhone = await _storage.readUserPhone();
+    final String? cachedRole = await _storage.readUserRole();
+
+    if (cachedId != null ||
+        cachedName != null ||
+        cachedEmail != null ||
+        cachedRole != null) {
+      emit(state.copyWith(
+        status: ProfileStatus.loaded,
+        userId: cachedId ?? '',
+        displayName: cachedName ?? cachedEmail ?? cachedId ?? 'User',
+        email: cachedEmail ?? '',
+        phone: cachedPhone ?? '',
+        role: cachedRole ?? '',
+      ));
+    }
+
+    try {
+      final AuthUserProfile profile = await _authRepository.fetchCurrentUser();
+      await _storage.writeUserProfile(
+        userId: profile.userId,
+        displayName: profile.displayName,
+        email: profile.email,
+        phone: profile.phone,
+        role: profile.role,
+      );
+      emit(state.copyWith(
+        status: ProfileStatus.loaded,
+        userId: profile.userId,
+        displayName: profile.displayName ??
+            profile.email ??
+            profile.userId,
+        email: profile.email ?? '',
+        phone: profile.phone ?? '',
+        role: profile.role ?? '',
+      ));
+    } on AuthException catch (error) {
+      if (state.status != ProfileStatus.loaded) {
+        emit(state.copyWith(
+          status: ProfileStatus.error,
+          errorMessage: error.message,
+          displayName: cachedName ?? 'User',
+          userId: cachedId ?? '',
+          email: cachedEmail ?? '',
+          phone: cachedPhone ?? '',
+          role: cachedRole ?? '',
+        ));
+      }
+    } catch (error) {
+      if (state.status != ProfileStatus.loaded) {
+        emit(state.copyWith(
+          status: ProfileStatus.error,
+          errorMessage: error.toString(),
+          displayName: cachedName ?? 'User',
+          userId: cachedId ?? '',
+          email: cachedEmail ?? '',
+          phone: cachedPhone ?? '',
+          role: cachedRole ?? '',
+        ));
+      }
+    }
   }
 
   void _onLocaleChanged(
@@ -162,14 +227,19 @@ class ProfileBloc extends Bloc<ProfileEvent, ProfileState> {
     emit(state.copyWith(status: ProfileStatus.saving));
 
     try {
-      // In a real app, persist to API + local storage.
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-
+      final String displayName = event.displayName ?? state.displayName;
+      final String email = event.email ?? state.email;
+      final String phone = event.phone ?? state.phone;
+      await _storage.writeUserProfile(
+        displayName: displayName,
+        email: email,
+        phone: phone,
+      );
       emit(state.copyWith(
         status: ProfileStatus.loaded,
-        displayName: event.displayName ?? state.displayName,
-        email: event.email ?? state.email,
-        phone: event.phone ?? state.phone,
+        displayName: displayName,
+        email: email,
+        phone: phone,
       ));
     } catch (error) {
       emit(state.copyWith(

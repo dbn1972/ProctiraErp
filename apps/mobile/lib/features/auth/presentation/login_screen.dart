@@ -75,6 +75,9 @@ class _LoginScreenState extends State<LoginScreen> {
             userId: session.userId,
             accessToken: session.accessToken,
             refreshToken: session.refreshToken,
+            displayName: session.displayName,
+            email: session.email,
+            role: session.role,
           ));
     } on AuthException catch (error) {
       if (mounted) {
@@ -127,6 +130,9 @@ class _LoginScreenState extends State<LoginScreen> {
             userId: session.userId,
             accessToken: session.accessToken,
             refreshToken: session.refreshToken,
+            displayName: session.displayName,
+            email: session.email,
+            role: session.role,
           ));
     } on AuthException catch (error) {
       if (mounted) {

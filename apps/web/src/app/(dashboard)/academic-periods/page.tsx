@@ -7,10 +7,10 @@
  *
  * Validates: Requirement 5.5 — academic period CRUD with status lifecycle.
  */
-import { Download, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 
-import { Button } from '@proctira/ui/components';
 import { AcademicPeriodsManager } from '@/components/institutions/academic-periods-manager';
+import { ExportCalendarButton } from '@/components/institutions/export-calendar-button';
 import { ApiClientError, listAcademicPeriods } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 
@@ -46,10 +46,7 @@ export default async function AcademicPeriodsPage() {
           </p>
         </div>
         <div className="shrink-0">
-          <Button variant="outline" size="sm" disabled>
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export calendar
-          </Button>
+          <ExportCalendarButton periods={result.periods} />
         </div>
       </div>
 

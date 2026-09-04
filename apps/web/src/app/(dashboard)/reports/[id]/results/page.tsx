@@ -98,7 +98,12 @@ export default async function ReportResultsPage({ params }: PageProps) {
               </a>
             </Button>
           ) : (
-            <Button size="sm" type="button" disabled>
+            <Button
+              size="sm"
+              type="button"
+              disabled
+              title="Download unavailable until a ready artifact exists"
+            >
               <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
               Download
             </Button>

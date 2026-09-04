@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/di/injector.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../bloc/examination_bloc.dart';
 import '../data/examination_repository.dart';
@@ -17,18 +18,20 @@ class ExaminationListScreen extends StatelessWidget {
     return BlocProvider<ExaminationBloc>(
       create: (BuildContext context) {
         final ExaminationBloc bloc = ExaminationBloc(
-          repository: context.read<ExaminationRepository>(),
+          repository: getIt<ExaminationRepository>(),
         );
         bloc.add(ExaminationListRequested(studentId: studentId));
         return bloc;
       },
-      child: const _ExaminationListView(),
+      child: _ExaminationListView(studentId: studentId),
     );
   }
 }
 
 class _ExaminationListView extends StatelessWidget {
-  const _ExaminationListView();
+  const _ExaminationListView({required this.studentId});
+
+  final String studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -75,7 +78,10 @@ class _ExaminationListView extends StatelessWidget {
               if (state.examinations.isEmpty) {
                 return const _EmptyView();
               }
-              return _ExamList(examinations: state.examinations);
+              return _ExamList(
+                examinations: state.examinations,
+                studentId: studentId,
+              );
           }
         },
       ),
@@ -144,9 +150,13 @@ class _StatChip extends StatelessWidget {
 }
 
 class _ExamList extends StatelessWidget {
-  const _ExamList({required this.examinations});
+  const _ExamList({
+    required this.examinations,
+    required this.studentId,
+  });
 
   final List<Examination> examinations;
+  final String studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -168,8 +178,10 @@ class _ExamList extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(18),
               onTap: () {
-                // Show exam details in a bottom sheet.
-                _showExamDetails(context, exam);
+                final String q = studentId.isEmpty
+                    ? ''
+                    : '?studentId=$studentId';
+                context.push('/examinations/${exam.id}$q');
               },
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -254,119 +266,6 @@ class _ExamList extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  void _showExamDetails(BuildContext context, Examination exam) {
-    final ThemeData theme = Theme.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (BuildContext ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(exam.name, style: theme.textTheme.headlineSmall),
-                    ),
-                    const SizedBox(width: 12),
-                    _StatChip(
-                      label: _statusLabel(exam.status),
-                      color: _statusColor(exam.status),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  exam.subjectName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontFamily: 'monospace',
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _DetailRow(
-                  icon: Icons.calendar_today_outlined,
-                  label: 'Date',
-                  value: exam.examDate,
-                ),
-                _DetailRow(
-                  icon: Icons.schedule_outlined,
-                  label: 'Time',
-                  value: '${exam.startTime} – ${exam.endTime}',
-                ),
-                if (exam.venue != null)
-                  _DetailRow(
-                    icon: Icons.location_on_outlined,
-                    label: 'Venue',
-                    value: exam.venue!,
-                  ),
-                if (exam.instructions != null &&
-                    exam.instructions!.isNotEmpty) ...<Widget>[
-                  const SizedBox(height: 16),
-                  Text('Instructions',
-                      style: theme.textTheme.titleSmall),
-                  const SizedBox(height: 8),
-                  Text(exam.instructions!,
-                      style: theme.textTheme.bodyMedium),
-                ],
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final ThemeData theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 18, color: theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Text('$label: ', style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          )),
-          Expanded(child: Text(value, style: theme.textTheme.bodyMedium)),
-        ],
-      ),
     );
   }
 }

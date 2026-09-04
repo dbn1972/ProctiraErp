@@ -10,6 +10,7 @@ const TABS = [
   { key: 'classes', label: 'Classes' },
   { key: 'grades', label: 'Grades' },
   { key: 'infrastructure', label: 'Infrastructure' },
+  { key: 'staff', label: 'Staff' },
 ] as const;
 
 export interface InstitutionTabsProps {

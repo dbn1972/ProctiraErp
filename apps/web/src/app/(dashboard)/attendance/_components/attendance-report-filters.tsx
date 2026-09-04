@@ -46,12 +46,23 @@ interface InstitutionOption {
 
 interface AttendanceReportFiltersProps {
   institutions: InstitutionOption[];
+  /** Notifies the page shell when a report result is available for CSV export. */
+  onReportLoaded?: (
+    result: AttendancePercentageResult | null,
+    meta: {
+      scope: string;
+      institutionId?: string;
+      startDate?: string;
+      endDate?: string;
+    } | null,
+  ) => void;
 }
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
 
 export function AttendanceReportFilters({
   institutions,
+  onReportLoaded,
 }: AttendanceReportFiltersProps) {
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
@@ -74,6 +85,7 @@ export function AttendanceReportFilters({
     event.preventDefault();
     setIsPending(true);
     setServerState(null);
+    onReportLoaded?.(null, null);
     try {
       const result = await getAttendanceReportAction({
         scope,
@@ -84,6 +96,16 @@ export function AttendanceReportFilters({
         endDate,
       });
       setServerState(result);
+      if (result.status === 'success' && result.data) {
+        onReportLoaded?.(result.data, {
+          scope,
+          institutionId: institutionId || undefined,
+          startDate,
+          endDate,
+        });
+      } else {
+        onReportLoaded?.(null, null);
+      }
     } finally {
       setIsPending(false);
     }

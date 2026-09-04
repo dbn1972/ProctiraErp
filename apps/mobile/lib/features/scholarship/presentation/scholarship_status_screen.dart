@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/di/injector.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../bloc/scholarship_bloc.dart';
 import '../data/scholarship_repository.dart';
@@ -16,7 +17,7 @@ class ScholarshipStatusScreen extends StatelessWidget {
     return BlocProvider<ScholarshipBloc>(
       create: (BuildContext context) {
         final ScholarshipBloc bloc = ScholarshipBloc(
-          repository: context.read<ScholarshipRepository>(),
+          repository: getIt<ScholarshipRepository>(),
         );
         bloc.add(ScholarshipApplicationsRequested(studentId: studentId));
         return bloc;

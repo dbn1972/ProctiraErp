@@ -32,13 +32,20 @@ class AssessmentResult {
 
   factory AssessmentResult.fromJson(Map<String, dynamic> json) {
     return AssessmentResult(
-      id: json['id'] as String,
-      studentId: json['studentId'] as String,
-      subjectName: json['subjectName'] as String,
-      periodName: json['periodName'] as String,
-      score: (json['score'] as num).toDouble(),
-      maxScore: (json['maxScore'] as num?)?.toDouble(),
-      grade: json['grade'] as String?,
+      id: (json['id'] as String?) ??
+          '${json['studentId']}_${json['subjectId']}_${json['academicPeriodId']}',
+      studentId: (json['studentId'] as String?) ?? '',
+      subjectName: (json['subjectName'] as String?) ??
+          (json['subjectId'] as String?) ??
+          'Subject',
+      periodName: (json['periodName'] as String?) ??
+          (json['academicPeriodId'] as String?) ??
+          'Period',
+      score: (json['weightedAverage'] as num?)?.toDouble() ??
+          (json['score'] as num?)?.toDouble() ??
+          0,
+      maxScore: (json['maxScore'] as num?)?.toDouble() ?? 100,
+      grade: (json['grade'] as String?) ?? (json['letterGrade'] as String?),
       remarks: json['remarks'] as String?,
       assessedAt: json['assessedAt'] as String?,
     );
@@ -60,6 +67,40 @@ class AssessmentResult {
       maxScore != null && maxScore! > 0 ? (score / maxScore!) * 100 : 0;
 }
 
+/// Grading scheme summary from `GET /api/v1/grading-schemes`.
+class GradingSchemeSummary {
+  const GradingSchemeSummary({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.minValue,
+    required this.maxValue,
+    this.thresholds = const <Map<String, dynamic>>[],
+  });
+
+  final String id;
+  final String name;
+  final String type;
+  final double minValue;
+  final double maxValue;
+  final List<Map<String, dynamic>> thresholds;
+
+  factory GradingSchemeSummary.fromJson(Map<String, dynamic> json) {
+    return GradingSchemeSummary(
+      id: json['id'] as String,
+      name: (json['name'] as String?) ?? 'Unnamed scheme',
+      type: (json['type'] as String?) ?? 'numeric',
+      minValue: (json['minValue'] as num?)?.toDouble() ?? 0,
+      maxValue: (json['maxValue'] as num?)?.toDouble() ?? 100,
+      thresholds: (json['thresholds'] as List<dynamic>?)
+              ?.whereType<Map>()
+              .map((Map e) => Map<String, dynamic>.from(e))
+              .toList(growable: false) ??
+          const <Map<String, dynamic>>[],
+    );
+  }
+}
+
 /// Repository for assessment results with offline caching.
 class AssessmentRepository {
   AssessmentRepository({
@@ -77,6 +118,10 @@ class AssessmentRepository {
   static const String _cacheTable = 'assessment_results_cache';
 
   /// Fetch assessment results for a student, with offline cache fallback.
+  ///
+  /// Tries the gateway grades endpoint when subject + period are known;
+  /// otherwise falls back to the legacy `/assessments/results` path used by
+  /// older deployments, then to the local cache.
   Future<List<AssessmentResult>> getResults({
     required String studentId,
     String? subjectFilter,
@@ -84,8 +129,24 @@ class AssessmentRepository {
   }) async {
     final String tenantId = _requireTenantId();
 
-    // Try API first.
     try {
+      if (subjectFilter != null &&
+          subjectFilter.isNotEmpty &&
+          periodFilter != null &&
+          periodFilter.isNotEmpty) {
+        final Response<dynamic> grades = await _dio.get(
+          '/api/v1/results/grades',
+          queryParameters: <String, dynamic>{
+            'studentId': studentId,
+            'subjectId': subjectFilter,
+            'academicPeriodId': periodFilter,
+          },
+        );
+        final List<AssessmentResult> fromGrades = _parseResults(grades.data);
+        await _cacheResults(tenantId, studentId, fromGrades);
+        return fromGrades;
+      }
+
       final Response<dynamic> response = await _dio.get(
         '/api/v1/assessments/results',
         queryParameters: <String, dynamic>{
@@ -95,20 +156,52 @@ class AssessmentRepository {
         },
       );
 
-      final List<dynamic> data = response.data['data'] as List<dynamic>;
-      final List<AssessmentResult> results = data
-          .map((dynamic e) =>
-              AssessmentResult.fromJson(e as Map<String, dynamic>))
-          .toList(growable: false);
-
-      // Cache results.
+      final List<AssessmentResult> results = _parseResults(response.data);
       await _cacheResults(tenantId, studentId, results);
       return results;
     } on DioException {
-      // Fall back to cache.
       return _getCachedResults(tenantId, studentId,
           subjectFilter: subjectFilter, periodFilter: periodFilter);
     }
+  }
+
+  /// List grading schemes from `GET /api/v1/grading-schemes`.
+  Future<List<GradingSchemeSummary>> listGradingSchemes({
+    int page = 1,
+    int pageSize = 50,
+  }) async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/v1/grading-schemes',
+      queryParameters: <String, dynamic>{
+        'page': page,
+        'pageSize': pageSize,
+      },
+    );
+    final Object? body = response.data;
+    if (body is Map && body['data'] is List) {
+      return (body['data'] as List)
+          .whereType<Map>()
+          .map((Map e) =>
+              GradingSchemeSummary.fromJson(Map<String, dynamic>.from(e)))
+          .toList(growable: false);
+    }
+    return const <GradingSchemeSummary>[];
+  }
+
+  List<AssessmentResult> _parseResults(Object? body) {
+    if (body is Map && body['data'] is List) {
+      return (body['data'] as List)
+          .whereType<Map>()
+          .map((Map e) => AssessmentResult.fromJson(Map<String, dynamic>.from(e)))
+          .toList(growable: false);
+    }
+    if (body is List) {
+      return body
+          .whereType<Map>()
+          .map((Map e) => AssessmentResult.fromJson(Map<String, dynamic>.from(e)))
+          .toList(growable: false);
+    }
+    return const <AssessmentResult>[];
   }
 
   /// Get distinct subjects from cached results.

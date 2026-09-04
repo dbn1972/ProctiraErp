@@ -146,5 +146,30 @@ void main() {
         ),
       );
     });
+    test('fetchCurrentUser parses legacy /auth/me payload', () async {
+      final AuthRepository repo = AuthRepository(
+        dio: _dioWithResponder((RequestOptions options) async {
+          expect(options.path, '/api/v1/auth/me');
+          return Response<dynamic>(
+            requestOptions: options,
+            statusCode: 200,
+            data: <String, dynamic>{
+              'userId': 'u-9',
+              'email': 'me@school.gov',
+              'displayName': 'Me User',
+              'roles': <String>['parent'],
+              'tenantId': 't-1',
+            },
+          );
+        }),
+      );
+
+      final AuthUserProfile profile = await repo.fetchCurrentUser();
+      expect(profile.userId, 'u-9');
+      expect(profile.email, 'me@school.gov');
+      expect(profile.displayName, 'Me User');
+      expect(profile.role, 'parent');
+      expect(profile.tenantId, 't-1');
+    });
   });
 }

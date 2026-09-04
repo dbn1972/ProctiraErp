@@ -11,6 +11,8 @@ import { revalidatePath } from 'next/cache';
 import {
   ApiClientError,
   createAcademicPeriod,
+  createClass,
+  createGrade,
   createInstitution,
   deactivateInstitution,
   deleteAcademicPeriod,
@@ -19,8 +21,12 @@ import {
 } from './api';
 import {
   academicPeriodFormSchema,
+  classSectionFormSchema,
+  gradeFormSchema,
   institutionFormSchema,
   type AcademicPeriodFormValues,
+  type ClassSectionFormValues,
+  type GradeFormValues,
   type InstitutionFormValues,
 } from './validation';
 
@@ -177,6 +183,68 @@ export async function deleteAcademicPeriodAction(
     await deleteAcademicPeriod(id);
     revalidatePath('/academic-periods');
     return { success: true, data: { id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Grades & class sections
+// ---------------------------------------------------------------------------
+
+export async function createGradeAction(
+  values: GradeFormValues,
+  institutionId?: string,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = gradeFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+
+  try {
+    const grade = await createGrade(parsed.data);
+    revalidatePath('/institutions');
+    if (institutionId) {
+      revalidatePath(`/institutions/${institutionId}/grades`);
+      revalidatePath(`/institutions/${institutionId}/classes`);
+    }
+    return { success: true, data: { id: grade.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function createClassSectionAction(
+  values: ClassSectionFormValues,
+  institutionId: string,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = classSectionFormSchema.safeParse({
+    ...values,
+    institutionId,
+  });
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+
+  try {
+    const section = await createClass({
+      institutionId: parsed.data.institutionId,
+      gradeId: parsed.data.gradeId,
+      academicPeriodId: parsed.data.academicPeriodId,
+      name: parsed.data.name,
+      ...(parsed.data.capacity !== undefined ? { capacity: parsed.data.capacity } : {}),
+    });
+    revalidatePath(`/institutions/${institutionId}/classes`);
+    revalidatePath(`/institutions/${institutionId}/grades`);
+    return { success: true, data: { id: section.id } };
   } catch (error) {
     return toActionError(error);
   }

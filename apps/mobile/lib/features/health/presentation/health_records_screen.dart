@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/di/injector.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../bloc/health_bloc.dart';
 import '../data/health_repository.dart';
@@ -18,7 +19,7 @@ class HealthRecordsScreen extends StatelessWidget {
     return BlocProvider<HealthBloc>(
       create: (BuildContext context) {
         final HealthBloc bloc = HealthBloc(
-          repository: context.read<HealthRepository>(),
+          repository: getIt<HealthRepository>(),
         );
         bloc.add(HealthRecordsRequested(studentId: studentId));
         return bloc;

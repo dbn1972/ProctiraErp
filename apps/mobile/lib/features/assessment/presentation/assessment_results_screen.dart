@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/di/injector.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../bloc/assessment_bloc.dart';
 import '../data/assessment_repository.dart';
@@ -14,18 +15,29 @@ import '../data/assessment_repository.dart';
 /// - Empty state with helpful message.
 /// - Accessible with semantic labels and 48px touch targets.
 class AssessmentResultsScreen extends StatelessWidget {
-  const AssessmentResultsScreen({super.key, required this.studentId});
+  const AssessmentResultsScreen({
+    super.key,
+    required this.studentId,
+    this.subjectId,
+    this.periodId,
+  });
 
   final String studentId;
+  final String? subjectId;
+  final String? periodId;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<AssessmentBloc>(
       create: (BuildContext context) {
         final AssessmentBloc bloc = AssessmentBloc(
-          repository: context.read<AssessmentRepository>(),
+          repository: getIt<AssessmentRepository>(),
         );
-        bloc.add(AssessmentResultsRequested(studentId: studentId));
+        bloc.add(AssessmentResultsRequested(
+          studentId: studentId,
+          subjectFilter: subjectId,
+          periodFilter: periodId,
+        ));
         return bloc;
       },
       child: const _AssessmentResultsView(),

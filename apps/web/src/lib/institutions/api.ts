@@ -19,6 +19,8 @@ import type {
   AreaNode,
   ClassSection,
   CreateAcademicPeriodInput,
+  CreateClassInput,
+  CreateGradeInput,
   CreateInstitutionInput,
   Grade,
   InfrastructureHierarchy,
@@ -258,6 +260,19 @@ export async function listGrades(): Promise<Grade[]> {
   }
 }
 
+export async function createGrade(input: CreateGradeInput): Promise<Grade> {
+  try {
+    const result = await gatewayFetch<Grade>('/grades', {
+      method: 'POST',
+      json: input,
+      throwOnError: true,
+    });
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
 export async function listClassesByInstitution(
   institutionId: string,
   academicPeriodId?: string
@@ -268,6 +283,19 @@ export async function listClassesByInstitution(
       { method: 'GET', throwOnError: true }
     );
     return unwrap(result, []);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export async function createClass(input: CreateClassInput): Promise<ClassSection> {
+  try {
+    const result = await gatewayFetch<ClassSection>('/classes', {
+      method: 'POST',
+      json: input,
+      throwOnError: true,
+    });
+    return unwrap(result);
   } catch (error) {
     rethrowAsApiError(error);
   }

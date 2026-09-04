@@ -64,8 +64,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (_reportApi == null) return;
     if (!await _connectivity.isOnline()) return;
     setState(() {
-      _serverReportsFuture = _reportApi!.listReports();
+      _serverReportsFuture = _loadJobsAndTemplates();
     });
+  }
+
+  Future<List<ReportSummary>> _loadJobsAndTemplates() async {
+    final List<ReportSummary> jobs = await _reportApi!.listReports();
+    try {
+      final List<ReportSummary> templates = await _reportApi!.listTemplates();
+      return <ReportSummary>[...jobs, ...templates];
+    } catch (_) {
+      return jobs;
+    }
   }
 
   @override

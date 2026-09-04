@@ -9,7 +9,7 @@
  * Validates: Requirement 11.1 — review and triage scholarship applications.
  */
 import Link from 'next/link';
-import { Download, Eye, MoreVertical } from 'lucide-react';
+import { Eye, MoreVertical } from 'lucide-react';
 
 import {
   Button,
@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils';
 
 import { ApplicationStatusTabs } from '../_components/application-status-tabs';
+import { ApplicationsExportButton } from '../_components/applications-export-button';
 
 export const dynamic = 'force-dynamic';
 
@@ -141,10 +142,7 @@ export default async function ScholarshipApplicationsPage({ searchParams }: Page
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export
-          </Button>
+          <ApplicationsExportButton applications={filtered} />
         </div>
       </div>
 

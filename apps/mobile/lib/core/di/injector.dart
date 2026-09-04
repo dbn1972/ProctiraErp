@@ -5,6 +5,9 @@ import 'package:local_auth/local_auth.dart';
 import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../features/auth/data/auth_repository.dart';
+import '../../features/assessment/data/assessment_repository.dart';
+import '../../features/examination/data/examination_repository.dart';
+import '../../features/health/data/health_repository.dart';
 import '../../features/institutions/data/institution_repository.dart';
 import '../../features/notifications/data/notification_repository.dart';
 import '../../features/scholarship/data/scholarship_repository.dart';
@@ -133,6 +136,27 @@ Future<void> configureDependencies({String? apiBaseUrl}) async {
   );
   getIt.registerLazySingleton<ScholarshipRepository>(
     () => ScholarshipRepository(
+      database: getIt<AppDatabase>(),
+      tenantProvider: getIt<TenantProvider>(),
+      dio: getIt<Dio>(),
+    ),
+  );
+  getIt.registerLazySingleton<AssessmentRepository>(
+    () => AssessmentRepository(
+      database: getIt<AppDatabase>(),
+      tenantProvider: getIt<TenantProvider>(),
+      dio: getIt<Dio>(),
+    ),
+  );
+  getIt.registerLazySingleton<ExaminationRepository>(
+    () => ExaminationRepository(
+      database: getIt<AppDatabase>(),
+      tenantProvider: getIt<TenantProvider>(),
+      dio: getIt<Dio>(),
+    ),
+  );
+  getIt.registerLazySingleton<HealthRepository>(
+    () => HealthRepository(
       database: getIt<AppDatabase>(),
       tenantProvider: getIt<TenantProvider>(),
       dio: getIt<Dio>(),

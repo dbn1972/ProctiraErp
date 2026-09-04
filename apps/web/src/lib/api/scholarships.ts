@@ -16,6 +16,7 @@ export interface ScholarshipProgram {
   applicationStartDate: string;
   applicationEndDate: string;
   status: 'DRAFT' | 'OPEN' | 'CLOSED' | 'ARCHIVED';
+  description?: string | null;
 }
 
 export interface ScholarshipApplication {
@@ -41,20 +42,91 @@ export interface ScholarshipDisbursement {
   status: 'SCHEDULED' | 'PROCESSED' | 'FAILED';
 }
 
+export interface UpdateScholarshipProgramInput {
+  name?: string;
+  description?: string;
+  applicationStartDate?: string;
+  applicationEndDate?: string;
+  totalSlots?: number;
+  amountPerRecipient?: number;
+  currency?: string;
+  status?: 'draft' | 'open' | 'closed' | 'archived';
+}
+
+export interface UpdateDisbursementInput {
+  paymentStatus: 'scheduled' | 'processing' | 'paid' | 'failed' | 'cancelled';
+  paidDate?: string;
+  transactionReference?: string;
+  notes?: string;
+}
+
+function mapProgram(raw: Record<string, unknown>): ScholarshipProgram {
+  return {
+    id: String(raw.id ?? ''),
+    name: String(raw.name ?? ''),
+    code: String(raw.code ?? ''),
+    totalSlots: Number(raw.totalSlots ?? 0),
+    awardAmount: Number(raw.awardAmount ?? raw.amountPerRecipient ?? 0),
+    currency: String(raw.currency ?? 'INR'),
+    applicationStartDate: String(raw.applicationStartDate ?? ''),
+    applicationEndDate: String(raw.applicationEndDate ?? ''),
+    status: String(raw.status ?? 'DRAFT').toUpperCase() as ScholarshipProgram['status'],
+    description: (raw.description as string | null | undefined) ?? null,
+  };
+}
+
+function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement {
+  const paymentStatus = String(
+    raw.status ?? raw.paymentStatus ?? 'SCHEDULED',
+  ).toLowerCase();
+  let status: ScholarshipDisbursement['status'] = 'SCHEDULED';
+  if (paymentStatus === 'paid' || paymentStatus === 'processed') status = 'PROCESSED';
+  else if (paymentStatus === 'failed') status = 'FAILED';
+  else status = 'SCHEDULED';
+
+  return {
+    id: String(raw.id ?? ''),
+    applicationId: String(raw.applicationId ?? ''),
+    applicantName: String(raw.applicantName ?? raw.recipientName ?? '—'),
+    programName: String(raw.programName ?? '—'),
+    amount: Number(raw.amount ?? 0),
+    currency: String(raw.currency ?? 'INR'),
+    paymentDate: String(raw.paymentDate ?? raw.scheduledDate ?? ''),
+    paymentMethod: String(
+      raw.paymentMethod ?? 'BANK_TRANSFER',
+    ).toUpperCase() as ScholarshipDisbursement['paymentMethod'],
+    status,
+  };
+}
+
 export async function listScholarshipPrograms(): Promise<ScholarshipProgram[]> {
-  const result = await gatewayFetch<{ data: ScholarshipProgram[] }>(
+  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>(
     '/scholarships/programs',
     { throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.data?.data ?? [];
+  return (result.data?.data ?? []).map(mapProgram);
 }
 
 export async function getScholarshipProgram(id: string): Promise<ScholarshipProgram | null> {
-  const result = await gatewayFetch<ScholarshipProgram>(
+  const result = await gatewayFetch<Record<string, unknown>>(
     `/scholarships/programs/${id}`,
     { throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.data;
+  return result.data ? mapProgram(result.data) : null;
+}
+
+export async function updateScholarshipProgram(
+  id: string,
+  input: UpdateScholarshipProgramInput,
+): Promise<ScholarshipProgram> {
+  const result = await gatewayFetch<Record<string, unknown>>(
+    `/scholarships/programs/${id}`,
+    { method: 'PUT', json: input },
+  );
+  if (!result.data) {
+    throw new Error(result.error?.message ?? 'Failed to update scholarship program');
+  }
+  return mapProgram(result.data);
 }
 
 export async function listScholarshipApplications(): Promise<ScholarshipApplication[]> {
@@ -76,9 +148,23 @@ export async function getScholarshipApplication(
 }
 
 export async function listScholarshipDisbursements(): Promise<ScholarshipDisbursement[]> {
-  const result = await gatewayFetch<{ data: ScholarshipDisbursement[] }>(
+  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>(
     '/scholarships/disbursements',
     { throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.data?.data ?? [];
+  return (result.data?.data ?? []).map(mapDisbursement);
+}
+
+export async function updateDisbursement(
+  id: string,
+  input: UpdateDisbursementInput,
+): Promise<ScholarshipDisbursement> {
+  const result = await gatewayFetch<Record<string, unknown>>(
+    `/scholarships/disbursements/${id}`,
+    { method: 'PUT', json: input },
+  );
+  if (!result.data) {
+    throw new Error(result.error?.message ?? 'Failed to update disbursement');
+  }
+  return mapDisbursement(result.data);
 }

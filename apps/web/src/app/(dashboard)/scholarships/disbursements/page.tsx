@@ -37,6 +37,8 @@ import {
 } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
 
+import { RetryFailedTransfersButton } from '../_components/retry-failed-transfers-button';
+
 export const dynamic = 'force-dynamic';
 
 const STATUS_LABELS: Record<ScholarshipDisbursement['status'], string> = {
@@ -171,9 +173,7 @@ export default async function ScholarshipDisbursementsPage() {
               reprocessing.
             </p>
           </div>
-          <Button variant="destructive" size="sm" className="shrink-0" disabled>
-            Retry failed transfers
-          </Button>
+          <RetryFailedTransfersButton failedIds={failed.map((d) => d.id)} />
         </div>
       ) : null}
 

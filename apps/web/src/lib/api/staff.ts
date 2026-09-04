@@ -224,14 +224,43 @@ export async function deleteStaff(id: string): Promise<void> {
 
 /* ------------------------------------------------------------- Assignments */
 
-export async function listStaffAssignments(
-  staffId: string,
+export interface AssignmentListFilters {
+  page?: number;
+  pageSize?: number;
+  staffId?: string;
+  institutionId?: string;
+  subjectId?: string;
+  classId?: string;
+  status?: 'ACTIVE' | 'INACTIVE';
+}
+
+function buildAssignmentQuery(filters: AssignmentListFilters): string {
+  const params = new URLSearchParams();
+  if (filters.page) params.set('page', String(filters.page));
+  if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
+  if (filters.staffId) params.set('staffId', filters.staffId);
+  if (filters.institutionId) params.set('institutionId', filters.institutionId);
+  if (filters.subjectId) params.set('subjectId', filters.subjectId);
+  if (filters.classId) params.set('classId', filters.classId);
+  if (filters.status) params.set('status', filters.status);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export async function listAssignments(
+  filters: AssignmentListFilters = {},
 ): Promise<Assignment[]> {
   const result = await gatewayFetch<{ data: Assignment[]; meta?: PaginationMeta }>(
-    `/staff/assignments?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
+    `/staff/assignments${buildAssignmentQuery({ pageSize: 100, ...filters })}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
   return result.ok && result.data ? result.data.data ?? [] : [];
+}
+
+export async function listStaffAssignments(
+  staffId: string,
+): Promise<Assignment[]> {
+  return listAssignments({ staffId, pageSize: 100 });
 }
 
 export async function createAssignment(

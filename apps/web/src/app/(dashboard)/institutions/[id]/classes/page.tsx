@@ -6,8 +6,10 @@
  * (grade · section), capacity, and class-teacher / room metadata when present
  * in section customData. Sections are scoped to an academic period
  * (Requirement 5.5).
+ *
+ * Cite: redesign/web/institutions-classes.html
  */
-import { Download, Eye, MoreVertical, Pencil, Plus } from 'lucide-react';
+import { Eye, MoreVertical, Pencil } from 'lucide-react';
 
 import {
   Button,
@@ -20,13 +22,16 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { AddClassSectionButton } from '@/components/institutions/add-class-section-button';
+import { ExportRosterButton } from '@/components/institutions/export-roster-button';
 import { cn } from '@/lib/utils';
 import {
   ApiClientError,
+  listAcademicPeriods,
   listClassesByInstitution,
   listGrades,
 } from '@/lib/institutions/api';
-import type { ClassSection, Grade } from '@/lib/institutions/types';
+import type { AcademicPeriod, ClassSection, Grade } from '@/lib/institutions/types';
 
 interface ClassesPageProps {
   params: { id: string };
@@ -35,6 +40,7 @@ interface ClassesPageProps {
 interface ClassesData {
   classes: ClassSection[];
   grades: Grade[];
+  periods: AcademicPeriod[];
   error: string | null;
 }
 
@@ -46,6 +52,19 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
 export default async function InstitutionClassesPage({ params }: ClassesPageProps) {
   const data = await loadClasses(params.id);
   const gradeMap = new Map(data.grades.map((grade) => [grade.id, grade]));
+
+  const exportRows = data.classes.map((section) => {
+    const grade = gradeMap.get(section.gradeId);
+    const cd = (section as unknown as { customData?: Record<string, unknown> }).customData ?? {};
+    const teacher = readStr(cd, 'classTeacher');
+    const room = readStr(cd, 'room');
+    return {
+      classLabel: grade ? `${grade.code} · ${section.name}` : section.name,
+      teacher: teacher || 'Unassigned',
+      capacity: section.capacity !== null ? String(section.capacity) : '',
+      room: room || '',
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -61,14 +80,12 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export roster
-          </Button>
-          <Button size="sm" disabled>
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Add section
-          </Button>
+          <ExportRosterButton rows={exportRows} institutionId={params.id} />
+          <AddClassSectionButton
+            institutionId={params.id}
+            grades={data.grades.map((g) => ({ id: g.id, name: g.name, code: g.code }))}
+            periods={data.periods.map((p) => ({ id: p.id, name: p.name }))}
+          />
         </div>
       </div>
 
@@ -158,15 +175,17 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
 
 async function loadClasses(institutionId: string): Promise<ClassesData> {
   try {
-    const [classes, grades] = await Promise.all([
+    const [classes, grades, periods] = await Promise.all([
       listClassesByInstitution(institutionId),
       listGrades().catch(() => [] as Grade[]),
+      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
     ]);
-    return { classes, grades, error: null };
+    return { classes, grades, periods, error: null };
   } catch (error) {
     return {
       classes: [],
       grades: [],
+      periods: [],
       error:
         error instanceof ApiClientError
           ? error.message

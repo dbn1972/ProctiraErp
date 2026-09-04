@@ -375,7 +375,7 @@ export default async function InstitutionOverviewPage({ params }: OverviewPagePr
                   </FactRow>
                 )}
               </dl>
-              <Button variant="outline" size="sm" className="mt-3 w-full" disabled>
+              <Button variant="outline" size="sm" className="mt-3 w-full" disabled title="Coming soon">
                 <MapIcon className="me-1.5 h-4 w-4" aria-hidden="true" />
                 View on district map
               </Button>

@@ -16,7 +16,7 @@ Legend:
 
 | Module | Phase | Backend | Gateway | Web UI | Flutter | Verdict |
 |--------|-------|---------|---------|--------|---------|---------|
-| Institution | 3 | Prisma incl. subjects, areas, **infrastructure** | `/institutions`, boards/periods/grades/classes, `/subjects`, `/institution-subjects`, `/areas`, `/infrastructure` | Redesign-aligned list/detail tabs | List + detail | **FULL** |
+| Institution | 3 | Prisma incl. subjects, areas, **infrastructure** | `/institutions`, boards/periods/grades/classes, `/subjects`, `/institution-subjects`, `/areas`, `/infrastructure` | Redesign-aligned list/detail tabs **incl. Staff tab** | List + detail | **FULL** |
 | Student | 4 | Prisma CRUD + enrollments + **bulk import** | `/students`, `/enrollments`, `/students/import` | Redesign-aligned (incl. import) | List/profile/enrollment/docs | **FULL** |
 | Attendance | 5 | Prisma record/roster/reports | `/attendance` | Redesign-aligned mark + reports | Mark + reports | **FULL** |
 | Assessment | 6 | Schemes/items/results + **report-cards** Prisma | Core + `/report-cards` | Schemes/items/results + report-cards | Results only | **FULL** (API+web); Flutter partial |
@@ -54,11 +54,13 @@ P2 Auth + P9–16 Prisma wiring + P17 Flutter analyze remain signed off.
 
 ## 4. Remaining residuals
 
-1. **Flutter device/emulator E2E** — blocked here (no Android SDK). Unit/widget tests pass (`flutter test` 46/46). Run `flutter test integration_test` on a host with Android SDK + emulator (or iOS). See mobile README.
+1. **Flutter device/emulator E2E** — blocked here (no Android SDK). Unit/widget tests pass (`flutter test`). Run `flutter test integration_test` on a host with Android SDK + emulator (or iOS). See mobile README.
 2. **Live FCM** — code path ready; needs `google-services.json` / `GoogleService-Info.plist` (not committed). Without configs, FCM no-ops safely.
-3. **EC3 migrate + redeploy** — Postgres/Docker not available in this agent VM. Follow [runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md](./runbooks/APPLY_PARTIAL_MODULE_MIGRATIONS.md).
+3. **EC3 migrate** — residual tables applied on EC3 Postgres (2026-09-04); schema up to date. Redeploy gateway/web only if binary lags the branch.
 4. Data-warehouse map placeholder; platform DW not gateway school domain
 5. Live SMS / MFA OTP (P2 non-goal)
+6. CTAs still intentionally disabled (no API): infra repair/log, district map, admin invite user, workflow pause
+7. Flutter still thin where APIs lack list endpoints: exam candidates list, scholarship binary upload, tenant directory, enrollment-summary report
 
 ---
 

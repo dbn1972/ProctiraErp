@@ -1,24 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/di/injector.dart';
 import '../../../core/l10n/app_localizations.dart';
 import '../bloc/examination_bloc.dart';
 import '../data/examination_repository.dart';
 
 /// Screen displaying published examination results.
 class ExaminationResultsScreen extends StatelessWidget {
-  const ExaminationResultsScreen({super.key, required this.studentId});
+  const ExaminationResultsScreen({
+    super.key,
+    required this.studentId,
+    this.examinationId,
+  });
 
   final String studentId;
+  final String? examinationId;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider<ExaminationBloc>(
       create: (BuildContext context) {
         final ExaminationBloc bloc = ExaminationBloc(
-          repository: context.read<ExaminationRepository>(),
+          repository: getIt<ExaminationRepository>(),
         );
-        bloc.add(ExaminationResultsRequested(studentId: studentId));
+        bloc.add(ExaminationResultsRequested(
+          studentId: studentId,
+          examinationId: examinationId,
+        ));
         return bloc;
       },
       child: const _ExaminationResultsView(),

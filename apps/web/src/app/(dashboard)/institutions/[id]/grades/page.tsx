@@ -6,7 +6,7 @@
  * class sections. Utilization shows only when both capacity and enrollment
  * are known (enrollment is read from grade customData when present).
  */
-import { MoreVertical, Pencil, Plus } from 'lucide-react';
+import { MoreVertical, Pencil } from 'lucide-react';
 
 import {
   Button,
@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { AddGradeButton } from '@/components/institutions/add-grade-button';
 import { cn } from '@/lib/utils';
 import {
   ApiClientError,
@@ -86,6 +87,9 @@ export default async function InstitutionGradesPage({ params }: GradesPageProps)
     ? data.grades.filter((g) => byGrade.has(g.id))
     : data.grades;
 
+  const nextOrder =
+    data.grades.reduce((max, g) => Math.max(max, g.order), -1) + 1;
+
   return (
     <div className="space-y-4">
 
@@ -99,10 +103,7 @@ export default async function InstitutionGradesPage({ params }: GradesPageProps)
               : `${offered.length} ${offered.length === 1 ? 'grade' : 'grades'} · section capacity per grade`}
           </p>
         </div>
-        <Button size="sm" disabled>
-          <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-          Add grade
-        </Button>
+        <AddGradeButton institutionId={params.id} nextOrder={nextOrder} />
       </div>
 
       {/* ── Table card ── */}

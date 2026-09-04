@@ -68,7 +68,7 @@ export default async function AdminUsersPage() {
             · invites, roles, and security status.
           </p>
         </div>
-        <Button size="sm">
+        <Button size="sm" disabled title="Coming soon — invite API not available">
           <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
           Invite user
         </Button>

@@ -194,9 +194,11 @@ export default async function ScholarshipProgramPage({ params }: PageProps) {
               View applications
             </Link>
           </Button>
-          <Button size="sm" disabled>
-            <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Edit program
+          <Button asChild size="sm">
+            <Link href={`/scholarships/programs/${program.id}/edit`}>
+              <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Edit program
+            </Link>
           </Button>
         </div>
       </div>

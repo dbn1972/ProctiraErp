@@ -14,6 +14,8 @@ import {
 import { listRoles } from '@/lib/api/admin.server';
 import { cn } from '@/lib/utils';
 
+import { CreateRoleButton } from '../_components/create-role-button';
+
 export const dynamic = 'force-dynamic';
 
 export default async function AdminRolesPage() {
@@ -41,10 +43,7 @@ export default async function AdminRolesPage() {
               Permission matrix
             </Link>
           </Button>
-          <Button size="sm">
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Create role
-          </Button>
+          <CreateRoleButton />
         </div>
       </div>
 
@@ -112,9 +111,7 @@ export default async function AdminRolesPage() {
                 Start from a blank slate or duplicate an existing role and adjust its
                 permissions.
               </p>
-              <Button variant="outline" size="sm">
-                New role
-              </Button>
+              <CreateRoleButton />
             </CardContent>
           </Card>
         </div>

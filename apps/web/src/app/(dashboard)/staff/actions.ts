@@ -174,6 +174,7 @@ export async function createAssignmentAction(
   try {
     const assignment = await createAssignment(payload);
     revalidatePath(`/staff/${staffId}`);
+    revalidatePath(`/institutions/${payload.institutionId}/staff`);
     return {
       status: 'success',
       message: 'Assignment created.',

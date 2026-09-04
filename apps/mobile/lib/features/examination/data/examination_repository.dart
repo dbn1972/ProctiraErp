@@ -136,6 +136,86 @@ class ExaminationResult {
       };
 }
 
+/// Full examination payload from `GET /examinations/:id`.
+class ExaminationDetail {
+  const ExaminationDetail({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.status,
+    required this.startDate,
+    required this.endDate,
+    this.description,
+    this.subjects = const <Map<String, dynamic>>[],
+    this.centers = const <Map<String, dynamic>>[],
+    this.sessions = const <Map<String, dynamic>>[],
+    this.gradingSchemes = const <Map<String, dynamic>>[],
+  });
+
+  final String id;
+  final String name;
+  final String code;
+  final String status;
+  final String startDate;
+  final String endDate;
+  final String? description;
+  final List<Map<String, dynamic>> subjects;
+  final List<Map<String, dynamic>> centers;
+  final List<Map<String, dynamic>> sessions;
+  final List<Map<String, dynamic>> gradingSchemes;
+
+  factory ExaminationDetail.fromJson(Map<String, dynamic> json) {
+    List<Map<String, dynamic>> maps(Object? raw) {
+      if (raw is! List) return const <Map<String, dynamic>>[];
+      return raw
+          .whereType<Map>()
+          .map((Map e) => Map<String, dynamic>.from(e))
+          .toList(growable: false);
+    }
+
+    return ExaminationDetail(
+      id: json['id'] as String,
+      name: (json['name'] as String?) ?? 'Examination',
+      code: (json['code'] as String?) ?? '',
+      status: (json['status'] as String?) ?? 'upcoming',
+      startDate: (json['startDate'] as String?) ?? '',
+      endDate: (json['endDate'] as String?) ?? '',
+      description: json['description'] as String?,
+      subjects: maps(json['subjects']),
+      centers: maps(json['centers']),
+      sessions: maps(json['sessions']),
+      gradingSchemes: maps(json['gradingSchemes']),
+    );
+  }
+}
+
+/// Publication summary from `GET /examinations/:id/results`.
+class ExaminationPublicationSummary {
+  const ExaminationPublicationSummary({
+    required this.examinationId,
+    required this.totalCandidates,
+    required this.processedCount,
+    required this.incompleteCount,
+    this.publishedAt,
+  });
+
+  final String examinationId;
+  final int totalCandidates;
+  final int processedCount;
+  final int incompleteCount;
+  final String? publishedAt;
+
+  factory ExaminationPublicationSummary.fromJson(Map<String, dynamic> json) {
+    return ExaminationPublicationSummary(
+      examinationId: (json['examinationId'] as String?) ?? '',
+      totalCandidates: (json['totalCandidates'] as num?)?.toInt() ?? 0,
+      processedCount: (json['processedCount'] as num?)?.toInt() ?? 0,
+      incompleteCount: (json['incompleteCount'] as num?)?.toInt() ?? 0,
+      publishedAt: json['publishedAt'] as String?,
+    );
+  }
+}
+
 /// Repository for examination schedules and results with offline caching.
 class ExaminationRepository {
   ExaminationRepository({
@@ -149,6 +229,43 @@ class ExaminationRepository {
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
   final Dio _dio;
+
+  /// Fetch a single examination by id (`GET /api/v1/examinations/:id`).
+  Future<ExaminationDetail> getExamination(String examinationId) async {
+    final Response<dynamic> response = await _dio.get(
+      '/api/v1/examinations/$examinationId',
+    );
+    final Object? body = response.data;
+    if (body is Map) {
+      final Object? data = body['data'];
+      if (data is Map) {
+        return ExaminationDetail.fromJson(Map<String, dynamic>.from(data));
+      }
+      return ExaminationDetail.fromJson(Map<String, dynamic>.from(body));
+    }
+    throw FormatException('Unexpected examination response: $body');
+  }
+
+  /// Fetch publication summary for an examination
+  /// (`GET /api/v1/examinations/:id/results`).
+  Future<ExaminationPublicationSummary?> getPublicationSummary(
+    String examinationId,
+  ) async {
+    try {
+      final Response<dynamic> response = await _dio.get(
+        '/api/v1/examinations/$examinationId/results',
+      );
+      final Object? body = response.data;
+      if (body is Map) {
+        return ExaminationPublicationSummary.fromJson(
+          Map<String, dynamic>.from(body),
+        );
+      }
+    } on DioException {
+      return null;
+    }
+    return null;
+  }
 
   /// Fetch upcoming examinations for a student.
   Future<List<Examination>> getExaminations({

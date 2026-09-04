@@ -66,7 +66,13 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" type="button" disabled>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            disabled
+            title="Coming soon — workflow definitions have no pause/active API"
+          >
             <Pause className="me-1.5 h-4 w-4" aria-hidden="true" />
             Pause
           </Button>

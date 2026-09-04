@@ -1,9 +1,9 @@
 /**
  * Institution detail layout (Server Component) — v2.0 redesign.
  *
- * Wraps each detail tab (overview, classes, grades, infrastructure) with a
- * shared hero header (gradient icon, name, status pill, resolved meta line,
- * actions) and tab navigation. Lookup IDs are resolved to human-readable
+ * Wraps each detail tab (overview, classes, grades, infrastructure, staff)
+ * with a shared hero header (gradient icon, name, status pill, resolved meta
+ * line, actions) and tab navigation. Lookup IDs are resolved to human-readable
  * names so no raw UUIDs are shown to users.
  */
 import Link from 'next/link';
