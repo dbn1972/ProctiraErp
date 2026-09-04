@@ -10,9 +10,9 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
-  // Charter §19 / Phase 2–3: service-owned schemas. No cross-service SQL joins.
-  // Auth/institution hold tenant_id as bare UUIDs (lookup, not FK join).
-  schemas    = ["platform", "auth", "institution", "public"]
+  // Charter §19 / Phase 2–5: service-owned schemas. No cross-service SQL joins.
+  // Auth/institution/student/attendance hold tenant_id as bare UUIDs (lookup, not FK join).
+  schemas    = ["platform", "auth", "institution", "student", "attendance", "public"]
 }
 
 // ============================================================================
@@ -31,17 +31,11 @@ model Tenant {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations (public-domain children only — institution/auth own their schemas; bare UUID refs)
-  students        Student[]
+  // Relations (remaining public-domain children — student/attendance/institution/auth own schemas)
   staff           Staff[]
-  enrollments     Enrollment[]
-  enrollmentHistory EnrollmentHistory[]
-  studentTransfers  StudentTransfer[]
-  // Auth + institution identities live in their schemas — no Prisma relation / FK (charter §19)
+  // Auth/institution/student/attendance — no Prisma relation / FK (charter §19)
   themeVersions   TenantThemeVersion[]
   themeDraft      TenantThemeDraft?
-  studentAttendance StudentAttendance[]
-  staffAttendance   StaffAttendance[]
   staffAssignments  StaffAssignment[]
   examinations      Examination[]
   examinationCandidateRegistrations ExaminationCandidateRegistration[]
@@ -355,8 +349,7 @@ model Student {
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
-  // Relations
-  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  // Relations — tenant_id is bare UUID; enrollments stay in-schema
   enrollments Enrollment[]
 
   @@unique([tenantId, nationalId])
@@ -364,7 +357,7 @@ model Student {
   @@index([customData], type: Gin)
   @@index([searchVector], type: Gin)
   @@map("students")
-  @@schema("public")
+  @@schema("student")
 }
 
 // ============================================================================
@@ -417,8 +410,7 @@ model Enrollment {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations — institution/grade/class/period are bare UUIDs (Phase 3 boundary; no cross-schema FK)
-  tenant  Tenant  @relation(fields: [tenantId], references: [id])
+  // Relations — institution/grade/class/period bare (Phase 3); tenant_id bare (Phase 4)
   student Student @relation(fields: [studentId], references: [id])
   history EnrollmentHistory[]
 
@@ -426,7 +418,7 @@ model Enrollment {
   @@index([tenantId, institutionId, academicPeriodId])
   @@index([tenantId, status])
   @@map("enrollments")
-  @@schema("public")
+  @@schema("student")
 }
 
 /// Status-change audit trail for an enrollment.
@@ -442,12 +434,11 @@ model EnrollmentHistory {
   reason           String?  @db.VarChar(500)
   createdAt        DateTime @default(now()) @map("created_at")
 
-  tenant     Tenant     @relation(fields: [tenantId], references: [id])
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, enrollmentId])
   @@map("enrollment_history")
-  @@schema("public")
+  @@schema("student")
 }
 
 /// Transfer record linking source and destination institutions.
@@ -463,11 +454,9 @@ model StudentTransfer {
   reason                   String   @db.VarChar(500)
   createdAt                DateTime @default(now()) @map("created_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id])
-
   @@index([tenantId, studentId])
   @@map("student_transfers")
-  @@schema("public")
+  @@schema("student")
 }
 
 enum EnrollmentStatus {
@@ -477,7 +466,7 @@ enum EnrollmentStatus {
   GRADUATED
 
   @@map("enrollment_status")
-  @@schema("public")
+  @@schema("student")
 }
 
 // ============================================================================
@@ -640,15 +629,14 @@ model StudentAttendance {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // Relations — tenant_id / student_id / institution_id are bare UUIDs (Phase 5; no cross-schema FK/join)
 
   @@index([tenantId, classId, date])
   @@index([tenantId, studentId, classId, date])
   @@index([tenantId, institutionId, date])
   @@index([tenantId, studentId, date])
   @@map("student_attendance")
-  @@schema("public")
+  @@schema("attendance")
 }
 
 // ============================================================================
@@ -671,13 +659,12 @@ model StaffAttendance {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  // Relations — tenant_id / staff_id / institution_id bare UUIDs (Phase 5)
 
   @@unique([tenantId, staffId, date])
   @@index([tenantId, institutionId, date])
   @@map("staff_attendance")
-  @@schema("public")
+  @@schema("attendance")
 }
 
 // ============================================================================
@@ -702,7 +689,7 @@ model AttendanceAudit {
 
   @@index([attendanceId])
   @@map("attendance_audit")
-  @@schema("public")
+  @@schema("attendance")
 }
 
 // ============================================================================

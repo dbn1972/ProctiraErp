@@ -25,8 +25,8 @@ function modelBody(schema: string, modelName: string): string {
 describe('Phase 2 platform/auth schema boundaries', () => {
   const schema = readFileSync(schemaPath, 'utf8');
 
-  it('enables multi-schema ownership for platform, auth, institution, and public', () => {
-    expect(schema).toMatch(/schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"public"\]/);
+  it('enables multi-schema ownership for platform through attendance schemas', () => {
+    expect(schema).toMatch(/schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"public"\]/);
   });
 
   it('places tenants and themes in platform and identity tables in auth', () => {

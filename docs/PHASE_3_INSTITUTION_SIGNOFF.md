@@ -24,12 +24,9 @@ Applied `20260904_institution_schema`. Results:
 - `POST /api/v1/auth/password` (India admin) → OK
 - `GET /api/v1/institutions` → **200** with Kendriya Vidyalaya Proctira
 
-## Explicit non-goals
+## Follow-ons (completed)
 
-- Student schema split (Phase 4)
-- Attendance schema / removing `include: { student }` (Phase 5)
-- Institution Staff tab / full redesign HTML rebrand
+- Phase 4 student schema — see `docs/PHASE_4_STUDENT_SIGNOFF.md`
+- Phase 5 attendance schema + roster join removal — see `docs/PHASE_5_ATTENDANCE_SIGNOFF.md`
 
-## Next
-
-Phase 4 can reuse the same pattern for the **student** schema (bare UUID refs at boundaries, no cross-schema FKs/joins).
+Still deferred: Institution Staff tab / full redesign HTML rebrand.

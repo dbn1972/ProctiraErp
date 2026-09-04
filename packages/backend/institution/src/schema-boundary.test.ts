@@ -1,7 +1,7 @@
 /**
  * Phase 3 institution schema boundary checks (charter §19).
  * Institution-owned models live in schema "institution" with bare tenant_id
- * (no Tenant relation/FK). Enrollment (public) must not Prisma-join institution tables.
+ * (no Tenant relation/FK). Enrollment (student schema) must not Prisma-join institution tables.
  */
 
 import { readFileSync } from 'node:fs';
@@ -22,41 +22,34 @@ function modelBody(schema: string, modelName: string): string {
   return after.slice(0, end);
 }
 
+const INSTITUTION_MODELS = [
+  'GeographicArea',
+  'Board',
+  'Institution',
+  'AcademicPeriod',
+  'Grade',
+  'Class',
+  'Subject',
+  'InstitutionSubject',
+] as const;
+
 describe('Phase 3 institution schema boundaries', () => {
   const schema = readFileSync(schemaPath, 'utf8');
 
   it('declares institution among service-owned schemas', () => {
     expect(schema).toMatch(
-      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"public"\]/,
+      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"public"\]/,
     );
   });
 
   it('places institution-owned models in @@schema("institution")', () => {
-    for (const model of [
-      'GeographicArea',
-      'Board',
-      'Institution',
-      'AcademicPeriod',
-      'Grade',
-      'Class',
-      'Subject',
-      'InstitutionSubject',
-    ]) {
+    for (const model of INSTITUTION_MODELS) {
       expect(modelBody(schema, model)).toContain('@@schema("institution")');
     }
   });
 
   it('keeps institution tenant_id as a bare UUID without Tenant relation/FK', () => {
-    for (const model of [
-      'GeographicArea',
-      'Board',
-      'Institution',
-      'AcademicPeriod',
-      'Grade',
-      'Class',
-      'Subject',
-      'InstitutionSubject',
-    ]) {
+    for (const model of INSTITUTION_MODELS) {
       const body = modelBody(schema, model);
       expect(body).toMatch(/tenantId\s+String/);
       expect(body).not.toMatch(/tenant\s+Tenant\s+@relation/);
@@ -72,6 +65,7 @@ describe('Phase 3 institution schema boundaries', () => {
 
   it('keeps Enrollment institution/grade/class/period refs as bare UUIDs', () => {
     const body = modelBody(schema, 'Enrollment');
+    expect(body).toContain('@@schema("student")');
     expect(body).toMatch(/institutionId\s+String/);
     expect(body).toMatch(/gradeId\s+String/);
     expect(body).toMatch(/classId\s+String\?/);

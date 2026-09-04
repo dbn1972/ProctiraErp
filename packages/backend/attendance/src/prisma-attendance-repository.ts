@@ -315,17 +315,32 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     _date: string,
   ): Promise<StudentRosterEntry[]> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      // Phase 5: no cross-schema Prisma include/join. Load enrollments, then
+      // resolve student display names via a separate id lookup.
       const enrollments = await tx.enrollment.findMany({
         where: { tenantId, classId, academicPeriodId, status: 'ENROLLED' },
-        include: { student: true },
       });
-      return enrollments.map((e) => ({
-        studentId: e.studentId,
-        studentName: `${e.student.firstName} ${e.student.lastName}`,
-        enrollmentId: e.id,
-        classId: e.classId ?? classId,
-        gradeId: e.gradeId,
-      }));
+      if (enrollments.length === 0) {
+        return [];
+      }
+      const studentIds = [...new Set(enrollments.map((e) => e.studentId))];
+      const students = await tx.student.findMany({
+        where: { tenantId, id: { in: studentIds } },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      const byId = new Map(students.map((s) => [s.id, s]));
+      return enrollments.map((e) => {
+        const student = byId.get(e.studentId);
+        return {
+          studentId: e.studentId,
+          studentName: student
+            ? `${student.firstName} ${student.lastName}`
+            : 'Unknown student',
+          enrollmentId: e.id,
+          classId: e.classId ?? classId,
+          gradeId: e.gradeId,
+        };
+      });
     });
   }
 
