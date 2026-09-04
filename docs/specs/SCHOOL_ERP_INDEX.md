@@ -16,6 +16,14 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 | 6 Assessment | [PHASE_6_ASSESSMENT_SIGNOFF.md](../PHASE_6_ASSESSMENT_SIGNOFF.md) |
 | 7 Examination | [PHASE_7_EXAMINATION_SIGNOFF.md](../PHASE_7_EXAMINATION_SIGNOFF.md) |
 | 8 Staff | [PHASE_8_STAFF_SIGNOFF.md](../PHASE_8_STAFF_SIGNOFF.md) |
+| 9 Scholarship | [PHASE_9_SCHOLARSHIP_SIGNOFF.md](../PHASE_9_SCHOLARSHIP_SIGNOFF.md) |
+| 10 Transport | [PHASE_10_TRANSPORT_SIGNOFF.md](../PHASE_10_TRANSPORT_SIGNOFF.md) |
+| 11 Health | [PHASE_11_HEALTH_SIGNOFF.md](../PHASE_11_HEALTH_SIGNOFF.md) |
+| 12 Workflow | [PHASE_12_WORKFLOW_SIGNOFF.md](../PHASE_12_WORKFLOW_SIGNOFF.md) |
+| 13 Notification | [PHASE_13_NOTIFICATION_SIGNOFF.md](../PHASE_13_NOTIFICATION_SIGNOFF.md) |
+| 14 Report | [PHASE_14_REPORT_SIGNOFF.md](../PHASE_14_REPORT_SIGNOFF.md) |
+| 15 Survey | [PHASE_15_SURVEY_SIGNOFF.md](../PHASE_15_SURVEY_SIGNOFF.md) |
+| 16 Registration | [PHASE_16_REGISTRATION_SIGNOFF.md](../PHASE_16_REGISTRATION_SIGNOFF.md) |
 
 ## Runbooks (ops detail on demand)
 - [docs/runbooks/](../runbooks/)
@@ -30,6 +38,14 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 - `tools/scripts/validate-phase6-assessment-ec3.sh`
 - `tools/scripts/validate-phase7-examination-ec3.sh`
 - `tools/scripts/validate-phase8-staff-ec3.sh`
+- `tools/scripts/validate-phase9-scholarship-ec3.sh`
+- `tools/scripts/validate-phase10-transport-ec3.sh`
+- `tools/scripts/validate-phase11-health-ec3.sh`
+- `tools/scripts/validate-phase12-workflow-ec3.sh`
+- `tools/scripts/validate-phase13-notification-ec3.sh`
+- `tools/scripts/validate-phase14-report-ec3.sh`
+- `tools/scripts/validate-phase15-survey-ec3.sh`
+- `tools/scripts/validate-phase16-registration-ec3.sh`
 
 ## Token policy for agents
 1. Start from this index.

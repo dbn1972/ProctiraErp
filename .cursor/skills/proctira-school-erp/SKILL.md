@@ -2,7 +2,7 @@
 name: proctira-school-erp
 description: >-
   Build ProctiraERP school domains (institution, student, enrollment, attendance,
-  assessment, examination, staff) under the multi-schema charter. Use when adding
+  assessment … registration) under the multi-schema charter. Use when adding
   school features, schemas, APIs, or UI for ProctiraERP — not for unrelated repo chores.
 ---
 
@@ -24,6 +24,14 @@ description: >-
 | Assessment | `assessment` | grading_schemes, assessment_items, outcomes, results |
 | Examination | `examination` | examinations, candidates, registrations, publications, analyses, academic_records, document_jobs |
 | Staff | `staff` | staff, staff_assignments |
+| Scholarship | `scholarship` | programs, applications, disbursements, compliance |
+| Transport | `transport` | routes, stops, vehicles, assignments |
+| Health | `health` | measurements, allergies, conditions, vaccinations, … |
+| Workflow | `workflow` | definitions, instances, audits, cases |
+| Notification | `notification` | notifications, rules, templates |
+| Report | `report` | jobs, templates, scheduled reports |
+| Survey | `survey` | surveys, distributions, submissions |
+| Registration | `registration` | registration_applications |
 
 ## Patterns
 - Resolve foreign domain rows with `findMany({ where: { id: { in: ids } } })` — never `include` across schemas.

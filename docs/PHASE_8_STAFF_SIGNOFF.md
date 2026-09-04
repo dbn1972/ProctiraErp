@@ -20,7 +20,7 @@
 - Regression: students / examinations still **200**; staff plugin registered on gateway
 
 ## Explicit non-goals (later)
-- Flutter mobile (last)
+- Phases 9–16 domain schemas, then Flutter
 
 ## Next
-Flutter mobile (last remaining charter track item).
+Phase 9 scholarship through Phase 16 registration, then Flutter mobile.

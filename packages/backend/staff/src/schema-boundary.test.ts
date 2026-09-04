@@ -25,7 +25,7 @@ function modelBody(schema: string, modelName: string): string {
 const MODELS = ['Staff', 'StaffAssignment'] as const;
 
 const SCHEMAS_RE =
-  /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"staff",\s*"public"\]/;
+  /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"staff",\s*"scholarship",\s*"transport",\s*"health",\s*"workflow",\s*"notification",\s*"report",\s*"survey",\s*"registration",\s*"public"\]/;
 
 describe('Phase 8 staff schema boundaries', () => {
   const schema = readFileSync(schemaPath, 'utf8');

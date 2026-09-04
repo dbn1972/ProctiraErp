@@ -10,9 +10,9 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
-  // Charter §19 / Phase 2–8: service-owned schemas. No cross-service SQL joins.
+  // Charter §19 / Phase 2–16: service-owned schemas. No cross-service SQL joins.
   // Domain schemas hold tenant_id as bare UUIDs (lookup, not FK join).
-  schemas    = ["platform", "auth", "institution", "student", "attendance", "assessment", "examination", "staff", "public"]
+  schemas    = ["platform", "auth", "institution", "student", "attendance", "assessment", "examination", "staff", "scholarship", "transport", "health", "workflow", "notification", "report", "survey", "registration", "public"]
 }
 
 // ============================================================================
@@ -960,3 +960,715 @@ model AssessmentResult {
   @@map("assessment_results")
   @@schema("assessment")
 }
+
+// ============================================================================
+// SCHOLARSHIP (Phase 9)
+// ============================================================================
+
+model ScholarshipProgram {
+  id                     String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  name                   String   @db.VarChar(255)
+  description            String?  @db.Text
+  applicationStartDate   String   @map("application_start_date") @db.VarChar(32)
+  applicationEndDate     String   @map("application_end_date") @db.VarChar(32)
+  totalSlots             Int      @map("total_slots")
+  usedSlots              Int      @default(0) @map("used_slots")
+  amountPerRecipient     Float    @map("amount_per_recipient")
+  currency               String   @db.VarChar(10)
+  disbursementFrequency  String   @map("disbursement_frequency") @db.VarChar(30)
+  eligibility            Json     @default("{}") @db.JsonB
+  status                 String   @default("draft") @db.VarChar(20)
+  academicPeriodId       String?  @map("academic_period_id") @db.Uuid
+  fundingSourceId        String?  @map("funding_source_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@map("scholarship_programs")
+  @@schema("scholarship")
+}
+
+model ScholarshipApplication {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId            String    @map("tenant_id") @db.Uuid
+  programId           String    @map("program_id") @db.Uuid
+  applicantId         String    @map("applicant_id") @db.Uuid
+  institutionId       String    @map("institution_id") @db.Uuid
+  status              String    @default("draft") @db.VarChar(30)
+  academicRecords     Json      @default("[]") @map("academic_records") @db.JsonB
+  financialInfo       Json      @default("{}") @map("financial_info") @db.JsonB
+  documents           Json      @default("[]") @db.JsonB
+  personalStatement   String?   @map("personal_statement") @db.Text
+  areaId              String?   @map("area_id") @db.Uuid
+  gender              String?   @db.VarChar(20)
+  workflowInstanceId  String?   @map("workflow_instance_id") @db.Uuid
+  submittedAt         DateTime  @map("submitted_at")
+  reviewedAt          DateTime? @map("reviewed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, programId, status])
+  @@index([tenantId, applicantId])
+  @@map("scholarship_applications")
+  @@schema("scholarship")
+}
+
+model ScholarshipDisbursement {
+  id                   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  applicationId        String   @map("application_id") @db.Uuid
+  amount               Float
+  scheduledDate        String   @map("scheduled_date") @db.VarChar(32)
+  paidDate             String?  @map("paid_date") @db.VarChar(32)
+  paymentStatus        String   @map("payment_status") @db.VarChar(30)
+  paymentMethod        String?  @map("payment_method") @db.VarChar(30)
+  transactionReference String?  @map("transaction_reference") @db.VarChar(255)
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, applicationId])
+  @@map("scholarship_disbursements")
+  @@schema("scholarship")
+}
+
+model ScholarshipComplianceRecord {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  applicationId   String   @map("application_id") @db.Uuid
+  complianceType  String   @map("compliance_type") @db.VarChar(50)
+  status          String   @db.VarChar(30)
+  evaluationDate  String   @map("evaluation_date") @db.VarChar(32)
+  details         String?  @db.Text
+  evaluatorId     String?  @map("evaluator_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, applicationId])
+  @@map("scholarship_compliance_records")
+  @@schema("scholarship")
+}
+
+// ============================================================================
+// TRANSPORT (Phase 10)
+// ============================================================================
+
+model TransportRoute {
+  id                        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId                  String   @map("tenant_id") @db.Uuid
+  name                      String   @db.VarChar(255)
+  description               String?  @db.Text
+  status                    String   @default("active") @db.VarChar(20)
+  startLocation             String   @map("start_location") @db.VarChar(255)
+  endLocation               String   @map("end_location") @db.VarChar(255)
+  distanceKm                Float?   @map("distance_km")
+  estimatedDurationMinutes  Int?     @map("estimated_duration_minutes")
+  operatingDays             Json     @default("[]") @map("operating_days") @db.JsonB
+  departureTime             String?  @map("departure_time") @db.VarChar(16)
+  returnTime                String?  @map("return_time") @db.VarChar(16)
+  institutionId             String?  @map("institution_id") @db.Uuid
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@map("transport_routes")
+  @@schema("transport")
+}
+
+model RouteStop {
+  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  routeId     String   @map("route_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  latitude    Float?
+  longitude   Float?
+  stopOrder   Int      @map("stop_order")
+  pickupTime  String?  @map("pickup_time") @db.VarChar(16)
+  dropoffTime String?  @map("dropoff_time") @db.VarChar(16)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, routeId])
+  @@map("route_stops")
+  @@schema("transport")
+}
+
+model Vehicle {
+  id                   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId             String   @map("tenant_id") @db.Uuid
+  registrationNumber   String   @map("registration_number") @db.VarChar(50)
+  make                 String?  @db.VarChar(100)
+  model                String?  @db.VarChar(100)
+  year                 Int?
+  capacity             Int
+  status               String   @default("active") @db.VarChar(20)
+  insuranceExpiry      String?  @map("insurance_expiry") @db.VarChar(32)
+  lastServiceDate      String?  @map("last_service_date") @db.VarChar(32)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, registrationNumber])
+  @@map("vehicles")
+  @@schema("transport")
+}
+
+model DriverAssignment {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  vehicleId  String   @map("vehicle_id") @db.Uuid
+  driverId   String   @map("driver_id") @db.Uuid
+  routeId    String?  @map("route_id") @db.Uuid
+  startDate  String   @map("start_date") @db.VarChar(32)
+  endDate    String?  @map("end_date") @db.VarChar(32)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, vehicleId])
+  @@map("driver_assignments")
+  @@schema("transport")
+}
+
+model StudentRouteAssignment {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  studentId  String   @map("student_id") @db.Uuid
+  routeId    String   @map("route_id") @db.Uuid
+  stopId     String?  @map("stop_id") @db.Uuid
+  startDate  String   @map("start_date") @db.VarChar(32)
+  endDate    String?  @map("end_date") @db.VarChar(32)
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@index([tenantId, routeId])
+  @@map("student_route_assignments")
+  @@schema("transport")
+}
+
+// ============================================================================
+// HEALTH (Phase 11)
+// ============================================================================
+
+model HealthMeasurement {
+  id                      String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId                String   @map("tenant_id") @db.Uuid
+  studentId               String   @map("student_id") @db.Uuid
+  date                    String   @db.VarChar(32)
+  height                  Float?
+  weight                  Float?
+  bmi                     Float?
+  bloodPressureSystolic   Int?     @map("blood_pressure_systolic")
+  bloodPressureDiastolic  Int?     @map("blood_pressure_diastolic")
+  heartRate               Int?     @map("heart_rate")
+  visionLeft              String?  @map("vision_left") @db.VarChar(20)
+  visionRight             String?  @map("vision_right") @db.VarChar(20)
+  notes                   String?  @db.Text
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("health_measurements")
+  @@schema("health")
+}
+
+model Allergy {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  allergyType    String   @map("allergy_type") @db.VarChar(100)
+  description    String   @db.Text
+  severity       String   @db.VarChar(30)
+  reaction       String?  @db.Text
+  treatment      String?  @db.Text
+  diagnosedDate  String?  @map("diagnosed_date") @db.VarChar(32)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("allergies")
+  @@schema("health")
+}
+
+model HealthCondition {
+  id             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId       String   @map("tenant_id") @db.Uuid
+  studentId      String   @map("student_id") @db.Uuid
+  conditionName  String   @map("condition_name") @db.VarChar(255)
+  conditionType  String   @map("condition_type") @db.VarChar(100)
+  diagnosedDate  String?  @map("diagnosed_date") @db.VarChar(32)
+  status         String   @db.VarChar(30)
+  treatment      String?  @db.Text
+  medication     String?  @db.Text
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("health_conditions")
+  @@schema("health")
+}
+
+model Vaccination {
+  id                 String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId           String   @map("tenant_id") @db.Uuid
+  studentId          String   @map("student_id") @db.Uuid
+  vaccineName        String   @map("vaccine_name") @db.VarChar(255)
+  doseNumber         Int      @map("dose_number")
+  dateAdministered   String   @map("date_administered") @db.VarChar(32)
+  administeredBy     String?  @map("administered_by") @db.VarChar(255)
+  batchNumber        String?  @map("batch_number") @db.VarChar(100)
+  nextDueDate        String?  @map("next_due_date") @db.VarChar(32)
+  notes              String?  @db.Text
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("vaccinations")
+  @@schema("health")
+}
+
+model InsurancePolicy {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  provider      String   @db.VarChar(255)
+  policyNumber  String   @map("policy_number") @db.VarChar(100)
+  coverageType  String   @map("coverage_type") @db.VarChar(100)
+  startDate     String   @map("start_date") @db.VarChar(32)
+  endDate       String?  @map("end_date") @db.VarChar(32)
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("insurance_policies")
+  @@schema("health")
+}
+
+model SpecialNeedsAssessment {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  studentId       String   @map("student_id") @db.Uuid
+  assessmentDate  String   @map("assessment_date") @db.VarChar(32)
+  assessorName    String   @map("assessor_name") @db.VarChar(255)
+  assessorRole    String   @map("assessor_role") @db.VarChar(100)
+  assessmentType  String   @map("assessment_type") @db.VarChar(100)
+  findings        String   @db.Text
+  recommendations String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("special_needs_assessments")
+  @@schema("health")
+}
+
+model Diagnosis {
+  id            String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  studentId     String   @map("student_id") @db.Uuid
+  assessmentId  String?  @map("assessment_id") @db.Uuid
+  diagnosisDate String   @map("diagnosis_date") @db.VarChar(32)
+  diagnosedBy   String   @map("diagnosed_by") @db.VarChar(255)
+  condition     String   @db.VarChar(255)
+  category      String   @db.VarChar(100)
+  severity      String   @db.VarChar(30)
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("diagnoses")
+  @@schema("health")
+}
+
+model Referral {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  studentId       String   @map("student_id") @db.Uuid
+  diagnosisId     String?  @map("diagnosis_id") @db.Uuid
+  referralDate    String   @map("referral_date") @db.VarChar(32)
+  referredBy      String   @map("referred_by") @db.VarChar(255)
+  referredTo      String   @map("referred_to") @db.VarChar(255)
+  reason          String   @db.Text
+  status          String   @db.VarChar(30)
+  appointmentDate String?  @map("appointment_date") @db.VarChar(32)
+  outcome         String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("referrals")
+  @@schema("health")
+}
+
+model AccommodationPlan {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  studentId       String   @map("student_id") @db.Uuid
+  diagnosisId     String?  @map("diagnosis_id") @db.Uuid
+  planName        String   @map("plan_name") @db.VarChar(255)
+  startDate       String   @map("start_date") @db.VarChar(32)
+  endDate         String?  @map("end_date") @db.VarChar(32)
+  accommodations  Json     @default("[]") @db.JsonB
+  reviewDate      String?  @map("review_date") @db.VarChar(32)
+  status          String   @db.VarChar(30)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("accommodation_plans")
+  @@schema("health")
+}
+
+model CounsellingSession {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  studentId         String   @map("student_id") @db.Uuid
+  counsellorId      String   @map("counsellor_id") @db.Uuid
+  sessionDate       String   @map("session_date") @db.VarChar(32)
+  sessionType       String   @map("session_type") @db.VarChar(50)
+  reason            String   @db.Text
+  caseNotes         String   @map("case_notes") @db.Text
+  outcome           String?  @db.Text
+  followUpRequired  Boolean  @default(false) @map("follow_up_required")
+  followUpDate      String?  @map("follow_up_date") @db.VarChar(32)
+  status            String   @db.VarChar(30)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, studentId])
+  @@map("counselling_sessions")
+  @@schema("health")
+}
+
+model ScreeningProgram {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  name              String   @db.VarChar(255)
+  description       String?  @db.Text
+  gradeLevel        String   @map("grade_level") @db.VarChar(50)
+  academicPeriodId  String   @map("academic_period_id") @db.Uuid
+  assessmentTypes   Json     @default("[]") @map("assessment_types") @db.JsonB
+  scheduledDate     String?  @map("scheduled_date") @db.VarChar(32)
+  status            String   @db.VarChar(30)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, academicPeriodId])
+  @@map("screening_programs")
+  @@schema("health")
+}
+
+// ============================================================================
+// WORKFLOW (Phase 12)
+// ============================================================================
+
+model WorkflowDefinition {
+  id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  name             String   @db.VarChar(255)
+  entityType       String   @map("entity_type") @db.VarChar(100)
+  description      String?  @db.Text
+  states           Json     @default("[]") @db.JsonB
+  transitions      Json     @default("[]") @db.JsonB
+  escalationRules  Json?    @map("escalation_rules") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, entityType])
+  @@map("workflow_definitions")
+  @@schema("workflow")
+}
+
+model WorkflowInstance {
+  id                     String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId               String   @map("tenant_id") @db.Uuid
+  workflowDefinitionId   String   @map("workflow_definition_id") @db.Uuid
+  entityType             String   @map("entity_type") @db.VarChar(100)
+  entityId               String   @map("entity_id") @db.Uuid
+  currentStateId         String   @map("current_state_id") @db.VarChar(100)
+  status                 String   @db.VarChar(30)
+  metadata               Json?    @db.JsonB
+  approvals              Json     @default("[]") @db.JsonB
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, workflowDefinitionId])
+  @@index([tenantId, entityType, entityId])
+  @@map("workflow_instances")
+  @@schema("workflow")
+}
+
+model TransitionAudit {
+  id           String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  instanceId   String   @map("instance_id") @db.Uuid
+  fromStateId  String   @map("from_state_id") @db.VarChar(100)
+  toStateId    String   @map("to_state_id") @db.VarChar(100)
+  action       String   @db.VarChar(100)
+  actorId      String   @map("actor_id") @db.Uuid
+  comments     String?  @db.Text
+  timestamp    DateTime
+
+  @@index([tenantId, instanceId])
+  @@map("transition_audits")
+  @@schema("workflow")
+}
+
+model Case {
+  id                  String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId            String   @map("tenant_id") @db.Uuid
+  type                String   @db.VarChar(50)
+  title               String   @db.VarChar(255)
+  description         String   @db.Text
+  status              String   @db.VarChar(30)
+  entityType          String   @map("entity_type") @db.VarChar(100)
+  entityId            String   @map("entity_id") @db.Uuid
+  institutionId       String?  @map("institution_id") @db.Uuid
+  areaId              String?  @map("area_id") @db.Uuid
+  assignedTo          String?  @map("assigned_to") @db.Uuid
+  priority            String?  @db.VarChar(20)
+  workflowInstanceId  String?  @map("workflow_instance_id") @db.Uuid
+  attachments         Json     @default("[]") @db.JsonB
+  resolution          Json?    @db.JsonB
+  metadata            Json?    @db.JsonB
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@index([tenantId, entityType, entityId])
+  @@map("cases")
+  @@schema("workflow")
+}
+
+// ============================================================================
+// NOTIFICATION (Phase 13)
+// ============================================================================
+
+model Notification {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  channel          String    @db.VarChar(30)
+  templateId       String    @map("template_id") @db.Uuid
+  recipientUserId  String    @map("recipient_user_id") @db.Uuid
+  variables        Json      @default("{}") @db.JsonB
+  status           String    @db.VarChar(30)
+  priority         String    @db.VarChar(20)
+  retryCount       Int       @default(0) @map("retry_count")
+  maxRetries       Int       @default(3) @map("max_retries")
+  sentAt           DateTime? @map("sent_at")
+  deliveredAt      DateTime? @map("delivered_at")
+  readAt           DateTime? @map("read_at")
+  failedAt         DateTime? @map("failed_at")
+  failureReason    String?   @map("failure_reason") @db.Text
+  webhookUrl       String?   @map("webhook_url") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, recipientUserId, status])
+  @@map("notifications")
+  @@schema("notification")
+}
+
+model NotificationRule {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  name            String   @db.VarChar(255)
+  entityType      String   @map("entity_type") @db.VarChar(100)
+  event           String   @db.VarChar(100)
+  conditions      Json     @default("{}") @db.JsonB
+  templateId      String   @map("template_id") @db.Uuid
+  channels        Json     @default("[]") @db.JsonB
+  recipientQuery  Json     @default("{}") @map("recipient_query") @db.JsonB
+  isActive        Boolean  @default(true) @map("is_active")
+  schedule        String?  @db.VarChar(100)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, entityType, isActive])
+  @@map("notification_rules")
+  @@schema("notification")
+}
+
+model NotificationTemplate {
+  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  name       String   @db.VarChar(255)
+  channel    String   @db.VarChar(30)
+  subject    String?  @db.VarChar(500)
+  body       String   @db.Text
+  variables  Json     @default("[]") @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, channel])
+  @@map("notification_templates")
+  @@schema("notification")
+}
+
+// ============================================================================
+// REPORT (Phase 14)
+// ============================================================================
+
+model ReportJob {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  reportType       String    @map("report_type") @db.VarChar(100)
+  format           String    @db.VarChar(20)
+  status           String    @db.VarChar(30)
+  filters          Json      @default("{}") @db.JsonB
+  groupBy          Json?     @map("group_by") @db.JsonB
+  aggregations     Json?     @db.JsonB
+  templateId       String?   @map("template_id") @db.Uuid
+  title            String?   @db.VarChar(255)
+  requestedBy      String    @map("requested_by") @db.Uuid
+  requestedByArea  String?   @map("requested_by_area") @db.VarChar(100)
+  requestedByRole  String?   @map("requested_by_role") @db.VarChar(100)
+  fileUrl          String?   @map("file_url") @db.Text
+  fileSize         Int?      @map("file_size")
+  rowCount         Int?      @map("row_count")
+  errorMessage     String?   @map("error_message") @db.Text
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@map("report_jobs")
+  @@schema("report")
+}
+
+model ReportTemplate {
+  id                    String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId              String   @map("tenant_id") @db.Uuid
+  name                  String   @db.VarChar(255)
+  type                  String   @db.VarChar(100)
+  format                String   @db.VarChar(20)
+  layout                String   @db.Text
+  mergeFields           Json     @default("[]") @map("merge_fields") @db.JsonB
+  conditionalSections   Json?    @map("conditional_sections") @db.JsonB
+  branding              Json?    @db.JsonB
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, type])
+  @@map("report_templates")
+  @@schema("report")
+}
+
+model ScheduledReport {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId          String    @map("tenant_id") @db.Uuid
+  name              String    @db.VarChar(255)
+  reportType        String    @map("report_type") @db.VarChar(100)
+  format            String    @db.VarChar(20)
+  filters           Json      @default("{}") @db.JsonB
+  groupBy           Json?     @map("group_by") @db.JsonB
+  aggregations      Json?     @db.JsonB
+  templateId        String?   @map("template_id") @db.Uuid
+  cronExpression    String    @map("cron_expression") @db.VarChar(100)
+  deliveryMethod    String    @map("delivery_method") @db.VarChar(30)
+  recipientUserIds  Json?     @map("recipient_user_ids") @db.JsonB
+  recipientEmails   Json?     @map("recipient_emails") @db.JsonB
+  isActive          Boolean   @default(true) @map("is_active")
+  lastRunAt         DateTime? @map("last_run_at")
+  nextRunAt         DateTime? @map("next_run_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([tenantId, isActive])
+  @@map("scheduled_reports")
+  @@schema("report")
+}
+
+// ============================================================================
+// SURVEY (Phase 15)
+// ============================================================================
+
+model Survey {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  name              String   @db.VarChar(255)
+  description       String?  @db.Text
+  status            String   @db.VarChar(30)
+  academicPeriodId  String?  @map("academic_period_id") @db.Uuid
+  startDate         String?  @map("start_date") @db.VarChar(32)
+  endDate           String?  @map("end_date") @db.VarChar(32)
+  questions         Json     @default("[]") @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@map("surveys")
+  @@schema("survey")
+}
+
+model SurveyDistribution {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  surveyId        String   @map("survey_id") @db.Uuid
+  institutionId   String   @map("institution_id") @db.Uuid
+  status          String   @db.VarChar(30)
+  dueDate         String?  @map("due_date") @db.VarChar(32)
+  submittedAt     String?  @map("submitted_at") @db.VarChar(32)
+  remindersSent   Int      @default(0) @map("reminders_sent")
+  reminderDays    Json     @default("[]") @map("reminder_days") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, surveyId])
+  @@map("survey_distributions")
+  @@schema("survey")
+}
+
+model SurveySubmission {
+  id              String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  surveyId        String   @map("survey_id") @db.Uuid
+  institutionId   String   @map("institution_id") @db.Uuid
+  answers         Json     @default("[]") @db.JsonB
+  submittedAt     DateTime @map("submitted_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, surveyId])
+  @@map("survey_submissions")
+  @@schema("survey")
+}
+
+// ============================================================================
+// REGISTRATION (Phase 16)
+// ============================================================================
+
+model RegistrationApplication {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  tenantId          String   @map("tenant_id") @db.Uuid
+  trackingNumber    String   @map("tracking_number") @db.VarChar(50)
+  institutionId     String   @map("institution_id") @db.Uuid
+  institutionName   String   @map("institution_name") @db.VarChar(255)
+  status            String   @db.VarChar(30)
+  firstName         String   @map("first_name") @db.VarChar(100)
+  lastName          String   @map("last_name") @db.VarChar(100)
+  dateOfBirth       String   @map("date_of_birth") @db.VarChar(32)
+  gender            String   @db.VarChar(20)
+  guardianName      String   @map("guardian_name") @db.VarChar(255)
+  guardianPhone     String   @map("guardian_phone") @db.VarChar(50)
+  guardianEmail     String?  @map("guardian_email") @db.VarChar(255)
+  customFields      Json     @default("[]") @map("custom_fields") @db.JsonB
+  documents         Json     @default("[]") @db.JsonB
+  preferredLanguage String?  @map("preferred_language") @db.VarChar(20)
+  remarks           String?  @db.Text
+  submittedAt       DateTime @map("submitted_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, trackingNumber])
+  @@index([tenantId, status])
+  @@index([tenantId, institutionId])
+  @@map("registration_applications")
+  @@schema("registration")
+}
+

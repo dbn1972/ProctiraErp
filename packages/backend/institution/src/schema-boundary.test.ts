@@ -38,7 +38,7 @@ describe('Phase 3 institution schema boundaries', () => {
 
   it('declares institution among service-owned schemas', () => {
     expect(schema).toMatch(
-      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"staff",\s*"public"\]/,
+      /schemas\s*=\s*\["platform",\s*"auth",\s*"institution",\s*"student",\s*"attendance",\s*"assessment",\s*"examination",\s*"staff",\s*"scholarship",\s*"transport",\s*"health",\s*"workflow",\s*"notification",\s*"report",\s*"survey",\s*"registration",\s*"public"\]/,
     );
   });
 

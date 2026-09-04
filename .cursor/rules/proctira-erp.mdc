@@ -9,7 +9,7 @@ alwaysApply: true
 - Product: **ProctiraERP**. Never CivitasOne / Keycloak chrome in user UI.
 
 ## Data boundary (charter §19)
-- Schemas: `platform` | `auth` | `institution` | `student` | `attendance` | `assessment` | `examination` | `staff` | `public` (residual only). Check `schema.prisma` `schemas = […]` if unsure.
+- Schemas: `platform` | `auth` | `institution` | `student` | `attendance` | `assessment` | `examination` | `staff` | `scholarship` | `transport` | `health` | `workflow` | `notification` | `report` | `survey` | `registration` | `public` (residual only). Check `schema.prisma` `schemas = […]` if unsure.
 - No cross-schema FKs or SQL/`include` joins across domains.
 - Cross-domain: bare UUID + HTTP/events only.
 - Tenant on owned schemas: bare `tenantId` (no `Tenant @relation`).
