@@ -58,7 +58,7 @@ P2 Auth + P9–16 Prisma wiring + P17 Flutter analyze remain signed off.
 |---|------|--------|
 | 1 | **Flutter device/emulator E2E** | **Ops-blocked** — `tools/scripts/run-mobile-e2e.sh` + `integration_test` present; exits 2 when no AVD/device. `flutter test` unit/widget suite passes. Needs developer machine or CI emulator. |
 | 2 | **Live FCM** | **Code complete / secrets-blocked** — example configs + `scripts/apply-fcm-secrets.sh`; without real Firebase files FCM no-ops; with secrets, token registers to `POST /api/v1/notifications/devices`. |
-| 3 | **EC3 migrate + redeploy** | **Done** — EC3 Postgres schema up to date (30 migrations); gateway (:3200) + web (:3201) redeployed with residual APIs mounted (smoke: health 200, CTA routes 401 unauth). Use `REDIS_URL_HOST` / `DATABASE_URL_HOST` when starting outside Compose. |
+| 3 | **EC3 migrate + redeploy** | **Done** — EC3 Postgres includes P18–P26 schemas (39 migrations); gateway (:3200) registers finance…lms; web (:3201) list pages present. Use `REDIS_URL_HOST` / `DATABASE_URL_HOST` outside Compose. |
 | 4 | **Data-warehouse map** | **Done** — interactive Leaflet map (`map-client` / `map-canvas`); institution overview links with `?institutionId=`. |
 | 5 | **Live SMS / MFA OTP** | **Code complete / secrets-blocked** — OTP send/verify + Console/Twilio; hashed store in `auth.otp_challenges`; web MFA SMS path. Set `TWILIO_*` on EC3 for live SMS. |
 | 6 | **Disabled CTAs** | **Done** — infra repair/log, district map link, admin invite user, workflow pause wired to APIs. |
