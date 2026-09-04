@@ -40,6 +40,9 @@ const SAMPLE_RESPONSE = {
   ],
 };
 
+/** Match both the current `/registrations/.../status` path and the legacy alias. */
+const TRACKING_API_GLOB = '**/api/v1/registrations/**';
+
 test.describe('Public Application Tracking page', () => {
   test('renders the form, submits a tracking number, and shows the status timeline', async ({
     page,
@@ -49,17 +52,14 @@ test.describe('Public Application Tracking page', () => {
     // Intercept the public read-only endpoint and reply with the sample
     // payload. We match by URL path so the test does not care which port
     // the dev server is on.
-    await page.route(
-      '**/api/v1/registration/applications/**',
-      async (route) => {
-        requestedUrl = route.request().url();
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify(SAMPLE_RESPONSE),
-        });
-      },
-    );
+    await page.route(TRACKING_API_GLOB, async (route) => {
+      requestedUrl = route.request().url();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(SAMPLE_RESPONSE),
+      });
+    });
 
     await page.goto('/track');
 
@@ -93,7 +93,7 @@ test.describe('Public Application Tracking page', () => {
     // the encoded tracking number from the form.
     expect(requestedUrl).not.toBeNull();
     expect(requestedUrl).toContain(
-      `/api/v1/registration/applications/${TRACKING_NUMBER}`,
+      `/api/v1/registrations/${TRACKING_NUMBER}/status`,
     );
 
     // Task 56.7 — populated result state must also pass WCAG 2.1 AA.
@@ -104,16 +104,13 @@ test.describe('Public Application Tracking page', () => {
   });
 
   test('shows the friendly "not found" alert on a 404', async ({ page }) => {
-    await page.route(
-      '**/api/v1/registration/applications/**',
-      async (route) => {
-        await route.fulfill({
-          status: 404,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'NOT_FOUND' }),
-        });
-      },
-    );
+    await page.route(TRACKING_API_GLOB, async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'NOT_FOUND' }),
+      });
+    });
 
     await page.goto('/track');
     await page.getByLabel(/tracking number/i).fill('REG-MISSING');
@@ -125,13 +122,10 @@ test.describe('Public Application Tracking page', () => {
 
   test('rejects an empty tracking number client-side', async ({ page }) => {
     let networkCalls = 0;
-    await page.route(
-      '**/api/v1/registration/applications/**',
-      async (route) => {
-        networkCalls += 1;
-        await route.fulfill({ status: 200, body: '{}' });
-      },
-    );
+    await page.route(TRACKING_API_GLOB, async (route) => {
+      networkCalls += 1;
+      await route.fulfill({ status: 200, body: '{}' });
+    });
 
     await page.goto('/track');
     await page.getByRole('button', { name: /check status/i }).click();

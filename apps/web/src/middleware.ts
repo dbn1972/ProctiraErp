@@ -16,6 +16,9 @@ const PUBLIC_PATHS = [
   // applicants must be able to look up their submission status with the
   // tracking number alone — no auth, no tenant subdomain required.
   '/track',
+  // Public Registration Portal (home, school finder, multi-step apply).
+  '/register',
+  '/apply',
 ];
 
 /** Cookie name for the access token. */

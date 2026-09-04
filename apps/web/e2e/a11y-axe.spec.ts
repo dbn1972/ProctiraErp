@@ -54,7 +54,7 @@ test.describe('a11y — public surfaces (no backend required)', () => {
   }) => {
     // Stub the backend so the empty form state is what axe scans.
     await page.route(
-      '**/api/v1/registration/applications/**',
+      '**/api/v1/registrations/**',
       async (route) => {
         await route.fulfill({
           status: 404,

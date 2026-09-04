@@ -1,22 +1,22 @@
 /**
- * Public Registration API client (anonymous, read-only).
+ * Public Registration API client.
  *
- * Used by the public Application Tracking page to look up the status of a
- * registration application by its tracking number. The endpoint is
- * intentionally unauthenticated (Requirement 16.6 / Task 51.4): an applicant
- * who has the tracking number must be able to check progress without an
- * account.
+ * Talks to the Prisma-backed Registration Service via the API gateway:
+ *   POST /api/v1/registrations
+ *   GET  /api/v1/registrations/:trackingNumber/status
+ *   GET  /api/v1/registrations/institutions
+ *   GET  /api/v1/registrations/schools/search
+ *   GET  /api/v1/registrations/form-config/:institutionId
  *
- * Contract (per design.md §F):
- *   GET /api/v1/registration/applications/{trackingNumber}
- *     200 → { trackingNumber, status, currentStep?, submittedAt,
- *             updatedAt, expectedCompletionAt?, history[], followUpActions[] }
- *     404 → { error: 'NOT_FOUND' }
- *     5xx → { error: 'INTERNAL_ERROR' }
- *
- * The response intentionally exposes no PII beyond what the applicant
- * submitted (no contact details, no document content, no internal notes).
+ * Tracking and school search are anonymous (Requirement 16.6 / 16.9).
+ * Browser-safe: no `next/headers`. Server Components that need
+ * `gatewayFetch` should import from `./registration.server`.
  */
+
+import {
+  browserGatewayFetch,
+  BrowserGatewayError,
+} from './browser-gateway';
 
 /** Base URL for the API gateway. Mirrors the server-side gateway client. */
 export const REGISTRATION_API_BASE_URL =
@@ -25,8 +25,14 @@ export const REGISTRATION_API_BASE_URL =
       process.env['NEXT_PUBLIC_REGISTRATION_SERVICE_URL'])) ||
   '';
 
-/** API version + namespace prefix. Concatenated to the base URL. */
-export const REGISTRATION_API_PREFIX = '/api/v1/registration/applications';
+/**
+ * Public status lookup path (gateway-mounted Registration Service).
+ * Full URL = `${REGISTRATION_API_BASE_URL}${REGISTRATION_API_PREFIX}/{tn}/status`
+ */
+export const REGISTRATION_API_PREFIX = '/api/v1/registrations';
+
+/** Gateway-relative prefix used by `gatewayFetch` / `browserGatewayFetch`. */
+export const REGISTRATIONS_GATEWAY_PREFIX = '/registrations';
 
 /**
  * Possible application statuses surfaced on the public tracking page.
@@ -123,7 +129,7 @@ export async function getApplicationByTrackingNumber(
     };
   }
 
-  const url = `${REGISTRATION_API_BASE_URL}${REGISTRATION_API_PREFIX}/${encodeURIComponent(trimmed)}`;
+  const url = `${REGISTRATION_API_BASE_URL}${REGISTRATION_API_PREFIX}/${encodeURIComponent(trimmed)}/status`;
   const fetcher = options.fetcher ?? fetch;
 
   let response: Response;
@@ -158,7 +164,9 @@ export async function getApplicationByTrackingNumber(
   }
 
   try {
-    const payload = (await response.json()) as Partial<ApplicationTrackingResult>;
+    const payload = (await response.json()) as Partial<
+      ApplicationTrackingResult & RegistrationStatusResponse
+    >;
     return { kind: 'ok', data: normalizeTrackingResult(payload, trimmed) };
   } catch (err) {
     return {
@@ -169,25 +177,82 @@ export async function getApplicationByTrackingNumber(
 }
 
 /**
+ * Backend status payload from `GET /registrations/:trackingNumber/status`.
+ * Mapped into the richer public tracking view shape below.
+ */
+export interface RegistrationStatusResponse {
+  trackingNumber: string;
+  status: ApplicationStatus;
+  institutionName: string;
+  applicantName: string;
+  submittedAt: string;
+  updatedAt: string;
+  remarks?: string;
+}
+
+/**
  * Coerces a partial server payload into the strict client shape, defaulting
  * missing arrays to `[]` so the UI doesn't have to null-check at every site.
+ * Accepts both the rich tracking dialect and the lean Registration Service
+ * status response (`institutionName` / `applicantName` / `remarks`).
  */
 export function normalizeTrackingResult(
-  payload: Partial<ApplicationTrackingResult>,
+  payload: Partial<ApplicationTrackingResult & RegistrationStatusResponse>,
   fallbackTrackingNumber: string,
 ): ApplicationTrackingResult {
+  const history = Array.isArray(payload.history)
+    ? payload.history
+    : synthesizeHistoryFromStatus(payload);
+
+  const currentStep =
+    payload.currentStep ??
+    (payload.institutionName
+      ? `${payload.applicantName ?? 'Applicant'} · ${payload.institutionName}`
+      : undefined);
+
+  const followUpActions = Array.isArray(payload.followUpActions)
+    ? payload.followUpActions
+    : payload.remarks
+      ? [{ code: 'REMARKS', message: payload.remarks }]
+      : [];
+
   return {
     trackingNumber: payload.trackingNumber ?? fallbackTrackingNumber,
     status: payload.status ?? 'pending',
-    currentStep: payload.currentStep,
+    currentStep,
     submittedAt: payload.submittedAt ?? '',
     updatedAt: payload.updatedAt ?? payload.submittedAt ?? '',
     expectedCompletionAt: payload.expectedCompletionAt,
-    history: Array.isArray(payload.history) ? payload.history : [],
-    followUpActions: Array.isArray(payload.followUpActions)
-      ? payload.followUpActions
-      : [],
+    history,
+    followUpActions,
   };
+}
+
+function synthesizeHistoryFromStatus(
+  payload: Partial<ApplicationTrackingResult & RegistrationStatusResponse>,
+): ApplicationStatusHistoryEntry[] {
+  // Only synthesize when the lean Registration Service dialect is present
+  // (`institutionName`). Rich tracking payloads without a history array
+  // stay empty rather than inventing transitions.
+  if (!payload.institutionName || !payload.status) return [];
+  const entries: ApplicationStatusHistoryEntry[] = [];
+  if (payload.submittedAt) {
+    entries.push({
+      status: 'pending',
+      timestamp: payload.submittedAt,
+      note: 'Application submitted',
+      actor: 'System',
+    });
+  }
+  if (payload.status !== 'pending' && payload.updatedAt) {
+    entries.push({
+      status: payload.status,
+      timestamp: payload.updatedAt,
+      note: payload.remarks,
+      actor: 'Admissions Office',
+    });
+  }
+  return entries;
 }
 
 
@@ -197,11 +262,11 @@ export function normalizeTrackingResult(
 
 /**
  * URL prefix for the public School Finder endpoint. The backend route lives
- * at `GET /api/v1/registration/schools/search` (see
+ * at `GET /api/v1/registrations/schools/search` (see
  * `packages/backend/registration/src/routes.ts`). Like the tracking endpoint
  * above, this is anonymous-accessible.
  */
-export const SCHOOL_FINDER_API_PREFIX = '/api/v1/registration/schools/search';
+export const SCHOOL_FINDER_API_PREFIX = '/api/v1/registrations/schools/search';
 
 /**
  * Filters accepted by the School Finder. The geolocation triple
@@ -362,6 +427,166 @@ export async function searchSchools(
     return {
       kind: 'error',
       message: err instanceof Error ? err.message : 'Malformed response',
+    };
+  }
+}
+
+
+// =============================================================================
+// Gateway-backed Registration Service (submit + institutions + form config)
+// =============================================================================
+
+export interface RegistrationFieldValue {
+  fieldId: string;
+  value: string | number | boolean | null;
+}
+
+export interface DocumentUploadMetadata {
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  documentType: string;
+  content?: string;
+}
+
+export interface RegistrationSubmissionInput {
+  institutionId: string;
+  firstName: string;
+  lastName: string;
+  /** YYYY-MM-DD */
+  dateOfBirth: string;
+  gender: 'male' | 'female' | 'other';
+  guardianName: string;
+  guardianPhone: string;
+  guardianEmail?: string;
+  customFields?: RegistrationFieldValue[];
+  documents?: DocumentUploadMetadata[];
+  preferredLanguage?: string;
+}
+
+export interface RegistrationSubmissionResponse {
+  id: string;
+  trackingNumber: string;
+  status: string;
+  institutionId: string;
+  submittedAt: string;
+  message: string;
+}
+
+export interface InstitutionLocation {
+  id: string;
+  name: string;
+  code: string;
+  typeId: string;
+  typeName?: string;
+  areaId: string;
+  areaName?: string;
+  latitude: number | null;
+  longitude: number | null;
+  address?: string | null;
+  availableGrades?: string[];
+}
+
+export interface InstitutionMapResponse {
+  data: InstitutionLocation[];
+  meta: {
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  };
+}
+
+export interface InstitutionFilters {
+  areaId?: string;
+  typeId?: string;
+  gradeId?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export type RegistrationApiResult<T> =
+  | { kind: 'ok'; data: T }
+  | { kind: 'error'; message: string; status?: number };
+
+export function buildInstitutionsQuery(filters: InstitutionFilters): string {
+  const params = new URLSearchParams();
+  if (filters.areaId) params.set('areaId', filters.areaId);
+  if (filters.typeId) params.set('typeId', filters.typeId);
+  if (filters.gradeId) params.set('gradeId', filters.gradeId);
+  if (filters.search) params.set('search', filters.search);
+  if (filters.page) params.set('page', String(filters.page));
+  if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
+  const qs = params.toString();
+  return qs.length > 0 ? `?${qs}` : '';
+}
+
+/**
+ * Browser-side submission against `POST /registrations`.
+ * Returns a tagged union so the wizard can render empty/error states.
+ */
+export async function submitRegistration(
+  payload: RegistrationSubmissionInput,
+  options: { tenantId?: string; signal?: AbortSignal } = {},
+): Promise<RegistrationApiResult<RegistrationSubmissionResponse>> {
+  try {
+    const data = await browserGatewayFetch<RegistrationSubmissionResponse>(
+      REGISTRATIONS_GATEWAY_PREFIX,
+      {
+        method: 'POST',
+        json: payload,
+        tenantId: options.tenantId ?? 'default',
+        signal: options.signal,
+      },
+    );
+    return { kind: 'ok', data };
+  } catch (err) {
+    if (err instanceof BrowserGatewayError) {
+      return { kind: 'error', message: err.message, status: err.status };
+    }
+    return {
+      kind: 'error',
+      message: err instanceof Error ? err.message : 'Network error',
+    };
+  }
+}
+
+/**
+ * Browser-side institution list (client school finder refresh).
+ */
+export async function fetchRegistrationInstitutions(
+  filters: InstitutionFilters = {},
+  options: { tenantId?: string; signal?: AbortSignal } = {},
+): Promise<RegistrationApiResult<InstitutionMapResponse>> {
+  try {
+    const data = await browserGatewayFetch<InstitutionMapResponse>(
+      `${REGISTRATIONS_GATEWAY_PREFIX}/institutions${buildInstitutionsQuery(filters)}`,
+      {
+        method: 'GET',
+        tenantId: options.tenantId ?? 'default',
+        signal: options.signal,
+      },
+    );
+    return {
+      kind: 'ok',
+      data: {
+        data: Array.isArray(data.data) ? data.data : [],
+        meta: {
+          page: data.meta?.page ?? filters.page ?? 1,
+          pageSize: data.meta?.pageSize ?? filters.pageSize ?? 50,
+          totalItems: data.meta?.totalItems ?? 0,
+          totalPages: data.meta?.totalPages ?? 0,
+        },
+      },
+    };
+  } catch (err) {
+    if (err instanceof BrowserGatewayError) {
+      return { kind: 'error', message: err.message, status: err.status };
+    }
+    return {
+      kind: 'error',
+      message: err instanceof Error ? err.message : 'Network error',
     };
   }
 }

@@ -56,7 +56,9 @@ describe('getApplicationByTrackingNumber', () => {
     const firstCall = fetcher.mock.calls[0];
     expect(firstCall).toBeDefined();
     const [url, init] = firstCall as [RequestInfo | URL, RequestInit?];
-    expect(String(url)).toContain(`${REGISTRATION_API_PREFIX}/REG-A1B2C3D4`);
+    expect(String(url)).toContain(
+      `${REGISTRATION_API_PREFIX}/REG-A1B2C3D4/status`,
+    );
     expect(init?.method).toBe('GET');
   });
 

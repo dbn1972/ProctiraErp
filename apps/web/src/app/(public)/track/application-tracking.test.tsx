@@ -24,6 +24,12 @@ import {
   type TrackingFetcher,
 } from './application-tracking';
 
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => ({ get: () => null }),
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => '/track',
+}));
+
 const messages = enMessages as unknown as Record<
   string,
   Record<string, string>

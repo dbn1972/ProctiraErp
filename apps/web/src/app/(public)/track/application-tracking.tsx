@@ -1,7 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Loader2, Search } from 'lucide-react';
 
 import {
@@ -61,14 +62,21 @@ type ViewState =
 
 export function ApplicationTracking({
   fetcher,
-  initialTrackingNumber = '',
+  initialTrackingNumber,
 }: ApplicationTrackingProps): JSX.Element {
   const { t } = useLanguage();
   const inputId = useId();
+  const searchParams = useSearchParams();
+  const prefills =
+    initialTrackingNumber ??
+    searchParams.get('ref') ??
+    searchParams.get('trackingNumber') ??
+    '';
 
-  const [trackingNumber, setTrackingNumber] = useState(initialTrackingNumber);
+  const [trackingNumber, setTrackingNumber] = useState(prefills);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [view, setView] = useState<ViewState>({ kind: 'idle' });
+  const [autoLookedUp, setAutoLookedUp] = useState(false);
 
   const lookup = useCallback(
     async (raw: string) => {
@@ -96,6 +104,13 @@ export function ApplicationTracking({
     [fetcher, t],
   );
 
+  // Auto-lookup when arriving from success page with ?ref=
+  useEffect(() => {
+    if (autoLookedUp || !prefills.trim()) return;
+    setAutoLookedUp(true);
+    void lookup(prefills);
+  }, [autoLookedUp, prefills, lookup]);
+
   const handleSubmit = useCallback(
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -113,15 +128,16 @@ export function ApplicationTracking({
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="border-border shadow-sm">
         <CardContent className="p-6">
           <form
             onSubmit={handleSubmit}
             noValidate
             aria-busy={isLoading}
             data-testid="tracking-form"
+            className="flex flex-col gap-3 sm:flex-row sm:items-end"
           >
-            <div className="space-y-2">
+            <div className="min-w-0 flex-1 space-y-2">
               <Label htmlFor={inputId}>
                 {t('tracking.trackingNumberLabel')}
               </Label>
@@ -142,6 +158,7 @@ export function ApplicationTracking({
                   validationError ? `${inputId}-error` : undefined
                 }
                 disabled={isLoading}
+                className="font-mono tracking-wide"
               />
               {validationError !== null && (
                 <p
@@ -156,7 +173,7 @@ export function ApplicationTracking({
 
             <Button
               type="submit"
-              className="mt-4 w-full"
+              className="w-full sm:w-auto"
               disabled={isLoading}
             >
               {isLoading ? (
