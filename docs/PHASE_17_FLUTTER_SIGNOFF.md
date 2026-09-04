@@ -17,4 +17,4 @@
 - Live FCM / production Keycloak token exchange polish
 
 ## Next
-Charter track complete (schemas P2–P16 + Flutter). Residual: optional Prisma repository wiring for P9–P16 in-memory domains; portal UI redesign phases as separate work.
+Charter track complete (schemas P2–P16 + Flutter). Prisma wiring for P9–P16: see [PHASE_9_16_PRISMA_WIRING_SIGNOFF.md](./PHASE_9_16_PRISMA_WIRING_SIGNOFF.md). Residual: portal UI redesign per module; Flutter device/emulator E2E on a host with Android/iOS SDKs.

@@ -25,6 +25,7 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 | 15 Survey | [PHASE_15_SURVEY_SIGNOFF.md](../PHASE_15_SURVEY_SIGNOFF.md) |
 | 16 Registration | [PHASE_16_REGISTRATION_SIGNOFF.md](../PHASE_16_REGISTRATION_SIGNOFF.md) |
 | 17 Flutter | [PHASE_17_FLUTTER_SIGNOFF.md](../PHASE_17_FLUTTER_SIGNOFF.md) |
+| 9–16 Prisma wiring | [PHASE_9_16_PRISMA_WIRING_SIGNOFF.md](../PHASE_9_16_PRISMA_WIRING_SIGNOFF.md) |
 
 ## Runbooks (ops detail on demand)
 - [docs/runbooks/](../runbooks/)

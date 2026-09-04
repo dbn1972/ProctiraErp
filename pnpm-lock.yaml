@@ -167,15 +167,39 @@ importers:
       '@proctira/backend-examination':
         specifier: workspace:*
         version: link:../../packages/backend/examination
+      '@proctira/backend-health':
+        specifier: workspace:*
+        version: link:../../packages/backend/health
       '@proctira/backend-institution':
         specifier: workspace:*
         version: link:../../packages/backend/institution
+      '@proctira/backend-notification':
+        specifier: workspace:*
+        version: link:../../packages/backend/notification
+      '@proctira/backend-registration':
+        specifier: workspace:*
+        version: link:../../packages/backend/registration
+      '@proctira/backend-report':
+        specifier: workspace:*
+        version: link:../../packages/backend/report
+      '@proctira/backend-scholarship':
+        specifier: workspace:*
+        version: link:../../packages/backend/scholarship
       '@proctira/backend-staff':
         specifier: workspace:*
         version: link:../../packages/backend/staff
       '@proctira/backend-student':
         specifier: workspace:*
         version: link:../../packages/backend/student
+      '@proctira/backend-survey':
+        specifier: workspace:*
+        version: link:../../packages/backend/survey
+      '@proctira/backend-transport':
+        specifier: workspace:*
+        version: link:../../packages/backend/transport
+      '@proctira/backend-workflow':
+        specifier: workspace:*
+        version: link:../../packages/backend/workflow
       '@proctira/common':
         specifier: workspace:*
         version: link:../../packages/shared/common

@@ -12,6 +12,8 @@
  *    attendance / assessment / examination: Prisma-backed (Postgres + RLS)
  *    via their create*Repository factories when DATABASE_URL is set, else
  *    in-memory.
+ *  - scholarship / transport / health / workflow / notification / report /
+ *    survey / registration: Prisma-backed the same way (P9–P16).
  *  - assessment report-card repositories are not wired yet (no Prisma
  *    implementation); report-card routes stay disabled.
  *
@@ -36,17 +38,61 @@ import {
   examinationPlugin,
 } from '@proctira/backend-examination';
 import {
+  createHealthRepository,
+  healthPlugin,
+} from '@proctira/backend-health';
+import {
   createInstitutionRepository,
   institutionPlugin,
 } from '@proctira/backend-institution';
+import {
+  createNotificationRepository,
+  notificationPlugin,
+} from '@proctira/backend-notification';
+import {
+  createRegistrationRepository,
+  registrationPlugin,
+} from '@proctira/backend-registration';
+import {
+  createReportRepository,
+  reportPlugin,
+  type ReportDataSource,
+} from '@proctira/backend-report';
+import {
+  createScholarshipRepository,
+  scholarshipPlugin,
+} from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
   createStaffRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import {
+  createDistributionRepository,
+  createInstitutionLookup,
+  createSubmissionRepository,
+  createSurveyRepository,
+  surveyPlugin,
+} from '@proctira/backend-survey';
+import {
+  createTransportRepository,
+  transportPlugin,
+} from '@proctira/backend-transport';
+import {
+  createCaseRepository,
+  createWorkflowRepository,
+  workflowPlugin,
+} from '@proctira/backend-workflow';
 
 import type { GatewayConfig } from './config.js';
+
+/** Stub analytical data source until cross-module report queries are wired. */
+const emptyReportDataSource: ReportDataSource = {
+  async fetchData() {
+    return { rows: [], columns: [], totalRows: 0 };
+  },
+};
 
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
@@ -140,6 +186,92 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         assessmentItemRepository: createAssessmentItemRepository(),
         outcomeRepository: createOutcomeRepository(),
         resultRepository: createAssessmentResultRepository(),
+      });
+    },
+  },
+  {
+    name: 'scholarship',
+    proxyPrefixes: ['/scholarships'],
+    register: async (scope) => {
+      await scope.register(scholarshipPlugin, {
+        repository: createScholarshipRepository(),
+        prefix: '/scholarships',
+      });
+    },
+  },
+  {
+    name: 'transport',
+    proxyPrefixes: ['/transport'],
+    register: async (scope) => {
+      await scope.register(transportPlugin, {
+        repository: createTransportRepository(),
+        prefix: '/transport',
+      });
+    },
+  },
+  {
+    name: 'health',
+    proxyPrefixes: ['/health'],
+    register: async (scope) => {
+      // Mounted under /api/v1/health/* — does not collide with gateway /health.
+      await scope.register(healthPlugin, {
+        repository: createHealthRepository(),
+        prefix: '/health',
+      });
+    },
+  },
+  {
+    name: 'workflow',
+    proxyPrefixes: ['/workflows'],
+    register: async (scope) => {
+      await scope.register(workflowPlugin, {
+        repository: createWorkflowRepository(),
+        caseRepository: createCaseRepository(),
+        prefix: '/workflows',
+      });
+    },
+  },
+  {
+    name: 'notification',
+    proxyPrefixes: ['/notifications'],
+    register: async (scope) => {
+      await scope.register(notificationPlugin, {
+        repository: createNotificationRepository(),
+        prefix: '/notifications',
+      });
+    },
+  },
+  {
+    name: 'report',
+    proxyPrefixes: ['/reports'],
+    register: async (scope) => {
+      await scope.register(reportPlugin, {
+        repository: createReportRepository(),
+        dataSource: emptyReportDataSource,
+        prefix: '/reports',
+      });
+    },
+  },
+  {
+    name: 'survey',
+    proxyPrefixes: ['/surveys'],
+    register: async (scope) => {
+      await scope.register(surveyPlugin, {
+        surveyRepository: createSurveyRepository(),
+        distributionRepository: createDistributionRepository(),
+        submissionRepository: createSubmissionRepository(),
+        institutionLookup: createInstitutionLookup(),
+        prefix: '/surveys',
+      });
+    },
+  },
+  {
+    name: 'registration',
+    proxyPrefixes: ['/registrations'],
+    register: async (scope) => {
+      await scope.register(registrationPlugin, {
+        repository: createRegistrationRepository(),
+        prefix: '/registrations',
       });
     },
   },
