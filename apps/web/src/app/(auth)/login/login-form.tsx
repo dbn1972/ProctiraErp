@@ -17,7 +17,7 @@ import {
   Label,
 } from '@proctira/ui/components';
 import { OAuthIcon } from '@/components/auth/oauth-icon';
-import { buildOAuthHref } from '@/features/auth/SignIn';
+import { buildOAuthHref } from '@/lib/auth/oauth';
 import { signIn } from '@/lib/auth';
 
 /**

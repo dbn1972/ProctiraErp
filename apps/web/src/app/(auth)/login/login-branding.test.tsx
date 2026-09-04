@@ -52,7 +52,7 @@ vi.mock('next/link', () => ({
 }));
 
 vi.mock('@/components/auth/oauth-icon', () => ({ OAuthIcon: () => <span>icon</span> }));
-vi.mock('@/features/auth/SignIn', () => ({ buildOAuthHref: () => '#' }));
+vi.mock('@/lib/auth/oauth', () => ({ buildOAuthHref: () => '#' }));
 vi.mock('@/lib/auth', () => ({
   signIn: vi.fn(),
 }));
