@@ -70,6 +70,8 @@ P2 Auth + P9–16 Prisma wiring + P17 Flutter analyze remain signed off.
 
 Do **not** build unless charter expands: school finance/fees, payroll, timetable, library, hostel, inventory, canteen/MDM, alumni, LMS.
 
+**Expansion plan (phases P18–P26, wave order, MVP/non-goals):** [plans/CHARTER_EXPANSION_SECTION5.md](./plans/CHARTER_EXPANSION_SECTION5.md).
+
 ---
 
 ## 6. Migrations for partial-completion + §4 residual pass

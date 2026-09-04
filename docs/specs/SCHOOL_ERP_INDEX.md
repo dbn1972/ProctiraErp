@@ -8,6 +8,7 @@ Single entry point. **Do not duplicate** phase bodies here — link only.
 
 ## Module scope inventory
 - [SCHOOL_ERP_MODULE_SCOPE.md](../SCHOOL_ERP_MODULE_SCOPE.md) — fully built vs partial vs marketing-only (not chartered).
+- [CHARTER_EXPANSION_SECTION5.md](../plans/CHARTER_EXPANSION_SECTION5.md) — plan only for §5 modules (P18–P26); do not build until charter expands.
 
 ## Phase contracts (source of truth)
 | Phase | Spec / evidence |
