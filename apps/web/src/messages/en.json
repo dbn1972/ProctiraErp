@@ -536,6 +536,9 @@
     "users": "Users",
     "roles": "Roles",
     "permissions": "Permissions",
+    "policies": "Access policies",
+    "customFields": "Custom fields",
+    "notificationRules": "Notification rules",
     "tenant": "Tenant"
   },
   "connectivity": {

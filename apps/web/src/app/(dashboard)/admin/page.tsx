@@ -1,21 +1,27 @@
 /**
  * Administration landing page.
  *
+ * Layout per redesign/web/admin-overview.html — settings grid of admin
+ * modules including users, roles, policies, custom fields, and notification
+ * rules.
+ *
  * Validates: Requirement 4.x — tenant administration entry point.
  */
 import Link from 'next/link';
 import {
+  Bell,
   Building2,
   ChevronRight,
+  FormInput,
   KeyRound,
+  ScrollText,
   ShieldCheck,
   UserCircle,
 } from 'lucide-react';
 
-import {
-  Card,
-  CardContent,
-} from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
+
+export const dynamic = 'force-dynamic';
 
 const sections = [
   {
@@ -43,8 +49,32 @@ const sections = [
     iconClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
   },
   {
+    href: '/admin/policies',
+    title: 'Access policies',
+    description:
+      'Versioned rules controlling who can view, edit, and export records across the district.',
+    icon: ScrollText,
+    iconClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300',
+  },
+  {
+    href: '/admin/custom-fields',
+    title: 'Custom fields',
+    description:
+      'Extend student, staff, and institution records with district-specific data points.',
+    icon: FormInput,
+    iconClass: 'bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300',
+  },
+  {
+    href: '/admin/notification-rules',
+    title: 'Notification rules',
+    description:
+      'Map system events to audiences, channels, and templates for attendance and exam alerts.',
+    icon: Bell,
+    iconClass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+  },
+  {
     href: '/admin/tenant',
-    title: 'Tenant',
+    title: 'Tenant settings',
     description:
       'Institution identity, district mapping, academic year defaults, locale, timezone, and branding.',
     icon: Building2,
@@ -64,12 +94,18 @@ export default function AdminLandingPage() {
             Administration
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage users, roles, permissions, and tenant configuration.
+            Manage users, roles, policies, custom fields, and tenant
+            configuration.
           </p>
         </div>
+        <Button asChild size="sm">
+          <Link href="/admin/users">
+            Invite user
+          </Link>
+        </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sections.map((section) => {
           const Icon = section.icon;
           return (

@@ -1,6 +1,11 @@
 /**
  * Pending approvals — workflow steps awaiting the current user's action.
  *
+ * Layout per redesign/web/workflows-approvals.html:
+ *  - Page head with All instances CTA
+ *  - Pending / history tabs (history stubbed)
+ *  - Approval cards with subject details and Approve / Reject
+ *
  * Validates: Requirement 13.1 — surface approval queue per user.
  */
 import Link from 'next/link';
@@ -12,11 +17,22 @@ import {
   listPendingApprovals,
   type WorkflowApproval,
 } from '@/lib/api/workflows';
+import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ApprovalsPage() {
+interface PageProps {
+  searchParams?: Record<string, string | string[] | undefined>;
+}
+
+function single(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+export default async function ApprovalsPage({ searchParams }: PageProps) {
   const session = await requireSession('/workflows/approvals');
+  const tab = single(searchParams?.tab) === 'history' ? 'history' : 'pending';
   const approvals = await listPendingApprovals();
 
   return (
@@ -51,7 +67,50 @@ export default async function ApprovalsPage() {
         </div>
       </div>
 
-      {approvals.length === 0 ? (
+      <div
+        className="flex flex-wrap gap-1 border-b border-border"
+        role="tablist"
+        aria-label="Approval status"
+      >
+        <Link
+          href="/workflows/approvals"
+          role="tab"
+          aria-selected={tab === 'pending'}
+          className={cn(
+            'inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold transition-colors',
+            tab === 'pending'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          Pending
+          <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-bold tabular-nums">
+            {approvals.length.toLocaleString()}
+          </span>
+        </Link>
+        <Link
+          href="/workflows/approvals?tab=history"
+          role="tab"
+          aria-selected={tab === 'history'}
+          className={cn(
+            'inline-flex items-center gap-2 border-b-2 px-3 py-2 text-sm font-semibold transition-colors',
+            tab === 'history'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          History
+        </Link>
+      </div>
+
+      {tab === 'history' ? (
+        <Card className="overflow-hidden">
+          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+            Approval history is not available yet. Completed decisions will
+            appear here.
+          </CardContent>
+        </Card>
+      ) : approvals.length === 0 ? (
         <Card className="overflow-hidden">
           <CardContent className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <CheckCircle2
@@ -83,9 +142,14 @@ function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
               Requested by {a.requestedBy || '—'} · {a.requestedAt || '—'}
             </p>
           </div>
-          <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-            Pending
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground">
+              {a.subjectType || 'Request'}
+            </span>
+            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
+              Pending
+            </span>
+          </div>
         </div>
 
         <dl className="grid gap-x-4 gap-y-2 rounded-lg border border-border bg-muted/30 p-4 text-sm sm:grid-cols-[150px_1fr]">
@@ -98,6 +162,12 @@ function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
           </dd>
           <dt className="text-muted-foreground">Step</dt>
           <dd className="font-medium text-foreground">{a.stepName || '—'}</dd>
+          <dt className="text-muted-foreground">Instance</dt>
+          <dd>
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              {a.instanceId}
+            </code>
+          </dd>
         </dl>
 
         <div className="flex flex-wrap items-center gap-2">

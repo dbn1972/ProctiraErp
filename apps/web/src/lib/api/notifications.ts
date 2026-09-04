@@ -124,3 +124,57 @@ export async function listMyNotifications(): Promise<NotificationItem[]> {
   );
   return unwrapNotificationList(result.data);
 }
+
+// ─── Notification rules (Admin) ──────────────────────────────────────────
+
+/** Event-driven rule mapping system events to channels and templates. */
+export interface NotificationRule {
+  id: string;
+  tenantId?: string;
+  name: string;
+  entityType: string;
+  event: string;
+  conditions: Record<string, unknown>;
+  templateId: string;
+  channels: string[];
+  recipientQuery: Record<string, unknown>;
+  isActive: boolean;
+  schedule: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Template used by notification rules. */
+export interface NotificationTemplate {
+  id: string;
+  tenantId?: string;
+  name: string;
+  channel: string;
+  subject: string | null;
+  body: string;
+  variables: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Lists tenant notification rules; empty when unavailable. */
+export async function listNotificationRules(): Promise<NotificationRule[]> {
+  const result = await gatewayFetch<
+    { data: NotificationRule[] } | NotificationRule[]
+  >('/notifications/rules', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return unwrapNotificationList(result.data);
+}
+
+/** Lists notification templates; empty when unavailable. */
+export async function listNotificationTemplates(): Promise<NotificationTemplate[]> {
+  const result = await gatewayFetch<
+    { data: NotificationTemplate[] } | NotificationTemplate[]
+  >('/notifications/templates', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return unwrapNotificationList(result.data);
+}

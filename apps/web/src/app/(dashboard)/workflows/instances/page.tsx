@@ -1,10 +1,14 @@
 /**
  * Workflow instances list (Server Component).
  *
+ * Layout per redesign/web/workflows-instances.html:
+ *  - KPI strip (total / pending / approved)
+ *  - District-wide instances table
+ *
  * Validates: Requirement 13.1 — view all in-flight workflow instances.
  */
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, Clock, ShieldCheck, Workflow } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Clock, ShieldCheck, Workflow, XCircle } from 'lucide-react';
 
 import {
   Button,
@@ -28,6 +32,7 @@ export default async function WorkflowInstancesPage() {
   const instances = await listWorkflowInstances();
   const pending = instances.filter((i) => i.status === 'PENDING').length;
   const approved = instances.filter((i) => i.status === 'APPROVED').length;
+  const rejected = instances.filter((i) => i.status === 'REJECTED').length;
 
   return (
     <section aria-labelledby="instances-heading" className="space-y-6">
@@ -47,8 +52,8 @@ export default async function WorkflowInstancesPage() {
             Workflow instances
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every approval request currently moving through a workflow, district-wide
-            · {instances.length.toLocaleString()} run
+            Every approval request currently moving through a workflow,
+            district-wide · {instances.length.toLocaleString()} run
             {instances.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -65,24 +70,27 @@ export default async function WorkflowInstancesPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           icon={<Workflow className="h-5 w-5" aria-hidden="true" />}
+          iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
           label="Total runs"
           value={instances.length.toLocaleString()}
         />
         <KpiCard
           icon={<Clock className="h-5 w-5" aria-hidden="true" />}
+          iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
           label="Pending"
           value={pending.toLocaleString()}
         />
         <KpiCard
           icon={<CheckCircle2 className="h-5 w-5" aria-hidden="true" />}
+          iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
           label="Approved"
           value={approved.toLocaleString()}
         />
         <KpiCard
-          icon={<Clock className="h-5 w-5" aria-hidden="true" />}
-          label="Avg completion"
-          value="Currently unavailable"
-          muted
+          icon={<XCircle className="h-5 w-5" aria-hidden="true" />}
+          iconClass="bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400"
+          label="Rejected"
+          value={rejected.toLocaleString()}
         />
       </div>
 
@@ -141,29 +149,25 @@ export default async function WorkflowInstancesPage() {
 
 function KpiCard({
   icon,
+  iconClass = 'bg-muted text-muted-foreground',
   label,
   value,
-  muted = false,
 }: {
   icon: React.ReactNode;
+  iconClass?: string;
   label: string;
   value: string;
-  muted?: boolean;
 }) {
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <div
+          className={`flex h-9 w-9 items-center justify-center rounded-lg ${iconClass}`}
+        >
           {icon}
         </div>
         <p className="mt-3 text-sm text-muted-foreground">{label}</p>
-        <p
-          className={
-            muted
-              ? 'mt-1 text-sm text-muted-foreground'
-              : 'mt-1 text-3xl font-extrabold tabular-nums text-foreground'
-          }
-        >
+        <p className="mt-1 text-3xl font-extrabold tabular-nums text-foreground">
           {value}
         </p>
       </CardContent>

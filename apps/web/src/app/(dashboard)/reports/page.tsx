@@ -1,10 +1,25 @@
 /**
  * Report templates list (Server Component).
  *
+ * Layout per redesign/web/reports-list.html:
+ *  - Page head with New report CTA
+ *  - Module-grouped catalog cards with colored icons and Run action
+ *
  * Validates: Requirement 17.1 — discover and run report templates.
+ * Note: ReportDataSource remains a gateway stub — cards still render from
+ * template metadata even when analytical rows are empty.
  */
 import Link from 'next/link';
-import { FileBarChart, Plus, Play } from 'lucide-react';
+import {
+  AlertTriangle,
+  FileBarChart,
+  GraduationCap,
+  Play,
+  Plus,
+  TrendingUp,
+  Users,
+  Wallet,
+} from 'lucide-react';
 
 import {
   Badge,
@@ -13,8 +28,48 @@ import {
   CardContent,
 } from '@proctira/ui/components';
 import { listReportTemplates, type ReportTemplate } from '@/lib/api/reports';
+import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
+
+const MODULE_STYLES: Record<
+  string,
+  { iconClass: string; Icon: typeof FileBarChart }
+> = {
+  Attendance: {
+    iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400',
+    Icon: TrendingUp,
+  },
+  Enrollment: {
+    iconClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400',
+    Icon: GraduationCap,
+  },
+  Students: {
+    iconClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/40 dark:text-sky-400',
+    Icon: Users,
+  },
+  Examinations: {
+    iconClass: 'bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400',
+    Icon: FileBarChart,
+  },
+  Scholarships: {
+    iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+    Icon: Wallet,
+  },
+  Finance: {
+    iconClass: 'bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+    Icon: Wallet,
+  },
+};
+
+function moduleStyle(module: string) {
+  return (
+    MODULE_STYLES[module] ?? {
+      iconClass: 'bg-primary/10 text-primary',
+      Icon: FileBarChart,
+    }
+  );
+}
 
 export default async function ReportsPage() {
   const templates = await listReportTemplates();
@@ -88,10 +143,16 @@ function groupByModule(
 }
 
 function ReportCard({ template }: { template: ReportTemplate }) {
+  const { iconClass, Icon } = moduleStyle(template.module);
   return (
     <Card className="group flex flex-col p-5 transition-shadow hover:shadow-md">
-      <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-        <FileBarChart className="h-5 w-5" aria-hidden="true" />
+      <span
+        className={cn(
+          'mb-3 flex h-10 w-10 items-center justify-center rounded-xl',
+          iconClass,
+        )}
+      >
+        <Icon className="h-5 w-5" aria-hidden="true" />
       </span>
       <h3 className="text-base font-bold tracking-tight text-foreground">
         <Link
@@ -132,9 +193,15 @@ function EmptyState() {
     <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
       <FileBarChart className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
       <p className="text-base font-medium">No report templates</p>
-      <p className="text-sm text-muted-foreground">
-        Add a template to enable repeatable report generation.
+      <p className="max-w-[42ch] text-sm text-muted-foreground">
+        Templates appear here when the report service is available. Analytical
+        data sources are still stubbed — runs return empty result sets until
+        wired.
       </p>
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+        ReportDataSource stub — UI only
+      </div>
     </div>
   );
 }

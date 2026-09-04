@@ -1,6 +1,8 @@
 /**
  * Create workflow definition.
  *
+ * Layout per redesign/web/workflows-definition-new.html.
+ *
  * Validates: Requirement 13.1 — define multi-step approval workflow.
  */
 import Link from 'next/link';
@@ -10,10 +12,15 @@ import {
   Button,
   Card,
   CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
   FormField,
   Input,
   Textarea,
 } from '@proctira/ui/components';
+
+export const dynamic = 'force-dynamic';
 
 export default function NewWorkflowDefinitionPage() {
   return (
@@ -36,13 +43,23 @@ export default function NewWorkflowDefinitionPage() {
       </div>
 
       <Card className="max-w-[860px]">
-        <CardContent className="p-6">
+        <CardHeader>
+          <CardTitle className="text-base">Definition</CardTitle>
+          <CardDescription>
+            Name the flow, pick a module, then list approval steps in order.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
           <form className="space-y-5" noValidate>
             <FormField id="wf-name" label="Workflow name" required>
-              <Input id="wf-name" name="name" placeholder="Student transfer approval" />
+              <Input
+                id="wf-name"
+                name="name"
+                placeholder="Student transfer approval"
+              />
             </FormField>
             <FormField id="wf-module" label="Module" required>
-              <Input id="wf-module" name="module" placeholder="student" />
+              <Input id="wf-module" name="module" placeholder="Students" />
             </FormField>
             <FormField
               id="wf-steps"
@@ -54,7 +71,9 @@ export default function NewWorkflowDefinitionPage() {
                 id="wf-steps"
                 name="steps"
                 rows={6}
-                placeholder={'Principal review,PRINCIPAL\nDistrict approval,DISTRICT_ADMIN'}
+                placeholder={
+                  'Headmaster review,Headmaster\nDistrict approval,District Administrator'
+                }
               />
             </FormField>
 
