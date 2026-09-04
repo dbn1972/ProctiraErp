@@ -1,0 +1,26 @@
+---
+description: ProctiraERP charter boundaries — keep agent context small
+alwaysApply: true
+---
+
+# ProctiraERP — always-on (keep short)
+
+## Brand
+- Product: **ProctiraERP**. Never CivitasOne / Keycloak chrome in user UI.
+
+## Data boundary (charter §19)
+- Schemas: `platform` | `auth` | `institution` | `student` | `attendance` | `public` (residual only). Check `schema.prisma` `schemas = […]` if unsure.
+- No cross-schema FKs or SQL/`include` joins across domains.
+- Cross-domain: bare UUID + HTTP/events only.
+- Tenant on owned schemas: bare `tenantId` (no `Tenant @relation`).
+
+## Agent economy (token budget)
+- Prefer ripgrep/read over broad explores; touch only files for the ask.
+- Do not paste private keys into commits; do not invent EC3 results.
+- Prefer pointers to `docs/PHASE_*_SIGNOFF.md` and `docs/specs/` over restating them.
+- No drive-by refactors, no unsolicited markdown.
+- One job per change; stop when the ask is done.
+
+## School ERP defaults
+- India demo tenant seed: `admin@proctira.in` (password only in env/runbooks).
+- Multi-tenant isolation is non-negotiable on every write path.
