@@ -10,6 +10,9 @@ datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
   extensions = [uuidOssp(map: "uuid-ossp"), pgTrgm(map: "pg_trgm")]
+  // Charter §19 / Phase 2: service-owned schemas. No cross-service SQL joins.
+  // Auth holds tenant_id as a bare UUID (lookup, not FK join).
+  schemas    = ["platform", "auth", "public"]
 }
 
 // ============================================================================
@@ -40,10 +43,7 @@ model Tenant {
   academicPeriods AcademicPeriod[]
   grades          Grade[]
   classes         Class[]
-  users           User[]
-  identities      UserIdentity[]
-  refreshTokens   RefreshToken[]
-  sessions        UserSession[]
+  // Auth identities live in schema "auth" — no Prisma relation / FK (charter §19.3/19.6)
   themeVersions   TenantThemeVersion[]
   themeDraft      TenantThemeDraft?
   studentAttendance StudentAttendance[]
@@ -62,6 +62,7 @@ model Tenant {
   assessmentResults  AssessmentResult[]
 
   @@map("tenants")
+  @@schema("platform")
 }
 
 // ============================================================================
@@ -98,6 +99,7 @@ model TenantThemeVersion {
   @@index([tenantId])
   @@index([tenantId, publishedAt])
   @@map("tenant_theme_versions")
+  @@schema("platform")
 }
 
 // ============================================================================
@@ -124,6 +126,7 @@ model TenantThemeDraft {
 
   @@index([savedBy])
   @@map("tenant_theme_drafts")
+  @@schema("platform")
 }
 
 // ============================================================================
@@ -135,6 +138,7 @@ model TenantThemeDraft {
 /// membership, display fields, and India-first country context.
 model User {
   id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  /// Bare tenant UUID — resolved via platform lookup, not a cross-schema FK/join.
   tenantId    String    @map("tenant_id") @db.Uuid
   email       String    @db.VarChar(255)
   displayName String    @map("display_name") @db.VarChar(255)
@@ -145,18 +149,19 @@ model User {
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  tenant     Tenant         @relation(fields: [tenantId], references: [id])
   identities UserIdentity[]
 
   @@unique([tenantId, email])
   @@index([tenantId, status])
   @@map("users")
+  @@schema("auth")
 }
 
 /// External identity link. Phase 2 provider is Keycloak (`keycloak`).
 model UserIdentity {
   id         String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   userId     String    @map("user_id") @db.Uuid
+  /// Bare tenant UUID — no FK into platform.tenants (charter §19.6).
   tenantId   String    @map("tenant_id") @db.Uuid
   provider   String    @db.VarChar(50)
   externalId String    @map("external_id") @db.VarChar(255)
@@ -165,12 +170,12 @@ model UserIdentity {
   lastUsedAt DateTime? @map("last_used_at")
   createdAt  DateTime  @default(now()) @map("created_at")
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant Tenant @relation(fields: [tenantId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, externalId])
   @@index([tenantId, email])
   @@map("user_identities")
+  @@schema("auth")
 }
 
 // ============================================================================
@@ -193,8 +198,6 @@ model RefreshToken {
   createdByIp     String?   @map("created_by_ip") @db.VarChar(45)
   createdAt       DateTime  @default(now()) @map("created_at")
 
-  // Relations
-  tenant  Tenant       @relation(fields: [tenantId], references: [id])
   session UserSession? @relation(fields: [sessionId], references: [id])
 
   @@index([tenantId, userId])
@@ -202,6 +205,7 @@ model RefreshToken {
   @@index([expiresAt])
   @@index([revoked])
   @@map("refresh_tokens")
+  @@schema("auth")
 }
 
 // ============================================================================
@@ -222,14 +226,13 @@ model UserSession {
   ipAddress      String?   @map("ip_address") @db.VarChar(45)
   invalidatedAt  DateTime? @map("invalidated_at")
 
-  // Relations
-  tenant        Tenant         @relation(fields: [tenantId], references: [id])
   refreshTokens RefreshToken[]
 
   @@index([tenantId, userId])
   @@index([tenantId, isActive])
   @@index([expiresAt])
   @@map("user_sessions")
+  @@schema("auth")
 }
 
 // ============================================================================
@@ -264,6 +267,7 @@ model GeographicArea {
   @@index([tenantId, level])
   @@index([tenantId, lft, rgt])
   @@map("geographic_areas")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -290,6 +294,7 @@ model Board {
   @@unique([tenantId, code])
   @@index([tenantId, type])
   @@map("boards")
+  @@schema("public")
 }
 
 enum BoardType {
@@ -298,6 +303,7 @@ enum BoardType {
   PRIVATE
 
   @@map("board_type")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -335,6 +341,7 @@ model Institution {
   @@index([tenantId, status])
   @@index([customData], type: Gin)
   @@map("institutions")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -366,6 +373,7 @@ model Student {
   @@index([customData], type: Gin)
   @@index([searchVector], type: Gin)
   @@map("students")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -395,6 +403,7 @@ model Staff {
   @@index([customData], type: Gin)
   @@index([searchVector], type: Gin)
   @@map("staff")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -430,6 +439,7 @@ model Enrollment {
   @@index([tenantId, institutionId, academicPeriodId])
   @@index([tenantId, status])
   @@map("enrollments")
+  @@schema("public")
 }
 
 /// Status-change audit trail for an enrollment.
@@ -450,6 +460,7 @@ model EnrollmentHistory {
 
   @@index([tenantId, enrollmentId])
   @@map("enrollment_history")
+  @@schema("public")
 }
 
 /// Transfer record linking source and destination institutions.
@@ -469,6 +480,7 @@ model StudentTransfer {
 
   @@index([tenantId, studentId])
   @@map("student_transfers")
+  @@schema("public")
 }
 
 enum EnrollmentStatus {
@@ -478,6 +490,7 @@ enum EnrollmentStatus {
   GRADUATED
 
   @@map("enrollment_status")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -506,6 +519,7 @@ model AcademicPeriod {
   @@unique([tenantId, code])
   @@index([tenantId, status])
   @@map("academic_periods")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -532,6 +546,7 @@ model Grade {
   @@unique([tenantId, code])
   @@index([tenantId, order])
   @@map("grades")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -562,6 +577,7 @@ model Class {
   @@index([tenantId, institutionId, academicPeriodId])
   @@index([tenantId, gradeId])
   @@map("classes")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -585,6 +601,7 @@ model Subject {
   @@unique([tenantId, code])
   @@index([tenantId])
   @@map("subjects")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -609,6 +626,7 @@ model InstitutionSubject {
   @@unique([tenantId, institutionId, subjectId, gradeId])
   @@index([tenantId, institutionId, gradeId])
   @@map("institution_subjects")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -649,6 +667,7 @@ model StudentAttendance {
   @@index([tenantId, institutionId, date])
   @@index([tenantId, studentId, date])
   @@map("student_attendance")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -677,6 +696,7 @@ model StaffAttendance {
   @@unique([tenantId, staffId, date])
   @@index([tenantId, institutionId, date])
   @@map("staff_attendance")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -701,6 +721,7 @@ model AttendanceAudit {
 
   @@index([attendanceId])
   @@map("attendance_audit")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -733,6 +754,7 @@ model StaffAssignment {
   @@index([tenantId, institutionId])
   @@index([tenantId, staffId, institutionId, subjectId, classId])
   @@map("staff_assignments")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -767,6 +789,7 @@ model Examination {
   @@index([tenantId, academicPeriodId])
   @@index([tenantId, status])
   @@map("examinations")
+  @@schema("public")
 }
 
 /// A student's registration as an examination candidate (Req 10.2).
@@ -784,6 +807,7 @@ model ExaminationCandidateRegistration {
 
   @@unique([tenantId, examinationId, studentId])
   @@map("examination_candidate_registrations")
+  @@schema("public")
 }
 
 /// An examination candidate with per-subject score entries, used by result
@@ -804,6 +828,7 @@ model ExaminationCandidate {
   @@unique([tenantId, examinationId, studentId])
   @@index([tenantId, examinationId, centerId])
   @@map("examination_candidates")
+  @@schema("public")
 }
 
 /// Snapshot of a result-publication run (one per examination). The full
@@ -819,6 +844,7 @@ model ExaminationPublication {
 
   @@id([tenantId, examinationId])
   @@map("examination_publications")
+  @@schema("public")
 }
 
 /// Snapshot of a generated ResultAnalysis aggregate (one per examination),
@@ -833,6 +859,7 @@ model ExaminationResultAnalysis {
 
   @@id([tenantId, examinationId])
   @@map("examination_result_analyses")
+  @@schema("public")
 }
 
 /// Append-only academic-record updates pushed at publication time
@@ -853,6 +880,7 @@ model ExaminationAcademicRecord {
   @@index([tenantId, studentId])
   @@index([tenantId, examinationId])
   @@map("examination_academic_records")
+  @@schema("public")
 }
 
 /// A document-generation job (admit cards, seating plans, certificates).
@@ -877,6 +905,7 @@ model ExaminationDocumentJob {
 
   @@index([tenantId, examinationId])
   @@map("examination_document_jobs")
+  @@schema("public")
 }
 
 // ============================================================================
@@ -904,6 +933,7 @@ model GradingScheme {
   @@index([tenantId, name])
   @@index([tenantId, type])
   @@map("grading_schemes")
+  @@schema("public")
 }
 
 /// A weighted assessment item within a subject + academic period.
@@ -928,6 +958,7 @@ model AssessmentItem {
 
   @@index([tenantId, subjectId, academicPeriodId])
   @@map("assessment_items")
+  @@schema("public")
 }
 
 /// A curriculum outcome that assessment items can map to.
@@ -946,6 +977,7 @@ model AssessmentOutcome {
 
   @@index([tenantId, subjectId])
   @@map("assessment_outcomes")
+  @@schema("public")
 }
 
 /// A student's score on one assessment item. Upsert key:
@@ -968,4 +1000,5 @@ model AssessmentResult {
   @@index([tenantId, subjectId, academicPeriodId])
   @@index([tenantId, assessmentItemId])
   @@map("assessment_results")
+  @@schema("public")
 }

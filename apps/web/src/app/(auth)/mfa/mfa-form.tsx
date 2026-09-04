@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ShieldCheck, Loader2 } from 'lucide-react';
+import { ShieldCheck, Loader2, Smartphone } from 'lucide-react';
 
 import {
   Alert,
@@ -109,6 +109,23 @@ export function MfaForm(): JSX.Element {
         {t('twoFactorAuthentication')}
       </h1>
       <p className="mt-1.5 text-sm text-muted-foreground">{t('mfaSubtitle')}</p>
+
+      {/* Redesign auth-mfa shell: authenticator device chip; SMS OTP is deferred. */}
+      <div className="mt-5 flex items-center gap-2.5 rounded-md border border-border bg-muted/40 px-3 py-2.5">
+        <Smartphone className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="min-w-0 flex-1 text-xs text-muted-foreground">
+          <b className="block text-sm font-semibold text-foreground">
+            {t('mfaAuthenticatorApp')}
+          </b>
+          {t('mfaAuthenticatorHint')}
+        </div>
+        <span
+          className="shrink-0 text-xs font-semibold text-muted-foreground"
+          title={t('mfaSmsComingSoon')}
+        >
+          {t('mfaUseSmsInstead')}
+        </span>
+      </div>
 
       {error && (
         <Alert variant="destructive" className="mt-5">

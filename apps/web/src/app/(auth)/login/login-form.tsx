@@ -69,7 +69,7 @@ export function LoginForm(): JSX.Element {
             {t('welcomeBack')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Sign in to your ProctiraERP workspace.
+            {t('signInToWorkspace')}
           </p>
         </header>
 

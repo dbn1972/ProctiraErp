@@ -54,10 +54,13 @@ export function ForgotPasswordForm(): JSX.Element {
             <Lock className="h-6 w-6" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-            {t('resetYourPassword')}
+            {t('forgotYourPassword')}
           </h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {t('resetPasswordSubtitle')}
+            {t('forgotPasswordSubtitle')}
+          </p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {t('forgotPasswordKeycloakNote')}
           </p>
 
           {error && (

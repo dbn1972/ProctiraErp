@@ -33,6 +33,10 @@ vi.mock('next-intl', () => ({
     const labels: Record<string, string> = {
       twoFactorAuthentication: 'Two-factor authentication',
       mfaSubtitle: 'Enter the 6-digit code',
+      mfaAuthenticatorApp: 'Authenticator app',
+      mfaAuthenticatorHint: 'Enter the 6-digit code from your registered authenticator.',
+      mfaUseSmsInstead: 'SMS later',
+      mfaSmsComingSoon: 'Mobile SMS OTP will be available in a later release.',
       verificationCode: 'Verification code',
       verify: 'Verify',
       verifying: 'Verifying…',
