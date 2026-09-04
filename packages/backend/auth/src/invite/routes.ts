@@ -1,10 +1,11 @@
 /**
- * Admin / tenant invite routes + current-user tenant directory.
+ * Admin / tenant invite routes + current-user tenant directory alias.
  *
  * POST /admin/users/invite
  * POST /tenant/users/invite
- * GET  /auth/tenants
  * GET  /tenants/mine
+ *
+ * Note: GET /auth/tenants is registered by Keycloak auth routes.
  */
 import { AppError } from '@proctira/common';
 import { getPrismaClient } from '@proctira/database';
@@ -172,10 +173,8 @@ export async function registerInviteAndTenantDirectoryRoutes(
     },
   );
 
-  fastify.get('/auth/tenants', async (request, reply) => {
-    await listMyTenants(prisma, request, reply);
-  });
-
+  // GET /auth/tenants is registered by Keycloak auth routes (same handler shape).
+  // Keep /tenants/mine here as the alternate path for mobile/web clients.
   fastify.get('/tenants/mine', async (request, reply) => {
     await listMyTenants(prisma, request, reply);
   });

@@ -155,7 +155,8 @@ interface DomainRegistrar {
 const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'auth-invite-tenants',
-    proxyPrefixes: ['/admin/users', '/tenant/users', '/tenants/mine', '/auth/tenants'],
+    // /auth/tenants is served by Keycloak auth routes; invite mounts aliases + POSTs.
+    proxyPrefixes: ['/admin/users', '/tenant/users', '/tenants/mine'],
     register: async (scope) => {
       const inviteService = new InviteService({
         repository: createUserInviteRepository(),
