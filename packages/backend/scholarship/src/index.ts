@@ -45,6 +45,11 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryScholarshipRepository } from './in-memory-repository.js';
 
+// Prisma repository (Postgres + RLS) + factory
+export { PrismaScholarshipRepository } from './prisma-scholarship-repository.js';
+export { createScholarshipRepository } from './repository-factory.js';
+export type { ScholarshipRepositoryConfig } from './repository-factory.js';
+
 // Cached repository decorator
 export { CachedScholarshipRepository } from './cached-scholarship-repository.js';
 

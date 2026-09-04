@@ -36,6 +36,11 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryTransportRepository } from './in-memory-repository.js';
 
+// Prisma repository (Postgres + RLS) + factory
+export { PrismaTransportRepository } from './prisma-transport-repository.js';
+export { createTransportRepository } from './repository-factory.js';
+export type { TransportRepositoryConfig } from './repository-factory.js';
+
 // Schemas
 export {
   CreateTransportRouteSchema,
