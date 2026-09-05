@@ -9,6 +9,7 @@
  *   /api/v1/attendance/percentage         (percentage calculation)
  *   /api/v1/attendance/config/:id         (institution config)
  */
+import 'server-only';
 import { gatewayFetch } from './gateway';
 
 /* ------------------------------------------------------------------ Types */

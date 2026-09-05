@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
-import type { AttendancePercentageResult } from '@/lib/api/attendance';
+import type { AttendancePercentageResult } from '@/lib/api/attendance-types';
 
 import { AttendanceExportButton } from './attendance-export-button';
 import { AttendanceReportFilters } from './attendance-report-filters';

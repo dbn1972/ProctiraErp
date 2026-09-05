@@ -26,10 +26,12 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import {
-  listNotificationRules,
-  listNotificationTemplates,
   type NotificationRule,
 } from '@/lib/api/notifications';
+import {
+  listNotificationRules,
+  listNotificationTemplates,
+} from '@/lib/api/notifications.server';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';

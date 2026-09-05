@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import type { AttendancePercentageResult } from '@/lib/api/attendance';
+import type { AttendancePercentageResult } from '@/lib/api/attendance-types';
 import { cn } from '@/lib/utils';
 
 import { getAttendanceReportAction, type ActionState } from '../actions';

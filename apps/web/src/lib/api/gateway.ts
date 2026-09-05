@@ -12,18 +12,14 @@
  * - The middleware only allows authenticated routes through, so a missing
  *   token here means the caller forgot to gate their route.
  */
+import 'server-only';
+
 import { cookies, headers } from 'next/headers';
 
 import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
+import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL } from './gateway-config';
 
-/** Base URL for the API gateway. Can be overridden via env. */
-export const GATEWAY_BASE_URL =
-  process.env['NEXT_PUBLIC_GATEWAY_URL'] ??
-  process.env['GATEWAY_URL'] ??
-  'http://localhost:3000';
-
-/** API version prefix used by the gateway. */
-export const GATEWAY_API_PREFIX = '/api/v1';
+export { GATEWAY_API_PREFIX, GATEWAY_BASE_URL } from './gateway-config';
 
 export interface GatewayRequestInit extends Omit<RequestInit, 'body'> {
   /** Optional structured body that will be JSON encoded. */

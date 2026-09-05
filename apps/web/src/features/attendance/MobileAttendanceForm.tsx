@@ -57,8 +57,8 @@ import { enqueue as enqueueSyncOperation } from '@/lib/sync/syncQueue';
 import {
   GATEWAY_API_PREFIX,
   GATEWAY_BASE_URL,
-} from '@/lib/api/gateway';
-import type { RosterEntry } from '@/lib/api/attendance';
+} from '@/lib/api/gateway-config';
+import type { RosterEntry } from '@/lib/api/attendance-types';
 import { cn } from '@/lib/utils';
 
 // ─── Public types ────────────────────────────────────────────────────────────

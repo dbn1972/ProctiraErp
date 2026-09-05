@@ -9,7 +9,7 @@
 import { Download } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
-import type { AttendancePercentageResult } from '@/lib/api/attendance';
+import type { AttendancePercentageResult } from '@/lib/api/attendance-types';
 
 interface AttendanceExportButtonProps {
   result: AttendancePercentageResult | null;

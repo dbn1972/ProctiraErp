@@ -48,8 +48,12 @@ export interface Payment {
 
 async function unwrapList<T>(path: string): Promise<T[]> {
   try {
-    const res = await gatewayFetch<{ data: T[] }>(path);
-    return Array.isArray(res) ? (res as T[]) : (res.data ?? []);
+    const res = await gatewayFetch<{ data: T[] } | T[]>(path, { throwOnError: false });
+    if (Array.isArray(res.data)) return res.data;
+    if (res.data && typeof res.data === 'object' && Array.isArray((res.data as { data: T[] }).data)) {
+      return (res.data as { data: T[] }).data;
+    }
+    return [];
   } catch {
     return [];
   }

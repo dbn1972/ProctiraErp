@@ -215,4 +215,95 @@ export default async function FinancePage() {
               </TableBody>
             </Table>
           </CardContent>
-       
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Assignments</CardTitle>
+            <CardDescription>Which students are linked to which structures</CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Student</TableHead>
+                  <TableHead>Structure</TableHead>
+                  <TableHead>Concession</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {assignments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-muted-foreground">
+                      No assignments yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  assignments.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="font-mono text-xs">{a.studentId.slice(0, 8)}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {a.feeStructureId.slice(0, 8)}
+                      </TableCell>
+                      <TableCell>{money(a.concessionAmount)}</TableCell>
+                      <TableCell>
+                        <StatusPill status={a.status} />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent payments</CardTitle>
+            <CardDescription>
+              Receipt trail ·{' '}
+              <Link href="/home" className="text-primary underline-offset-4 hover:underline">
+                Back to home
+              </Link>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Receipt</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Method</TableHead>
+                  <TableHead>Paid at</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {payments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-muted-foreground">
+                      No payments recorded yet.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  payments.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs">{p.receiptNumber}</TableCell>
+                      <TableCell>{money(p.amount)}</TableCell>
+                      <TableCell className="capitalize">{p.method}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {new Date(p.paidAt).toLocaleString('en-IN')}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </section>
+  );
+}

@@ -34,7 +34,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import type { BulkAttendanceResponse, RosterEntry } from '@/lib/api/attendance';
+import type { BulkAttendanceResponse, RosterEntry } from '@/lib/api/attendance-types';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 import {
   attendanceMarkingFormSchema,

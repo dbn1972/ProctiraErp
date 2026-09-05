@@ -1,23 +1,19 @@
 /**
- * Notification API client.
+ * Notification API — browser-safe preference helpers + shared types.
  *
- * Browser helpers for notification preferences (settings UI) and
- * server helpers for the in-app notifications inbox.
+ * Server-only inbox/admin helpers live in `./notifications.server` so Client
+ * Components never pull `next/headers` via gateway.ts.
  */
 
 import {
   browserGatewayFetch,
   BrowserGatewayError,
 } from './browser-gateway';
-import { gatewayFetch, getSessionContext } from './gateway';
-import { decodeTokenPayload } from '@/lib/auth';
 
 // ─── Preference types ────────────────────────────────────────────────────
 
-/** Delivery channels supported by the Notification Service. */
 export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook';
 
-/** Notification categories that users can opt in/out of. */
 export type NotificationCategory =
   | 'academic'
   | 'attendance'
@@ -25,34 +21,26 @@ export type NotificationCategory =
   | 'workflow'
   | 'system';
 
-/** Digest frequency options. */
 export type DigestFrequency = 'immediate' | 'daily' | 'weekly';
 
-/** Per-category channel preferences. */
 export interface CategoryPreference {
   category: NotificationCategory;
   channels: Record<NotificationChannel, boolean>;
 }
 
-/** Quiet hours configuration. */
 export interface QuietHours {
   enabled: boolean;
-  /** Start time in HH:mm format (24h). */
   startTime: string;
-  /** End time in HH:mm format (24h). */
   endTime: string;
-  /** Days of the week (0 = Sunday, 6 = Saturday). */
   days: number[];
 }
 
-/** Full notification preferences payload. */
 export interface NotificationPreferencesData {
   categories: CategoryPreference[];
   digestFrequency: DigestFrequency;
   quietHours: QuietHours;
 }
 
-/** Patch payload — all fields optional for partial updates. */
 export type NotificationPreferencesPatch = Partial<NotificationPreferencesData>;
 
 export const NOTIFICATION_API_ENDPOINTS = {
@@ -79,7 +67,7 @@ export async function updateNotificationPreferences(
 
 export { BrowserGatewayError as NotificationApiError };
 
-// ─── Inbox (App Router server components) ────────────────────────────────
+// ─── Shared inbox / admin types ──────────────────────────────────────────
 
 export type DeliveryChannel = 'email' | 'in_app' | 'push' | 'webhook';
 export type DeliveryStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
@@ -99,35 +87,6 @@ export interface NotificationItem {
   createdAt: string;
 }
 
-function unwrapNotificationList<T>(payload: { data?: T[] } | T[] | null | undefined): T[] {
-  if (!payload) return [];
-  if (Array.isArray(payload)) return payload;
-  return payload.data ?? [];
-}
-
-function resolveNotificationUserId(): string | null {
-  const { accessToken } = getSessionContext();
-  if (!accessToken) return null;
-  const payload = decodeTokenPayload(accessToken);
-  const sub = payload?.sub;
-  return typeof sub === 'string' && sub.length > 0 ? sub : null;
-}
-
-/** Lists the current user's notifications; empty when no session user. */
-export async function listMyNotifications(): Promise<NotificationItem[]> {
-  const userId = resolveNotificationUserId();
-  if (!userId) return [];
-
-  const result = await gatewayFetch<{ data: NotificationItem[] } | NotificationItem[]>(
-    `/notifications/user/${userId}?pageSize=50`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
-  return unwrapNotificationList(result.data);
-}
-
-// ─── Notification rules (Admin) ──────────────────────────────────────────
-
-/** Event-driven rule mapping system events to channels and templates. */
 export interface NotificationRule {
   id: string;
   tenantId?: string;
@@ -144,7 +103,6 @@ export interface NotificationRule {
   updatedAt: string;
 }
 
-/** Template used by notification rules. */
 export interface NotificationTemplate {
   id: string;
   tenantId?: string;
@@ -157,24 +115,4 @@ export interface NotificationTemplate {
   updatedAt: string;
 }
 
-/** Lists tenant notification rules; empty when unavailable. */
-export async function listNotificationRules(): Promise<NotificationRule[]> {
-  const result = await gatewayFetch<
-    { data: NotificationRule[] } | NotificationRule[]
-  >('/notifications/rules', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return unwrapNotificationList(result.data);
-}
-
-/** Lists notification templates; empty when unavailable. */
-export async function listNotificationTemplates(): Promise<NotificationTemplate[]> {
-  const result = await gatewayFetch<
-    { data: NotificationTemplate[] } | NotificationTemplate[]
-  >('/notifications/templates', {
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
-  return unwrapNotificationList(result.data);
-}
+/** @deprecated Alias — settings UI historical name */

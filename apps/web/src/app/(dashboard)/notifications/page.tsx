@@ -18,10 +18,10 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import {
-  listMyNotifications,
   type DeliveryStatus,
   type NotificationItem,
 } from '@/lib/api/notifications';
+import { listMyNotifications } from '@/lib/api/notifications.server';
 import { cn } from '@/lib/utils';
 import NotificationPreferences from '@/features/settings/pages/NotificationPreferences';
 
