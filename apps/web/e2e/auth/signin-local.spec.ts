@@ -38,8 +38,8 @@ test.describe('auth — sign-in (local credentials)', () => {
     await page.goto('/login');
 
     // The credential form is visible before we proceed.
-    const email = page.getByLabel(/email/i);
-    const password = page.getByLabel(/password/i, { exact: true });
+    const email = page.getByRole('textbox', { name: /email/i });
+    const password = page.getByRole('textbox', { name: /^password$/i });
     await expect(email).toBeVisible();
     await expect(password).toBeVisible();
 
@@ -66,8 +66,8 @@ test.describe('auth — sign-in (local credentials)', () => {
     await mockLogin(page, { invalid: 'Invalid email or password.' });
 
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill('admin@school.edu');
-    await page.getByLabel(/password/i, { exact: true }).fill('wrong-password');
+    await page.getByRole('textbox', { name: /email/i }).fill('admin@school.edu');
+    await page.getByRole('textbox', { name: /^password$/i }).fill('wrong-password');
     await page.getByRole('button', { name: /sign in/i }).click();
 
     // The destructive alert renders inside the form panel.

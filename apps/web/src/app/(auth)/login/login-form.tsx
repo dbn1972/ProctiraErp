@@ -158,7 +158,7 @@ export function LoginForm(): JSX.Element {
             </label>
             <Link
               href="/forgot-password"
-              className="text-sm font-medium text-accent hover:underline"
+              className="text-sm font-medium text-primary hover:underline"
             >
               {t('forgotPassword')}
             </Link>

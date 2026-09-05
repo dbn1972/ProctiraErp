@@ -164,7 +164,7 @@ export function MfaForm(): JSX.Element {
             {t('didntReceiveCode')}{' '}
             <button
               type="button"
-              className="font-medium text-accent hover:underline"
+              className="font-medium text-primary hover:underline"
               disabled={isSubmitting}
             >
               {t('resend')}

@@ -615,7 +615,7 @@ export function SignUpForm(): JSX.Element {
                         <Link
                           key={`terms-${index}`}
                           href="/legal/terms"
-                          className="font-medium text-accent hover:underline"
+                          className="font-medium text-primary hover:underline"
                         >
                           {t('termsLinkLabel')}
                         </Link>
@@ -626,7 +626,7 @@ export function SignUpForm(): JSX.Element {
                         <Link
                           key={`privacy-${index}`}
                           href="/legal/privacy"
-                          className="font-medium text-accent hover:underline"
+                          className="font-medium text-primary hover:underline"
                         >
                           {t('privacyLinkLabel')}
                         </Link>
@@ -702,7 +702,7 @@ export function SignUpForm(): JSX.Element {
           {t('alreadyHaveAccount')}{' '}
           <Link
             href={`/login${returnTo !== '/' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`}
-            className="font-medium text-accent hover:underline"
+            className="font-medium text-primary hover:underline"
           >
             {t('signInLink')}
           </Link>
