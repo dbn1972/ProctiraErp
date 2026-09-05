@@ -490,6 +490,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Enable Postgres uuid-ossp extension
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+
       - name: Run database migrations
         run: pnpm --filter @proctira/database run prisma:migrate:deploy
         env:
