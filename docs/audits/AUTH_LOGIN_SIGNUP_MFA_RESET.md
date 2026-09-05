@@ -142,7 +142,7 @@ Horizontal scroll / clipped CTA: none observed on Auth public forms in this pack
 - [x] Pillars evidence **or** dated waivers above
 - [x] Tip CI green (Lint/typecheck/unit/DoD/Lighthouse/bundle/tenant) — run 33968548810
 - [x] Auth equivalent merged to main (PR #8 + tip fix #9)
-- [ ] Walkthrough PNG pack (waived above)
+- [x] Walkthrough PNG pack — 21 PNGs under `/opt/cursor/artifacts/auth-audit/` (desktop/tablet/mobile)
 - [ ] Session state set to `complete` via hooks helper
 
 **Verdict:** ☐ Not ready · ☑ Ready with waivers · ☐ Enterprise production-ready
