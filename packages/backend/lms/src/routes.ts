@@ -6,8 +6,10 @@ export interface LmsRoutesOptions {
   prefix?: string;
 }
 
+type RequestWithUser = FastifyRequest & { user?: { tenantId?: string } };
+
 function tenantIdOf(request: FastifyRequest): string {
-  const user = request.user as { tenantId?: string } | undefined;
+  const user = (request as RequestWithUser).user;
   return (
     user?.tenantId ??
     (request.headers['x-tenant-id'] as string | undefined) ??
