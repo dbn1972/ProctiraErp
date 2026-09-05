@@ -24,6 +24,10 @@ env:
   NODE_VERSION: '20'
   PNPM_VERSION: '10.33.2'
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   # ---------------------------------------------------------------------------
   # Detect which packages/apps changed to enable selective builds

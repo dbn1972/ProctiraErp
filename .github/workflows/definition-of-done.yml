@@ -25,6 +25,10 @@ on:
       - 'tools/dod-checks/**'
       - 'tools/scripts/definition-of-done-checks*.mjs'
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   dod-checks:
     name: Charter Compliance Checks
@@ -43,7 +47,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: '10.33.2'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

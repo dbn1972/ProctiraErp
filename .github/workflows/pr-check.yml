@@ -19,6 +19,10 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   # ---------------------------------------------------------------------------
   # Validate PR metadata
@@ -33,15 +37,13 @@ jobs:
 
       - name: Check PR size
         run: |
-          ADDITIONS=$(gh pr view ${{ github.event.pull_request.number }} --json additions -q '.additions')
-          DELETIONS=$(gh pr view ${{ github.event.pull_request.number }} --json deletions -q '.deletions')
+          ADDITIONS=${{ github.event.pull_request.additions }}
+          DELETIONS=${{ github.event.pull_request.deletions }}
           TOTAL=$((ADDITIONS + DELETIONS))
-
+          echo "PR size: ${TOTAL} lines (${ADDITIONS}+/${DELETIONS}-)"
           if [ "$TOTAL" -gt 1000 ]; then
             echo "::warning::Large PR detected (${TOTAL} lines changed). Consider splitting into smaller PRs."
           fi
-        env:
-          GH_TOKEN: ${{ github.token }}
 
   # ---------------------------------------------------------------------------
   # Affected module summary

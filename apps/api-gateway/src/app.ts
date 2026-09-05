@@ -364,6 +364,25 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     resolveSlugToId: false, // Gateway doesn't have direct DB access
   });
 
+  // 8a. Fail closed: authenticated callers without a trusted JWT tenant must
+  // not bind tenant context from attacker-controlled X-Tenant-ID alone.
+  app.addHook('preHandler', async (request, reply) => {
+    const user = request.user as { tenantId?: string } | undefined;
+    if (!user) return;
+    const jwtTenant = typeof user.tenantId === 'string' ? user.tenantId.trim() : '';
+    const tenantSource = (request as typeof request & {
+      tenantSource?: 'jwt' | 'header' | 'subdomain';
+    }).tenantSource;
+    if (!jwtTenant && tenantSource === 'header') {
+      return reply.status(403).send({
+        code: 'TENANT_UNTRUSTED',
+        message:
+          'Tenant context must come from a verified JWT claim. X-Tenant-ID alone is not accepted for authenticated sessions without a tenant claim.',
+        statusCode: 403,
+      });
+    }
+  });
+
   // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works)
   // Connects to Redis via REDIS_URL env var; gracefully degrades if unavailable
   const redisUrl = process.env['REDIS_URL'];

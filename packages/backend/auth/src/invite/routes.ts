@@ -44,11 +44,62 @@ function getUserEmail(request: FastifyRequest): string | undefined {
   return user?.email?.trim().toLowerCase();
 }
 
+const INVITE_ADMIN_ROLE_IDS = new Set([
+  'admin',
+  'tenant-admin',
+  'tenant_admin',
+  'administrator',
+  'super-admin',
+  'super_admin',
+]);
+
+/**
+ * Invite endpoints are privileged. Require an admin-class role on the JWT
+ * before creating users / assigning roles (security: privilege escalation).
+ */
+function requireInviteAdmin(request: FastifyRequest, reply: FastifyReply): boolean {
+  const user = request.user as
+    | {
+        roles?: Array<string | { roleId?: string; roleName?: string }>;
+      }
+    | undefined;
+  if (!user) {
+    reply.status(401).send({
+      code: 'UNAUTHORIZED',
+      message: 'Authentication required',
+      statusCode: 401,
+    });
+    return false;
+  }
+
+  const roles = user.roles ?? [];
+  const allowed = roles.some((role) => {
+    if (typeof role === 'string') {
+      return INVITE_ADMIN_ROLE_IDS.has(role.toLowerCase());
+    }
+    const id = (role.roleId ?? '').toLowerCase();
+    const name = (role.roleName ?? '').toLowerCase().replace(/\s+/g, '-');
+    return INVITE_ADMIN_ROLE_IDS.has(id) || INVITE_ADMIN_ROLE_IDS.has(name);
+  });
+
+  if (!allowed) {
+    reply.status(403).send({
+      code: 'FORBIDDEN',
+      message: 'Administrator role required to invite users',
+      statusCode: 403,
+    });
+    return false;
+  }
+  return true;
+}
+
 async function handleInvite(
   inviteService: InviteService,
   request: FastifyRequest<{ Body: InviteUserInput }>,
   reply: FastifyReply,
 ): Promise<void> {
+  if (!requireInviteAdmin(request, reply)) return;
+
   const result = validateInviteUserInput(request.body);
   if (!result.success) {
     reply.status(400).send({

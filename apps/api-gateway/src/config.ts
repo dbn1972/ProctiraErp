@@ -116,6 +116,13 @@ export function assertProductionConfig(config: GatewayConfig): void {
         'Domain plugins persist via Prisma/Postgres; without it the gateway would use in-memory stores.',
     );
   }
+
+  if (process.env['MFA_EXPOSE_OTP'] === 'true') {
+    throw new Error(
+      'Production config invalid: MFA_EXPOSE_OTP must not be true. ' +
+        'OTP codes must never be returned in API responses in production.',
+    );
+  }
 }
 
 /**
