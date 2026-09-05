@@ -78,9 +78,7 @@ export async function retryFailedDisbursementsAction(
         notes: 'Retry queued from disbursements UI',
       });
     } catch (error) {
-      errors.push(
-        error instanceof Error ? error.message : `Failed to retry ${id}`,
-      );
+      errors.push(error instanceof Error ? error.message : `Failed to retry ${id}`);
     }
   }
 

@@ -14,9 +14,7 @@ interface RetryFailedTransfersButtonProps {
   failedIds: string[];
 }
 
-export function RetryFailedTransfersButton({
-  failedIds,
-}: RetryFailedTransfersButtonProps) {
+export function RetryFailedTransfersButton({ failedIds }: RetryFailedTransfersButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -32,9 +30,7 @@ export function RetryFailedTransfersButton({
         type="button"
         disabled={disabled}
         title={
-          failedIds.length === 0
-            ? 'No failed transfers'
-            : 'Re-queue failed transfers as scheduled'
+          failedIds.length === 0 ? 'No failed transfers' : 'Re-queue failed transfers as scheduled'
         }
         onClick={() => {
           setMessage(null);

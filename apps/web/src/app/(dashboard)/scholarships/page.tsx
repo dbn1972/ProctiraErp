@@ -144,11 +144,7 @@ export default async function ScholarshipsPage() {
           icon={<Wallet className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
           label="Disbursed"
-          value={
-            processed.length > 0
-              ? formatMoney(disbursedTotal, disbursedCurrency)
-              : '—'
-          }
+          value={processed.length > 0 ? formatMoney(disbursedTotal, disbursedCurrency) : '—'}
           foot={
             processed.length > 0
               ? `${processed.length.toLocaleString()} processed payments`

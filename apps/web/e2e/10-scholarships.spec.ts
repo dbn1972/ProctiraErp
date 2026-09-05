@@ -28,9 +28,7 @@ test.describe('Scholarships E2E', () => {
 
   test('new program form exposes required fields', async ({ page }) => {
     await page.goto('/scholarships/programs/new');
-    await expect(
-      page.getByRole('heading', { name: /new scholarship program/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /new scholarship program/i })).toBeVisible();
     await expect(page.locator('#program-name')).toBeVisible();
     await expect(page.locator('#program-code')).toBeVisible();
     await expect(page.locator('#program-slots')).toBeVisible();

@@ -120,9 +120,7 @@ function mapApplication(raw: Record<string, unknown>): ScholarshipApplication {
     submittedAt: String(raw.submittedAt ?? raw.createdAt ?? '').slice(0, 10),
     status,
     totalScore:
-      raw.totalScore === null || raw.totalScore === undefined
-        ? null
-        : Number(raw.totalScore),
+      raw.totalScore === null || raw.totalScore === undefined ? null : Number(raw.totalScore),
   };
 }
 
@@ -140,9 +138,7 @@ function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement 
     amount: Number(raw.amount ?? 0),
     currency: String(raw.currency ?? 'INR'),
     paymentDate: String(raw.paymentDate ?? raw.scheduledDate ?? '').slice(0, 10),
-    paymentMethod: String(
-      raw.paymentMethod ?? 'BANK_TRANSFER',
-    )
+    paymentMethod: String(raw.paymentMethod ?? 'BANK_TRANSFER')
       .toUpperCase()
       .replace('BANK_TRANSFER', 'BANK_TRANSFER') as ScholarshipDisbursement['paymentMethod'],
     status,
@@ -150,10 +146,10 @@ function mapDisbursement(raw: Record<string, unknown>): ScholarshipDisbursement 
 }
 
 export async function listScholarshipPrograms(): Promise<ScholarshipProgram[]> {
-  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>(
-    '/scholarships/programs',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>('/scholarships/programs', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return (result.data?.data ?? []).map(mapProgram);
 }
 
@@ -228,10 +224,10 @@ export async function listScholarshipApplications(): Promise<ScholarshipApplicat
 export async function getScholarshipApplication(
   id: string,
 ): Promise<ScholarshipApplication | null> {
-  const result = await gatewayFetch<Record<string, unknown>>(
-    `/scholarships/applications/${id}`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<Record<string, unknown>>(`/scholarships/applications/${id}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data ? mapApplication(result.data) : null;
 }
 

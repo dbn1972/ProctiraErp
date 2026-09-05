@@ -40,9 +40,7 @@ export default async function EditScholarshipProgramPage({ params }: PageProps) 
       </Button>
 
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-          Edit program
-        </h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">Edit program</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Update award details and the application window for {program.name}.
         </p>
@@ -51,9 +49,7 @@ export default async function EditScholarshipProgramPage({ params }: PageProps) 
       <Card className="max-w-[860px]">
         <CardHeader>
           <CardTitle className="text-base">Program details</CardTitle>
-          <CardDescription>
-            Changes apply immediately to new applications.
-          </CardDescription>
+          <CardDescription>Changes apply immediately to new applications.</CardDescription>
         </CardHeader>
         <CardContent>
           <EditProgramForm program={program} />

@@ -7,5 +7,5 @@ Charter §32 debt ceiling used by `tools/dod-checks`.
 - Total warnings: **416**
 - Files scanned: **638**
 
-CI fails only on *new* error debt beyond this baseline (per-check counts or new fingerprints).
+CI fails only on _new_ error debt beyond this baseline (per-check counts or new fingerprints).
 Refreshed on the scholarships E2E branch so main-tip drift (institution tenant-id + auth schema) does not block feature PRs.

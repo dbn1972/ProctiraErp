@@ -69,7 +69,7 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
@@ -102,8 +102,7 @@ export default async function ScholarshipApplicationPage({ params }: PageProps) 
   if (!application) notFound();
 
   const program = await getScholarshipProgram(application.programId);
-  const canDecide =
-    application.status === 'PENDING' || application.status === 'UNDER_REVIEW';
+  const canDecide = application.status === 'PENDING' || application.status === 'UNDER_REVIEW';
 
   return (
     <div className="space-y-6">
@@ -149,12 +148,9 @@ export default async function ScholarshipApplicationPage({ params }: PageProps) 
                 {initialsOf(application.applicantName)}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-xl font-bold text-foreground">
-                  {application.applicantName}
-                </p>
+                <p className="text-xl font-bold text-foreground">{application.applicantName}</p>
                 <p className="text-sm text-muted-foreground">
-                  Applicant ID{' '}
-                  <span className="font-mono text-xs">{application.applicantId}</span>
+                  Applicant ID <span className="font-mono text-xs">{application.applicantId}</span>
                 </p>
               </div>
               <Button asChild variant="outline" size="sm" className="shrink-0">
@@ -202,10 +198,7 @@ export default async function ScholarshipApplicationPage({ params }: PageProps) 
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <label
-                  htmlFor="decision-comment"
-                  className="text-sm font-medium text-foreground"
-                >
+                <label htmlFor="decision-comment" className="text-sm font-medium text-foreground">
                   Comment (visible to school)
                 </label>
                 <Textarea

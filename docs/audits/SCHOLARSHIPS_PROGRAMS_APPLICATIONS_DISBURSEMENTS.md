@@ -5,14 +5,14 @@ nav (`WEB APP — SERVICES`).
 
 ## Redesign nav → live status
 
-| Redesign item | Live route | Status | Evidence |
-|---|---|---|---|
-| Scholarships · programs | `/scholarships` | **DONE** | H1 programs list + Applications / Disbursements / New program CTAs |
-| Scholarships · program detail | `/scholarships/programs/[id]` | **DONE** | Seeded program detail with slots, award, application window |
-| Scholarships · new program | `/scholarships/programs/new` | **DONE** | Create form wired to `createScholarshipProgramAction` |
-| Scholarships · applications | `/scholarships/applications` | **DONE** | Applications list + status tabs / export affordances |
-| Scholarships · application detail | `/scholarships/applications/[id]` | **DONE** | Seeded application review page |
-| Scholarships · disbursements | `/scholarships/disbursements` | **DONE** | Disbursements table + retry failed transfers action |
+| Redesign item                     | Live route                        | Status   | Evidence                                                           |
+| --------------------------------- | --------------------------------- | -------- | ------------------------------------------------------------------ |
+| Scholarships · programs           | `/scholarships`                   | **DONE** | H1 programs list + Applications / Disbursements / New program CTAs |
+| Scholarships · program detail     | `/scholarships/programs/[id]`     | **DONE** | Seeded program detail with slots, award, application window        |
+| Scholarships · new program        | `/scholarships/programs/new`      | **DONE** | Create form wired to `createScholarshipProgramAction`              |
+| Scholarships · applications       | `/scholarships/applications`      | **DONE** | Applications list + status tabs / export affordances               |
+| Scholarships · application detail | `/scholarships/applications/[id]` | **DONE** | Seeded application review page                                     |
+| Scholarships · disbursements      | `/scholarships/disbursements`     | **DONE** | Disbursements table + retry failed transfers action                |
 
 **Result: 6 / 6 DONE** (route chrome + primary CTAs load without 404/500).
 
@@ -49,19 +49,19 @@ nav (`WEB APP — SERVICES`).
 
 Seeded against Prisma scholarships on EC3 and captured all 6 screens:
 
-| Screen | HTTP | H1 |
-|---|---|---|
-| programs | 200 | Scholarship programs |
-| new program | 200 | New scholarship program |
-| program detail | 200 | National Merit Scholarship 2026 |
-| applications | 200 | Scholarship applications |
-| application detail | 200 | Application e378c859-40a |
-| disbursements | 200 | Disbursements |
+| Screen             | HTTP | H1                              |
+| ------------------ | ---- | ------------------------------- |
+| programs           | 200  | Scholarship programs            |
+| new program        | 200  | New scholarship program         |
+| program detail     | 200  | National Merit Scholarship 2026 |
+| applications       | 200  | Scholarship applications        |
+| application detail | 200  | Application e378c859-40a        |
+| disbursements      | 200  | Disbursements                   |
 
 Live IDs:
+
 - Program: `d14350e2-40d9-478e-990c-5d061a8a363b`
 - Application: `e378c859-40a6-4567-96d7-f8ea09470252`
 - Disbursement: `1336796e-d6e3-4ffb-be2a-b9753d5f7de2`
 
 Artifacts: `/opt/cursor/artifacts/scholarships-audit/`.
-

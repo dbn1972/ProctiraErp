@@ -9,13 +9,7 @@
  *
  * Validates: Requirement 11.1 — schedule and track scholarship disbursements.
  */
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  Plus,
-  Wallet,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Plus, Wallet } from 'lucide-react';
 
 import {
   Button,
@@ -31,10 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import {
-  listScholarshipDisbursements,
-  type ScholarshipDisbursement,
-} from '@/lib/api/scholarships';
+import { listScholarshipDisbursements, type ScholarshipDisbursement } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
 
 import { RetryFailedTransfersButton } from '../_components/retry-failed-transfers-button';
@@ -87,8 +78,7 @@ export default async function ScholarshipDisbursementsPage() {
   const disbursedTotal = processed.reduce((sum, d) => sum + d.amount, 0);
   const failedTotal = failed.reduce((sum, d) => sum + d.amount, 0);
   const settled = processed.length + failed.length;
-  const successRate =
-    settled > 0 ? ((processed.length / settled) * 100).toFixed(1) : null;
+  const successRate = settled > 0 ? ((processed.length / settled) * 100).toFixed(1) : null;
 
   return (
     <section aria-labelledby="disbursements-heading" className="space-y-6">
@@ -121,9 +111,7 @@ export default async function ScholarshipDisbursementsPage() {
           icon={<Wallet className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
           label="Disbursed"
-          value={
-            processed.length > 0 ? formatMoney(disbursedTotal, currency) : '—'
-          }
+          value={processed.length > 0 ? formatMoney(disbursedTotal, currency) : '—'}
           foot={`${processed.length.toLocaleString()} processed`}
         />
         <KpiCard
@@ -162,7 +150,10 @@ export default async function ScholarshipDisbursementsPage() {
           role="alert"
           className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900 sm:flex-row sm:items-center dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200"
         >
-          <AlertTriangle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" aria-hidden="true" />
+          <AlertTriangle
+            className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400"
+            aria-hidden="true"
+          />
           <div className="min-w-0 flex-1">
             <p className="font-semibold">
               {failed.length.toLocaleString()} failed transfer

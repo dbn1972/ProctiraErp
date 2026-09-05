@@ -12,13 +12,7 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import {
-  CheckCircle2,
-  Eye,
-  FileText,
-  Pencil,
-  Users,
-} from 'lucide-react';
+import { CheckCircle2, Eye, FileText, Pencil, Users } from 'lucide-react';
 
 import {
   Button,
@@ -96,7 +90,7 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
@@ -155,25 +149,18 @@ export default async function ScholarshipProgramPage({ params }: PageProps) {
 
   const apps = allApps.filter((a) => a.programId === program.id);
   const approved = apps.filter((a) => a.status === 'APPROVED').length;
-  const pending = apps.filter(
-    (a) => a.status === 'PENDING' || a.status === 'UNDER_REVIEW',
-  ).length;
+  const pending = apps.filter((a) => a.status === 'PENDING' || a.status === 'UNDER_REVIEW').length;
   const rejected = apps.filter((a) => a.status === 'REJECTED').length;
   const recent = apps.slice(0, 8);
   const daysLeft = daysUntil(program.applicationEndDate);
-  const progress = windowProgress(
-    program.applicationStartDate,
-    program.applicationEndDate,
-  );
+  const progress = windowProgress(program.applicationStartDate, program.applicationEndDate);
   const funnelMax = Math.max(apps.length, 1);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-            {program.name}
-          </h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">{program.name}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             <span className="font-mono">{program.code}</span> ·{' '}
             {formatMoney(program.awardAmount, program.currency)} per student ·{' '}
@@ -257,12 +244,7 @@ export default async function ScholarshipProgramPage({ params }: PageProps) {
                 max={funnelMax}
                 barClass="bg-emerald-500"
               />
-              <FunnelRow
-                label="Rejected"
-                count={rejected}
-                max={funnelMax}
-                barClass="bg-red-500"
-              />
+              <FunnelRow label="Rejected" count={rejected} max={funnelMax} barClass="bg-red-500" />
             </CardContent>
           </Card>
 
@@ -313,9 +295,7 @@ export default async function ScholarshipProgramPage({ params }: PageProps) {
                               <span className="font-medium">{app.applicantName}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {formatDate(app.submittedAt)}
-                          </TableCell>
+                          <TableCell className="text-sm">{formatDate(app.submittedAt)}</TableCell>
                           <TableCell>
                             <span
                               className={cn(
@@ -453,12 +433,7 @@ function KpiCard({
     <Card>
       <CardContent className="p-5">
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-lg',
-              iconClass,
-            )}
-          >
+          <span className={cn('flex h-9 w-9 items-center justify-center rounded-lg', iconClass)}>
             {icon}
           </span>
           <span className="text-sm font-medium text-muted-foreground">{label}</span>

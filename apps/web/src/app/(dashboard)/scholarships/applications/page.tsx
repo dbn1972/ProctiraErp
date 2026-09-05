@@ -22,10 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import {
-  listScholarshipApplications,
-  type ScholarshipApplication,
-} from '@/lib/api/scholarships';
+import { listScholarshipApplications, type ScholarshipApplication } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
 
 import { ApplicationStatusTabs } from '../_components/application-status-tabs';
@@ -67,7 +64,7 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
@@ -104,9 +101,7 @@ export default async function ScholarshipApplicationsPage({ searchParams }: Page
   const programId = readStringParam(searchParams, 'programId');
 
   const applications = await listScholarshipApplications();
-  const scoped = programId
-    ? applications.filter((a) => a.programId === programId)
-    : applications;
+  const scoped = programId ? applications.filter((a) => a.programId === programId) : applications;
 
   const counts = {
     ALL: scoped.length,
@@ -116,10 +111,7 @@ export default async function ScholarshipApplicationsPage({ searchParams }: Page
     REJECTED: scoped.filter((a) => a.status === 'REJECTED').length,
   };
 
-  const filtered =
-    status && status !== 'ALL'
-      ? scoped.filter((a) => a.status === status)
-      : scoped;
+  const filtered = status && status !== 'ALL' ? scoped.filter((a) => a.status === status) : scoped;
 
   const awaiting = counts.PENDING + counts.UNDER_REVIEW;
 
@@ -179,10 +171,8 @@ export default async function ScholarshipApplicationsPage({ searchParams }: Page
               </Table>
             </div>
             <div className="border-t px-4 py-3 text-sm text-muted-foreground">
-              Showing{' '}
-              <span className="font-semibold text-foreground">1–{filtered.length}</span> of{' '}
-              <span className="font-semibold text-foreground">{filtered.length}</span>{' '}
-              applications
+              Showing <span className="font-semibold text-foreground">1–{filtered.length}</span> of{' '}
+              <span className="font-semibold text-foreground">{filtered.length}</span> applications
             </div>
           </CardContent>
         </Card>
@@ -223,9 +213,7 @@ function ApplicationRow({ app }: { app: ScholarshipApplication }) {
       </TableCell>
       <TableCell className="text-sm">{formatDate(app.submittedAt)}</TableCell>
       <TableCell className="text-end tabular-nums">
-        {app.totalScore !== null && app.totalScore !== undefined
-          ? app.totalScore.toFixed(1)
-          : '—'}
+        {app.totalScore !== null && app.totalScore !== undefined ? app.totalScore.toFixed(1) : '—'}
       </TableCell>
       <TableCell>
         <span

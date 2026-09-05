@@ -24,10 +24,7 @@ interface ApplicationStatusTabsProps {
   counts?: Partial<Record<StatusValue, number>>;
 }
 
-export function ApplicationStatusTabs({
-  activeStatus,
-  counts,
-}: ApplicationStatusTabsProps) {
+export function ApplicationStatusTabs({ activeStatus, counts }: ApplicationStatusTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -74,9 +71,7 @@ export function ApplicationStatusTabs({
               <span
                 className={cn(
                   'rounded-full px-1.5 py-px text-xs font-semibold tabular-nums',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'bg-muted text-muted-foreground',
+                  isActive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
                 )}
               >
                 {count.toLocaleString()}

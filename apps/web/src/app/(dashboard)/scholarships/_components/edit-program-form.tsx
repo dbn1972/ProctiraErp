@@ -8,12 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 
-import {
-  Button,
-  FormField,
-  Input,
-  Textarea,
-} from '@proctira/ui/components';
+import { Button, FormField, Input, Textarea } from '@proctira/ui/components';
 import type { ScholarshipProgram } from '@/lib/api/scholarships';
 
 import { updateScholarshipProgramAction } from '../actions';
@@ -37,7 +32,9 @@ export function EditProgramForm({ program }: EditProgramFormProps) {
     const name = String(fd.get('name') ?? '').trim();
     const totalSlots = Number(fd.get('totalSlots'));
     const awardAmount = Number(fd.get('awardAmount'));
-    const currency = String(fd.get('currency') ?? '').trim().toUpperCase();
+    const currency = String(fd.get('currency') ?? '')
+      .trim()
+      .toUpperCase();
     const applicationStartDate = String(fd.get('applicationStartDate') ?? '');
     const applicationEndDate = String(fd.get('applicationEndDate') ?? '');
     const description = String(fd.get('eligibility') ?? '').trim();
@@ -68,12 +65,7 @@ export function EditProgramForm({ program }: EditProgramFormProps) {
     <form className="space-y-5" noValidate onSubmit={onSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
         <FormField id="program-name" label="Name" required>
-          <Input
-            id="program-name"
-            name="name"
-            defaultValue={program.name}
-            required
-          />
+          <Input id="program-name" name="name" defaultValue={program.name} required />
         </FormField>
         <FormField id="program-code" label="Code">
           <Input id="program-code" name="code" defaultValue={program.code} disabled />

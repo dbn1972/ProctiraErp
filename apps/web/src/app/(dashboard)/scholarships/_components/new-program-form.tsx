@@ -34,7 +34,9 @@ export function NewProgramForm() {
     const code = String(fd.get('code') ?? '').trim();
     const totalSlots = Number(fd.get('totalSlots'));
     const awardAmount = Number(fd.get('awardAmount'));
-    const currency = String(fd.get('currency') ?? 'INR').trim().toUpperCase();
+    const currency = String(fd.get('currency') ?? 'INR')
+      .trim()
+      .toUpperCase();
     const applicationStartDate = String(fd.get('applicationStartDate') ?? '');
     const applicationEndDate = String(fd.get('applicationEndDate') ?? '');
     const eligibilityNotes = String(fd.get('eligibility') ?? '').trim();
@@ -55,7 +57,9 @@ export function NewProgramForm() {
         setError(result.message ?? 'Failed to create program');
         return;
       }
-      router.push(result.programId ? `/scholarships/programs/${result.programId}` : '/scholarships');
+      router.push(
+        result.programId ? `/scholarships/programs/${result.programId}` : '/scholarships',
+      );
       router.refresh();
     });
   }
@@ -72,7 +76,12 @@ export function NewProgramForm() {
         <form className="space-y-5" noValidate onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="program-name" label="Name" required>
-              <Input id="program-name" name="name" placeholder="Academic Excellence Award" required />
+              <Input
+                id="program-name"
+                name="name"
+                placeholder="Academic Excellence Award"
+                required
+              />
             </FormField>
             <FormField id="program-code" label="Code" required>
               <Input id="program-code" name="code" placeholder="AEA-2025" required />

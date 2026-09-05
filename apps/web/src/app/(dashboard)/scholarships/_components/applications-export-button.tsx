@@ -13,9 +13,7 @@ interface ApplicationsExportButtonProps {
   applications: ScholarshipApplication[];
 }
 
-export function ApplicationsExportButton({
-  applications,
-}: ApplicationsExportButtonProps) {
+export function ApplicationsExportButton({ applications }: ApplicationsExportButtonProps) {
   const disabled = applications.length === 0;
 
   return (

@@ -25,24 +25,15 @@ import {
   createGradingSchemeRepository,
   createOutcomeRepository,
 } from '@proctira/backend-assessment';
-import {
-  attendancePlugin,
-  createAttendanceRepository,
-} from '@proctira/backend-attendance';
+import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
 import {
   createDocumentRepository,
   createExaminationRepository,
   createResultRepository,
   examinationPlugin,
 } from '@proctira/backend-examination';
-import {
-  createInstitutionRepository,
-  institutionPlugin,
-} from '@proctira/backend-institution';
-import {
-  InMemoryScholarshipRepository,
-  scholarshipPlugin,
-} from '@proctira/backend-scholarship';
+import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
   createStaffRepository,
