@@ -1,15 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  Accessibility,
-  Globe,
-  GraduationCap,
-  ShieldCheck,
-} from 'lucide-react';
+import { Accessibility, Globe, GraduationCap, ShieldCheck } from 'lucide-react';
 
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 
 export const dynamic = 'force-static';
 
@@ -150,9 +145,7 @@ export default function CompliancePage() {
                     {framework.status}
                   </span>
                 </div>
-                <p className="mt-4 leading-relaxed text-muted-foreground">
-                  {framework.body}
-                </p>
+                <p className="mt-4 leading-relaxed text-muted-foreground">{framework.body}</p>
                 <div className="mt-5 rounded-lg border border-primary/20 bg-primary/5 p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.08em] text-primary">
                     What this means for you
@@ -184,45 +177,28 @@ export default function CompliancePage() {
               What we process, and for how long
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              A summary of the default data-processing register. Self-hosted
-              operators can adjust retention to local policy.
+              A summary of the default data-processing register. Self-hosted operators can adjust
+              retention to local policy.
             </p>
           </div>
           <div className="mt-10 overflow-hidden rounded-2xl border border-border bg-card">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border bg-secondary/50">
                 <tr>
-                  <th className="px-5 py-3 font-semibold text-foreground">
-                    Data category
-                  </th>
-                  <th className="px-5 py-3 font-semibold text-foreground">
-                    Purpose
-                  </th>
-                  <th className="px-5 py-3 font-semibold text-foreground">
-                    Retention
-                  </th>
+                  <th className="px-5 py-3 font-semibold text-foreground">Data category</th>
+                  <th className="px-5 py-3 font-semibold text-foreground">Purpose</th>
+                  <th className="px-5 py-3 font-semibold text-foreground">Retention</th>
                 </tr>
               </thead>
               <tbody>
                 {RETENTION.map((row) => (
-                  <tr
-                    key={row.category}
-                    className="border-b border-border last:border-b-0"
-                  >
+                  <tr key={row.category} className="border-b border-border last:border-b-0">
                     <td className="px-5 py-4 align-top">
-                      <span className="font-semibold text-foreground">
-                        {row.category}
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        {row.detail}
-                      </span>
+                      <span className="font-semibold text-foreground">{row.category}</span>
+                      <span className="mt-1 block text-xs text-muted-foreground">{row.detail}</span>
                     </td>
-                    <td className="px-5 py-4 align-top text-muted-foreground">
-                      {row.purpose}
-                    </td>
-                    <td className="px-5 py-4 align-top text-muted-foreground">
-                      {row.retention}
-                    </td>
+                    <td className="px-5 py-4 align-top text-muted-foreground">{row.purpose}</td>
+                    <td className="px-5 py-4 align-top text-muted-foreground">{row.retention}</td>
                   </tr>
                 ))}
               </tbody>
@@ -244,9 +220,8 @@ export default function CompliancePage() {
             Need evidence for a procurement review?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Customers and prospects can request our trust pack — security
-            overview, DPA template, control narratives, and accessibility
-            conformance report.
+            Customers and prospects can request our trust pack — security overview, DPA template,
+            control narratives, and accessibility conformance report.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">
@@ -263,10 +238,7 @@ export default function CompliancePage() {
           </div>
           <p className="mt-6 text-sm text-primary-foreground/60">
             Or email{' '}
-            <a
-              href="mailto:trust@proctira.org"
-              className="underline-offset-4 hover:underline"
-            >
+            <a href="mailto:trust@proctira.org" className="underline-offset-4 hover:underline">
               trust@proctira.org
             </a>{' '}
             directly
