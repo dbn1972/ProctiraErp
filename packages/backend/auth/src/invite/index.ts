@@ -1,7 +1,11 @@
 /**
  * Invite + tenant-directory exports.
  */
-export { validateInviteUserInput } from './schemas.js';
+export {
+  InviteUserInputSchema,
+  InviteUserResponseSchema,
+  validateInviteUserInput,
+} from './schemas.js';
 export type { InviteUserInput, InviteUserResponse } from './schemas.js';
 export type {
   InviteStatus,

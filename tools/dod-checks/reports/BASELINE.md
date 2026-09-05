@@ -4,25 +4,25 @@ This document records the pre-existing Definition-of-Done findings present at
 the time the new aggregator (`tools/dod-checks/`) was introduced. Each row
 identifies an owner team and a triage status.
 
-The aggregator currently fails CI on any error finding. To unblock the rollout,
-the existing errors are tracked here and resolved incrementally; new PRs must
-not increase the totals below.
+The aggregator compares each run against `baseline.json` and fails CI only when
+new error debt is introduced. Existing errors are tracked here and resolved
+incrementally; new PRs must not increase the totals below.
 
 ## Summary (auto-captured in `reports/baseline.json`)
 
 | Check                  | Errors | Warnings | Notes                                                            |
 | ---------------------- | -----: | -------: | ---------------------------------------------------------------- |
-| `table-naming`         |      0 |        0 | All Prisma models are service-prefixed.                          |
-| `cross-service-joins`  |      0 |        0 | No raw SQL JOINs across services.                                |
-| `tenant-id`            |     61 |        0 | Service methods that take an ID/filter argument and call the repo without a `tenantId`. |
-| `audit-events`         |      0 |       33 | Several services lack audit-trail emission on writes.            |
-| `api-schema`           |      1 |        0 | `auth/external-providers` route has no Typebox schemas.          |
-| `error-envelope`       |      0 |        0 | All error responses follow the envelope.                         |
-| `i18n-readiness`       |      0 |      377 | Hardcoded English `message` fields in route handlers.            |
+| `table-naming`        |      0 |        0 | All Prisma models are service-prefixed.|
+| `cross-service-joins` |      0 |        0 | No raw SQL JOINs across services.|
+| `tenant-id`           |     55 |        0 | Service methods that touch persistence without declaring tenantId.|
+| `audit-events`        |      0 |       46 | Several services lack audit-trail emission on writes.|
+| `api-schema`          |      0 |        0 | Auth invite schemas now publish TypeBox (resolved).|
+| `error-envelope`      |     53 |        0 | Stub/legacy routes still return non-envelope 4xx bodies.|
+| `i18n-readiness`      |      0 |      415 | Hardcoded English `message` fields in route handlers.|
 
 ## Triage Plan
 
-### tenant-id (61 errors)
+### tenant-id (55 errors)
 
 Owners: each backend service team.
 
@@ -50,16 +50,20 @@ shared event bus once available) and emit a `record/{create,update,delete}`
 event from each write handler. Tracking issue: link to the per-service tasks
 in tasks.md.
 
-### api-schema (1 error)
+### api-schema (0 errors)
 
-Owner: auth team.
+Resolved: `@proctira/backend-auth` invite schemas now export TypeBox definitions
+(`InviteUserInputSchema` / `InviteUserResponseSchema`).
 
-`packages/backend/auth/src/external-providers/external-auth-routes.ts` ships
-without a Typebox schema. Action: replicate the schema layer used in
-`packages/backend/auth/src/routes.ts` (when added) or co-locate Typebox
-definitions in `external-auth-schemas.ts`.
+### error-envelope (53 errors)
 
-### i18n-readiness (377 warnings)
+Owners: alumni, canteen, finance, hostel, inventory, library, lms, and related
+stub route packages; also admin-dashboard scalability routes.
+
+Action: replace non-envelope 4xx/5xx bodies with the standard
+`{ code, message, statusCode }` envelope (or shared `AppError` helper).
+
+### i18n-readiness (415 warnings)
 
 Owners: each backend service team.
 
@@ -76,7 +80,7 @@ allow-listed, update `tools/dod-checks/src/lib/constants.mjs` (or the
 relevant check) and re-run:
 
 ```bash
-pnpm --filter @proctira/dod-checks check -- --json --report=tools/dod-checks/reports/baseline.json
+pnpm --filter @proctira/dod-checks check -- --update-baseline
 ```
 
 Commit the regenerated `baseline.json` alongside the constants change so the
