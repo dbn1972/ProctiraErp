@@ -113,15 +113,17 @@ Insights skill notes: redesign “map” ≠ GIS. Keep GIS at `/data-warehouse/m
 
 **Platform Admin Console** (`apps/admin-console`) — minimum screens:
 
-| Nav label                           | Notes                      |
-| ----------------------------------- | -------------------------- |
-| Operator login                      | Platform operator auth     |
-| Platform overview                   | Hub                        |
-| Tenants / Provision tenant          | Tenant lifecycle           |
-| Plans / Plugins / Themes            | Commercial + extensibility |
-| Break-glass / Break-glass requests  | Emergency access           |
-| Support / System health / Audit log | Ops                        |
-| 403 Forbidden                       | Explicit forbidden surface |
+| Nav label                           | Primary route(s)                                   | Notes                      |
+| ----------------------------------- | -------------------------------------------------- | -------------------------- |
+| Operator login                      | `/login`                                           | Platform operator auth     |
+| Platform overview                   | `/`                                                | Hub                        |
+| Tenants / Provision tenant          | `/tenants`, `/tenants/new`, `/tenants/[id]`        | Tenant lifecycle           |
+| Plans / Plugins / Themes            | `/plans`, `/plugins`, `/themes` (+ `[id]` details) | Commercial + extensibility |
+| Break-glass / Break-glass requests  | `/break-glass`, `/break-glass/requests`            | Emergency access           |
+| Support / System health / Audit log | `/support`, `/health`, `/audit`                    | Ops                        |
+| 403 Forbidden                       | `/forbidden`                                       | Explicit forbidden surface |
+
+Platform Admin skill notes: always `sanitizeReturnTo` on login `returnTo` (and middleware redirect query). Prefer Vitest auth matrix + `e2e/01-platform-admin-smoke.spec.ts` (gate live inventory on `E2E_BACKEND_READY`). Audit: `docs/audits/ADMIN_CONSOLE_PLATFORM.md`.
 
 **Registration Portal** (`apps/registration-portal`) — minimum screens:
 
@@ -251,7 +253,7 @@ Enterprise claims for **Platform Admin**, **Registration Portal**, and **Public 
 
 ## Related paths
 
-- Playwright: `apps/web/e2e/`, `apps/web/playwright.config.ts`
+- Playwright: `apps/web/e2e/`, `apps/web/playwright.config.ts`; admin-console: `apps/admin-console/e2e/`, `apps/admin-console/playwright.config.ts`
 - Captures: `apps/web/scripts/capture-screens.mjs`
 - Tenant gate: `tools/tenant-isolation-tests/`
 - DoD: `tools/dod-checks/`
@@ -261,4 +263,5 @@ Enterprise claims for **Platform Admin**, **Registration Portal**, and **Public 
 - Flutter audit: `docs/audits/MOBILE_FLUTTER_ENTERPRISE.md`
 - Auth audit: `docs/audits/AUTH_LOGIN_SIGNUP_MFA_RESET.md`
 - Insights audit: `docs/audits/INSIGHTS_SYSTEM_REPORTS_WAREHOUSE_ADMIN_TRACK.md`
+- Platform Admin audit: `docs/audits/ADMIN_CONSOLE_PLATFORM.md`
 - Workflows audit: `docs/audits/WORKFLOWS_DEFINITIONS_INSTANCES_APPROVALS.md`

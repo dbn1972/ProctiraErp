@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 import { ADMIN_AUTH_COOKIES } from './lib/auth/cookies';
-
-/** Routes that do not require authentication. */
-const PUBLIC_PATHS = ['/login', '/forbidden', '/api/auth/login', '/api/auth/logout'];
+import { isPublicPath } from './lib/auth/public-paths';
+import { sanitizeReturnTo } from './lib/auth/return-to';
 
 const TOKEN_EXPIRY_BUFFER_SECONDS = 30;
 
@@ -36,25 +35,18 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static assets and api routes.
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
-    pathname.includes('.')
-  ) {
+  if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
     return NextResponse.next();
   }
 
-  const isPublic = PUBLIC_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
-  if (isPublic) {
+  if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
   const accessToken = request.cookies.get(ADMIN_AUTH_COOKIES.ACCESS_TOKEN)?.value;
   if (!accessToken || !isAccessTokenFresh(accessToken)) {
     const loginUrl = new URL('/login', request.url);
-    loginUrl.searchParams.set('returnTo', pathname);
+    loginUrl.searchParams.set('returnTo', sanitizeReturnTo(pathname));
     return NextResponse.redirect(loginUrl);
   }
 
