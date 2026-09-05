@@ -32,17 +32,18 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 
 ## 1. Functionality
 
-| Screen            | Load OK | Empty/loading/error | Write path or N/A | Evidence                                              |
-| ----------------- | ------- | ------------------- | ----------------- | ----------------------------------------------------- |
-| `/login`          | ☑       | ☑                   | Sign-in write     | `e2e/auth/signin-local.spec.ts` (mocked)              |
-| `/signup`         | ☑       | ☑                   | Sign-up write     | `e2e/auth/signup.spec.ts` (mocked)                    |
-| `/forgot-password`| ☑       | ☑                   | Request reset     | `e2e/auth/forgot-password.spec.ts`                    |
-| `/reset-password` | ☑       | ☑                   | Reset write       | `e2e/auth/reset-password.spec.ts`                     |
-| `/mfa`            | ☑       | ☑                   | Verify write      | `e2e/auth/mfa-verify.spec.ts` + keyboard unit         |
-| `/logout`         | ☑       | N/A                 | Session clear     | `e2e/auth/logout-oauth-redirect.spec.ts` (3/3 pass)   |
-| `/oauth/callback` | ☑       | error → login       | N/A (BFF)         | same smoke + API `sanitizeReturnTo`                   |
+| Screen             | Load OK | Empty/loading/error | Write path or N/A | Evidence                                            |
+| ------------------ | ------- | ------------------- | ----------------- | --------------------------------------------------- |
+| `/login`           | ☑       | ☑                   | Sign-in write     | `e2e/auth/signin-local.spec.ts` (mocked)            |
+| `/signup`          | ☑       | ☑                   | Sign-up write     | `e2e/auth/signup.spec.ts` (mocked)                  |
+| `/forgot-password` | ☑       | ☑                   | Request reset     | `e2e/auth/forgot-password.spec.ts`                  |
+| `/reset-password`  | ☑       | ☑                   | Reset write       | `e2e/auth/reset-password.spec.ts`                   |
+| `/mfa`             | ☑       | ☑                   | Verify write      | `e2e/auth/mfa-verify.spec.ts` + keyboard unit       |
+| `/logout`          | ☑       | N/A                 | Session clear     | `e2e/auth/logout-oauth-redirect.spec.ts` (3/3 pass) |
+| `/oauth/callback`  | ☑       | error → login       | N/A (BFF)         | same smoke + API `sanitizeReturnTo`                 |
 
 **Fixes shipped**
+
 - `sanitizeReturnTo` helper + unit tests (`return-to.test.ts` — 4/4)
 - Wired into login / signup / MFA forms and OAuth callback API
 - Middleware login redirect only accepts same-origin relative `returnTo`
@@ -81,15 +82,15 @@ Captured on tip `main` @ `6c9e391` via headless Playwright against local Next.js
 
 `/opt/cursor/artifacts/auth-audit/{route}-{viewport}.png`
 
-| Screen            | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path (prefix)                                      |
-| ----------------- | ------------ | ---------- | ---------- | ----------------------------------------------------------- |
-| `/login`          | ☑            | ☑          | ☑          | `.../auth-audit/login-{1440,834,390}.png`                   |
-| `/signup`         | ☑            | ☑          | ☑          | `.../auth-audit/signup-{1440,834,390}.png`                  |
-| `/forgot-password`| ☑            | ☑          | ☑          | `.../auth-audit/forgot-password-{1440,834,390}.png`         |
-| `/reset-password` | ☑            | ☑          | ☑          | `.../auth-audit/reset-password-{1440,834,390}.png`          |
-| `/mfa`            | ☑            | ☑          | ☑          | `.../auth-audit/mfa-{1440,834,390}.png`                     |
-| `/logout`         | ☑            | ☑          | ☑          | `.../auth-audit/logout-{1440,834,390}.png` → `/login`       |
-| `/oauth/callback` | ☑            | ☑          | ☑          | `.../auth-audit/oauth-callback-{1440,834,390}.png` → login + error |
+| Screen             | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path (prefix)                                             |
+| ------------------ | ------------ | ---------- | ---------- | ------------------------------------------------------------------ |
+| `/login`           | ☑            | ☑          | ☑          | `.../auth-audit/login-{1440,834,390}.png`                          |
+| `/signup`          | ☑            | ☑          | ☑          | `.../auth-audit/signup-{1440,834,390}.png`                         |
+| `/forgot-password` | ☑            | ☑          | ☑          | `.../auth-audit/forgot-password-{1440,834,390}.png`                |
+| `/reset-password`  | ☑            | ☑          | ☑          | `.../auth-audit/reset-password-{1440,834,390}.png`                 |
+| `/mfa`             | ☑            | ☑          | ☑          | `.../auth-audit/mfa-{1440,834,390}.png`                            |
+| `/logout`          | ☑            | ☑          | ☑          | `.../auth-audit/logout-{1440,834,390}.png` → `/login`              |
+| `/oauth/callback`  | ☑            | ☑          | ☑          | `.../auth-audit/oauth-callback-{1440,834,390}.png` → login + error |
 
 Walkthrough key copies (desktop/mobile):  
 `/opt/cursor/artifacts/auth_login_desktop_1440.png`,  
@@ -115,12 +116,12 @@ Horizontal scroll / clipped CTA: none observed on Auth public forms in this pack
 
 ## 6. CI / production gates
 
-| Gate                      | Pass | Link / SHA                                                              |
-| ------------------------- | ---- | ----------------------------------------------------------------------- |
+| Gate                      | Pass | Link / SHA                                                                                            |
+| ------------------------- | ---- | ----------------------------------------------------------------------------------------------------- |
 | Lint / typecheck / unit   | ☑    | tip `5fbebe3` — [CI run 33968548810](https://github.com/dbn1972/ProctiraErp/actions/runs/33968548810) |
-| Auth unit (`return-to`)   | ☑    | vitest 4/4                                                              |
-| DoD / Lighthouse `/login` | ☑    | same tip CI (DoD + Lighthouse Gate success)                             |
-| Deploy Build Images       | ☐    | Infra: empty `REGISTRY` / docker login — not Auth code (pre-existing)   |
+| Auth unit (`return-to`)   | ☑    | vitest 4/4                                                                                            |
+| DoD / Lighthouse `/login` | ☑    | same tip CI (DoD + Lighthouse Gate success)                                                           |
+| Deploy Build Images       | ☐    | Infra: empty `REGISTRY` / docker login — not Auth code (pre-existing)                                 |
 
 ---
 
