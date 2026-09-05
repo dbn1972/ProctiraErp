@@ -177,6 +177,21 @@ You may claim **enterprise production-ready** for a module only when:
 
 Do **not** equate “pages render” or “CI green with E2E skipped” with enterprise production-ready.
 
+## Flutter / mobile (apps/mobile)
+
+When enterprise-testing the Flutter client (not web viewports):
+
+| Pillar             | Mobile bar                                                                                                                                                |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Auth**           | Real `POST /api/v1/auth/login` via `AuthApi`; no `pending-*-token` fakes; Dio injects `Authorization: Bearer` + `X-Tenant-ID`; refresh-on-401 best effort |
+| **DI**             | GetIt registers Student/Attendance/Scholarship/Health/Examination/Assessment repos; `MultiRepositoryProvider` in `OpenEmisApp` for `context.read` screens |
+| **Analyze / unit** | `flutter analyze` clean on `apps/mobile` + `packages/flutter-core/api-client`; package unit tests for auth token parsing                                  |
+| **Integration**    | `integration_test/` journeys for login redirect, tenant isolation, attendance offline sync (device/emulator or waived with dated note)                    |
+| **Security**       | No hardcoded tokens; logout clears secure storage (+ best-effort `AuthApi.logout`); biometric only unlocks _existing_ stored tokens                       |
+| **Audit**          | `docs/audits/MOBILE_FLUTTER_ENTERPRISE.md`                                                                                                                |
+
+Default API base: `--dart-define=API_BASE_URL=...` (see `kDefaultApiBaseUrl` in `injector.dart`).
+
 ## Related paths
 
 - Playwright: `apps/web/e2e/`, `apps/web/playwright.config.ts`

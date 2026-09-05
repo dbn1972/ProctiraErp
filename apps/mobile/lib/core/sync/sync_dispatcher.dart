@@ -1,4 +1,4 @@
-import 'package:openemis_api_client/openemis_api_client.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 import 'sync_models.dart';
 

@@ -7,15 +7,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:openemis_mobile/app/app.dart';
-import 'package:openemis_mobile/core/auth/auth_bloc.dart';
-import 'package:openemis_mobile/core/di/injector.dart';
-import 'package:openemis_mobile/core/storage/database.dart';
-import 'package:openemis_mobile/core/sync/connectivity_monitor.dart';
-import 'package:openemis_mobile/core/sync/sync_dispatcher.dart';
-import 'package:openemis_mobile/core/sync/sync_engine.dart';
-import 'package:openemis_mobile/core/sync/sync_models.dart';
-import 'package:openemis_mobile/core/tenant/tenant_provider.dart';
+import 'package:proctira_mobile/app/app.dart';
+import 'package:proctira_mobile/core/auth/auth_bloc.dart';
+import 'package:proctira_mobile/core/di/injector.dart';
+import 'package:proctira_mobile/core/storage/database.dart';
+import 'package:proctira_mobile/core/sync/connectivity_monitor.dart';
+import 'package:proctira_mobile/core/sync/sync_dispatcher.dart';
+import 'package:proctira_mobile/core/sync/sync_engine.dart';
+import 'package:proctira_mobile/core/sync/sync_models.dart';
+import 'package:proctira_mobile/core/tenant/tenant_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 /// One-time platform initialisation shared by every journey test:

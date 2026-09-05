@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:openemis_mobile/core/notifications/notification_router.dart';
+import 'package:proctira_mobile/core/notifications/notification_router.dart';
 
 void main() {
   group('NotificationRouter.routeForPayload', () {

@@ -4,9 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/l10n/app_localizations.dart';
 import '../bloc/scholarship_bloc.dart';
+import '../data/scholarship_repository.dart';
 
 /// Screen for submitting a scholarship application.
-class ScholarshipApplicationScreen extends StatefulWidget {
+class ScholarshipApplicationScreen extends StatelessWidget {
   const ScholarshipApplicationScreen({
     super.key,
     required this.programId,
@@ -17,12 +18,35 @@ class ScholarshipApplicationScreen extends StatefulWidget {
   final String studentId;
 
   @override
-  State<ScholarshipApplicationScreen> createState() =>
-      _ScholarshipApplicationScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider<ScholarshipBloc>(
+      create: (BuildContext context) => ScholarshipBloc(
+        repository: context.read<ScholarshipRepository>(),
+      ),
+      child: _ScholarshipApplicationForm(
+        programId: programId,
+        studentId: studentId,
+      ),
+    );
+  }
 }
 
-class _ScholarshipApplicationScreenState
-    extends State<ScholarshipApplicationScreen> {
+class _ScholarshipApplicationForm extends StatefulWidget {
+  const _ScholarshipApplicationForm({
+    required this.programId,
+    required this.studentId,
+  });
+
+  final String programId;
+  final String studentId;
+
+  @override
+  State<_ScholarshipApplicationForm> createState() =>
+      _ScholarshipApplicationFormState();
+}
+
+class _ScholarshipApplicationFormState
+    extends State<_ScholarshipApplicationForm> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _statementCtrl = TextEditingController();
   final TextEditingController _incomeCtrl = TextEditingController();

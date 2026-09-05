@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:openemis_api_client/openemis_api_client.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../../../core/storage/database.dart';

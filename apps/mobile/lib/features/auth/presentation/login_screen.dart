@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/auth/biometric_service.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/storage/secure_storage.dart';
 import '../../../core/tenant/tenant_provider.dart';
 
-/// Minimal login scaffold. Real authentication is implemented in subsequent
-/// tasks; this screen wires the form into [AuthBloc] and exposes biometric
-/// unlock when the device supports it.
+/// Login form wired to gateway `POST /api/v1/auth/login` via [AuthApi].
+/// Biometric unlock reuses tokens already stored in [SecureStorage].
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -52,32 +53,69 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     setState(() => _submitting = true);
 
-    // TODO(auth): replace with API call to /auth/login. For the scaffold we
-    // emit a deterministic token so router redirects can be exercised.
-    context.read<AuthBloc>().add(AuthLoggedIn(
-          userId: _username.text.trim(),
-          accessToken: 'pending-access-token',
-          refreshToken: 'pending-refresh-token',
-        ));
-
-    if (mounted) {
-      setState(() => _submitting = false);
+    try {
+      final AuthLoginResult result = await getIt<AuthApi>().login(
+        username: _username.text.trim(),
+        password: _password.text,
+      );
+      if (!mounted) {
+        return;
+      }
+      context.read<AuthBloc>().add(AuthLoggedIn(
+            userId: result.userId,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken,
+          ));
+    } on ApiException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(error.message)),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to sign in. Check network and try again.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   Future<void> _onBiometric() async {
     final BiometricService biometric = getIt<BiometricService>();
+    final SecureStorage storage = getIt<SecureStorage>();
+    final String? access = await storage.readAccessToken();
+    final String? refresh = await storage.readRefreshToken();
+    if (access == null ||
+        access.isEmpty ||
+        refresh == null ||
+        refresh.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Sign in with password once before using biometrics.'),
+          ),
+        );
+      }
+      return;
+    }
+
     final bool ok = await biometric.authenticate(
-      reason: 'Sign in to OpenEMIS with biometrics',
+      reason: 'Unlock ProctiraERP with biometrics',
     );
     if (!ok || !mounted) {
       return;
     }
-    // TODO(auth): exchange biometric proof for tokens via the backend.
-    context.read<AuthBloc>().add(const AuthLoggedIn(
+    context.read<AuthBloc>().add(AuthLoggedIn(
           userId: 'biometric-user',
-          accessToken: 'pending-access-token',
-          refreshToken: 'pending-refresh-token',
+          accessToken: access,
+          refreshToken: refresh,
         ));
   }
 
