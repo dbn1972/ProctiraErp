@@ -122,7 +122,7 @@ class InstallApiClient {
     if (!response.ok) {
       throw new Error(`Failed to get status: ${response.statusText}`);
     }
-    return response.json();
+    return (await response.json()) as BootstrapStatus;
   }
 
   async configureDatabase(config: DatabaseConfig): Promise<ValidationResult> {
@@ -172,7 +172,7 @@ class InstallApiClient {
       body: JSON.stringify(config),
     });
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       return { success: false, error: data.error ?? response.statusText };
     }
     return { success: true };

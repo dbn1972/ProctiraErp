@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { StepCard } from '@/components/step-card';
+
 import { StatusMessage } from '@/components/status-message';
-import { apiClient, type AdminAccountConfig } from '@/lib/api-client';
+import { StepCard } from '@/components/step-card';
 import { validateAdminAccount, type AdminAccountFieldErrors } from '@/lib/admin-validation';
+import { apiClient, type AdminAccountConfig } from '@/lib/api-client';
 
 interface AdminStepProps {
   onComplete: () => void;
@@ -204,7 +205,7 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
           </button>
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={() => { void handleSubmit(); }}
             disabled={submitting}
             className="btn-primary"
           >

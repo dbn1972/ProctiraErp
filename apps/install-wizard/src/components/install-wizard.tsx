@@ -1,7 +1,5 @@
 'use client';
 
-import { useWizard } from '@/lib/use-wizard';
-import { getInstallDocsUrl, getInstallSupportUrl } from '@/lib/site';
 import { Stepper } from '@/components/stepper';
 import {
   DatabaseStep,
@@ -12,6 +10,8 @@ import {
   AdminStep,
   CompleteStep,
 } from '@/components/steps';
+import { getInstallDocsUrl, getInstallSupportUrl } from '@/lib/site';
+import { useWizard } from '@/lib/use-wizard';
 
 export function InstallWizard() {
   const wizard = useWizard();
