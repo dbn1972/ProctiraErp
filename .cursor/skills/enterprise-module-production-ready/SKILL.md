@@ -16,7 +16,7 @@ This skill is the **Definition of Done** for any redesign nav module (e.g. Schol
 
 | Pillar | What exists today | What agents must still prove per module |
 | --- | --- | --- |
-| **E2E journeys** | Playwright under `apps/web/e2e/` (01–10 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Scholarships today = **route smoke**, not full workflow. Health = **no dedicated journey yet**. | Live authenticated journey per screen + critical write path |
+| **E2E journeys** | Playwright under `apps/web/e2e/` (01–12 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Scholarships/Health/Workflows = dedicated smokes; live write paths still need backend-ready runs. | Live authenticated journey per screen + critical write path |
 | **UX / a11y** | `a11y-axe`, dark-mode, RTL, touch-target, CLS, loading-skeleton specs; ESLint a11y + contrast gate | Module routes included in axe/dark/touch lists; no critical axe violations |
 | **Multidevice** | Playwright projects: Chromium/Firefox/WebKit + Pixel 5 + iPhone 13 + iPad. `apps/web/scripts/capture-screens.mjs` desktop/tablet/mobile PNGs. **No visual-diff CI**. | Capture **desktop + tablet + mobile** for every screen; spot-check touch targets |
 | **Functionality** | Backend unit/property tests for many domains | UI create/update/list/detail/error states against real or seeded API |
@@ -64,6 +64,22 @@ Work the pillars **in order**. Mark each checkbox only with evidence (path, run 
 | applications | `/scholarships/applications` |
 | application detail | `/scholarships/applications/[id]` |
 | disbursements | `/scholarships/disbursements` |
+
+**Workflows** — minimum screens:
+
+| Nav label | Primary route |
+| --- | --- |
+| Workflows · definitions | `/workflows` |
+| Workflows · new definition | `/workflows/definitions/new` |
+| Workflows · definition detail | `/workflows/definitions/[id]` |
+| Workflows · instances | `/workflows/instances` |
+| Workflows · my approvals | `/workflows/approvals` |
+
+### Execution environment (cloud agents)
+
+- Run **all** verification on the cloud agent / CI host in **headless** mode.
+- Do **not** depend on a user laptop browser, local tunnel, or interactive GUI.
+- Prefer gateway Vitest inject tests + Playwright `--project=chromium` headless against a server-local stack (`E2E_BACKEND_READY=1` only when that stack is up on the same host).
 
 ### 1. Functionality (must pass)
 

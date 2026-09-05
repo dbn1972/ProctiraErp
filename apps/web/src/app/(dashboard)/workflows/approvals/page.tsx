@@ -4,7 +4,7 @@
  * Validates: Requirement 13.1 — surface approval queue per user.
  */
 import Link from 'next/link';
-import { ArrowLeft, Check, CheckCircle2, ListChecks, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ListChecks } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
@@ -12,6 +12,7 @@ import {
   listPendingApprovals,
   type WorkflowApproval,
 } from '@/lib/api/workflows';
+import { ApprovalDecisionButtons } from '../_components/approval-decision-buttons';
 
 export const dynamic = 'force-dynamic';
 
@@ -100,16 +101,7 @@ function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
           <dd className="font-medium text-foreground">{a.stepName || '—'}</dd>
         </dl>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm">
-            <Check className="me-1 h-4 w-4" aria-hidden="true" />
-            Approve
-          </Button>
-          <Button size="sm" variant="destructive">
-            <X className="me-1 h-4 w-4" aria-hidden="true" />
-            Reject
-          </Button>
-        </div>
+        <ApprovalDecisionButtons approvalId={a.id} />
       </CardContent>
     </Card>
   );

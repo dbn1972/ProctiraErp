@@ -50,10 +50,10 @@ export default async function WorkflowDefinitionPage({ params }: PageProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
+          <Button asChild size="sm" variant="outline">
             <Link href="/workflows/definitions/new">
               <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Edit definition
+              New definition
             </Link>
           </Button>
         </div>

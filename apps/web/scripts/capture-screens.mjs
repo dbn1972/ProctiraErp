@@ -96,6 +96,10 @@ const SCREENS = {
     ['approvals', '/workflows/approvals'],
     ['instances', '/workflows/instances'],
     ['definition-new', '/workflows/definitions/new'],
+    [
+      'definition-detail',
+      `/workflows/definitions/${process.env.WORKFLOW_DEFINITION_ID ?? 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1'}`,
+    ],
   ],
   scholarships: [
     ['programs', '/scholarships'],

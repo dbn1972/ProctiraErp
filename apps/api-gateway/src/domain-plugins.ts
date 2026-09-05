@@ -11,7 +11,8 @@
  *  - student / institution / staff (incl. assignments) / attendance /
  *    assessment / examination / scholarship: Prisma-backed (Postgres + RLS)
  *    via their create*Repository factories when DATABASE_URL is set, else
- *    in-memory (scholarship + health currently seed in-memory demo data).
+ *    in-memory (scholarship + health + workflows currently seed in-memory
+ *    demo data for redesign UI aggregates).
  *  - assessment report-card repositories are not wired yet (no Prisma
  *    implementation); report-card routes stay disabled.
  *
@@ -46,6 +47,8 @@ import type { GatewayConfig } from './config.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
+import { workflowUiPlugin } from './workflow-ui-plugin.js';
+import { createWorkflowUiSeed } from './workflow-ui-seed.js';
 
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
@@ -169,6 +172,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(healthPlugin, {
         repository,
         prefix: '/health',
+      });
+    },
+  },
+  {
+    name: 'workflow',
+    proxyPrefixes: ['/workflows'],
+    register: async (scope) => {
+      // Redesign UI aggregates (definitions / instances / approvals) until
+      // Prisma workflow models are mounted through @proctira/backend-workflow
+      // with a stable UI adapter. UI routes alone own `/workflows/*` list
+      // shapes expected by App Router pages.
+      await scope.register(workflowUiPlugin, {
+        seed: createWorkflowUiSeed(),
       });
     },
   },
