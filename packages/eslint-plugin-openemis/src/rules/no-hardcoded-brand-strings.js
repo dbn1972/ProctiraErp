@@ -35,7 +35,7 @@
 
 const path = require("path");
 
-const DEFAULT_BRANDS = ["ProctiraERP", "EduZo"];
+const DEFAULT_BRANDS = ["ProctiraERP", "Proctira", "EduZo"];
 
 const DOCS_URL =
   "https://proctira.dev/docs/eslint/no-hardcoded-brand-strings";

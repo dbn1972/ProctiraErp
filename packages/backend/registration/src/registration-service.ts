@@ -16,7 +16,6 @@ import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/c
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
-  RegistrationEntity,
   RegistrationRepository,
   InstitutionLocationFilter,
   SchoolFinderFilter,

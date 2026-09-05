@@ -18,14 +18,12 @@ import type { RegistrationService } from './registration-service.js';
 import {
   SubmitRegistrationSchema,
   TrackingNumberParamsSchema,
-  InstitutionMapQuerySchema,
   LanguageSelectionSchema,
   SchoolFinderQuerySchema,
   type SubmitRegistrationInput,
   type TrackingNumberParams,
   type InstitutionMapQuery,
   type LanguageSelection,
-  type SchoolFinderQuery,
 } from './schemas.js';
 
 /**
@@ -187,7 +185,7 @@ export async function registerRegistrationRoutes(
       reply: FastifyReply,
     ) {
       const tenantId = resolveTenantId(request, defaultTenantId);
-      const query = request.query as InstitutionMapQuery;
+      const query = request.query;
 
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 50;
@@ -276,7 +274,7 @@ export async function registerRegistrationRoutes(
       try {
         const result = await registrationService.searchSchools(
           tenantId,
-          validation.data as SchoolFinderQuery,
+          validation.data,
         );
         return reply.status(200).send(result);
       } catch (error: unknown) {
