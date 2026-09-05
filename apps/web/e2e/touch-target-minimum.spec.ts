@@ -89,13 +89,21 @@ const STANDARD_ROUTES = [
   '/workflows/instances',
   '/workflows/definitions/new',
   '/reports',
+  '/reports/new',
   '/health',
   '/health/screenings',
   '/health/counselling',
   '/health/special-needs',
   '/data-warehouse',
+  '/data-warehouse/import',
+  '/data-warehouse/field-mapping',
+  '/data-warehouse/map',
   '/academic-periods',
   '/admin',
+  '/admin/users',
+  '/admin/roles',
+  '/admin/permissions',
+  '/admin/tenant',
 ];
 
 /**

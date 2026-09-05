@@ -121,6 +121,22 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     await runAxe(page, { checkpointLabel: '/students' });
   });
 
+  for (const path of [
+    '/reports',
+    '/data-warehouse',
+    '/data-warehouse/import',
+    '/data-warehouse/field-mapping',
+    '/data-warehouse/map',
+    '/admin',
+  ] as const) {
+    test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
+      await loginAsTenantAdmin(page);
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await runAxe(page, { checkpointLabel: path });
+    });
+  }
+
   test('institutions list is WCAG 2.1 AA clean', async ({ page }) => {
     await loginAsTenantAdmin(page);
     await page.goto('/institutions');

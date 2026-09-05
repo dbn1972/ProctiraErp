@@ -14,14 +14,14 @@ This skill is the **Definition of Done** for any redesign nav module (e.g. Schol
 
 ## Honest coverage map (do not overclaim)
 
-| Pillar            | What exists today                                                                                                                                                                                                    | What agents must still prove per module                                          |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **E2E journeys**  | Playwright under `apps/web/e2e/` (01–12 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Scholarships/Health/Workflows = dedicated smokes; live write paths still need backend-ready runs. | Live authenticated journey per screen + critical write path                      |
-| **UX / a11y**     | `a11y-axe`, dark-mode, RTL, touch-target, CLS, loading-skeleton specs; ESLint a11y + contrast gate                                                                                                                   | Module routes included in axe/dark/touch lists; no critical axe violations       |
-| **Multidevice**   | Playwright projects: Chromium/Firefox/WebKit + Pixel 5 + iPhone 13 + iPad. `apps/web/scripts/capture-screens.mjs` desktop/tablet/mobile PNGs. **No visual-diff CI**.                                                 | Capture **desktop + tablet + mobile** for every screen; spot-check touch targets |
-| **Functionality** | Backend unit/property tests for many domains                                                                                                                                                                         | UI create/update/list/detail/error states against real or seeded API             |
-| **Security**      | Tenant-isolation release gate (`tools/tenant-isolation-tests/`); web `07-tenant-isolation` (students); `09-route-permission-coupling` (core SIS only)                                                                | Cross-tenant deny + RBAC deny for **this** module’s sensitive routes             |
-| **CI gates**      | Lint, typecheck, unit, integration, DoD, Lighthouse, tenant isolation, bundle                                                                                                                                        | Tip CI green; do not merge on skipped E2E alone                                  |
+| Pillar            | What exists today                                                                                                                                                                                                             | What agents must still prove per module                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **E2E journeys**  | Playwright under `apps/web/e2e/` (01–13 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Scholarships/Health/Workflows/Insights = dedicated smokes; live write paths still need backend-ready runs. | Live authenticated journey per screen + critical write path                      |
+| **UX / a11y**     | `a11y-axe`, dark-mode, RTL, touch-target, CLS, loading-skeleton specs; ESLint a11y + contrast gate                                                                                                                            | Module routes included in axe/dark/touch lists; no critical axe violations       |
+| **Multidevice**   | Playwright projects: Chromium/Firefox/WebKit + Pixel 5 + iPhone 13 + iPad. `apps/web/scripts/capture-screens.mjs` desktop/tablet/mobile PNGs. **No visual-diff CI**.                                                          | Capture **desktop + tablet + mobile** for every screen; spot-check touch targets |
+| **Functionality** | Backend unit/property tests for many domains                                                                                                                                                                                  | UI create/update/list/detail/error states against real or seeded API             |
+| **Security**      | Tenant-isolation release gate (`tools/tenant-isolation-tests/`); web `07-tenant-isolation` (students); `09-route-permission-coupling` (core SIS only)                                                                         | Cross-tenant deny + RBAC deny for **this** module’s sensitive routes             |
+| **CI gates**      | Lint, typecheck, unit, integration, DoD, Lighthouse, tenant isolation, bundle                                                                                                                                                 | Tip CI green; do not merge on skipped E2E alone                                  |
 
 ## When this skill applies
 
@@ -93,20 +93,23 @@ Auth security extras (mandatory for Auth enterprise claim): sanitize `returnTo` 
 
 **Insights & System (web app)** — minimum screens:
 
-| Nav label                      | Primary route(s)                                                                  |
-| ------------------------------ | --------------------------------------------------------------------------------- |
-| Reports · catalog              | `/reports`                                                                        |
-| Reports · builder              | `/reports/new`                                                                    |
-| Reports · result               | `/reports/[id]/results`                                                           |
-| Data warehouse · overview      | `/data-warehouse`                                                                 |
-| Data warehouse · import        | `/data-warehouse/import`                                                          |
-| Data warehouse · field mapping | redesign map ≠ GIS `/data-warehouse/map` — confirm/implement column-mapping route |
-| Admin · overview               | `/admin`                                                                          |
-| Admin · users                  | `/admin/users`                                                                    |
-| Admin · roles                  | `/admin/roles`                                                                    |
-| Admin · permission matrix      | `/admin/permissions` (or SPA settings matrix)                                     |
-| Admin · tenant settings        | `/admin/tenant`                                                                   |
-| Public · track application     | `/track`                                                                          |
+| Nav label                      | Primary route(s)                                                        |
+| ------------------------------ | ----------------------------------------------------------------------- |
+| Reports · catalog              | `/reports`                                                              |
+| Reports · builder              | `/reports/new`                                                          |
+| Reports · result               | `/reports/[id]/results`                                                 |
+| Data warehouse · overview      | `/data-warehouse`                                                       |
+| Data warehouse · import        | `/data-warehouse/import`                                                |
+| Data warehouse · field mapping | `/data-warehouse/field-mapping` (column → warehouse field; **not** GIS) |
+| Data warehouse · GIS map       | `/data-warehouse/map`                                                   |
+| Admin · overview               | `/admin`                                                                |
+| Admin · users                  | `/admin/users`                                                          |
+| Admin · roles                  | `/admin/roles`                                                          |
+| Admin · permission matrix      | `/admin/permissions`                                                    |
+| Admin · tenant settings        | `/admin/tenant`                                                         |
+| Public · track application     | `/track`                                                                |
+
+Insights skill notes: redesign “map” ≠ GIS. Keep GIS at `/data-warehouse/map`. Field mapping must be a distinct route with Import “Continue to mapping” CTA. Gate live E2E on `E2E_BACKEND_READY`; extend dark/touch/axe/capture lists for `/reports*`, `/data-warehouse*`, `/admin*`, `/track`.
 
 **Platform Admin Console** (`apps/admin-console`) — minimum screens:
 
@@ -257,3 +260,5 @@ Enterprise claims for **Platform Admin**, **Registration Portal**, and **Public 
 - Hooks: `.cursor/hooks.json`, `.cursor/hooks/enterprise-test-gate.cjs`
 - Flutter audit: `docs/audits/MOBILE_FLUTTER_ENTERPRISE.md`
 - Auth audit: `docs/audits/AUTH_LOGIN_SIGNUP_MFA_RESET.md`
+- Insights audit: `docs/audits/INSIGHTS_SYSTEM_REPORTS_WAREHOUSE_ADMIN_TRACK.md`
+- Workflows audit: `docs/audits/WORKFLOWS_DEFINITIONS_INSTANCES_APPROVALS.md`

@@ -54,9 +54,17 @@ const DASHBOARD_ROUTES = [
   { path: '/workflows/instances', label: 'workflows-instances' },
   { path: '/workflows/definitions/new', label: 'workflows-definition-new' },
   { path: '/reports', label: 'reports' },
+  { path: '/reports/new', label: 'reports-new' },
   { path: '/data-warehouse', label: 'data warehouse' },
+  { path: '/data-warehouse/import', label: 'data-warehouse-import' },
+  { path: '/data-warehouse/field-mapping', label: 'data-warehouse-field-mapping' },
+  { path: '/data-warehouse/map', label: 'data-warehouse-gis-map' },
   { path: '/academic-periods', label: 'academic periods' },
   { path: '/admin', label: 'admin' },
+  { path: '/admin/users', label: 'admin-users' },
+  { path: '/admin/roles', label: 'admin-roles' },
+  { path: '/admin/permissions', label: 'admin-permissions' },
+  { path: '/admin/tenant', label: 'admin-tenant' },
 ] as const;
 
 /**
