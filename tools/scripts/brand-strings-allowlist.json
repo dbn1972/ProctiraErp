@@ -44,9 +44,7 @@
       ".dockerignore",
       "**/.dockerignore"
     ],
-    "ci-automation": [
-      ".github/**"
-    ],
+    "ci-automation": [".github/**"],
     "project-documentation": [
       "README.md",
       "**/README.md",
@@ -62,33 +60,14 @@
       "**/docs/**",
       "**/*.keyboard.md"
     ],
-    "redesign-mockups-and-screen-sheets": [
-      "redesign/**",
-      "**/screens/**"
-    ],
-    "web-app-manifest-default-brand": [
-      "**/public/manifest.json"
-    ],
-    "dod-reports-generated": [
-      "tools/dod-checks/reports/**"
-    ],
-    "reference-port-figma": [
-      "School Platform Design/**"
-    ],
-    "mobile-app-metadata": [
-      "apps/mobile/pubspec.yaml",
-      "**/pubspec.yaml"
-    ],
-    "locale-catalogs-app-name": [
-      "apps/*/src/messages/*.json",
-      "apps/*/messages/*.json"
-    ],
-    "themes-shipping-default-brand": [
-      "themes/**"
-    ],
-    "plugin-sdk-documentation": [
-      "plugins/plugin-sdk/**"
-    ],
+    "redesign-mockups-and-screen-sheets": ["redesign/**", "**/screens/**"],
+    "web-app-manifest-default-brand": ["**/public/manifest.json"],
+    "dod-reports-generated": ["tools/dod-checks/reports/**"],
+    "reference-port-figma": ["School Platform Design/**"],
+    "mobile-app-metadata": ["apps/mobile/pubspec.yaml", "**/pubspec.yaml"],
+    "locale-catalogs-app-name": ["apps/*/src/messages/*.json", "apps/*/messages/*.json"],
+    "themes-shipping-default-brand": ["themes/**"],
+    "plugin-sdk-documentation": ["plugins/plugin-sdk/**"],
     "tooling-readmes-and-fixtures": [
       "tools/install-cli/**",
       "tools/migrations/**",
@@ -97,9 +76,6 @@
       "tools/scripts/__test_fixtures__/**",
       "tools/scripts/__tests__/**"
     ],
-    "brand-scanner-self": [
-      "tools/scripts/brand-strings-allowlist.json",
-      "tools/scripts/README.md"
-    ]
+    "brand-scanner-self": ["tools/scripts/brand-strings-allowlist.json", "tools/scripts/README.md"]
   }
 }
