@@ -3,8 +3,8 @@
  *
  * Registers the scalability monitoring routes as a Fastify plugin.
  */
-import fp from 'fastify-plugin';
 import type { FastifyInstance } from 'fastify';
+import fp from 'fastify-plugin';
 
 import { registerScalabilityRoutes, type ScalabilityRoutesOptions } from './scalability-routes.js';
 

@@ -7,9 +7,9 @@
  * - Overall scalability health summary
  * - Cache flush for a specific tenant (admin only)
  */
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { CacheClient } from '@proctira/cache';
 import type { QueueAdapter } from '@proctira/queue-abstraction';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 export interface ScalabilityRoutesOptions {
   /** CacheClient instance for metrics and flush operations */
