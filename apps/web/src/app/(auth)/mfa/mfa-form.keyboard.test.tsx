@@ -59,7 +59,11 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+  default: ({
+    href,
+    children,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
     <a href={href} {...props}>
       {children}
     </a>
@@ -73,8 +77,7 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 vi.mock('@/lib/utils', () => ({
-  cn: (...args: Array<string | undefined | null | false>) =>
-    args.filter(Boolean).join(' '),
+  cn: (...args: Array<string | undefined | null | false>) => args.filter(Boolean).join(' '),
 }));
 
 // Stub the shared UI primitives that MfaForm imports so we don't
@@ -113,8 +116,9 @@ afterEach(() => {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function getDigitInputs(): HTMLInputElement[] {
-  return Array.from({ length: 6 }, (_, i) =>
-    screen.getByLabelText(`Digit ${i + 1}`) as HTMLInputElement,
+  return Array.from(
+    { length: 6 },
+    (_, i) => screen.getByLabelText(`Digit ${i + 1}`) as HTMLInputElement,
   );
 }
 
