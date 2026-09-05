@@ -68,6 +68,8 @@ vi.mock('next/link', () => ({
 
 vi.mock('@/lib/auth', () => ({
   verifyMfa: vi.fn().mockResolvedValue({ success: true }),
+  sanitizeReturnTo: (value: string | null | undefined) =>
+    value && value.startsWith('/') && !value.startsWith('//') ? value : '/',
 }));
 
 vi.mock('@/lib/utils', () => ({
