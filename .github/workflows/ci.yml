@@ -475,7 +475,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run database migrations
-        run: pnpm --filter @proctira/database run db:migrate:deploy
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
         env:
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
 

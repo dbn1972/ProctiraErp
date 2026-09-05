@@ -130,7 +130,9 @@ const PROFILE_SETTINGS =
   PROFILE === 'mobile-3g'
     ? {
         ...COMMON_SETTINGS,
-        preset: 'mobile',
+        // Do not set `preset: 'mobile'` — Lighthouse only accepts
+        // 'perf' | 'experimental' | 'desktop'. Mobile form factor + 3G
+        // throttling is applied explicitly below.
         formFactor: 'mobile',
         throttlingMethod: 'simulate',
         throttling: MOBILE_3G_THROTTLING,
