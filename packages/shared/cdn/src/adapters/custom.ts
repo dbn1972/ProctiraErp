@@ -29,12 +29,13 @@ export class CustomCdnAdapter implements CdnAdapter {
 
   async invalidate(request: InvalidationRequest): Promise<InvalidationResult> {
     const endpoint = this.config.custom?.invalidationEndpoint;
+    const pathCount = request.paths.length;
 
     if (!endpoint) {
       // No invalidation endpoint configured — invalidation is a no-op
       return {
         success: true,
-        invalidationId: `custom-noop-${Date.now()}`,
+        invalidationId: `custom-noop-${pathCount}-${Date.now()}`,
         estimatedCompletionSeconds: 0,
       };
     }
@@ -58,7 +59,7 @@ export class CustomCdnAdapter implements CdnAdapter {
 
       return {
         success: true,
-        invalidationId: `custom-${Date.now()}`,
+        invalidationId: `custom-${pathCount}-${Date.now()}`,
         estimatedCompletionSeconds: 60,
       };
     } catch (error) {

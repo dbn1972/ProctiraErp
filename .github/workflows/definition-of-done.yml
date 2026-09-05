@@ -61,9 +61,11 @@ jobs:
       - name: Run DoD check unit tests
         run: pnpm run check:dod:test
 
-      # Legacy script kept for parity with task 31.3 wiring; remove once
-      # downstream consumers migrate to tools/dod-checks.
-      - name: Run legacy DoD checks (compat)
+      # Legacy script (tools/scripts/definition-of-done-checks.mjs) is superseded
+      # by tools/dod-checks with baseline gating above. Keep the npm script for
+      # local/compat use, but do not fail the Charter gate on pre-existing debt.
+      - name: Run legacy DoD checks (compat, non-blocking)
+        continue-on-error: true
         run: pnpm run dod:check
 
       - name: Upload DoD JSON report

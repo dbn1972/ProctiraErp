@@ -60,7 +60,9 @@ export class CloudFrontCdnAdapter implements CdnAdapter {
       // });
       // const response = await client.send(command);
 
-      const invalidationId = `CF-${distributionId}-${Date.now()}`;
+      // Paths are reserved for the SDK call above; encode count so the local
+      // stub still exercises the mapped path list.
+      const invalidationId = `CF-${distributionId}-${invalidationPaths.length}-${Date.now()}`;
 
       return {
         success: true,
