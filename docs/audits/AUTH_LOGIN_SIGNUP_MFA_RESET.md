@@ -76,11 +76,27 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 
 ## 4. Multidevice captures
 
-| Screen                            | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path                                          |
-| --------------------------------- | ------------ | ---------- | ---------- | ------------------------------------------------------ |
-| Auth set in `capture-screens.mjs` | ☐ waived     | ☐ waived   | ☐ waived   | Targets listed; PNG capture not regenerated this pass  |
+Captured on tip `main` @ `6c9e391` via headless Playwright against local Next.js
+(`localhost:3001`), viewports **1440 / 834 / 390**. Pack lives outside the repo:
 
-Horizontal scroll / clipped CTA issues: waived — capture targets extended; visual pack deferred.
+`/opt/cursor/artifacts/auth-audit/{route}-{viewport}.png`
+
+| Screen            | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path (prefix)                                      |
+| ----------------- | ------------ | ---------- | ---------- | ----------------------------------------------------------- |
+| `/login`          | ☑            | ☑          | ☑          | `.../auth-audit/login-{1440,834,390}.png`                   |
+| `/signup`         | ☑            | ☑          | ☑          | `.../auth-audit/signup-{1440,834,390}.png`                  |
+| `/forgot-password`| ☑            | ☑          | ☑          | `.../auth-audit/forgot-password-{1440,834,390}.png`         |
+| `/reset-password` | ☑            | ☑          | ☑          | `.../auth-audit/reset-password-{1440,834,390}.png`          |
+| `/mfa`            | ☑            | ☑          | ☑          | `.../auth-audit/mfa-{1440,834,390}.png`                     |
+| `/logout`         | ☑            | ☑          | ☑          | `.../auth-audit/logout-{1440,834,390}.png` → `/login`       |
+| `/oauth/callback` | ☑            | ☑          | ☑          | `.../auth-audit/oauth-callback-{1440,834,390}.png` → login + error |
+
+Walkthrough key copies (desktop/mobile):  
+`/opt/cursor/artifacts/auth_login_desktop_1440.png`,  
+`auth_signup_desktop_1440.png`, `auth_mfa_desktop_1440.png`,  
+`auth_forgot_password_desktop_1440.png`, `auth_login_mobile_390.png`.
+
+Horizontal scroll / clipped CTA: none observed on Auth public forms in this pack.
 
 ---
 
@@ -117,7 +133,7 @@ Horizontal scroll / clipped CTA issues: waived — capture targets extended; vis
 | Middleware JWT decode-only (no sig verify)                             | Known — gateway verifies                                   | platform                   | pre-existing |
 | PR #1 mega-branch not merged                                           | Accepted — Auth equivalent = PR #8; #1 CONFLICTING         | close or rebase separately | 2026-09-05   |
 | Deploy registry secrets                                                | Infra — `REGISTRY` empty on Deploy                         | platform                   | 2026-09-05   |
-| Auth multidevice PNG capture pack                                      | Low — routes in capture script; PNGs not regenerated       | cloud-agent                | 2026-09-05   |
+| Auth multidevice PNG capture pack                                      | Closed — 21 PNGs under `/opt/cursor/artifacts/auth-audit/` | cloud-agent                | 2026-09-05   |
 
 ---
 
@@ -126,7 +142,7 @@ Horizontal scroll / clipped CTA issues: waived — capture targets extended; vis
 - [x] Pillars evidence **or** dated waivers above
 - [x] Tip CI green (Lint/typecheck/unit/DoD/Lighthouse/bundle/tenant) — run 33968548810
 - [x] Auth equivalent merged to main (PR #8 + tip fix #9)
-- [ ] Walkthrough PNG pack (waived above)
+- [x] Walkthrough PNG pack — 21 PNGs under `/opt/cursor/artifacts/auth-audit/` (desktop/tablet/mobile)
 - [ ] Session state set to `complete` via hooks helper
 
 **Verdict:** ☐ Not ready · ☑ Ready with waivers · ☐ Enterprise production-ready
