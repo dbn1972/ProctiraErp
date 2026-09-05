@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { ComingSoon } from '@/components/coming-soon';
 
 export const metadata: Metadata = {
-  title: 'Documentation — ProctiraERP Developers',
+  title: 'Documentation — Developers',
   description: 'Developer documentation and API reference (coming soon).',
 };
 
