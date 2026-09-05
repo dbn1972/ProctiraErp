@@ -77,12 +77,20 @@ function BreadcrumbSeparator() {
   );
 }
 
+const UUID_SEGMENT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * Formats a URL segment into a human-readable label.
- * Converts kebab-case to Title Case.
+ * Converts kebab-case to Title Case. Leaves UUID path params intact so
+ * breadcrumbs do not turn `a1b2-...` into spaced title-case fragments.
  */
 function formatSegmentLabel(segment: string): string {
-  return segment
+  const decoded = decodeURIComponent(segment);
+  if (UUID_SEGMENT.test(decoded)) {
+    return decoded;
+  }
+  return decoded
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');

@@ -74,8 +74,12 @@ export default async function ExaminationDetailLayout({ params, children }: Layo
               </div>
               <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-sm text-muted-foreground">
                 <span className="font-mono">{examination.code}</span>
-                <span aria-hidden="true">·</span>
-                <span>{formatDate(examination.examinationDate)}</span>
+                {examination.examinationDate ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{formatDate(examination.examinationDate)}</span>
+                  </>
+                ) : null}
               </p>
             </div>
           </div>

@@ -14,12 +14,45 @@ export interface Examination {
   id: string;
   name: string;
   code: string;
+  /** Primary exam date shown in UI (mapped from API `startDate`). */
   examinationDate: string;
+  /** Optional end of multi-day exam window (API `endDate`). */
+  endDate?: string | null;
   registrationStartDate?: string | null;
   registrationEndDate?: string | null;
   status: 'DRAFT' | 'OPEN' | 'CLOSED' | 'COMPLETED' | 'CANCELLED';
   candidateCount?: number;
   resultsPublished?: boolean;
+}
+
+/** Upstream examination payload (gateway / examination service). */
+interface ExaminationApiRecord {
+  id: string;
+  name: string;
+  code: string;
+  examinationDate?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  registrationStartDate?: string | null;
+  registrationEndDate?: string | null;
+  status: Examination['status'];
+  candidateCount?: number;
+  resultsPublished?: boolean;
+}
+
+function normalizeExamination(raw: ExaminationApiRecord): Examination {
+  return {
+    id: raw.id,
+    name: raw.name,
+    code: raw.code,
+    examinationDate: raw.examinationDate ?? raw.startDate ?? '',
+    endDate: raw.endDate ?? null,
+    registrationStartDate: raw.registrationStartDate ?? null,
+    registrationEndDate: raw.registrationEndDate ?? null,
+    status: raw.status,
+    candidateCount: raw.candidateCount,
+    resultsPublished: raw.resultsPublished,
+  };
 }
 
 export interface ExaminationCandidate {
@@ -54,20 +87,20 @@ export interface ExaminationDocument {
 
 /** List examinations with optional status filtering. */
 export async function listExaminations(): Promise<Examination[]> {
-  const result = await gatewayFetch<{ data: Examination[] }>(
+  const result = await gatewayFetch<{ data: ExaminationApiRecord[] }>(
     '/examinations',
     { throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.data?.data ?? [];
+  return (result.data?.data ?? []).map(normalizeExamination);
 }
 
 /** Fetch a single examination by ID. */
 export async function getExamination(id: string): Promise<Examination | null> {
-  const result = await gatewayFetch<Examination>(`/examinations/${id}`, {
+  const result = await gatewayFetch<ExaminationApiRecord>(`/examinations/${id}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data;
+  return result.data ? normalizeExamination(result.data) : null;
 }
 
 /** List candidates registered for an examination. */
