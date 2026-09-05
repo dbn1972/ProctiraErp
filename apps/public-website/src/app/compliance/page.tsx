@@ -9,7 +9,7 @@ import {
 
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 
 export const dynamic = 'force-static';
 

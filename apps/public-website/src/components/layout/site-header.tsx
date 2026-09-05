@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { getWebAppLoginUrl } from '@/lib/site';
 import { cn } from '@/lib/utils';
 
 const PRIMARY_LINKS: ReadonlyArray<{ href: string; label: string }> = [
@@ -14,6 +15,8 @@ const PRIMARY_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: '/#pricing', label: 'Pricing' },
   { href: '/about', label: 'Company' },
 ];
+
+const LOGIN_HREF = getWebAppLoginUrl();
 
 /**
  * Public site header with primary navigation, brand mark, and login CTA.
@@ -61,7 +64,7 @@ export function SiteHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <Button asChild variant="ghost" size="sm">
-            <Link href="/login">Login</Link>
+            <Link href={LOGIN_HREF}>Login</Link>
           </Button>
           <Button asChild size="sm">
             <Link href="/contact">Contact sales</Link>
@@ -101,7 +104,7 @@ export function SiteHeader() {
             ))}
             <div className="mt-2 flex flex-col gap-2">
               <Button asChild variant="outline" size="sm">
-                <Link href="/login" onClick={() => setOpen(false)}>
+                <Link href={LOGIN_HREF} onClick={() => setOpen(false)}>
                   Login
                 </Link>
               </Button>

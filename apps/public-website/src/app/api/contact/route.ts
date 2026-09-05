@@ -1,32 +1,37 @@
 import { NextResponse } from 'next/server';
 
+import { allowContactRequest } from '@/lib/contact-rate-limit';
+import { validateContactInput } from '@/lib/contact-validation';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-interface ContactPayload {
-  name?: unknown;
-  email?: unknown;
-  organization?: unknown;
-  message?: unknown;
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function asString(value: unknown): string {
-  return typeof value === 'string' ? value : '';
+function clientKey(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) {
+    return forwarded.split(',')[0]?.trim() || 'unknown';
+  }
+  return request.headers.get('x-real-ip') ?? 'unknown';
 }
 
 /**
  * Stub contact API.
  *
- * Validates the payload shape and emits a structured log entry. A real
- * deployment would forward the message to a ticketing system or CRM. Errors
- * are returned with a stable JSON shape so the client can surface them.
+ * Validates the payload (shared with the client form), applies a process-local
+ * rate limit, and emits a structured log entry without echoing the message
+ * body. A real deployment would forward to ticketing/CRM behind edge throttling.
  */
 export async function POST(request: Request): Promise<NextResponse> {
-  let body: ContactPayload;
+  if (!allowContactRequest(clientKey(request))) {
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429 },
+    );
+  }
+
+  let body: unknown;
   try {
-    body = (await request.json()) as ContactPayload;
+    body = await request.json();
   } catch {
     return NextResponse.json(
       { error: 'Invalid JSON body.' },
@@ -34,34 +39,34 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const name = asString(body.name).trim();
-  const email = asString(body.email).trim();
-  const organization = asString(body.organization).trim();
-  const message = asString(body.message).trim();
+  const payload =
+    body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const result = validateContactInput({
+    name: payload.name,
+    email: payload.email,
+    organization: payload.organization,
+    message: payload.message,
+    website: payload.website,
+  });
 
-  if (!name) {
-    return NextResponse.json({ error: 'Name is required.' }, { status: 400 });
-  }
-  if (!email || !EMAIL_RE.test(email)) {
-    return NextResponse.json(
-      { error: 'A valid email address is required.' },
-      { status: 400 },
-    );
-  }
-  if (!message || message.length < 10) {
-    return NextResponse.json(
-      { error: 'Message must be at least 10 characters.' },
-      { status: 400 },
-    );
+  if (!result.ok) {
+    const message =
+      result.errors.form ??
+      result.errors.name ??
+      result.errors.email ??
+      result.errors.organization ??
+      result.errors.message ??
+      'Invalid contact payload.';
+    return NextResponse.json({ error: message, errors: result.errors }, { status: 400 });
   }
 
-  // In production: forward to ticketing/CRM. For now, log and respond.
+  // In production: forward to ticketing/CRM. Log metadata only (no message body).
   // eslint-disable-next-line no-console
   console.info('[contact] new submission', {
-    name,
-    email,
-    organization,
-    messageLength: message.length,
+    name: result.value.name,
+    email: result.value.email,
+    organization: result.value.organization,
+    messageLength: result.value.message.length,
     receivedAt: new Date().toISOString(),
   });
 

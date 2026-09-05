@@ -146,6 +146,8 @@ Registration skill notes: wire school → apply `institutionId`; require DOB on 
 | Home / Product / Installation / Security / Compliance / Status / About / Contact |
 | Legal hub / Privacy / Terms / Cookies                                            |
 
+Public Website skill notes: keep Login CTA on `NEXT_PUBLIC_WEB_APP_URL/login` (fallback `/contact` — never a dead in-app `/login`). Prefer shared Vitest contact validation + honeypot/rate-limit on `POST /api/contact`. Smoke: `e2e/01-public-website-smoke.spec.ts` (gate live contact on `E2E_BACKEND_READY`). Avoid lucide `Github` under Next `optimizePackageImports` (use `Code2` or a direct icon import). Audit: `docs/audits/PUBLIC_WEBSITE_HOME_PRODUCT_LEGAL_CONTACT.md`.
+
 ### Execution environment (cloud agents)
 
 - Run **all** verification on the cloud agent / CI host in **headless** mode.
@@ -266,4 +268,6 @@ Enterprise claims for **Platform Admin**, **Registration Portal**, and **Public 
 - Auth audit: `docs/audits/AUTH_LOGIN_SIGNUP_MFA_RESET.md`
 - Insights audit: `docs/audits/INSIGHTS_SYSTEM_REPORTS_WAREHOUSE_ADMIN_TRACK.md`
 - Platform Admin audit: `docs/audits/ADMIN_CONSOLE_PLATFORM.md`
+- Registration Portal audit: `docs/audits/REGISTRATION_PORTAL_HOME_SCHOOLS_APPLY_TRACK.md`
+- Public Website audit: `docs/audits/PUBLIC_WEBSITE_HOME_PRODUCT_LEGAL_CONTACT.md`
 - Workflows audit: `docs/audits/WORKFLOWS_DEFINITIONS_INSTANCES_APPROVALS.md`

@@ -5,7 +5,6 @@ import {
   Lock,
   Mail,
   RotateCcw,
-  ScrollText,
   ShieldCheck,
   Sparkles,
   Users,
