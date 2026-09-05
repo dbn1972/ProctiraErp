@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   Accessibility,
-  Github,
+  Code2,
   Globe,
   Heart,
   Layers,
@@ -166,7 +166,7 @@ export default function AboutPage() {
         </div>
         <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-border bg-primary p-8 text-primary-foreground shadow-lg">
           <div className="flex flex-wrap items-center gap-3">
-            <Github aria-hidden="true" className="h-6 w-6" />
+            <Code2 aria-hidden="true" className="h-6 w-6" />
             <span className="font-mono text-lg font-bold">
               proctira / proctira-erp
             </span>
