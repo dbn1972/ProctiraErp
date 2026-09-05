@@ -26,7 +26,7 @@ export async function seedScholarshipDemoData(
     name: 'National Merit Scholarship 2026',
     description: 'Code: NMS-2026\nMerit-based award for Class X–XII students.',
     applicationStartDate: '2026-01-01',
-    applicationEndDate: '2026-06-30',
+    applicationEndDate: '2026-12-31',
     totalSlots: 100,
     usedSlots: 1,
     amountPerRecipient: 25000,

@@ -44,3 +44,24 @@ nav (`WEB APP — SERVICES`).
   live verify seeds demo rows via the public API for those hosts.
 - Capture IDs can be overridden with `SCHOLARSHIP_PROGRAM_ID` /
   `SCHOLARSHIP_APPLICATION_ID` when seeding against a live database.
+
+## Live EC3 verification (2026-09-05)
+
+Seeded against Prisma scholarships on EC3 and captured all 6 screens:
+
+| Screen | HTTP | H1 |
+|---|---|---|
+| programs | 200 | Scholarship programs |
+| new program | 200 | New scholarship program |
+| program detail | 200 | National Merit Scholarship 2026 |
+| applications | 200 | Scholarship applications |
+| application detail | 200 | Application e378c859-40a |
+| disbursements | 200 | Disbursements |
+
+Live IDs:
+- Program: `d14350e2-40d9-478e-990c-5d061a8a363b`
+- Application: `e378c859-40a6-4567-96d7-f8ea09470252`
+- Disbursement: `1336796e-d6e3-4ffb-be2a-b9753d5f7de2`
+
+Artifacts: `/opt/cursor/artifacts/scholarships-audit/`.
+
