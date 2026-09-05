@@ -1,23 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  Accessibility,
-  Code2,
-  Globe,
-  Heart,
-  Layers,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react';
+import { Accessibility, Code2, Globe, Heart, Layers, ShieldCheck, Sparkles } from 'lucide-react';
 
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const dynamic = 'force-static';
 
@@ -76,9 +63,7 @@ export default function AboutPage() {
       {/* Story */}
       <section className="container py-20" aria-labelledby="story-heading">
         <div className="mx-auto max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
-            Our story
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Our story</p>
           <h2
             id="story-heading"
             className="mt-3 text-3xl font-extrabold tracking-tight text-foreground md:text-4xl"
@@ -87,24 +72,21 @@ export default function AboutPage() {
           </h2>
           <div className="mt-6 space-y-5 text-lg leading-relaxed text-muted-foreground">
             <p>
-              ProctiraERP began with a familiar problem: dedicated educators
-              spending evenings re-typing the same attendance registers,
-              scholarship lists, and exam results into a patchwork of
-              disconnected spreadsheets and portals.
+              ProctiraERP began with a familiar problem: dedicated educators spending evenings
+              re-typing the same attendance registers, scholarship lists, and exam results into a
+              patchwork of disconnected spreadsheets and portals.
             </p>
             <p>
-              Instead of building another proprietary portal, we made a
-              different bet —{' '}
+              Instead of building another proprietary portal, we made a different bet —{' '}
               <strong className="text-foreground">
                 education management software should be public infrastructure
               </strong>
-              : open source, self-hostable, and owned by the institutions that
-              depend on it. No lock-in, no per-student licence fees, no black
-              boxes around children&apos;s data.
+              : open source, self-hostable, and owned by the institutions that depend on it. No
+              lock-in, no per-student licence fees, no black boxes around children&apos;s data.
             </p>
             <p>
-              Every line of code remains Apache-2.0 licensed, and every
-              improvement funded by one institution benefits all of them.
+              Every line of code remains Apache-2.0 licensed, and every improvement funded by one
+              institution benefits all of them.
             </p>
           </div>
         </div>
@@ -167,17 +149,15 @@ export default function AboutPage() {
         <div className="mx-auto mt-10 max-w-2xl rounded-2xl border border-border bg-primary p-8 text-primary-foreground shadow-lg">
           <div className="flex flex-wrap items-center gap-3">
             <Code2 aria-hidden="true" className="h-6 w-6" />
-            <span className="font-mono text-lg font-bold">
-              proctira / proctira-erp
-            </span>
+            <span className="font-mono text-lg font-bold">proctira / proctira-erp</span>
             <span className="ml-auto rounded-full bg-primary-foreground/10 px-3 py-1 text-xs font-semibold">
               Apache-2.0
             </span>
           </div>
           <p className="mt-4 text-sm leading-relaxed text-primary-foreground/75">
-            Open-source, multi-tenant education ERP for schools, districts, and
-            ministries. PostgreSQL · Fastify · Next.js · Kubernetes-ready. Good
-            first issues are labelled and mentored.
+            Open-source, multi-tenant education ERP for schools, districts, and ministries.
+            PostgreSQL · Fastify · Next.js · Kubernetes-ready. Good first issues are labelled and
+            mentored.
           </p>
         </div>
       </section>
@@ -190,16 +170,12 @@ export default function AboutPage() {
         style={{ scrollMarginTop: '5rem' }}
       >
         <div className="container py-20 text-center">
-          <h2
-            id="careers-heading"
-            className="text-3xl font-extrabold tracking-tight md:text-4xl"
-          >
+          <h2 id="careers-heading" className="text-3xl font-extrabold tracking-tight md:text-4xl">
             Build public infrastructure with us
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            We hire engineers, designers, educators, and operators who care
-            about public-good infrastructure. Remote-friendly, mission-driven,
-            and open by default.
+            We hire engineers, designers, educators, and operators who care about public-good
+            infrastructure. Remote-friendly, mission-driven, and open by default.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">
@@ -215,8 +191,8 @@ export default function AboutPage() {
             </Button>
           </div>
           <p className="mt-6 text-sm text-primary-foreground/60">
-            No role that fits? Send a note and a link to something you&apos;ve
-            built — careers@proctira.org
+            No role that fits? Send a note and a link to something you&apos;ve built —
+            careers@proctira.org
           </p>
         </div>
       </section>
