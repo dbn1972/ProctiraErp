@@ -41,12 +41,16 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   const { config } = options;
 
   const app = Fastify({
-    logger: config.env !== 'test' ? {
-      level: process.env['LOG_LEVEL'] || 'info',
-      transport: config.env === 'development'
-        ? { target: 'pino-pretty', options: { colorize: true } }
-        : undefined,
-    } : false,
+    logger:
+      config.env !== 'test'
+        ? {
+            level: process.env['LOG_LEVEL'] || 'info',
+            transport:
+              config.env === 'development'
+                ? { target: 'pino-pretty', options: { colorize: true } }
+                : undefined,
+          }
+        : false,
     requestIdHeader: 'x-request-id',
     genReqId: () => crypto.randomUUID(),
   });
@@ -163,7 +167,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
             name: 'Idempotency-Key',
             in: 'header',
             required: false,
-            description: 'Unique key for idempotent POST/PUT/PATCH requests. If the same key is sent again within 24 hours, the cached response is returned without re-executing the operation. Used by the offline-first Sync_Queue to safely replay requests.',
+            description:
+              'Unique key for idempotent POST/PUT/PATCH requests. If the same key is sent again within 24 hours, the cached response is returned without re-executing the operation. Used by the offline-first Sync_Queue to safely replay requests.',
             schema: {
               type: 'string',
               format: 'uuid',
@@ -172,10 +177,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
           },
         },
       },
-      security: [
-        { bearerAuth: [] },
-        { tenantHeader: [] },
-      ],
+      security: [{ bearerAuth: [] }, { tenantHeader: [] }],
       tags: [
         { name: 'Health', description: 'Health check endpoints' },
         { name: 'Gateway', description: 'Gateway management endpoints' },

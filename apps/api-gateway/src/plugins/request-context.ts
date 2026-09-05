@@ -33,12 +33,9 @@ declare module 'fastify' {
 
 const requestContextPluginImpl: FastifyPluginAsync<RequestContextOptions> = async (
   fastify: FastifyInstance,
-  options: RequestContextOptions = {}
+  options: RequestContextOptions = {},
 ) => {
-  const {
-    requestIdHeader = 'x-request-id',
-    correlationIdHeader = 'x-correlation-id',
-  } = options;
+  const { requestIdHeader = 'x-request-id', correlationIdHeader = 'x-correlation-id' } = options;
 
   // Decorate request with IDs
   if (!fastify.hasRequestDecorator('requestId')) {
@@ -51,12 +48,10 @@ const requestContextPluginImpl: FastifyPluginAsync<RequestContextOptions> = asyn
   // Hook: onRequest - generate or propagate request/correlation IDs
   fastify.addHook('onRequest', async (request: FastifyRequest, _reply: FastifyReply) => {
     // Use incoming request ID header or generate a new UUID
-    const requestId =
-      (request.headers[requestIdHeader] as string) || randomUUID();
+    const requestId = (request.headers[requestIdHeader] as string) || randomUUID();
 
     // Use incoming correlation ID header or generate a new UUID
-    const correlationId =
-      (request.headers[correlationIdHeader] as string) || randomUUID();
+    const correlationId = (request.headers[correlationIdHeader] as string) || randomUUID();
 
     request.requestId = requestId;
     request.correlationId = correlationId;
