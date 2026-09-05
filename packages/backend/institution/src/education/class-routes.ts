@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { ClassService } from './class-service.js';
 import type { CreateClassDto, UpdateClassDto } from './class-schemas.js';
+import { toIsoString } from '../date-utils.js';
 
 export interface ClassRoutesOptions {
   service: ClassService;
@@ -36,8 +37,8 @@ function formatClassResponse(cls: {
     academicPeriodId: cls.academicPeriodId,
     name: cls.name,
     capacity: cls.capacity,
-    createdAt: cls.createdAt.toISOString(),
-    updatedAt: cls.updatedAt.toISOString(),
+    createdAt: toIsoString(cls.createdAt),
+    updatedAt: toIsoString(cls.updatedAt),
   };
 }
 

@@ -14,6 +14,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { SubjectService } from './subject-service.js';
 import type {
+import { toIsoString } from '../date-utils.js';
   CreateSubjectDto,
   UpdateSubjectDto,
   LinkSubjectToGradeDto,
@@ -38,8 +39,8 @@ function formatSubjectResponse(subject: {
     tenantId: subject.tenantId,
     name: subject.name,
     code: subject.code,
-    createdAt: subject.createdAt.toISOString(),
-    updatedAt: subject.updatedAt.toISOString(),
+    createdAt: toIsoString(subject.createdAt),
+    updatedAt: toIsoString(subject.updatedAt),
   };
 }
 
@@ -58,8 +59,8 @@ function formatInstitutionSubjectResponse(link: {
     institutionId: link.institutionId,
     subjectId: link.subjectId,
     gradeId: link.gradeId,
-    createdAt: link.createdAt.toISOString(),
-    updatedAt: link.updatedAt.toISOString(),
+    createdAt: toIsoString(link.createdAt),
+    updatedAt: toIsoString(link.updatedAt),
   };
 }
 

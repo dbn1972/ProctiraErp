@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { BoardService } from './board-service.js';
 import type { CreateBoardDto, UpdateBoardDto } from './board-schemas.js';
+import { toIsoString } from '../date-utils.js';
 
 export interface BoardRoutesOptions {
   service: BoardService;
@@ -25,8 +26,8 @@ function formatBoardResponse(board: {
     code: board.code,
     type: board.type,
     status: board.status,
-    createdAt: board.createdAt.toISOString(),
-    updatedAt: board.updatedAt.toISOString(),
+    createdAt: toIsoString(board.createdAt),
+    updatedAt: toIsoString(board.updatedAt),
   };
 }
 

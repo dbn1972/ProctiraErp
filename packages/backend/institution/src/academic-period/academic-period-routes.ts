@@ -12,6 +12,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { AcademicPeriodService } from './academic-period-service.js';
 import type { CreateAcademicPeriodDto, UpdateAcademicPeriodDto } from './academic-period-schemas.js';
+import { toIsoDate, toIsoString } from '../date-utils.js';
 
 export interface AcademicPeriodRoutesOptions {
   service: AcademicPeriodService;
@@ -34,11 +35,11 @@ function formatPeriodResponse(period: {
     tenantId: period.tenantId,
     name: period.name,
     code: period.code,
-    startDate: period.startDate.toISOString().split('T')[0],
-    endDate: period.endDate.toISOString().split('T')[0],
+    startDate: toIsoDate(period.startDate),
+    endDate: toIsoDate(period.endDate),
     status: period.status,
-    createdAt: period.createdAt.toISOString(),
-    updatedAt: period.updatedAt.toISOString(),
+    createdAt: toIsoString(period.createdAt),
+    updatedAt: toIsoString(period.updatedAt),
   };
 }
 

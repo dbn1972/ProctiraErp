@@ -17,6 +17,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { AreaHierarchyService } from './area-hierarchy.service.js';
 import {
+import { toIsoString } from '../date-utils.js';
   CreateAreaBodySchema,
   UpdateAreaBodySchema,
   MoveAreaBodySchema,
@@ -66,8 +67,8 @@ function formatAreaResponse(entity: {
     path: entity.path,
     lft: entity.lft,
     rgt: entity.rgt,
-    createdAt: entity.createdAt.toISOString(),
-    updatedAt: entity.updatedAt.toISOString(),
+    createdAt: toIsoString(entity.createdAt),
+    updatedAt: toIsoString(entity.updatedAt),
   };
 }
 

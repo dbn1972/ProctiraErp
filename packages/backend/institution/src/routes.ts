@@ -11,6 +11,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
+import { toIsoString } from './date-utils.js';
 import type { InstitutionService } from './institution-service.js';
 import {
   CreateInstitutionSchema,
@@ -53,8 +54,8 @@ function formatInstitutionResponse(entity: {
   contactPhone: string | null;
   contactEmail: string | null;
   deactivationReason: string | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }) {
   return {
     id: entity.id,
@@ -72,8 +73,8 @@ function formatInstitutionResponse(entity: {
     contactPhone: entity.contactPhone,
     contactEmail: entity.contactEmail,
     deactivationReason: entity.deactivationReason,
-    createdAt: entity.createdAt.toISOString(),
-    updatedAt: entity.updatedAt.toISOString(),
+    createdAt: toIsoString(entity.createdAt),
+    updatedAt: toIsoString(entity.updatedAt),
   };
 }
 

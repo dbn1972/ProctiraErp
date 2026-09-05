@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { GradeService } from './grade-service.js';
 import type { CreateGradeDto, UpdateGradeDto } from './grade-schemas.js';
+import { toIsoString } from '../date-utils.js';
 
 export interface GradeRoutesOptions {
   service: GradeService;
@@ -32,8 +33,8 @@ function formatGradeResponse(grade: {
     name: grade.name,
     code: grade.code,
     order: grade.order,
-    createdAt: grade.createdAt.toISOString(),
-    updatedAt: grade.updatedAt.toISOString(),
+    createdAt: toIsoString(grade.createdAt),
+    updatedAt: toIsoString(grade.updatedAt),
   };
 }
 

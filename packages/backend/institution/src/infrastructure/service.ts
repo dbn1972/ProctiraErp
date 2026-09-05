@@ -14,6 +14,7 @@ import { NotFoundError, BusinessRuleError, type PaginatedResult } from '@proctir
 import { v4 as uuidv4 } from 'uuid';
 
 import {
+import { toIsoDate, toIsoString } from '../date-utils.js';
   InfrastructureType,
   type InfrastructureTypeValue,
   type CreateLandInput,
@@ -124,8 +125,8 @@ function toResponse(record: InfrastructureRecord): InfrastructureResponse {
     capacity: record.capacity,
     condition: record.condition,
     description: record.description,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
+    createdAt: toIsoString(record.createdAt),
+    updatedAt: toIsoString(record.updatedAt),
   };
 }
 
@@ -134,12 +135,12 @@ function toRepairResponse(record: InfrastructureRepairLogRecord): Infrastructure
     id: record.id,
     institutionId: record.institutionId,
     infrastructureItemId: record.infrastructureItemId,
-    repairDate: record.repairDate.toISOString().slice(0, 10),
+    repairDate: toIsoDate(record.repairDate),
     notes: record.notes,
     conditionAfter: record.conditionAfter,
     cost: record.cost,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
+    createdAt: toIsoString(record.createdAt),
+    updatedAt: toIsoString(record.updatedAt),
   };
 }
 
