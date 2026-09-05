@@ -272,10 +272,7 @@ export async function registerRegistrationRoutes(
       }
 
       try {
-        const result = await registrationService.searchSchools(
-          tenantId,
-          validation.data,
-        );
+        const result = await registrationService.searchSchools(tenantId, validation.data);
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
