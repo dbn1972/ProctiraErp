@@ -20,6 +20,7 @@ export const HEALTH_SCREENING_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1';
 
 export interface UiHealthRecord {
   id: string;
+  tenantId: string;
   studentId: string;
   studentName: string;
   bloodType?: string | null;
@@ -32,6 +33,7 @@ export interface UiHealthRecord {
 
 export interface UiSpecialNeedRecord {
   id: string;
+  tenantId: string;
   studentId: string;
   studentName: string;
   category: string;
@@ -42,6 +44,7 @@ export interface UiSpecialNeedRecord {
 
 export interface UiCounsellingSession {
   id: string;
+  tenantId: string;
   studentId: string;
   studentName: string;
   counsellorName: string;
@@ -52,6 +55,7 @@ export interface UiCounsellingSession {
 
 export interface UiScreeningProgram {
   id: string;
+  tenantId: string;
   name: string;
   description?: string | null;
   gradeLevel: string;
@@ -72,6 +76,7 @@ export function createHealthUiSeed(): HealthUiSeed {
     records: [
       {
         id: HEALTH_STUDENT_A_ID,
+        tenantId: HEALTH_DEMO_TENANT_ID,
         studentId: HEALTH_STUDENT_A_ID,
         studentName: 'Aisha Rahman',
         bloodType: 'B+',
@@ -83,6 +88,7 @@ export function createHealthUiSeed(): HealthUiSeed {
       },
       {
         id: HEALTH_STUDENT_B_ID,
+        tenantId: HEALTH_DEMO_TENANT_ID,
         studentId: HEALTH_STUDENT_B_ID,
         studentName: 'Rohan Mehta',
         bloodType: 'O+',
@@ -96,6 +102,7 @@ export function createHealthUiSeed(): HealthUiSeed {
     specialNeeds: [
       {
         id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1',
+        tenantId: HEALTH_DEMO_TENANT_ID,
         studentId: HEALTH_STUDENT_A_ID,
         studentName: 'Aisha Rahman',
         category: 'Learning support',
@@ -105,6 +112,7 @@ export function createHealthUiSeed(): HealthUiSeed {
       },
       {
         id: 'cccccccc-cccc-4ccc-8ccc-ccccccccccc2',
+        tenantId: HEALTH_DEMO_TENANT_ID,
         studentId: HEALTH_STUDENT_B_ID,
         studentName: 'Rohan Mehta',
         category: 'Medical',
@@ -116,6 +124,7 @@ export function createHealthUiSeed(): HealthUiSeed {
     counselling: [
       {
         id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1',
+        tenantId: HEALTH_DEMO_TENANT_ID,
         studentId: HEALTH_STUDENT_A_ID,
         studentName: 'Aisha Rahman',
         counsellorName: 'Dr. Priya Nair',
@@ -125,6 +134,7 @@ export function createHealthUiSeed(): HealthUiSeed {
       },
       {
         id: 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2',
+        tenantId: HEALTH_DEMO_TENANT_ID,
         studentId: HEALTH_STUDENT_B_ID,
         studentName: 'Rohan Mehta',
         counsellorName: 'Dr. Priya Nair',
@@ -136,6 +146,7 @@ export function createHealthUiSeed(): HealthUiSeed {
     screenings: [
       {
         id: HEALTH_SCREENING_ID,
+        tenantId: HEALTH_DEMO_TENANT_ID,
         name: 'Annual Grade 8 Vision & Hearing',
         description: 'School-wide screening for Grade 8 students.',
         gradeLevel: '8',
@@ -145,6 +156,7 @@ export function createHealthUiSeed(): HealthUiSeed {
       },
       {
         id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2',
+        tenantId: HEALTH_DEMO_TENANT_ID,
         name: 'Dental Screening — Primary',
         description: 'Dental check for Grades 1–5.',
         gradeLevel: '1-5',
