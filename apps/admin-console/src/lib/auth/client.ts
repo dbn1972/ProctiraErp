@@ -16,10 +16,7 @@ export interface AdminSignInResult {
 }
 
 /** POST credentials to the admin login route. */
-export async function signIn(
-  email: string,
-  password: string,
-): Promise<AdminSignInResult> {
+export async function signIn(email: string, password: string): Promise<AdminSignInResult> {
   try {
     const response = await fetch(ADMIN_AUTH_ENDPOINTS.LOGIN, {
       method: 'POST',
@@ -44,6 +41,8 @@ export async function signIn(
 
 /** Calls the logout route, then redirects to /login. */
 export async function signOut(redirectTo: string = '/login'): Promise<void> {
+  const { sanitizeReturnTo } = await import('./return-to');
+  const safeRedirect = sanitizeReturnTo(redirectTo, '/login');
   try {
     await fetch(ADMIN_AUTH_ENDPOINTS.LOGOUT, {
       method: 'POST',
@@ -53,13 +52,11 @@ export async function signOut(redirectTo: string = '/login'): Promise<void> {
     // ignore network failures — we still navigate to /login.
   }
   if (typeof window !== 'undefined') {
-    window.location.href = redirectTo;
+    window.location.href = safeRedirect;
   }
 }
 
-async function safeJson<T = Record<string, unknown>>(
-  response: Response,
-): Promise<T> {
+async function safeJson<T = Record<string, unknown>>(response: Response): Promise<T> {
   try {
     const text = await response.text();
     return text ? (JSON.parse(text) as T) : ({} as T);
