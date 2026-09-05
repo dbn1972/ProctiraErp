@@ -42,15 +42,10 @@ export function SiteHeader() {
           >
             <span className="text-sm font-bold">O</span>
           </span>
-          <span className="text-lg font-semibold tracking-tight text-foreground">
-            ProctiraERP
-          </span>
+          <span className="text-lg font-semibold tracking-tight text-foreground">ProctiraERP</span>
         </Link>
 
-        <nav
-          className="hidden items-center gap-6 md:flex"
-          aria-label="Primary"
-        >
+        <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
           {PRIMARY_LINKS.map((item) => (
             <Link
               key={item.href}
@@ -82,16 +77,17 @@ export function SiteHeader() {
           aria-label={open ? 'Close menu' : 'Open menu'}
           onClick={() => setOpen((value) => !value)}
         >
-          {open ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
+          {open ? (
+            <X aria-hidden="true" className="h-5 w-5" />
+          ) : (
+            <Menu aria-hidden="true" className="h-5 w-5" />
+          )}
         </button>
       </div>
 
       {open ? (
         <div id="mobile-nav" className="border-t border-border md:hidden">
-          <nav
-            className="container flex flex-col gap-1 py-4"
-            aria-label="Primary mobile"
-          >
+          <nav className="container flex flex-col gap-1 py-4" aria-label="Primary mobile">
             {PRIMARY_LINKS.map((item) => (
               <Link
                 key={item.href}

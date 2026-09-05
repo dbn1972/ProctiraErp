@@ -49,10 +49,7 @@ test.describe('Public Website — public surfaces', () => {
 });
 
 test.describe('Public Website — live contact API', () => {
-  test.skip(
-    !BACKEND_READY,
-    'E2E_BACKEND_READY is not set; skipping live contact e2e.',
-  );
+  test.skip(!BACKEND_READY, 'E2E_BACKEND_READY is not set; skipping live contact e2e.');
 
   test('contact API rejects invalid payloads', async ({ request }) => {
     const response = await request.post('/api/contact', {

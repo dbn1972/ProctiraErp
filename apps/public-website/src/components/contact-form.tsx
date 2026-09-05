@@ -57,15 +57,11 @@ export function ContactForm() {
         const data = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
-        setServerMessage(
-          data.error ?? 'Something went wrong. Please try again later.',
-        );
+        setServerMessage(data.error ?? 'Something went wrong. Please try again later.');
         setStatus('error');
         return;
       }
-      setServerMessage(
-        'Thanks — we will get back to you within two business days.',
-      );
+      setServerMessage('Thanks — we will get back to you within two business days.');
       setStatus('success');
       event.currentTarget.reset();
     } catch {
@@ -77,21 +73,11 @@ export function ContactForm() {
   const submitting = status === 'submitting';
 
   return (
-    <form
-      noValidate
-      className="space-y-5"
-      onSubmit={(event) => void handleSubmit(event)}
-    >
+    <form noValidate className="space-y-5" onSubmit={(event) => void handleSubmit(event)}>
       {/* Honeypot — hidden from users; bots that fill it are rejected. */}
       <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
         <label htmlFor="website">Website</label>
-        <input
-          id="website"
-          name="website"
-          type="text"
-          tabIndex={-1}
-          autoComplete="off"
-        />
+        <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
       </div>
 
       <div>
@@ -141,10 +127,7 @@ export function ContactForm() {
       </div>
 
       <div>
-        <label
-          htmlFor="organization"
-          className="text-sm font-medium text-foreground"
-        >
+        <label htmlFor="organization" className="text-sm font-medium text-foreground">
           Organization <span className="text-muted-foreground">(optional)</span>
         </label>
         <input
@@ -154,9 +137,7 @@ export function ContactForm() {
           autoComplete="organization"
           maxLength={CONTACT_LIMITS.organizationMax}
           aria-invalid={Boolean(errors.organization)}
-          aria-describedby={
-            errors.organization ? 'organization-error' : undefined
-          }
+          aria-describedby={errors.organization ? 'organization-error' : undefined}
           className={FIELD_BASE}
           disabled={submitting}
         />
@@ -203,15 +184,9 @@ export function ContactForm() {
       </div>
 
       <div role="status" aria-live="polite" className="min-h-[1.5rem] text-sm">
-        {status === 'success' ? (
-          <p className="text-accent">{serverMessage}</p>
-        ) : null}
-        {status === 'error' ? (
-          <p className="text-destructive">{serverMessage}</p>
-        ) : null}
-        {errors.form ? (
-          <p className="text-destructive">{errors.form}</p>
-        ) : null}
+        {status === 'success' ? <p className="text-accent">{serverMessage}</p> : null}
+        {status === 'error' ? <p className="text-destructive">{serverMessage}</p> : null}
+        {errors.form ? <p className="text-destructive">{errors.form}</p> : null}
       </div>
     </form>
   );

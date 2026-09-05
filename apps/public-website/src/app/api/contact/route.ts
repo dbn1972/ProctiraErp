@@ -33,14 +33,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: 'Invalid JSON body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const payload =
-    body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const payload = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
   const result = validateContactInput({
     name: payload.name,
     email: payload.email,

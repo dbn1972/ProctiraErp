@@ -1,9 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 
-import {
-  allowContactRequest,
-  resetContactRateLimitForTests,
-} from './contact-rate-limit';
+import { allowContactRequest, resetContactRateLimitForTests } from './contact-rate-limit';
 
 describe('allowContactRequest', () => {
   beforeEach(() => {

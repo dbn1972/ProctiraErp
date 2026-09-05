@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  CONTACT_LIMITS,
-  validateContactInput,
-} from './contact-validation';
+import { CONTACT_LIMITS, validateContactInput } from './contact-validation';
 
 const valid = {
   name: 'Ada Lovelace',

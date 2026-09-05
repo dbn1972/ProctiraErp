@@ -1,23 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  Clock,
-  Lock,
-  Mail,
-  RotateCcw,
-  ShieldCheck,
-  Sparkles,
-  Users,
-} from 'lucide-react';
+import { Clock, Lock, Mail, RotateCcw, ShieldCheck, Sparkles, Users } from 'lucide-react';
 
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const dynamic = 'force-static';
 
@@ -103,8 +90,8 @@ export default function SecurityPage() {
             How we protect education data
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            These controls ship enabled by default on every deployment — cloud-managed
-            or self-hosted.
+            These controls ship enabled by default on every deployment — cloud-managed or
+            self-hosted.
           </p>
         </div>
         <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -143,16 +130,16 @@ export default function SecurityPage() {
                 Found something? Tell us first.
               </h2>
               <p className="mt-3 max-w-2xl leading-relaxed text-muted-foreground">
-                We appreciate good-faith security research. Email a report with
-                reproduction steps and impact details to{' '}
+                We appreciate good-faith security research. Email a report with reproduction steps
+                and impact details to{' '}
                 <a
                   className="font-medium text-primary hover:underline"
                   href="mailto:security@proctira.org"
                 >
                   security@proctira.org
                 </a>{' '}
-                — we acknowledge within two business days, keep you informed
-                through the fix, and credit researchers in our advisories.
+                — we acknowledge within two business days, keep you informed through the fix, and
+                credit researchers in our advisories.
               </p>
             </div>
             <Button asChild size="lg">
@@ -179,10 +166,7 @@ export default function SecurityPage() {
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             See the dedicated{' '}
-            <Link
-              href="/compliance"
-              className="font-medium text-primary hover:underline"
-            >
+            <Link href="/compliance" className="font-medium text-primary hover:underline">
               compliance page
             </Link>{' '}
             for plain-language detail on each framework.
@@ -194,10 +178,7 @@ export default function SecurityPage() {
               key={badge}
               className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-5 py-2.5 text-sm font-semibold text-muted-foreground shadow-sm"
             >
-              <ShieldCheck
-                aria-hidden="true"
-                className="h-4 w-4 text-primary"
-              />
+              <ShieldCheck aria-hidden="true" className="h-4 w-4 text-primary" />
               {badge}
             </span>
           ))}
@@ -217,8 +198,8 @@ export default function SecurityPage() {
             Questions for our security team?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Request our security overview, DPA template, and control narratives
-            — or set up a call with the engineers who run the platform.
+            Request our security overview, DPA template, and control narratives — or set up a call
+            with the engineers who run the platform.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">
