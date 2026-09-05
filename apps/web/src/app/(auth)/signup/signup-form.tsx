@@ -33,7 +33,11 @@ import {
   signUp,
   type SignupRole,
 } from '@/lib/api/auth';
-import { OAUTH_PROVIDERS, getOAuthAuthorizeUrl } from '@/lib/auth';
+import {
+  OAUTH_PROVIDERS,
+  getOAuthAuthorizeUrl,
+  sanitizeReturnTo,
+} from '@/lib/auth';
 
 /**
  * `<SignUpForm>` — Next.js client component that renders the sign-up
@@ -129,7 +133,7 @@ export function SignUpForm(): JSX.Element {
   const tCommon = useTranslations('common');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get('returnTo') || '/';
+  const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
 
   // Personal information + role + password fields.
   const [fullName, setFullName] = useState('');

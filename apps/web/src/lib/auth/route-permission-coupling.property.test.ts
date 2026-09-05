@@ -73,6 +73,7 @@ const ALL_PERMISSIONS = [
  */
 const PUBLIC_PATHS = [
   '/login',
+  '/signup',
   '/forgot-password',
   '/reset-password',
   '/mfa',

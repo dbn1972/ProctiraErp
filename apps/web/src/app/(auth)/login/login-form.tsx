@@ -20,6 +20,7 @@ import { OAuthIcon } from '@/components/auth/oauth-icon';
 import {
   OAUTH_PROVIDERS,
   getOAuthAuthorizeUrl,
+  sanitizeReturnTo,
   signIn,
 } from '@/lib/auth';
 
@@ -33,7 +34,7 @@ export function LoginForm(): JSX.Element {
   const t = useTranslations('auth');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get('returnTo') || '/';
+  const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
   const wasExpired = searchParams.get('expired') === 'true';
   const oauthError = searchParams.get('error');
 

@@ -11,7 +11,7 @@ import {
   AlertDescription,
   Button,
 } from '@proctira/ui/components';
-import { verifyMfa } from '@/lib/auth';
+import { sanitizeReturnTo, verifyMfa } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 const CODE_LENGTH = 6;
@@ -25,7 +25,7 @@ export function MfaForm(): JSX.Element {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') ?? '';
-  const returnTo = searchParams.get('returnTo') ?? '/';
+  const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [error, setError] = useState<string | null>(null);
