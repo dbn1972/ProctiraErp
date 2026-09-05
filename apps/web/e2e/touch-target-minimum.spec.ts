@@ -157,9 +157,7 @@ async function findTouchTargetViolations(
 
       for (const el of elements) {
         // Skip exempt elements
-        const isExempt = exemptSelectors.some(
-          (exemptSel: string) => el.matches(exemptSel),
-        );
+        const isExempt = exemptSelectors.some((exemptSel: string) => el.matches(exemptSel));
         if (isExempt) continue;
 
         // Skip elements not visible in the viewport
@@ -178,11 +176,7 @@ async function findTouchTargetViolations(
 
         // Check computed visibility
         const style = window.getComputedStyle(el);
-        if (
-          style.display === 'none' ||
-          style.visibility === 'hidden' ||
-          style.opacity === '0'
-        ) {
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
           continue;
         }
 
@@ -192,7 +186,8 @@ async function findTouchTargetViolations(
 
         if (minDimension < minSize) {
           results.push({
-            selector: el.tagName.toLowerCase() +
+            selector:
+              el.tagName.toLowerCase() +
               (el.id ? `#${el.id}` : '') +
               (el.className && typeof el.className === 'string'
                 ? '.' + el.className.split(' ').slice(0, 2).join('.')
@@ -260,11 +255,7 @@ test.describe('Property F-5: Touch Target Minimum — desktop routes', () => {
           await page.waitForLoadState('networkidle').catch(() => {});
           await page.waitForTimeout(500);
 
-          const violations = await findTouchTargetViolations(
-            page,
-            MIN_TARGET_SIZE_STANDARD,
-            route,
-          );
+          const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_STANDARD, route);
 
           allViolations.push(...violations);
 
@@ -280,9 +271,7 @@ test.describe('Property F-5: Touch Target Minimum — desktop routes', () => {
 
             throw new Error(
               `Touch target violations on route "${route}" (${violations.length} total):\n${summary}` +
-                (violations.length > 5
-                  ? `\n  … and ${violations.length - 5} more`
-                  : ''),
+                (violations.length > 5 ? `\n  … and ${violations.length - 5} more` : ''),
             );
           }
         }
@@ -346,11 +335,7 @@ test.describe('Property F-5: Touch Target Minimum — mobile routes', () => {
             await page.waitForLoadState('networkidle').catch(() => {});
             await page.waitForTimeout(500);
 
-            const violations = await findTouchTargetViolations(
-              page,
-              MIN_TARGET_SIZE_MOBILE,
-              route,
-            );
+            const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_MOBILE, route);
 
             allViolations.push(...violations);
 
@@ -365,9 +350,7 @@ test.describe('Property F-5: Touch Target Minimum — mobile routes', () => {
 
               throw new Error(
                 `Touch target violations on mobile route "${route}" (${violations.length} total):\n${summary}` +
-                  (violations.length > 5
-                    ? `\n  … and ${violations.length - 5} more`
-                    : ''),
+                  (violations.length > 5 ? `\n  … and ${violations.length - 5} more` : ''),
               );
             }
           }
@@ -416,11 +399,7 @@ test.describe('Property F-5: Touch Target Minimum — public surfaces (no backen
       await page.waitForLoadState('networkidle').catch(() => {});
       await page.waitForTimeout(500);
 
-      const violations = await findTouchTargetViolations(
-        page,
-        MIN_TARGET_SIZE_STANDARD,
-        route,
-      );
+      const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_STANDARD, route);
 
       if (violations.length > 0) {
         const summary = violations
@@ -460,11 +439,7 @@ test.describe('Property F-5: Touch Target Minimum — public surfaces (no backen
         await page.waitForLoadState('networkidle').catch(() => {});
         await page.waitForTimeout(500);
 
-        const violations = await findTouchTargetViolations(
-          page,
-          MIN_TARGET_SIZE_MOBILE,
-          route,
-        );
+        const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_MOBILE, route);
 
         if (violations.length > 0) {
           const summary = violations

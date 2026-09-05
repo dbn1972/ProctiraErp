@@ -14,14 +14,14 @@ This skill is the **Definition of Done** for any redesign nav module (e.g. Schol
 
 ## Honest coverage map (do not overclaim)
 
-| Pillar | What exists today | What agents must still prove per module |
-| --- | --- | --- |
-| **E2E journeys** | Playwright under `apps/web/e2e/` (01–12 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Scholarships/Health/Workflows = dedicated smokes; live write paths still need backend-ready runs. | Live authenticated journey per screen + critical write path |
-| **UX / a11y** | `a11y-axe`, dark-mode, RTL, touch-target, CLS, loading-skeleton specs; ESLint a11y + contrast gate | Module routes included in axe/dark/touch lists; no critical axe violations |
-| **Multidevice** | Playwright projects: Chromium/Firefox/WebKit + Pixel 5 + iPhone 13 + iPad. `apps/web/scripts/capture-screens.mjs` desktop/tablet/mobile PNGs. **No visual-diff CI**. | Capture **desktop + tablet + mobile** for every screen; spot-check touch targets |
-| **Functionality** | Backend unit/property tests for many domains | UI create/update/list/detail/error states against real or seeded API |
-| **Security** | Tenant-isolation release gate (`tools/tenant-isolation-tests/`); web `07-tenant-isolation` (students); `09-route-permission-coupling` (core SIS only) | Cross-tenant deny + RBAC deny for **this** module’s sensitive routes |
-| **CI gates** | Lint, typecheck, unit, integration, DoD, Lighthouse, tenant isolation, bundle | Tip CI green; do not merge on skipped E2E alone |
+| Pillar            | What exists today                                                                                                                                                                                                    | What agents must still prove per module                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **E2E journeys**  | Playwright under `apps/web/e2e/` (01–12 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Scholarships/Health/Workflows = dedicated smokes; live write paths still need backend-ready runs. | Live authenticated journey per screen + critical write path                      |
+| **UX / a11y**     | `a11y-axe`, dark-mode, RTL, touch-target, CLS, loading-skeleton specs; ESLint a11y + contrast gate                                                                                                                   | Module routes included in axe/dark/touch lists; no critical axe violations       |
+| **Multidevice**   | Playwright projects: Chromium/Firefox/WebKit + Pixel 5 + iPhone 13 + iPad. `apps/web/scripts/capture-screens.mjs` desktop/tablet/mobile PNGs. **No visual-diff CI**.                                                 | Capture **desktop + tablet + mobile** for every screen; spot-check touch targets |
+| **Functionality** | Backend unit/property tests for many domains                                                                                                                                                                         | UI create/update/list/detail/error states against real or seeded API             |
+| **Security**      | Tenant-isolation release gate (`tools/tenant-isolation-tests/`); web `07-tenant-isolation` (students); `09-route-permission-coupling` (core SIS only)                                                                | Cross-tenant deny + RBAC deny for **this** module’s sensitive routes             |
+| **CI gates**      | Lint, typecheck, unit, integration, DoD, Lighthouse, tenant isolation, bundle                                                                                                                                        | Tip CI green; do not merge on skipped E2E alone                                  |
 
 ## When this skill applies
 
@@ -46,46 +46,46 @@ Work the pillars **in order**. Mark each checkbox only with evidence (path, run 
 
 **Health (from redesign nav)** — minimum screens:
 
-| Nav label | Primary route(s) |
-| --- | --- |
-| Health · screenings | `/health/[studentId]` (Screenings tab) + screening-programs API |
-| Health · student profile | `/health/[studentId]` |
-| Health · counselling | `/health/counselling` |
-| Health · special needs | `/health/special-needs` |
-| Health · list (hub) | `/health` |
+| Nav label                | Primary route(s)                                                |
+| ------------------------ | --------------------------------------------------------------- |
+| Health · screenings      | `/health/[studentId]` (Screenings tab) + screening-programs API |
+| Health · student profile | `/health/[studentId]`                                           |
+| Health · counselling     | `/health/counselling`                                           |
+| Health · special needs   | `/health/special-needs`                                         |
+| Health · list (hub)      | `/health`                                                       |
 
 **Scholarships** — minimum screens:
 
-| Nav label | Primary route |
-| --- | --- |
-| programs | `/scholarships` |
-| program detail | `/scholarships/programs/[id]` |
-| new program | `/scholarships/programs/new` |
-| applications | `/scholarships/applications` |
+| Nav label          | Primary route                     |
+| ------------------ | --------------------------------- |
+| programs           | `/scholarships`                   |
+| program detail     | `/scholarships/programs/[id]`     |
+| new program        | `/scholarships/programs/new`      |
+| applications       | `/scholarships/applications`      |
 | application detail | `/scholarships/applications/[id]` |
-| disbursements | `/scholarships/disbursements` |
+| disbursements      | `/scholarships/disbursements`     |
 
 **Workflows** — minimum screens:
 
-| Nav label | Primary route |
-| --- | --- |
-| Workflows · definitions | `/workflows` |
-| Workflows · new definition | `/workflows/definitions/new` |
+| Nav label                     | Primary route                 |
+| ----------------------------- | ----------------------------- |
+| Workflows · definitions       | `/workflows`                  |
+| Workflows · new definition    | `/workflows/definitions/new`  |
 | Workflows · definition detail | `/workflows/definitions/[id]` |
-| Workflows · instances | `/workflows/instances` |
-| Workflows · my approvals | `/workflows/approvals` |
+| Workflows · instances         | `/workflows/instances`        |
+| Workflows · my approvals      | `/workflows/approvals`        |
 
 **Auth (public identity)** — minimum screens:
 
-| Nav label | Primary route |
-| --- | --- |
-| Login / sign-in | `/login` |
-| Sign up | `/signup` |
+| Nav label       | Primary route      |
+| --------------- | ------------------ |
+| Login / sign-in | `/login`           |
+| Sign up         | `/signup`          |
 | Forgot password | `/forgot-password` |
-| Reset password | `/reset-password` |
-| MFA verify | `/mfa` |
-| Logout | `/logout` |
-| OAuth callback | `/oauth/callback` |
+| Reset password  | `/reset-password`  |
+| MFA verify      | `/mfa`             |
+| Logout          | `/logout`          |
+| OAuth callback  | `/oauth/callback`  |
 
 Auth security extras (mandatory for Auth enterprise claim): sanitize `returnTo` / open-redirect; `/signup` in middleware `PUBLIC_PATHS`; httpOnly session cookies; unauthenticated dashboard → `/login`.
 

@@ -17,12 +17,7 @@ import {
   Label,
 } from '@proctira/ui/components';
 import { OAuthIcon } from '@/components/auth/oauth-icon';
-import {
-  OAUTH_PROVIDERS,
-  getOAuthAuthorizeUrl,
-  sanitizeReturnTo,
-  signIn,
-} from '@/lib/auth';
+import { OAUTH_PROVIDERS, getOAuthAuthorizeUrl, sanitizeReturnTo, signIn } from '@/lib/auth';
 
 /**
  * Client component for the login form. Submits credentials to
@@ -76,9 +71,7 @@ export function LoginForm(): JSX.Element {
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
             {t('welcomeBack')}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {t('signInSubtitle')}
-          </p>
+          <p className="text-sm text-muted-foreground">{t('signInSubtitle')}</p>
         </header>
 
         {wasExpired && (
@@ -133,16 +126,10 @@ export function LoginForm(): JSX.Element {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                aria-label={
-                  showPassword ? t('hidePassword') : t('showPassword')
-                }
+                aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                 tabIndex={-1}
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </div>
@@ -164,14 +151,8 @@ export function LoginForm(): JSX.Element {
             </Link>
           </div>
 
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full"
-          >
-            {isSubmitting && (
-              <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            )}
+          <Button type="submit" disabled={isSubmitting} className="w-full">
+            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />}
             {isSubmitting ? t('signingIn') : t('signIn')}
           </Button>
         </form>
@@ -183,9 +164,7 @@ export function LoginForm(): JSX.Element {
                 <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  {t('orContinueWith')}
-                </span>
+                <span className="bg-card px-2 text-muted-foreground">{t('orContinueWith')}</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
@@ -209,9 +188,7 @@ export function LoginForm(): JSX.Element {
           </>
         )}
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          {t('contactAdmin')}
-        </p>
+        <p className="mt-8 text-center text-xs text-muted-foreground">{t('contactAdmin')}</p>
       </CardContent>
     </Card>
   );

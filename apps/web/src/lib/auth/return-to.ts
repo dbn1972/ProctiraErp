@@ -5,10 +5,7 @@
  * tricks, and other open-redirect vectors before login / MFA / OAuth
  * handlers navigate the browser.
  */
-export function sanitizeReturnTo(
-  raw: string | null | undefined,
-  fallback = '/',
-): string {
+export function sanitizeReturnTo(raw: string | null | undefined, fallback = '/'): string {
   if (raw == null || raw === '') {
     return fallback;
   }

@@ -15,20 +15,14 @@ test.describe('auth — enterprise smokes (always on)', () => {
   test('logout page ends on the login screen', async ({ page }) => {
     await page.goto('/logout');
     await expect(page).toHaveURL(/\/login/);
-    await expect(
-      page.getByRole('heading', { name: /welcome back/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /welcome back/i })).toBeVisible();
   });
 
-  test('oauth callback without a valid code returns to login', async ({
-    page,
-  }) => {
+  test('oauth callback without a valid code returns to login', async ({ page }) => {
     // Missing/invalid code should bounce to login via the API handler
     // (or the page forward). Either way the user must not stay on a blank
     // callback URL and must not be sent off-origin.
-    await page.goto(
-      '/oauth/callback?error=access_denied&returnTo=https://evil.example/phish',
-    );
+    await page.goto('/oauth/callback?error=access_denied&returnTo=https://evil.example/phish');
     await expect(page).toHaveURL(/\/login/);
     expect(page.url()).not.toContain('evil.example');
   });

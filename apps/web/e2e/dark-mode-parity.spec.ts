@@ -96,12 +96,14 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
       await loginAsTenantAdmin(page);
       await page.goto(route.path);
       // Wait for the main content area to be visible before scanning.
-      await page.waitForSelector('[role="main"], main', {
-        state: 'visible',
-        timeout: 15_000,
-      }).catch(() => {
-        // Some routes may not have a <main> landmark yet; proceed anyway.
-      });
+      await page
+        .waitForSelector('[role="main"], main', {
+          state: 'visible',
+          timeout: 15_000,
+        })
+        .catch(() => {
+          // Some routes may not have a <main> landmark yet; proceed anyway.
+        });
 
       await setTheme(page, 'light');
       await runAxe(page, {
@@ -114,12 +116,14 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
     }) => {
       await loginAsTenantAdmin(page);
       await page.goto(route.path);
-      await page.waitForSelector('[role="main"], main', {
-        state: 'visible',
-        timeout: 15_000,
-      }).catch(() => {
-        // Some routes may not have a <main> landmark yet; proceed anyway.
-      });
+      await page
+        .waitForSelector('[role="main"], main', {
+          state: 'visible',
+          timeout: 15_000,
+        })
+        .catch(() => {
+          // Some routes may not have a <main> landmark yet; proceed anyway.
+        });
 
       await setTheme(page, 'dark');
       await runAxe(page, {

@@ -33,11 +33,7 @@ import * as fc from 'fast-check';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import {
-  featureRegistry,
-  getModulesByScope,
-  type FeatureModule,
-} from '../../featureRegistry';
+import { featureRegistry, getModulesByScope, type FeatureModule } from '../../featureRegistry';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -91,10 +87,7 @@ const PUBLIC_PATHS = [
  * if and only if their permission set includes ALL of the route's
  * required permissions.
  */
-function canAccessRoute(
-  route: FeatureModule,
-  userPermissions: string[],
-): boolean {
+function canAccessRoute(route: FeatureModule, userPermissions: string[]): boolean {
   if (route.requiredPermissions.length === 0) {
     return true; // No permissions required
   }
@@ -106,9 +99,7 @@ function canAccessRoute(
  * requiredPermissions).
  */
 function getProtectedRoutes(): FeatureModule[] {
-  return getModulesByScope('app').filter(
-    (m) => m.requiredPermissions.length > 0,
-  );
+  return getModulesByScope('app').filter((m) => m.requiredPermissions.length > 0);
 }
 
 // ─── fast-check Arbitraries ──────────────────────────────────────────────────
@@ -166,10 +157,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
 
   describe('Middleware auth gating — dashboard routes are not in PUBLIC_PATHS', () => {
     it('no app-scope route prefix appears in the middleware PUBLIC_PATHS', () => {
-      const middlewareSrc = readFileSync(
-        resolve(WEB_SRC, 'middleware.ts'),
-        'utf-8',
-      );
+      const middlewareSrc = readFileSync(resolve(WEB_SRC, 'middleware.ts'), 'utf-8');
 
       const appRoutes = getModulesByScope('app');
       for (const route of appRoutes) {
@@ -177,9 +165,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
         const routePath = `/${route.routePrefix}`;
         // Check that the route is NOT listed as a public path in the middleware
         expect(
-          PUBLIC_PATHS.some(
-            (pp) => routePath === pp || routePath.startsWith(`${pp}/`),
-          ),
+          PUBLIC_PATHS.some((pp) => routePath === pp || routePath.startsWith(`${pp}/`)),
           `App route "${routePath}" must NOT be in middleware PUBLIC_PATHS`,
         ).toBe(false);
       }
@@ -189,14 +175,14 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
       for (const route of appRoutes) {
         if (route.routePrefix === '') continue;
         const pathLiteral = `'/${route.routePrefix}'`;
-        const inPublicPaths = middlewareSrc.includes(
-          `const PUBLIC_PATHS`,
-        ) && middlewareSrc
-          .slice(
-            middlewareSrc.indexOf('const PUBLIC_PATHS'),
-            middlewareSrc.indexOf('];', middlewareSrc.indexOf('const PUBLIC_PATHS')),
-          )
-          .includes(pathLiteral);
+        const inPublicPaths =
+          middlewareSrc.includes(`const PUBLIC_PATHS`) &&
+          middlewareSrc
+            .slice(
+              middlewareSrc.indexOf('const PUBLIC_PATHS'),
+              middlewareSrc.indexOf('];', middlewareSrc.indexOf('const PUBLIC_PATHS')),
+            )
+            .includes(pathLiteral);
 
         expect(
           inPublicPaths,
@@ -207,10 +193,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
 
     it('middleware redirects unauthenticated requests to /login for non-public paths', () => {
       // Verify the middleware source contains the redirect-to-login logic
-      const middlewareSrc = readFileSync(
-        resolve(WEB_SRC, 'middleware.ts'),
-        'utf-8',
-      );
+      const middlewareSrc = readFileSync(resolve(WEB_SRC, 'middleware.ts'), 'utf-8');
 
       // The middleware must check for access_token and redirect when missing
       expect(middlewareSrc).toContain('access_token');
@@ -224,9 +207,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
       fc.assert(
         fc.property(arbProtectedRoute, arbPermissionSet, (route, permissions) => {
           const hasAccess = canAccessRoute(route, permissions);
-          const hasAllRequired = route.requiredPermissions.every((p) =>
-            permissions.includes(p),
-          );
+          const hasAllRequired = route.requiredPermissions.every((p) => permissions.includes(p));
 
           // The access decision must match the permission check
           expect(hasAccess).toBe(hasAllRequired);
@@ -257,23 +238,17 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
 
     it('adding irrelevant permissions does not grant access', () => {
       fc.assert(
-        fc.property(
-          arbProtectedRoute,
-          arbPermissionSetExcluding([]),
-          (route, extraPermissions) => {
-            // User has only permissions that are NOT in the route's required set
-            const irrelevant = extraPermissions.filter(
-              (p) => !route.requiredPermissions.includes(p),
-            );
+        fc.property(arbProtectedRoute, arbPermissionSetExcluding([]), (route, extraPermissions) => {
+          // User has only permissions that are NOT in the route's required set
+          const irrelevant = extraPermissions.filter((p) => !route.requiredPermissions.includes(p));
 
-            if (route.requiredPermissions.length > 0) {
-              expect(
-                canAccessRoute(route, irrelevant),
-                `Irrelevant permissions should not grant access to /${route.routePrefix}`,
-              ).toBe(false);
-            }
-          },
-        ),
+          if (route.requiredPermissions.length > 0) {
+            expect(
+              canAccessRoute(route, irrelevant),
+              `Irrelevant permissions should not grant access to /${route.routePrefix}`,
+            ).toBe(false);
+          }
+        }),
         { numRuns: 200 },
       );
     });
@@ -305,10 +280,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
 
   describe('Dashboard layout enforces session requirement', () => {
     it('dashboard layout calls requireSession()', () => {
-      const layoutSrc = readFileSync(
-        resolve(WEB_SRC, 'app/(dashboard)/layout.tsx'),
-        'utf-8',
-      );
+      const layoutSrc = readFileSync(resolve(WEB_SRC, 'app/(dashboard)/layout.tsx'), 'utf-8');
 
       // The layout must import and call requireSession
       expect(layoutSrc).toContain('requireSession');
@@ -316,10 +288,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
     });
 
     it('requireSession redirects to /login when no session exists', () => {
-      const serverAuthSrc = readFileSync(
-        resolve(WEB_SRC, 'lib/auth/server.ts'),
-        'utf-8',
-      );
+      const serverAuthSrc = readFileSync(resolve(WEB_SRC, 'lib/auth/server.ts'), 'utf-8');
 
       // requireSession must redirect to /login
       expect(serverAuthSrc).toContain('redirect(`/login');
@@ -328,9 +297,7 @@ describe('Property F-7: Route ↔ Permission Coupling', () => {
 
   describe('Permission declarations are well-formed', () => {
     it('all requiredPermissions follow the resource.action pattern', () => {
-      const allModules = featureRegistry.filter(
-        (m) => m.requiredPermissions.length > 0,
-      );
+      const allModules = featureRegistry.filter((m) => m.requiredPermissions.length > 0);
 
       for (const mod of allModules) {
         for (const perm of mod.requiredPermissions) {
