@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../storage/secure_storage.dart';
 
@@ -62,7 +63,8 @@ class AuthState extends Equatable {
   final String? accessToken;
 
   bool get isAuthenticated => status == AuthStatus.authenticated;
-  bool get isResolved => status != AuthStatus.unknown && status != AuthStatus.loading;
+  bool get isResolved =>
+      status != AuthStatus.unknown && status != AuthStatus.loading;
 
   @override
   List<Object?> get props => <Object?>[status, userId, accessToken];
@@ -73,8 +75,11 @@ class AuthState extends Equatable {
 // ---------------------------------------------------------------------------
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  AuthBloc({required SecureStorage secureStorage})
-      : _storage = secureStorage,
+  AuthBloc({
+    required SecureStorage secureStorage,
+    AuthApi? authApi,
+  })  : _storage = secureStorage,
+        _authApi = authApi,
         super(const AuthState.unknown()) {
     on<AuthBootstrapRequested>(_onBootstrap);
     on<AuthLoggedIn>(_onLoggedIn);
@@ -82,6 +87,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   final SecureStorage _storage;
+  final AuthApi? _authApi;
 
   Future<void> _onBootstrap(
     AuthBootstrapRequested event,
@@ -90,7 +96,10 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     emit(const AuthState.loading());
     final String? access = await _storage.readAccessToken();
     final String? refresh = await _storage.readRefreshToken();
-    if (access != null && access.isNotEmpty && refresh != null && refresh.isNotEmpty) {
+    if (access != null &&
+        access.isNotEmpty &&
+        refresh != null &&
+        refresh.isNotEmpty) {
       emit(AuthState(
         status: AuthStatus.authenticated,
         accessToken: access,
@@ -112,7 +121,19 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     ));
   }
 
-  Future<void> _onLogout(AuthLogoutRequested event, Emitter<AuthState> emit) async {
+  Future<void> _onLogout(
+    AuthLogoutRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    final AuthApi? api = _authApi;
+    if (api != null) {
+      final String? refresh = await _storage.readRefreshToken();
+      try {
+        await api.logout(refreshToken: refresh);
+      } catch (_) {
+        // Local logout must succeed even when the network call fails.
+      }
+    }
     await _storage.clearTokens();
     emit(const AuthState.unauthenticated());
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:openemis_mobile/core/auth/auth_bloc.dart';
+import 'package:proctira_mobile/core/auth/auth_bloc.dart';
 
 import 'helpers/test_setup.dart';
 
@@ -38,17 +38,6 @@ void main() {
       // Verify we landed on the login screen.
       expect(find.byType(TextField), findsWidgets);
       // Look for the login button or a text field with email/username hint.
-      final Finder emailField = find.widgetWithText(TextField, 'Email');
-      final Finder usernameField =
-          find.widgetWithText(TextField, 'Username');
-      final Finder identityField =
-          emailField.evaluate().isNotEmpty ? emailField : usernameField;
-
-      // If neither specific label is found, use the first TextField.
-      final Finder inputField = identityField.evaluate().isNotEmpty
-          ? identityField
-          : find.byType(TextField).first;
-
       // Enter credentials into the form fields.
       final List<Finder> textFields =
           find.byType(TextField).evaluate().map((Element e) {

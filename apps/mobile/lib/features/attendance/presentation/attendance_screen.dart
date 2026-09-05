@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:openemis_api_client/openemis_api_client.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
 
 import '../../../core/auth/auth_bloc.dart';
 import '../../../core/di/injector.dart';

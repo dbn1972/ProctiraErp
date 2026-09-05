@@ -4,15 +4,15 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:openemis_api_client/openemis_api_client.dart';
-import 'package:openemis_mobile/core/storage/database.dart';
-import 'package:openemis_mobile/core/storage/secure_storage.dart';
-import 'package:openemis_mobile/core/sync/connectivity_monitor.dart';
-import 'package:openemis_mobile/core/sync/sync_dispatcher.dart';
-import 'package:openemis_mobile/core/sync/sync_engine.dart';
-import 'package:openemis_mobile/core/sync/sync_models.dart';
-import 'package:openemis_mobile/core/tenant/tenant_provider.dart';
-import 'package:openemis_mobile/features/students/data/student_repository.dart';
+import 'package:proctira_api_client/proctira_api_client.dart';
+import 'package:proctira_mobile/core/storage/database.dart';
+import 'package:proctira_mobile/core/storage/secure_storage.dart';
+import 'package:proctira_mobile/core/sync/connectivity_monitor.dart';
+import 'package:proctira_mobile/core/sync/sync_dispatcher.dart';
+import 'package:proctira_mobile/core/sync/sync_engine.dart';
+import 'package:proctira_mobile/core/sync/sync_models.dart';
+import 'package:proctira_mobile/core/tenant/tenant_provider.dart';
+import 'package:proctira_mobile/features/students/data/student_repository.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class _NoopDispatcher implements SyncDispatcher {

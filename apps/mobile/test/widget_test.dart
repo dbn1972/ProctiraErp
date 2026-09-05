@@ -1,7 +1,7 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:openemis_mobile/core/auth/auth_bloc.dart';
-import 'package:openemis_mobile/core/storage/secure_storage.dart';
+import 'package:proctira_mobile/core/auth/auth_bloc.dart';
+import 'package:proctira_mobile/core/storage/secure_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

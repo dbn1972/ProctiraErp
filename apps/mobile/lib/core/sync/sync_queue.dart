@@ -60,6 +60,8 @@ class SyncQueue {
 
   final AppDatabase _database;
   final TenantProvider _tenantProvider;
+  // Reserved for future online-only enqueue gating.
+  // ignore: unused_field
   final ConnectivityMonitor _connectivity;
   final int maxRetries;
   final Duration baseBackoff;
