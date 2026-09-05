@@ -46,7 +46,7 @@ function mintToken() {
     tenantId: '00000000-0000-4000-8000-0000000000aa',
     email: 'demo@proctira.dev',
     displayName: 'Demo Admin',
-    roles: [{ roleId: 'super-admin', areaId: null }],
+    roles: [{ roleId: 'super-admin', roleName: 'SUPER_ADMIN', areaId: null }],
     exp: Math.floor(Date.now() / 1000) + 86_400,
   });
   return `${header}.${payload}.sig`;
@@ -117,6 +117,11 @@ const SCREENS = {
   ],
   health: [
     ['list', '/health'],
+    ['screenings', '/health/screenings'],
+    [
+      'student-profile',
+      `/health/${process.env.HEALTH_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'}`,
+    ],
     ['counselling', '/health/counselling'],
     ['special-needs', '/health/special-needs'],
   ],

@@ -24,6 +24,7 @@
     "@proctira/backend-attendance": "workspace:*",
     "@proctira/backend-auth": "workspace:*",
     "@proctira/backend-examination": "workspace:*",
+    "@proctira/backend-health": "workspace:*",
     "@proctira/backend-institution": "workspace:*",
     "@proctira/backend-scholarship": "workspace:*",
     "@proctira/backend-staff": "workspace:*",
