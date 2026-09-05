@@ -76,7 +76,11 @@
     "submitSuccess": "تم تقديم الطلب بنجاح",
     "trackingNumberLabel": "رقم التتبع الخاص بك",
     "keepTrackingNumber": "احفظ هذا الرقم لمتابعة حالة الطلب. ستحتاج إلى الرقم وتاريخ ميلاد الطالب معاً.",
-    "stepLabel": "الخطوة {current} من {total}"
+    "stepLabel": "الخطوة {current} من {total}",
+    "institutionRequired": "اختر مدرسة قبل الإرسال. استخدم البحث عن المدارس.",
+    "invalidDateOfBirth": "أدخل تاريخ ميلاد صالحًا (YYYY-MM-DD).",
+    "invalidPhone": "أدخل رقم هاتف ولي أمر صالحًا.",
+    "invalidEmail": "أدخل بريدًا إلكترونيًا صالحًا لولي الأمر."
   },
   "documents": {
     "title": "رفع المستندات",

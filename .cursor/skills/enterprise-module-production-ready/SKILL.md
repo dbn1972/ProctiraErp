@@ -127,15 +127,17 @@ Platform Admin skill notes: always `sanitizeReturnTo` on login `returnTo` (and m
 
 **Registration Portal** (`apps/registration-portal`) — minimum screens:
 
-| Nav label             |
-| --------------------- |
-| Home                  |
-| Find schools          |
-| Apply · personal info |
-| Apply · documents     |
-| Apply · review        |
-| Apply · success       |
-| Track application     |
+| Nav label             | Primary route(s)                                   |
+| --------------------- | -------------------------------------------------- |
+| Home                  | `/`                                                |
+| Find schools          | `/schools` (Apply CTA must set `institutionId`)    |
+| Apply · personal info | `/apply/[type]`                                    |
+| Apply · documents     | `/apply/[type]/documents`                          |
+| Apply · review        | `/apply/[type]/review` (block submit without UUID) |
+| Apply · success       | `/apply/success`                                   |
+| Track application     | `/track`, `/track/[n]?dob=` (backend DOB required) |
+
+Registration skill notes: wire school → apply `institutionId`; require DOB on status API; prefer Vitest validation + `e2e/01-registration-portal-smoke.spec.ts` (gate live on `E2E_BACKEND_READY`). Audit: `docs/audits/REGISTRATION_PORTAL_HOME_SCHOOLS_APPLY_TRACK.md`.
 
 **Public Website** (`apps/public-website`) — minimum screens:
 

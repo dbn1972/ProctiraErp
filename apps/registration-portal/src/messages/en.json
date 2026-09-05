@@ -76,7 +76,11 @@
     "submitSuccess": "Application submitted successfully",
     "trackingNumberLabel": "Your tracking number",
     "keepTrackingNumber": "Save this number to track your application status. Keep it together with the student's date of birth — both are required to look up the application.",
-    "stepLabel": "Step {current} of {total}"
+    "stepLabel": "Step {current} of {total}",
+    "institutionRequired": "Select a school before submitting. Use Find Schools to choose one.",
+    "invalidDateOfBirth": "Enter a valid student date of birth (YYYY-MM-DD).",
+    "invalidPhone": "Enter a valid guardian phone number.",
+    "invalidEmail": "Enter a valid guardian email address."
   },
   "documents": {
     "title": "Upload Documents",

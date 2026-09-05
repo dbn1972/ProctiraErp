@@ -76,7 +76,11 @@
     "submitSuccess": "Demande envoyée avec succès",
     "trackingNumberLabel": "Votre numéro de suivi",
     "keepTrackingNumber": "Conservez ce numéro pour suivre votre demande. Le numéro et la date de naissance de l'élève seront tous deux nécessaires.",
-    "stepLabel": "Étape {current} sur {total}"
+    "stepLabel": "Étape {current} sur {total}",
+    "institutionRequired": "Sélectionnez une école avant d’envoyer. Utilisez Trouver des écoles.",
+    "invalidDateOfBirth": "Saisissez une date de naissance valide (AAAA-MM-JJ).",
+    "invalidPhone": "Saisissez un numéro de téléphone du tuteur valide.",
+    "invalidEmail": "Saisissez une adresse e-mail du tuteur valide."
   },
   "documents": {
     "title": "Téléverser des documents",

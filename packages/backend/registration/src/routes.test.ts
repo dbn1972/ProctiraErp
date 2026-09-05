@@ -141,10 +141,10 @@ describe('Registration Routes', () => {
 
       const { trackingNumber } = JSON.parse(submitResponse.body);
 
-      // Check status
+      // Check status (DOB required to prevent tracking-number-only PII disclosure)
       const response = await app.inject({
         method: 'GET',
-        url: `/registrations/${trackingNumber}/status`,
+        url: `/registrations/${trackingNumber}/status?dob=2011-10-02`,
       });
 
       expect(response.statusCode).toBe(200);
@@ -287,9 +287,7 @@ describe('Registration Routes', () => {
       repository.seedFormConfigurations([
         {
           institutionTypeId: 'type-001',
-          fields: [
-            { id: 'field1', label: 'Test Field', type: 'text', required: true },
-          ],
+          fields: [{ id: 'field1', label: 'Test Field', type: 'text', required: true }],
         },
       ]);
 

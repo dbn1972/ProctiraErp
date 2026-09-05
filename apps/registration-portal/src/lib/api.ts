@@ -80,9 +80,7 @@ export interface FormConfiguration {
  * Fetches the form configuration for a given institution.
  * Returns an empty configuration if none is defined for the institution.
  */
-export async function getFormConfiguration(
-  institutionId: string,
-): Promise<FormConfiguration> {
+export async function getFormConfiguration(institutionId: string): Promise<FormConfiguration> {
   const response = await fetch(
     `${API_BASE_URL}/registrations/form-config/${encodeURIComponent(institutionId)}`,
     { cache: 'no-store' },
@@ -145,10 +143,9 @@ export async function getInstitutions(
   if (filters.page) params.set('page', String(filters.page));
   if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
 
-  const response = await fetch(
-    `${API_BASE_URL}/registrations/institutions?${params.toString()}`,
-    { cache: 'no-store' },
-  );
+  const response = await fetch(`${API_BASE_URL}/registrations/institutions?${params.toString()}`, {
+    cache: 'no-store',
+  });
   if (!response.ok) {
     throw new Error((await parseError(response)).message);
   }
@@ -236,9 +233,11 @@ export interface RegistrationStatus {
  */
 export async function checkApplicationStatus(
   trackingNumber: string,
+  dateOfBirth: string,
 ): Promise<RegistrationStatus | null> {
+  const params = new URLSearchParams({ dob: dateOfBirth });
   const response = await fetch(
-    `${API_BASE_URL}/registrations/${encodeURIComponent(trackingNumber)}/status`,
+    `${API_BASE_URL}/registrations/${encodeURIComponent(trackingNumber)}/status?${params.toString()}`,
     { cache: 'no-store' },
   );
 

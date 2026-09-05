@@ -18,14 +18,12 @@ import type { RegistrationService } from './registration-service.js';
 import {
   SubmitRegistrationSchema,
   TrackingNumberParamsSchema,
-  InstitutionMapQuerySchema,
   LanguageSelectionSchema,
   SchoolFinderQuerySchema,
   type SubmitRegistrationInput,
   type TrackingNumberParams,
   type InstitutionMapQuery,
   type LanguageSelection,
-  type SchoolFinderQuery,
 } from './schemas.js';
 
 /**
@@ -160,7 +158,11 @@ export async function registerRegistrationRoutes(
       }
 
       try {
-        const status = await registrationService.checkStatus(paramsResult.data.trackingNumber);
+        const dob =
+          typeof (request.query as { dob?: string }).dob === 'string'
+            ? (request.query as { dob?: string }).dob
+            : undefined;
+        const status = await registrationService.checkStatus(paramsResult.data.trackingNumber, dob);
         return reply.status(200).send(status);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -183,7 +185,7 @@ export async function registerRegistrationRoutes(
       reply: FastifyReply,
     ) {
       const tenantId = resolveTenantId(request, defaultTenantId);
-      const query = request.query as InstitutionMapQuery;
+      const query = request.query;
 
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 50;
@@ -247,7 +249,9 @@ export async function registerRegistrationRoutes(
 
       const candidate: Record<string, unknown> = {
         ...(parseNumber(raw.latitude) !== undefined ? { latitude: parseNumber(raw.latitude) } : {}),
-        ...(parseNumber(raw.longitude) !== undefined ? { longitude: parseNumber(raw.longitude) } : {}),
+        ...(parseNumber(raw.longitude) !== undefined
+          ? { longitude: parseNumber(raw.longitude) }
+          : {}),
         ...(parseNumber(raw.radiusKm) !== undefined ? { radiusKm: parseNumber(raw.radiusKm) } : {}),
         ...(parseList(raw.areaIds) ? { areaIds: parseList(raw.areaIds) } : {}),
         ...(parseList(raw.schoolTypes) ? { schoolTypes: parseList(raw.schoolTypes) } : {}),
@@ -268,10 +272,7 @@ export async function registerRegistrationRoutes(
       }
 
       try {
-        const result = await registrationService.searchSchools(
-          tenantId,
-          validation.data as SchoolFinderQuery,
-        );
+        const result = await registrationService.searchSchools(tenantId, validation.data);
         return reply.status(200).send(result);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -347,10 +348,7 @@ export async function registerRegistrationRoutes(
    */
   fastify.get(
     `${prefix}/language`,
-    async function getLanguageHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function getLanguageHandler(request: FastifyRequest, reply: FastifyReply) {
       const sessionId = resolveSessionId(request);
       const session = await sessionStore.get(sessionId);
       const language = session?.language ?? 'en';

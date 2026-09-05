@@ -1,14 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { Search, School, MapPin, Layers } from 'lucide-react';
-import {
-  getInstitutions,
-  type InstitutionFilters,
-  type InstitutionLocation,
-} from '@/lib/api';
+import { getInstitutions, type InstitutionFilters, type InstitutionLocation } from '@/lib/api';
+import { institutionTypeToApplySlug } from '@/lib/validation';
 
 // Dynamically import the map component to avoid SSR issues with Leaflet
 const MapView = dynamic(() => import('./map-view').then((mod) => mod.MapView), {
@@ -161,7 +159,9 @@ export function InstitutionMap({
                 <School className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
-                <h3 className="text-base font-bold tracking-tight text-gray-900">{institution.name}</h3>
+                <h3 className="text-base font-bold tracking-tight text-gray-900">
+                  {institution.name}
+                </h3>
                 <p className="mt-0.5 font-mono text-xs text-gray-400">{institution.code}</p>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-gray-600">
                   {institution.areaName && (
@@ -181,6 +181,14 @@ export function InstitutionMap({
                       {institution.availableGrades.join(', ')}
                     </span>
                   )}
+                </div>
+                <div className="mt-3">
+                  <Link
+                    href={`/apply/${encodeURIComponent(institutionTypeToApplySlug(institution.typeName))}?institutionId=${encodeURIComponent(institution.id)}`}
+                    className="btn-primary inline-flex h-10 items-center px-4 text-sm"
+                  >
+                    {t('selectForRegistration')}
+                  </Link>
                 </div>
               </div>
             </li>

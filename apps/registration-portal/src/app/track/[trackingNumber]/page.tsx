@@ -31,7 +31,7 @@ export default async function TrackingDetailPage({ params, searchParams }: PageP
   let result: Awaited<ReturnType<typeof checkApplicationStatus>> = null;
   if (valid) {
     try {
-      result = await checkApplicationStatus(trackingNumber);
+      result = await checkApplicationStatus(trackingNumber, dob);
     } catch {
       result = null;
     }
