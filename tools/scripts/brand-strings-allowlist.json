@@ -50,6 +50,7 @@
     "project-documentation": [
       "README.md",
       "**/README.md",
+      "AGENTS.md",
       "**/CHANGELOG.md",
       "**/CONTRIBUTING.md",
       "**/LICENSE",
@@ -58,7 +59,15 @@
       "**/ATTRIBUTIONS.md",
       "**/CODE_OF_CONDUCT.md",
       "docs/**",
-      "**/docs/**"
+      "**/docs/**",
+      "**/*.keyboard.md"
+    ],
+    "redesign-mockups-and-screen-sheets": [
+      "redesign/**",
+      "**/screens/**"
+    ],
+    "web-app-manifest-default-brand": [
+      "**/public/manifest.json"
     ],
     "dod-reports-generated": [
       "tools/dod-checks/reports/**"
