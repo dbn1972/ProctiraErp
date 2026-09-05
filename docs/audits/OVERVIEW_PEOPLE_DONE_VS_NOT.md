@@ -7,24 +7,29 @@ Compared redesign catalog (**Web App — Overview & People**) to the live Procti
 | Redesign nav item | Live route | Status | Evidence |
 |-------------------|------------|--------|----------|
 | Dashboard | `/home` | **DONE** | Live dashboard with KPIs + quick actions |
-| Students · list | `/students` | **DONE** | List with tabs/filters/table; 1 demo student |
-| Students · profile | `/students/[id]` | **DONE** | Profile opens for demo student |
+| Students · list | `/students` | **DONE** | List with tabs/filters/table |
+| Students · profile | `/students/[id]` | **DONE** | Profile loads for demo student |
 | Students · add | `/students/new` | **DONE** | Add-student form page loads |
-| Students · edit | `/students/[id]/edit` | **PARTIAL** | Route file exists; live returned 404/`notFound()` in test |
+| Students · edit | `/students/[id]/edit` | **DONE** | Fixed 2026-09-05 — edit form loads with student data |
 | Students · bulk import | `/students/import` | **DONE** | Bulk import page loads |
-| Students · transfer | `/students/[id]/transfer` | **PARTIAL** | Route file exists; live returned 404/`notFound()` in test |
-| Staff · list | `/staff` | **DONE** | Staff list UI works (0 staff in demo tenant) |
-| Staff · profile | `/staff/[id]` | **CODE DONE / NO DATA** | Page implemented; no staff rows to open |
+| Students · transfer | `/students/[id]/transfer` | **DONE** | Fixed 2026-09-05 — transfer request form loads |
+| Staff · list | `/staff` | **DONE** | Staff list UI works |
+| Staff · profile | `/staff/[id]` | **DONE** | Profile loads for seeded demo staff |
 | Staff · add | `/staff/new` | **DONE** | Add-staff form page loads |
-| Staff · edit | `/staff/[id]/edit` | **CODE DONE / NO DATA** | Implemented; needs a staff record |
-| Staff · new assignment | `/staff/[id]/assignments/new` | **CODE DONE / NO DATA** | Implemented; needs a staff record |
-| Staff · new appraisal | `/staff/[id]/appraisals/new` | **CODE DONE / NO DATA** | Implemented; needs a staff record |
+| Staff · edit | `/staff/[id]/edit` | **DONE** | Edit form loads with staff data |
+| Staff · new assignment | `/staff/[id]/assignments/new` | **DONE** | New teaching assignment form loads |
+| Staff · new appraisal | `/staff/[id]/appraisals/new` | **DONE** | New appraisal form loads |
 
-## Also fixed while auditing
+## Root cause of prior 404s (edit / transfer)
 
-- Split client-safe notification preferences API from server-only inbox helpers (`notifications.ts` / `notifications.server.ts`) so the app shell no longer pulls `next/headers` into Client Components via `gateway.ts`.
-- Marked `gateway.ts` with `server-only` and moved URL constants to `gateway-config.ts`.
+`GET /api/v1/students/:id` crashed with:
+
+`entity.createdAt.toISOString is not a function`
+
+Redis cache JSON-serializes `Date` values to strings. After cache hit, route formatters called `.toISOString()` on strings → 500 → web `getStudent()` returned null → `notFound()` → 404 page.
+
+**Fix:** coerce `Date | string` in student (and staff) response formatters via `toIsoString()`.
 
 ## Screenshots
 
-Artifacts under `/opt/cursor/artifacts/overview-people-audit/` (redesign mocks + live pages).
+Artifacts under `/opt/cursor/artifacts/overview-people-audit/` including `22-live-students-edit-fixed.png`, `23-live-students-transfer-fixed.png`, staff profile/edit/assignment/appraisal.

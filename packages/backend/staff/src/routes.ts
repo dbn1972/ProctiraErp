@@ -32,6 +32,16 @@ export interface StaffRoutesOptions {
 }
 
 /**
+ * Coerce Date | ISO string into an ISO string.
+ * Cached staff entities come back from Redis with string timestamps.
+ */
+function toIsoString(value: Date | string): string {
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value as Date).toISOString();
+}
+
+/**
  * Formats a staff entity to the API response shape.
  */
 function formatStaffResponse(entity: {
@@ -45,8 +55,8 @@ function formatStaffResponse(entity: {
   position: string;
   status: string;
   customData: Record<string, unknown> | null;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }) {
   return {
     id: entity.id,
@@ -59,8 +69,8 @@ function formatStaffResponse(entity: {
     position: entity.position,
     status: entity.status,
     customData: entity.customData,
-    createdAt: entity.createdAt.toISOString(),
-    updatedAt: entity.updatedAt.toISOString(),
+    createdAt: toIsoString(entity.createdAt),
+    updatedAt: toIsoString(entity.updatedAt),
   };
 }
 

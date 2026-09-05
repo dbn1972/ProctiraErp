@@ -43,6 +43,17 @@ export interface EnrollmentRoutesOptions {
 /**
  * Formats an enrollment entity to the API response shape.
  */
+
+function toIsoString(value: Date | string): string {
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value as Date).toISOString();
+}
+
+function toDateOnly(value: Date | string): string {
+  return toIsoString(value).split('T')[0] ?? toIsoString(value);
+}
+
 function formatEnrollmentResponse(entity: EnrollmentEntity) {
   return {
     id: entity.id,
@@ -53,10 +64,10 @@ function formatEnrollmentResponse(entity: EnrollmentEntity) {
     classId: entity.classId,
     academicPeriodId: entity.academicPeriodId,
     status: entity.status,
-    enrolledAt: entity.enrolledAt.toISOString().split('T')[0],
-    exitedAt: entity.exitedAt ? entity.exitedAt.toISOString().split('T')[0] : null,
-    createdAt: entity.createdAt.toISOString(),
-    updatedAt: entity.updatedAt.toISOString(),
+    enrolledAt: toDateOnly(entity.enrolledAt),
+    exitedAt: entity.exitedAt ? toDateOnly(entity.exitedAt) : null,
+    createdAt: toIsoString(entity.createdAt),
+    updatedAt: toIsoString(entity.updatedAt),
   };
 }
 
@@ -69,11 +80,11 @@ function formatHistoryEntry(entry: EnrollmentHistoryEntity) {
     enrollmentId: entry.enrollmentId,
     previousStatus: entry.previousStatus,
     newStatus: entry.newStatus,
-    effectiveDate: entry.effectiveDate.toISOString().split('T')[0],
+    effectiveDate: toDateOnly(entry.effectiveDate),
     institutionId: entry.institutionId,
     academicPeriodId: entry.academicPeriodId,
     reason: entry.reason,
-    createdAt: entry.createdAt.toISOString(),
+    createdAt: toIsoString(entry.createdAt),
   };
 }
 
@@ -89,9 +100,9 @@ function formatTransferRecord(record: TransferRecordEntity) {
     sourceEnrollmentId: record.sourceEnrollmentId,
     destinationInstitutionId: record.destinationInstitutionId,
     destinationEnrollmentId: record.destinationEnrollmentId,
-    transferDate: record.transferDate.toISOString().split('T')[0],
+    transferDate: toDateOnly(record.transferDate),
     reason: record.reason,
-    createdAt: record.createdAt.toISOString(),
+    createdAt: toIsoString(record.createdAt),
   };
 }
 

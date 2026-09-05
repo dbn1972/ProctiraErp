@@ -36,6 +36,18 @@ export interface StudentRoutesOptions {
 }
 
 /**
+ * Coerce Date | ISO string into an ISO string.
+ * Redis-backed caches JSON-serialize Dates to strings; calling `.toISOString()`
+ * on those revived values throws and turns GET /students/:id into a 500,
+ * which the web app surfaces as a 404 via `notFound()`.
+ */
+function toIsoString(value: Date | string): string {
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
+  return new Date(value as Date).toISOString();
+}
+
+/**
  * Formats a student entity to the API response shape.
  */
 function formatStudentResponse(entity: {
@@ -50,8 +62,8 @@ function formatStudentResponse(entity: {
   guardians: unknown[];
   identityDocuments: unknown[];
   customData: Record<string, unknown>;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }) {
   return {
     id: entity.id,
@@ -65,8 +77,8 @@ function formatStudentResponse(entity: {
     guardians: entity.guardians,
     identityDocuments: entity.identityDocuments,
     customData: entity.customData,
-    createdAt: entity.createdAt.toISOString(),
-    updatedAt: entity.updatedAt.toISOString(),
+    createdAt: toIsoString(entity.createdAt),
+    updatedAt: toIsoString(entity.updatedAt),
   };
 }
 
