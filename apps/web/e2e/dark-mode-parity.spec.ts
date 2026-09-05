@@ -128,3 +128,33 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
     });
   }
 });
+
+/**
+ * Public Auth surfaces do not need a live backend — keep a always-on dark
+ * parity smoke so Auth enterprise claims are not gated solely on dashboard.
+ */
+const AUTH_PUBLIC_ROUTES = [
+  { path: '/login', label: 'login' },
+  { path: '/signup', label: 'signup' },
+  { path: '/forgot-password', label: 'forgot-password' },
+  { path: '/reset-password', label: 'reset-password' },
+  { path: '/mfa', label: 'mfa' },
+] as const;
+
+test.describe('Property F-2: Dark Mode Parity — Auth public surfaces (always on)', () => {
+  for (const route of AUTH_PUBLIC_ROUTES) {
+    test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in dark mode`, async ({
+      page,
+    }) => {
+      const response = await page.goto(route.path);
+      if (!response || response.status() >= 400) {
+        test.skip(true, `${route.path} is not enabled in this build`);
+      }
+
+      await setTheme(page, 'dark');
+      await runAxe(page, {
+        checkpointLabel: `${route.path} [dark]`,
+      });
+    });
+  }
+});

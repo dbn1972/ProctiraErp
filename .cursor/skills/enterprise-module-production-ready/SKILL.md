@@ -75,6 +75,20 @@ Work the pillars **in order**. Mark each checkbox only with evidence (path, run 
 | Workflows · instances | `/workflows/instances` |
 | Workflows · my approvals | `/workflows/approvals` |
 
+**Auth (public identity)** — minimum screens:
+
+| Nav label | Primary route |
+| --- | --- |
+| Login / sign-in | `/login` |
+| Sign up | `/signup` |
+| Forgot password | `/forgot-password` |
+| Reset password | `/reset-password` |
+| MFA verify | `/mfa` |
+| Logout | `/logout` |
+| OAuth callback | `/oauth/callback` |
+
+Auth security extras (mandatory for Auth enterprise claim): sanitize `returnTo` / open-redirect; `/signup` in middleware `PUBLIC_PATHS`; httpOnly session cookies; unauthenticated dashboard → `/login`.
+
 ### Execution environment (cloud agents)
 
 - Run **all** verification on the cloud agent / CI host in **headless** mode.

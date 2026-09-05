@@ -5,6 +5,7 @@ import { defaultLocale, isValidLocale, getDirection } from './i18n/config';
 /** Routes that do not require authentication. */
 const PUBLIC_PATHS = [
   '/login',
+  '/signup',
   '/forgot-password',
   '/reset-password',
   '/mfa',
@@ -399,7 +400,10 @@ function redirectToLogin(
   returnTo: string,
 ): NextResponse {
   const loginUrl = new URL('/login', request.url);
-  loginUrl.searchParams.set('returnTo', returnTo);
+  // Only bounce back to same-origin relative paths (open-redirect guard).
+  const safeReturnTo =
+    returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+  loginUrl.searchParams.set('returnTo', safeReturnTo);
   return NextResponse.redirect(loginUrl);
 }
 

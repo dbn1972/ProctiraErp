@@ -81,6 +81,26 @@ test.describe('a11y — public surfaces (no backend required)', () => {
     }
     await runAxe(page, { checkpointLabel: '/signup' });
   });
+
+  for (const route of [
+    { path: '/forgot-password', label: /email/i },
+    { path: '/reset-password', label: /password/i },
+    { path: '/mfa', label: /code|verification|authenticator|digit/i },
+  ] as const) {
+    test(`${route.path} is WCAG 2.1 AA clean`, async ({ page }) => {
+      const response = await page.goto(route.path);
+      if (response && response.status() >= 400) {
+        test.skip(true, `${route.path} is not enabled in this build`);
+      }
+      // Best-effort wait for primary form chrome; MFA may render digit inputs.
+      await page
+        .getByLabel(route.label)
+        .first()
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .catch(() => undefined);
+      await runAxe(page, { checkpointLabel: route.path });
+    });
+  }
 });
 
 // ────────────────────────────────────────────────────────────────────

@@ -393,7 +393,14 @@ test.describe('Property F-5: Touch Target Minimum — mobile routes', () => {
 // ────────────────────────────────────────────────────────────────────
 
 test.describe('Property F-5: Touch Target Minimum — public surfaces (no backend required)', () => {
-  const PUBLIC_ROUTES = ['/login', '/signup', '/track'];
+  const PUBLIC_ROUTES = [
+    '/login',
+    '/signup',
+    '/forgot-password',
+    '/reset-password',
+    '/mfa',
+    '/track',
+  ];
 
   test('all interactive elements on public routes have min(width, height) ≥ 44px', async ({
     page,

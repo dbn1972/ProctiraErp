@@ -60,6 +60,8 @@ const SCREENS = {
     ['forgot-password', '/forgot-password'],
     ['reset-password', '/reset-password'],
     ['mfa', '/mfa'],
+    ['logout', '/logout'],
+    ['oauth-callback', '/oauth/callback'],
   ],
   public: [['track', '/track']],
   dashboard: [['overview', '/']],
