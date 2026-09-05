@@ -98,10 +98,18 @@ const SCREENS = {
     ['definition-new', '/workflows/definitions/new'],
   ],
   scholarships: [
-    ['list', '/scholarships'],
-    ['applications', '/scholarships/applications'],
-    ['disbursements', '/scholarships/disbursements'],
+    ['programs', '/scholarships'],
     ['program-new', '/scholarships/programs/new'],
+    [
+      'program-detail',
+      `/scholarships/programs/${process.env.SCHOLARSHIP_PROGRAM_ID ?? '11111111-1111-4111-8111-111111111111'}`,
+    ],
+    ['applications', '/scholarships/applications'],
+    [
+      'application-detail',
+      `/scholarships/applications/${process.env.SCHOLARSHIP_APPLICATION_ID ?? '22222222-2222-4222-8222-222222222222'}`,
+    ],
+    ['disbursements', '/scholarships/disbursements'],
   ],
   reports: [
     ['list', '/reports'],

@@ -9,8 +9,9 @@
  *
  * Persistence status (current schema):
  *  - student / institution / staff (incl. assignments) / attendance /
- *    assessment / examination: Prisma-backed (Postgres + RLS) via their
- *    create*Repository factories when DATABASE_URL is set, else in-memory.
+ *    assessment / examination / scholarship: Prisma-backed (Postgres + RLS)
+ *    via their create*Repository factories when DATABASE_URL is set, else
+ *    in-memory (scholarship currently seeds an in-memory demo repository).
  *  - assessment report-card repositories are not wired yet (no Prisma
  *    implementation); report-card routes stay disabled.
  *
@@ -39,6 +40,10 @@ import {
   institutionPlugin,
 } from '@proctira/backend-institution';
 import {
+  InMemoryScholarshipRepository,
+  scholarshipPlugin,
+} from '@proctira/backend-scholarship';
+import {
   createAssignmentRepository,
   createStaffRepository,
   staffPlugin,
@@ -46,6 +51,7 @@ import {
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
 
 import type { GatewayConfig } from './config.js';
+import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
@@ -135,6 +141,20 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         assessmentItemRepository: createAssessmentItemRepository(),
         outcomeRepository: createOutcomeRepository(),
         resultRepository: createAssessmentResultRepository(),
+      });
+    },
+  },
+  {
+    name: 'scholarship',
+    proxyPrefixes: ['/scholarships'],
+    register: async (scope) => {
+      // In-memory repository with demo seed until Prisma scholarship schema
+      // is wired through createScholarshipRepository.
+      const repository = new InMemoryScholarshipRepository();
+      await seedScholarshipDemoData(repository);
+      await scope.register(scholarshipPlugin, {
+        repository,
+        prefix: '/scholarships',
       });
     },
   },
