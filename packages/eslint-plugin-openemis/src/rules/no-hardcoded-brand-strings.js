@@ -1,9 +1,10 @@
 /**
  * @fileoverview ESLint rule that flags any literal occurrence of a tenant
- * brand name (default: "ProctiraERP", "EduZo") in source files. Charter §32 +
- * Design §M (Brand-Name Flexibility, Requirement 43): every visible brand
- * string MUST come from `useBrand()` / `<DocumentTitle>` / brand config so
- * white-label deployments can rename the product without touching code.
+ * brand name (default: "ProctiraERP", "Proctira", "EduZo") in source files.
+ * Charter §32 + Design §M (Brand-Name Flexibility, Requirement 43): every
+ * visible brand string MUST come from `useBrand()` / `<DocumentTitle>` /
+ * brand config so white-label deployments can rename the product without
+ * touching code.
  *
  * The rule inspects:
  *   - JSX text nodes ............... `<h1>ProctiraERP</h1>`
@@ -27,7 +28,7 @@
  *
  * Configuration (rule options object):
  *   {
- *     "brands": string[]   // brand names to flag (default: ["ProctiraERP", "EduZo"])
+ *     "brands": string[]   // brand names to flag (default: ["ProctiraERP", "Proctira", "EduZo"])
  *   }
  */
 

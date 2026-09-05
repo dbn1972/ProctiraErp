@@ -82,9 +82,15 @@ const KNOWN_VIOLATIONS = new Set([
   // apps/registration-portal
   'apps/registration-portal/src/app/layout.tsx',
   'apps/registration-portal/src/components/layout/header.tsx',
+  'apps/registration-portal/src/components/layout/footer.tsx',
   // Additional baseline (pre-existing on this branch; tracked for tasks 57.5 / 58)
+  'apps/web/src/app/(auth)/_components/auth-shell.tsx',
   'apps/web/src/app/(auth)/login/login-branding.test.tsx',
   'apps/web/src/app/(auth)/signup/signup-form.tsx',
+  'apps/web/src/lib/draft/useDraftAutosave.ts',
+  'apps/web/src/lib/sync/syncQueue.ts',
+  'apps/web/src/lib/theme/boot-script.ts',
+  'apps/web/src/providers/ThemeProvider.tsx',
   'apps/web/src/app/(dashboard)/students/import/page.tsx',
   'apps/web/src/app/(marketing)/installation/page.tsx',
   'apps/web/src/app/(marketing)/legal/cookies/page.tsx',
