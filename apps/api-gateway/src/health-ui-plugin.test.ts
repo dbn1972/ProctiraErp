@@ -1,11 +1,24 @@
 /**
  * Unit tests for Health UI aggregate routes (tenant + RBAC gates).
  */
-import Fastify from 'fastify';
+import Fastify, { type FastifyRequest } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { HEALTH_DEMO_TENANT_ID, HEALTH_STUDENT_A_ID } from './health-ui-seed.js';
+
+type TestUser = {
+  sub: string;
+  tenantId?: string;
+  roles: Array<{ roleId: string; roleName: string; areaId: string }>;
+};
+
+function setUser(request: FastifyRequest, user: TestUser, tenantId?: string) {
+  const req = request as FastifyRequest & { user?: TestUser; tenantId?: string };
+  // Test doubles intentionally omit full JwtPayload fields.
+  req.user = user as FastifyRequest['user'] & TestUser;
+  if (tenantId) req.tenantId = tenantId;
+}
 
 describe('healthUiPlugin', () => {
   const apps: ReturnType<typeof Fastify>[] = [];
@@ -39,10 +52,10 @@ describe('healthUiPlugin', () => {
     const app = Fastify();
     apps.push(app);
     app.addHook('onRequest', async (request) => {
-      (request as typeof request & { user?: unknown }).user = {
+      setUser(request, {
         sub: 'u1',
-        roles: [{ roleName: 'HEALTH_OFFICER' }],
-      };
+        roles: [{ roleId: 'health-officer', roleName: 'HEALTH_OFFICER', areaId: 'area-1' }],
+      });
     });
     await app.register(healthUiPlugin);
     await app.ready();
@@ -54,12 +67,15 @@ describe('healthUiPlugin', () => {
     const app = Fastify();
     apps.push(app);
     app.addHook('onRequest', async (request) => {
-      (request as typeof request & { user?: unknown; tenantId?: string }).user = {
-        sub: 'u1',
-        tenantId: HEALTH_DEMO_TENANT_ID,
-        roles: [{ roleName: 'HEALTH_OFFICER' }],
-      };
-      (request as typeof request & { tenantId?: string }).tenantId = HEALTH_DEMO_TENANT_ID;
+      setUser(
+        request,
+        {
+          sub: 'u1',
+          tenantId: HEALTH_DEMO_TENANT_ID,
+          roles: [{ roleId: 'health-officer', roleName: 'HEALTH_OFFICER', areaId: 'area-1' }],
+        },
+        HEALTH_DEMO_TENANT_ID,
+      );
     });
     await app.register(healthUiPlugin);
     await app.ready();
@@ -80,12 +96,15 @@ describe('healthUiPlugin', () => {
     const app = Fastify();
     apps.push(app);
     app.addHook('onRequest', async (request) => {
-      (request as typeof request & { user?: unknown; tenantId?: string }).user = {
-        sub: 'u1',
-        tenantId: otherTenant,
-        roles: [{ roleName: 'HEALTH_OFFICER' }],
-      };
-      (request as typeof request & { tenantId?: string }).tenantId = otherTenant;
+      setUser(
+        request,
+        {
+          sub: 'u1',
+          tenantId: otherTenant,
+          roles: [{ roleId: 'health-officer', roleName: 'HEALTH_OFFICER', areaId: 'area-1' }],
+        },
+        otherTenant,
+      );
     });
     await app.register(healthUiPlugin);
     await app.ready();
@@ -103,11 +122,14 @@ describe('healthUiPlugin', () => {
     const app = Fastify();
     apps.push(app);
     app.addHook('onRequest', async (request) => {
-      (request as typeof request & { user?: unknown; tenantId?: string }).user = {
-        sub: 'u1',
-        roles: [{ roleName: 'NURSE' }],
-      };
-      (request as typeof request & { tenantId?: string }).tenantId = HEALTH_DEMO_TENANT_ID;
+      setUser(
+        request,
+        {
+          sub: 'u1',
+          roles: [{ roleId: 'nurse', roleName: 'NURSE', areaId: 'area-1' }],
+        },
+        HEALTH_DEMO_TENANT_ID,
+      );
     });
     await app.register(healthUiPlugin);
     await app.ready();
