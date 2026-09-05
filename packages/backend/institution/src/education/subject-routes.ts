@@ -13,8 +13,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { SubjectService } from './subject-service.js';
-import type {
 import { toIsoString } from '../date-utils.js';
+import type {
   CreateSubjectDto,
   UpdateSubjectDto,
   LinkSubjectToGradeDto,

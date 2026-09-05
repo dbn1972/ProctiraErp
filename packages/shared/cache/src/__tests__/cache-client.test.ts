@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type Redis from 'ioredis';
+
 import { CacheClient } from '../cache-client.js';
 
 /**
@@ -40,7 +42,7 @@ describe('CacheClient', () => {
 
   beforeEach(() => {
     mockRedis = createMockRedis();
-    cache = new CacheClient({ redis: mockRedis as unknown as import('ioredis').default });
+    cache = new CacheClient({ redis: mockRedis as unknown as Redis });
   });
 
   describe('get', () => {
@@ -217,7 +219,7 @@ describe('CacheClient', () => {
   describe('keyPrefix', () => {
     it('prefixes all keys when configured', async () => {
       const prefixedCache = new CacheClient({
-        redis: mockRedis as unknown as import('ioredis').default,
+        redis: mockRedis as unknown as Redis,
         keyPrefix: 'app',
       });
 

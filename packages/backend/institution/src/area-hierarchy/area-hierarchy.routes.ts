@@ -16,8 +16,8 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { AreaHierarchyService } from './area-hierarchy.service.js';
-import {
 import { toIsoString } from '../date-utils.js';
+import {
   CreateAreaBodySchema,
   UpdateAreaBodySchema,
   MoveAreaBodySchema,
