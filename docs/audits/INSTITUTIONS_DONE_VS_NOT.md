@@ -1,28 +1,27 @@
-# Academics — Institutions — done vs not done
+# Web App — Academics → Institutions (screenshot checklist)
 
-Compared redesign catalog (**Web App — Academics → Institutions**) to live ProctiraERP on EC3 (gateway `:3200`, web `:3201`).
+Live verification against EC3 (`:3200` gateway / `:3201` web) with demo tenant.
 
-## Verdict
+Demo institution: **Kendriya Vidyalaya Proctira**
 
-| Redesign nav item | Live route | Status | Evidence |
-|-------------------|------------|--------|----------|
-| Institutions · list | `/institutions` | **DONE** | List shows Kendriya Vidyalaya Proctira + Register CTA |
-| Institutions · profile | `/institutions/[id]` → overview | **DONE** | 307 redirect to overview; profile chrome loads |
-| Institutions · overview tab | `/institutions/[id]/overview` | **DONE** | H1 institution name; Overview/Students/Staff/Contact |
-| Institutions · register | `/institutions/new` | **DONE** | Register institution form (Name/Code/Area) |
-| Institutions · edit | `/institutions/[id]/edit` | **DONE** | Edit form prefilled with Kendriya data |
-| Institutions · classes | `/institutions/[id]/classes` | **DONE** | Class sections with seeded Class 1… data |
-| Institutions · grades | `/institutions/[id]/grades` | **DONE** | Grades offered with Class 1… |
-| Institutions · infrastructure | `/institutions/[id]/infrastructure` | **DONE** | Empty-state UI (“No infrastructure” + Add land) |
+## Screenshot nav → live status
 
-Demo institution: `a2e96cd1-0232-4cce-97e2-00ebbfb9a374` (Kendriya Vidyalaya Proctira).
+| Redesign item | Live route | Status |
+|---|---|---|
+| Institutions · list | `/institutions` | **DONE** |
+| Institutions · profile | `/institutions/[id]` → overview | **DONE** |
+| Institutions · overview tab | `/institutions/[id]/overview` | **DONE** |
+| Institutions · register | `/institutions/new` | **DONE** |
+| Institutions · edit | `/institutions/[id]/edit` | **DONE** |
+| Institutions · classes | `/institutions/[id]/classes` | **DONE** |
+| Institutions · grades | `/institutions/[id]/grades` | **DONE** |
+| Institutions · infrastructure | `/institutions/[id]/infrastructure` | **DONE** |
 
-## Fixes this pass
+**Result: 8 / 8 DONE**
 
-1. **EC3 web 500** — stale Next cache still bundling old `notifications.ts` → `gateway.ts` → `next/headers` into client shell. Cleared `.next` and restarted web on `:3201`; login and institution pages return 200.
-2. **Date coercion hardening** — institution API formatters now use `toIsoString`/`toIsoDate` (same Redis string-Date class of bug fixed earlier for students/staff).
+Evidence (HTTP 200 + page markers): list shows institution + Register CTA; profile/overview show Kendriya chrome; register/edit forms load; classes/grades show Class 1 sections; infrastructure shows empty-state + Add land.
 
-## Not blocking route DONE
+## Notes
 
-- Infrastructure hierarchy is empty (valid empty state; seed lands separately if demo data wanted).
-- SCP deploy of date-utils to EC3 host was abandoned; change is in git for normal pull/redeploy.
+- Infrastructure may be empty (valid empty state with Add land CTA).
+- Date-string coercion hardening for institution APIs is on branch (`date-utils.ts`) and pushed to PR #1.
