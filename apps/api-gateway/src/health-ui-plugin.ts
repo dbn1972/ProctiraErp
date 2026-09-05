@@ -9,11 +9,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
-import {
-  HEALTH_DEMO_TENANT_ID,
-  createHealthUiSeed,
-  type HealthUiSeed,
-} from './health-ui-seed.js';
+import { HEALTH_DEMO_TENANT_ID, createHealthUiSeed, type HealthUiSeed } from './health-ui-seed.js';
 
 /** Roles allowed to view health PII via UI aggregates. */
 const HEALTH_UI_ROLES = new Set([
@@ -49,9 +45,7 @@ function extractRoleNames(user: JwtUserLike | undefined): string[] {
 }
 
 function hasHealthUiAccess(roles: string[]): boolean {
-  return roles.some(
-    (role) => HEALTH_UI_ROLES.has(role) || HEALTH_UI_ROLES.has(role.toUpperCase()),
-  );
+  return roles.some((role) => HEALTH_UI_ROLES.has(role) || HEALTH_UI_ROLES.has(role.toUpperCase()));
 }
 
 function resolveTenantId(request: FastifyRequest): string | null {
@@ -72,9 +66,12 @@ function deny(
   return reply.status(statusCode).send({ code, message, statusCode });
 }
 
-function assertHealthAccess(request: FastifyRequest, reply: {
-  status: (code: number) => { send: (body: unknown) => unknown };
-}): string | null {
+function assertHealthAccess(
+  request: FastifyRequest,
+  reply: {
+    status: (code: number) => { send: (body: unknown) => unknown };
+  },
+): string | null {
   const user = (request as FastifyRequest & { user?: JwtUserLike }).user;
   if (!hasHealthUiAccess(extractRoleNames(user))) {
     deny(reply, 'HEALTH_ACCESS_DENIED', 'Not authorized to access health records');
@@ -97,10 +94,7 @@ export interface HealthUiPluginOptions {
 }
 
 export const healthUiPlugin = fp(
-  async function healthUiPluginImpl(
-    fastify: FastifyInstance,
-    options: HealthUiPluginOptions = {},
-  ) {
+  async function healthUiPluginImpl(fastify: FastifyInstance, options: HealthUiPluginOptions = {}) {
     const seed = options.seed ?? createHealthUiSeed();
 
     // Bridge JWT → domain healthAccessContext for resource-scoped routes.
@@ -118,13 +112,15 @@ export const healthUiPlugin = fp(
         };
         return map[role] ?? map[role.toUpperCase()] ?? role.toLowerCase();
       });
-      (request as FastifyRequest & {
-        healthAccessContext?: {
-          userId: string;
-          roles: string[];
-          guardianOfStudentIds: string[];
-        };
-      }).healthAccessContext = {
+      (
+        request as FastifyRequest & {
+          healthAccessContext?: {
+            userId: string;
+            roles: string[];
+            guardianOfStudentIds: string[];
+          };
+        }
+      ).healthAccessContext = {
         userId: user?.sub ?? user?.userId ?? '',
         roles,
         guardianOfStudentIds: user?.guardianOfStudentIds ?? [],

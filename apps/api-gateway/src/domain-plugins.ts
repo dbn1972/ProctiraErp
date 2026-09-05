@@ -31,10 +31,7 @@ import {
   createResultRepository,
   examinationPlugin,
 } from '@proctira/backend-examination';
-import {
-  healthPlugin,
-  InMemoryHealthRepository,
-} from '@proctira/backend-health';
+import { healthPlugin, InMemoryHealthRepository } from '@proctira/backend-health';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
