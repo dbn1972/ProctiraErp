@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { StepCard } from '@/components/step-card';
 import { StatusMessage } from '@/components/status-message';
 import { apiClient, type AdminAccountConfig } from '@/lib/api-client';
+import { validateAdminAccount, type AdminAccountFieldErrors } from '@/lib/admin-validation';
 
 interface AdminStepProps {
   onComplete: () => void;
@@ -22,28 +23,12 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ success: boolean; error?: string } | null>(null);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [validationErrors, setValidationErrors] = useState<AdminAccountFieldErrors>({});
 
   const validate = (): boolean => {
-    const errors: Record<string, string> = {};
-
-    if (!config.email) errors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.email)) errors.email = 'Invalid email format';
-
-    if (!config.password) errors.password = 'Password is required';
-    else if (config.password.length < 8) errors.password = 'Password must be at least 8 characters';
-
-    if (config.password !== confirmPassword) errors.confirmPassword = 'Passwords do not match';
-
-    if (!config.firstName) errors.firstName = 'First name is required';
-    if (!config.lastName) errors.lastName = 'Last name is required';
-    if (!config.tenantName) errors.tenantName = 'Tenant name is required';
-
-    if (!config.tenantSlug) errors.tenantSlug = 'Tenant slug is required';
-    else if (!/^[a-z0-9-]+$/.test(config.tenantSlug)) errors.tenantSlug = 'Slug must be lowercase letters, numbers, and hyphens only';
-
-    setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    const errors = validateAdminAccount({ ...config, confirmPassword });
+    setValidationErrors(errors ?? {});
+    return errors === null;
   };
 
   const handleSubmit = async () => {
