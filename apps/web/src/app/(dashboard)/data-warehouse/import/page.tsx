@@ -12,12 +12,7 @@
  * - Import-history table restyled per house conventions
  */
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  Database,
-  FileSpreadsheet,
-  FileText,
-} from 'lucide-react';
+import { ArrowLeft, Database, FileSpreadsheet, FileText } from 'lucide-react';
 
 import {
   Badge,
@@ -73,6 +68,15 @@ export default async function DataWarehouseImportPage() {
 
       {/* ── Stepper ── */}
       <ImportStepper activeIndex={0} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+        <p className="text-sm text-muted-foreground">
+          After choosing a source, map columns to warehouse fields (not the GIS map).
+        </p>
+        <Button asChild size="sm">
+          <Link href="/data-warehouse/field-mapping">Continue to mapping</Link>
+        </Button>
+      </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <ImportSourceCard
@@ -144,10 +148,7 @@ export default async function DataWarehouseImportPage() {
 
 function ImportStepper({ activeIndex }: { activeIndex: number }) {
   return (
-    <ol
-      className="flex items-center gap-2"
-      aria-label="Import progress"
-    >
+    <ol className="flex items-center gap-2" aria-label="Import progress">
       {IMPORT_STEPS.map((label, index) => {
         const isDone = index < activeIndex;
         const isActive = index === activeIndex;
@@ -177,10 +178,7 @@ function ImportStepper({ activeIndex }: { activeIndex: number }) {
             {index < IMPORT_STEPS.length - 1 && (
               <span
                 aria-hidden="true"
-                className={cn(
-                  'h-px flex-1',
-                  isDone ? 'bg-primary' : 'bg-border',
-                )}
+                className={cn('h-px flex-1', isDone ? 'bg-primary' : 'bg-border')}
               />
             )}
           </li>
@@ -249,12 +247,16 @@ function DatabaseImportCard() {
 }
 
 function JobStatus({ status }: { status: DwImportJob['status'] }) {
-  const base =
-    'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold';
+  const base = 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold';
   switch (status) {
     case 'SUCCEEDED':
       return (
-        <span className={cn(base, 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400')}>
+        <span
+          className={cn(
+            base,
+            'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+          )}
+        >
           Succeeded
         </span>
       );
@@ -266,7 +268,12 @@ function JobStatus({ status }: { status: DwImportJob['status'] }) {
       );
     case 'RUNNING':
       return (
-        <span className={cn(base, 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400')}>
+        <span
+          className={cn(
+            base,
+            'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400',
+          )}
+        >
           Running
         </span>
       );

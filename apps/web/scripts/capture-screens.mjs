@@ -120,6 +120,10 @@ const SCREENS = {
   reports: [
     ['list', '/reports'],
     ['new', '/reports/new'],
+    [
+      'results',
+      `/reports/${process.env.REPORT_TEMPLATE_ID ?? 'rrrrrrrr-rrrr-4rrr-8rrr-rrrrrrrrrrr1'}/results`,
+    ],
   ],
   health: [
     ['list', '/health'],
@@ -134,6 +138,7 @@ const SCREENS = {
   'data-warehouse': [
     ['overview', '/data-warehouse'],
     ['import', '/data-warehouse/import'],
+    ['field-mapping', '/data-warehouse/field-mapping'],
     ['map', '/data-warehouse/map'],
   ],
   admin: [
@@ -143,6 +148,7 @@ const SCREENS = {
     ['permissions', '/admin/permissions'],
     ['tenant', '/admin/tenant'],
   ],
+  track: [['public-track', '/track']],
 };
 
 async function main() {

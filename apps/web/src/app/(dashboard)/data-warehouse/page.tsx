@@ -49,10 +49,7 @@ export default async function DataWarehousePage() {
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1
-            id="dw-heading"
-            className="text-3xl font-extrabold tracking-tight text-foreground"
-          >
+          <h1 id="dw-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
             Data warehouse
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -63,8 +60,11 @@ export default async function DataWarehousePage() {
           <Button asChild variant="outline" size="sm">
             <Link href="/data-warehouse/map">
               <MapIcon className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Open map viewer
+              Open GIS map
             </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/data-warehouse/field-mapping">Field mapping</Link>
           </Button>
           <Button asChild size="sm">
             <Link href="/data-warehouse/import">
@@ -113,11 +113,7 @@ export default async function DataWarehousePage() {
       {/* ── Indicators table ── */}
       <Card className="overflow-hidden">
         <CardContent className="p-0">
-          {indicators.length === 0 ? (
-            <EmptyState />
-          ) : (
-            <IndicatorsTable items={indicators} />
-          )}
+          {indicators.length === 0 ? <EmptyState /> : <IndicatorsTable items={indicators} />}
         </CardContent>
       </Card>
     </section>
@@ -202,9 +198,7 @@ function IndicatorsTable({ items }: { items: DwIndicator[] }) {
           <TableRow key={indicator.id} className="group">
             <TableCell>
               <p className="font-semibold text-foreground">{indicator.name}</p>
-              <code className="font-mono text-[11px] text-muted-foreground">
-                {indicator.code}
-              </code>
+              <code className="font-mono text-[11px] text-muted-foreground">{indicator.code}</code>
             </TableCell>
             <TableCell>
               <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] font-medium text-foreground">
@@ -229,11 +223,15 @@ function IndicatorsTable({ items }: { items: DwIndicator[] }) {
 }
 
 function TrendBadge({ trend }: { trend: DwIndicator['trend'] }) {
-  const base =
-    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold';
+  const base = 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold';
   if (trend === 'UP') {
     return (
-      <span className={cn(base, 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400')}>
+      <span
+        className={cn(
+          base,
+          'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+        )}
+      >
         <ArrowUp className="h-3 w-3" aria-hidden="true" /> Up
       </span>
     );
