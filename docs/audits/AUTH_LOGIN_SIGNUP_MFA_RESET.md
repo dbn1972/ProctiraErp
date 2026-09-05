@@ -1,7 +1,7 @@
 # Enterprise module test — Auth
 
 **Module:** Auth (public identity)  
-**Branch / tip:** `main` @ `5fbebe3` (Auth #8 + tip Lint #9)  
+**Branch / tip:** `main` @ `9f778e3` (Auth #8–#11; captures on tip)  
 **Environment:** tip `main` carve-out (headless cloud agent)  
 **Date (UTC):** 2026-09-05  
 **Tip CI:** https://github.com/dbn1972/ProctiraErp/actions/runs/33968548810 — **success**
@@ -143,6 +143,6 @@ Horizontal scroll / clipped CTA: none observed on Auth public forms in this pack
 - [x] Tip CI green (Lint/typecheck/unit/DoD/Lighthouse/bundle/tenant) — run 33968548810
 - [x] Auth equivalent merged to main (PR #8 + tip fix #9)
 - [x] Walkthrough PNG pack — 21 PNGs under `/opt/cursor/artifacts/auth-audit/` (desktop/tablet/mobile)
-- [ ] Session state set to `complete` via hooks helper
+- [x] Session state set to `complete` via hooks helper (Auth + prior modules)
 
 **Verdict:** ☐ Not ready · ☑ Ready with waivers · ☐ Enterprise production-ready
