@@ -107,14 +107,14 @@ function stripTenant<T extends { tenantId: string }>(item: T): Omit<T, 'tenantId
 
 function parseSteps(raw: unknown): UiWorkflowStep[] | null {
   if (!Array.isArray(raw) || raw.length === 0) return null;
+  const entries: unknown[] = raw;
   const steps: UiWorkflowStep[] = [];
-  for (let i = 0; i < raw.length; i += 1) {
-    const entry = raw[i];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry: unknown = entries[i];
     if (!entry || typeof entry !== 'object') return null;
-    const name = String((entry as { name?: unknown }).name ?? '').trim();
-    const approverRole = String(
-      (entry as { approverRole?: unknown }).approverRole ?? '',
-    ).trim();
+    const record = entry as { name?: unknown; approverRole?: unknown };
+    const name = String(record.name ?? '').trim();
+    const approverRole = String(record.approverRole ?? '').trim();
     if (!name || !approverRole) return null;
     steps.push({
       id: `step-${i + 1}`,
@@ -135,6 +135,8 @@ export const workflowUiPlugin = fp(
     fastify: FastifyInstance,
     options: WorkflowUiPluginOptions = {},
   ) {
+    // Satisfy require-await while keeping Fastify's async plugin contract.
+    await Promise.resolve();
     const seed = options.seed ?? createWorkflowUiSeed();
 
     fastify.get('/workflows/definitions', async (request, reply) => {
@@ -208,7 +210,7 @@ export const workflowUiPlugin = fp(
       });
     });
 
-    async function decideApproval(
+    function decideApproval(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: {
         status: (code: number) => { send: (body: unknown) => unknown };
