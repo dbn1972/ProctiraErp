@@ -103,7 +103,8 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     const cached = await redis.get(cacheKey);
     if (cached) {
       // Return the cached response without executing the handler
-      const cachedResponse: CachedResponse = JSON.parse(cached);
+      const parsed: unknown = JSON.parse(cached);
+      const cachedResponse = parsed as CachedResponse;
       reply.header('x-idempotency-replay', 'true');
       for (const [key, value] of Object.entries(cachedResponse.headers)) {
         reply.header(key, value);

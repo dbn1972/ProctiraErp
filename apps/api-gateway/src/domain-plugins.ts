@@ -17,7 +17,6 @@
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
-import type { FastifyInstance } from 'fastify';
 import {
   assessmentPlugin,
   createAssessmentItemRepository,
@@ -40,6 +39,7 @@ import {
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';

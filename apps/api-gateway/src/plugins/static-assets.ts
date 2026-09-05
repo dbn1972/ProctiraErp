@@ -200,7 +200,7 @@ const staticAssetsPlugin: FastifyPluginAsync<StaticAssetsOptions> = async (
   // @fastify/static below see the rewritten header.
   fastify.addHook('onRequest', async (request) => {
     const accepted = parseAcceptEncoding(
-      request.headers['accept-encoding'] as string | undefined,
+      request.headers['accept-encoding'],
     );
     const forwarded = buildForwardedAcceptEncoding(accepted);
     if (forwarded.length > 0) {

@@ -9,7 +9,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { GatewayConfig, ServiceRoute } from '../config.js';
+import type { ServiceRoute } from '../config.js';
 
 export interface HealthCheckOptions {
   /** Service routes to check for readiness */

@@ -8,9 +8,10 @@
  * - Both IDs are set as response headers for traceability.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-import { randomUUID } from 'node:crypto';
 
 /**
  * Options for the request context plugin.

@@ -27,7 +27,7 @@ import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
-import idempotencyPlugin from './plugins/idempotency.js';
+import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 
 export interface BuildAppOptions {
@@ -283,12 +283,13 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works)
   // Connects to Redis via REDIS_URL env var; gracefully degrades if unavailable
   const redisUrl = process.env['REDIS_URL'];
-  let redisClient: import('./plugins/idempotency.js').RedisClient | undefined;
+  let redisClient: RedisClient | undefined;
   if (redisUrl) {
     // Dynamic import to avoid hard dependency when Redis is not configured
     try {
-      const { default: Redis } = await import('ioredis' as string);
-      redisClient = new Redis(redisUrl) as unknown as import('./plugins/idempotency.js').RedisClient;
+      const ioredisMod: unknown = await import('ioredis');
+      const RedisCtor = (ioredisMod as { default: new (url: string) => RedisClient }).default;
+      redisClient = new RedisCtor(redisUrl);
     } catch {
       // ioredis not available — idempotency will be disabled
     }

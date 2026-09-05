@@ -8,9 +8,9 @@
  * Example: GET /api/v1/institutions/123 → institutions service at http://localhost:3002/institutions/123
  */
 
+import { CircuitBreaker, CircuitBreakerError } from '@proctira/common';
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-import { CircuitBreaker, CircuitBreakerError } from '@proctira/common';
 
 import type { ServiceRoute } from '../config.js';
 
