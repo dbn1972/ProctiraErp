@@ -49,20 +49,15 @@ test.describe('a11y — public surfaces (no backend required)', () => {
     await runAxe(page, { checkpointLabel: '/login' });
   });
 
-  test('public application-tracking page is WCAG 2.1 AA clean', async ({
-    page,
-  }) => {
+  test('public application-tracking page is WCAG 2.1 AA clean', async ({ page }) => {
     // Stub the backend so the empty form state is what axe scans.
-    await page.route(
-      '**/api/v1/registration/applications/**',
-      async (route) => {
-        await route.fulfill({
-          status: 404,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'NOT_FOUND' }),
-        });
-      },
-    );
+    await page.route('**/api/v1/registration/applications/**', async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'NOT_FOUND' }),
+      });
+    });
 
     await page.goto('/track');
     await expect(page.getByLabel(/tracking number/i)).toBeVisible();
@@ -129,15 +124,11 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
   test('institutions list is WCAG 2.1 AA clean', async ({ page }) => {
     await loginAsTenantAdmin(page);
     await page.goto('/institutions');
-    await expect(
-      page.getByRole('heading', { name: /institutions/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /institutions/i })).toBeVisible();
     await runAxe(page, { checkpointLabel: '/institutions' });
   });
 
-  test('registration portal wizard — step 1 is WCAG 2.1 AA clean', async ({
-    page,
-  }) => {
+  test('registration portal wizard — step 1 is WCAG 2.1 AA clean', async ({ page }) => {
     // The registration portal lives at port 3002 in dev. We use the
     // PLAYWRIGHT_BASE_URL escape hatch so this test points at it when
     // the orchestrator boots both servers.

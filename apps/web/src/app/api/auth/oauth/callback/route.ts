@@ -84,11 +84,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     refreshTokenCookieOptions(),
   );
   if (data.session?.id) {
-    response.cookies.set(
-      AUTH_COOKIES.SESSION_ID,
-      data.session.id,
-      accessTokenCookieOptions(),
-    );
+    response.cookies.set(AUTH_COOKIES.SESSION_ID, data.session.id, accessTokenCookieOptions());
   }
   return response;
 }
@@ -100,10 +96,7 @@ function redirectToLogin(
   const loginUrl = new URL('/login', request.url);
   if (params.error) loginUrl.searchParams.set('error', params.error);
   if (params.returnTo) {
-    loginUrl.searchParams.set(
-      'returnTo',
-      sanitizeReturnTo(params.returnTo),
-    );
+    loginUrl.searchParams.set('returnTo', sanitizeReturnTo(params.returnTo));
   }
   return NextResponse.redirect(loginUrl);
 }

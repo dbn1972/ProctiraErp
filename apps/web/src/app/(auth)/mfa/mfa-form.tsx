@@ -6,11 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-} from '@proctira/ui/components';
+import { Alert, AlertDescription, Button } from '@proctira/ui/components';
 import { sanitizeReturnTo, verifyMfa } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
@@ -50,10 +46,7 @@ export function MfaForm(): JSX.Element {
     }
   }
 
-  function handleKeyDown(
-    index: number,
-    event: React.KeyboardEvent<HTMLInputElement>,
-  ) {
+  function handleKeyDown(index: number, event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Backspace' && !digits[index] && index > 0) {
       inputs.current[index - 1]?.focus();
     }
@@ -117,68 +110,55 @@ export function MfaForm(): JSX.Element {
       )}
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-6">
-        <div
-          className="flex gap-2"
-          role="group"
-          aria-label={t('verificationCode')}
-        >
-            {digits.map((digit, index) => (
-              <input
-                key={index}
-                ref={(el) => {
-                  inputs.current[index] = el;
-                }}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]*"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                onPaste={handlePaste}
-                disabled={isSubmitting}
-                aria-label={t('digitNumber', { number: index + 1 })}
-                className={cn(
-                  'h-14 w-12 rounded-md border-2 border-input bg-background text-center text-2xl font-semibold shadow-sm transition-colors',
-                  'focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
-                  'disabled:opacity-50',
-                )}
-              />
-            ))}
-          </div>
+        <div className="flex gap-2" role="group" aria-label={t('verificationCode')}>
+          {digits.map((digit, index) => (
+            <input
+              key={index}
+              ref={(el) => {
+                inputs.current[index] = el;
+              }}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]*"
+              maxLength={1}
+              value={digit}
+              onChange={(e) => handleChange(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              onPaste={handlePaste}
+              disabled={isSubmitting}
+              aria-label={t('digitNumber', { number: index + 1 })}
+              className={cn(
+                'h-14 w-12 rounded-md border-2 border-input bg-background text-center text-2xl font-semibold shadow-sm transition-colors',
+                'focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1',
+                'disabled:opacity-50',
+              )}
+            />
+          ))}
+        </div>
 
-          <Button
-            type="submit"
-            className="w-full"
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
+          {isSubmitting ? t('verifying') : t('verify')}
+        </Button>
+      </form>
+
+      <div className="mt-6 space-y-3 text-sm">
+        <p className="text-muted-foreground">
+          {t('didntReceiveCode')}{' '}
+          <button
+            type="button"
+            className="font-medium text-primary hover:underline"
             disabled={isSubmitting}
           >
-            {isSubmitting && (
-              <Loader2 className="me-2 h-4 w-4 animate-spin" />
-            )}
-            {isSubmitting ? t('verifying') : t('verify')}
-          </Button>
-        </form>
-
-        <div className="mt-6 space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            {t('didntReceiveCode')}{' '}
-            <button
-              type="button"
-              className="font-medium text-primary hover:underline"
-              disabled={isSubmitting}
-            >
-              {t('resend')}
-            </button>
-          </p>
-          <p>
-            <Link
-              href="/login"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              {t('backToSignIn')}
-            </Link>
-          </p>
-        </div>
+            {t('resend')}
+          </button>
+        </p>
+        <p>
+          <Link href="/login" className="text-muted-foreground hover:text-foreground">
+            {t('backToSignIn')}
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

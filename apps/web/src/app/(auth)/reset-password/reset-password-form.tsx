@@ -17,10 +17,7 @@ import {
   type PasswordRating,
   type PasswordStrengthRule,
 } from '@proctira/ui/components';
-import {
-  scorePasswordDetails,
-  type PasswordScoreDetails,
-} from '@proctira/auth';
+import { scorePasswordDetails, type PasswordScoreDetails } from '@proctira/auth';
 import { resetPassword } from '@/lib/auth';
 
 const MIN_PASSWORD_LENGTH = 8;
@@ -36,10 +33,7 @@ const PASSWORD_RULES = [
 function gradePassword(password: string): PasswordGrade {
   if (!password) return { rating: 'weak', satisfied: 0, percent: 0 };
   const details = scorePasswordDetails(password);
-  const satisfied = PASSWORD_RULES.reduce(
-    (n, rule) => (rule.satisfied(details) ? n + 1 : n),
-    0,
-  );
+  const satisfied = PASSWORD_RULES.reduce((n, rule) => (rule.satisfied(details) ? n + 1 : n), 0);
   return {
     rating: details.rating,
     satisfied,
@@ -61,10 +55,7 @@ export function ResetPasswordForm(): JSX.Element {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const grade = gradePassword(password);
-  const passwordDetails = useMemo(
-    () => scorePasswordDetails(password),
-    [password],
-  );
+  const passwordDetails = useMemo(() => scorePasswordDetails(password), [password]);
 
   function ratingLabel(rating: PasswordRating): string {
     switch (rating) {
@@ -125,9 +116,7 @@ export function ResetPasswordForm(): JSX.Element {
       <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
         {t('createNewPassword')}
       </h1>
-      <p className="mt-1.5 text-sm text-muted-foreground">
-        {t('createNewPasswordSubtitle')}
-      </p>
+      <p className="mt-1.5 text-sm text-muted-foreground">{t('createNewPasswordSubtitle')}</p>
 
       {error && (
         <Alert variant="destructive" className="mt-5">
@@ -193,9 +182,7 @@ export function ResetPasswordForm(): JSX.Element {
               type="button"
               onClick={() => setShowConfirmation((v) => !v)}
               className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-              aria-label={
-                showConfirmation ? t('hidePassword') : t('showPassword')
-              }
+              aria-label={showConfirmation ? t('hidePassword') : t('showPassword')}
               tabIndex={-1}
             >
               {showConfirmation ? (

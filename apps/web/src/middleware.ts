@@ -95,11 +95,7 @@ export const DEFAULT_TENANT_CONFIG: TenantConfig = {
 
 /** Gateway base URL for tenant config lookups. */
 function getGatewayBaseUrl(): string {
-  return (
-    process.env.NEXT_PUBLIC_GATEWAY_URL ??
-    process.env.GATEWAY_URL ??
-    'http://localhost:3000'
-  );
+  return process.env.NEXT_PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL ?? 'http://localhost:3000';
 }
 
 /**
@@ -136,9 +132,7 @@ function normalizeTenantConfig(
     (typeof payload['id'] === 'string' && payload['id']) ||
     (typeof payload['tenantId'] === 'string' && payload['tenantId']) ||
     fallbackSlug;
-  const slug =
-    (typeof payload['slug'] === 'string' && payload['slug']) ||
-    fallbackSlug;
+  const slug = (typeof payload['slug'] === 'string' && payload['slug']) || fallbackSlug;
   const name =
     (typeof payload['name'] === 'string' && payload['name']) ||
     (typeof payload['organizationName'] === 'string' && payload['organizationName']) ||
@@ -181,18 +175,20 @@ export async function getTenantConfig(slug: string): Promise<TenantConfig> {
   }
 
   // Fetch from backend
-  const promise = fetchTenantConfig(normalizedSlug).then((config) => {
-    const resolved = config ?? DEFAULT_TENANT_CONFIG;
-    _tenantConfigCache.set(normalizedSlug, {
-      config: resolved,
-      expiresAt: Date.now() + TENANT_CONFIG_CACHE_TTL_MS,
+  const promise = fetchTenantConfig(normalizedSlug)
+    .then((config) => {
+      const resolved = config ?? DEFAULT_TENANT_CONFIG;
+      _tenantConfigCache.set(normalizedSlug, {
+        config: resolved,
+        expiresAt: Date.now() + TENANT_CONFIG_CACHE_TTL_MS,
+      });
+      _tenantConfigInFlight.delete(normalizedSlug);
+      return config;
+    })
+    .catch(() => {
+      _tenantConfigInFlight.delete(normalizedSlug);
+      return null;
     });
-    _tenantConfigInFlight.delete(normalizedSlug);
-    return config;
-  }).catch(() => {
-    _tenantConfigInFlight.delete(normalizedSlug);
-    return null;
-  });
 
   _tenantConfigInFlight.set(normalizedSlug, promise);
   const result = await promise;
@@ -208,11 +204,7 @@ export async function getTenantConfig(slug: string): Promise<TenantConfig> {
 export function resolveTenantFromSubdomain(hostname: string): string | null {
   const host = hostname.split(':')[0] || '';
 
-  if (
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    /^\d+\.\d+\.\d+\.\d+$/.test(host)
-  ) {
+  if (host === 'localhost' || host === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(host)) {
     return null;
   }
 
@@ -277,11 +269,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip middleware for static assets and API routes.
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
-    pathname.includes('.')
-  ) {
+  if (pathname.startsWith('/_next') || pathname.startsWith('/api') || pathname.includes('.')) {
     return NextResponse.next();
   }
 
@@ -307,10 +295,7 @@ export async function middleware(request: NextRequest) {
 
   // --- Locale Resolution ---
   const localeCookie = request.cookies.get(LOCALE_COOKIE)?.value;
-  const acceptLanguage = request.headers
-    .get('accept-language')
-    ?.split(',')[0]
-    ?.split('-')[0];
+  const acceptLanguage = request.headers.get('accept-language')?.split(',')[0]?.split('-')[0];
   const locale =
     localeCookie && isValidLocale(localeCookie)
       ? localeCookie
@@ -395,14 +380,10 @@ async function tryRefresh(request: NextRequest): Promise<Response | null> {
   }
 }
 
-function redirectToLogin(
-  request: NextRequest,
-  returnTo: string,
-): NextResponse {
+function redirectToLogin(request: NextRequest, returnTo: string): NextResponse {
   const loginUrl = new URL('/login', request.url);
   // Only bounce back to same-origin relative paths (open-redirect guard).
-  const safeReturnTo =
-    returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
+  const safeReturnTo = returnTo.startsWith('/') && !returnTo.startsWith('//') ? returnTo : '/';
   loginUrl.searchParams.set('returnTo', safeReturnTo);
   return NextResponse.redirect(loginUrl);
 }
@@ -412,10 +393,7 @@ function redirectToLogin(
  * Used after a token refresh so the browser receives the rotated cookies
  * on the same response that performs the redirect replay.
  */
-function forwardSetCookies(
-  source: Response,
-  target: NextResponse,
-): void {
+function forwardSetCookies(source: Response, target: NextResponse): void {
   // Headers#getSetCookie is the canonical way to read multi-valued
   // Set-Cookie. Falls back to getAll/raw when running on older runtimes.
   const headers = source.headers as Headers & {
