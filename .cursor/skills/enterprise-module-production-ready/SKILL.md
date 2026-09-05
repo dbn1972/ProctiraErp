@@ -89,6 +89,56 @@ Work the pillars **in order**. Mark each checkbox only with evidence (path, run 
 
 Auth security extras (mandatory for Auth enterprise claim): sanitize `returnTo` / open-redirect; `/signup` in middleware `PUBLIC_PATHS`; httpOnly session cookies; unauthenticated dashboard → `/login`.
 
+**Auth tip carve-out lesson:** Prefer tip-`main` Auth UI PRs over mega Phase-2 branches (e.g. conflicted PR #1). Equivalent Auth path: #8–#11. Always Prettier tip-commit `.md`/`.ts` files — Lint checks **tip commit only**.
+
+**Insights & System (web app)** — minimum screens:
+
+| Nav label                      | Primary route(s)                                                                  |
+| ------------------------------ | --------------------------------------------------------------------------------- |
+| Reports · catalog              | `/reports`                                                                        |
+| Reports · builder              | `/reports/new`                                                                    |
+| Reports · result               | `/reports/[id]/results`                                                           |
+| Data warehouse · overview      | `/data-warehouse`                                                                 |
+| Data warehouse · import        | `/data-warehouse/import`                                                          |
+| Data warehouse · field mapping | redesign map ≠ GIS `/data-warehouse/map` — confirm/implement column-mapping route |
+| Admin · overview               | `/admin`                                                                          |
+| Admin · users                  | `/admin/users`                                                                    |
+| Admin · roles                  | `/admin/roles`                                                                    |
+| Admin · permission matrix      | `/admin/permissions` (or SPA settings matrix)                                     |
+| Admin · tenant settings        | `/admin/tenant`                                                                   |
+| Public · track application     | `/track`                                                                          |
+
+**Platform Admin Console** (`apps/admin-console`) — minimum screens:
+
+| Nav label                           | Notes                      |
+| ----------------------------------- | -------------------------- |
+| Operator login                      | Platform operator auth     |
+| Platform overview                   | Hub                        |
+| Tenants / Provision tenant          | Tenant lifecycle           |
+| Plans / Plugins / Themes            | Commercial + extensibility |
+| Break-glass / Break-glass requests  | Emergency access           |
+| Support / System health / Audit log | Ops                        |
+| 403 Forbidden                       | Explicit forbidden surface |
+
+**Registration Portal** (`apps/registration-portal`) — minimum screens:
+
+| Nav label             |
+| --------------------- |
+| Home                  |
+| Find schools          |
+| Apply · personal info |
+| Apply · documents     |
+| Apply · review        |
+| Apply · success       |
+| Track application     |
+
+**Public Website** (`apps/public-website`) — minimum screens:
+
+| Nav label                                                                        |
+| -------------------------------------------------------------------------------- |
+| Home / Product / Installation / Security / Compliance / Status / About / Contact |
+| Legal hub / Privacy / Terms / Cookies                                            |
+
 ### Execution environment (cloud agents)
 
 - Run **all** verification on the cloud agent / CI host in **headless** mode.
@@ -192,6 +242,10 @@ When enterprise-testing the Flutter client (not web viewports):
 
 Default API base: `--dart-define=API_BASE_URL=...` (see `kDefaultApiBaseUrl` in `injector.dart`).
 
+## Multi-app surfaces (beyond `apps/web`)
+
+Enterprise claims for **Platform Admin**, **Registration Portal**, and **Public Website** use the same pillars, but scope routes under `apps/admin-console`, `apps/registration-portal`, and `apps/public-website` respectively. Prefer each app’s Playwright/Vitest layout when present; do not invent web-dashboard routes for those products.
+
 ## Related paths
 
 - Playwright: `apps/web/e2e/`, `apps/web/playwright.config.ts`
@@ -201,3 +255,5 @@ Default API base: `--dart-define=API_BASE_URL=...` (see `kDefaultApiBaseUrl` in 
 - Lighthouse: `tools/scripts/check-lighthouse.mjs`, `apps/web/lighthouserc.cjs`
 - Checklist template: `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`
 - Hooks: `.cursor/hooks.json`, `.cursor/hooks/enterprise-test-gate.cjs`
+- Flutter audit: `docs/audits/MOBILE_FLUTTER_ENTERPRISE.md`
+- Auth audit: `docs/audits/AUTH_LOGIN_SIGNUP_MFA_RESET.md`
