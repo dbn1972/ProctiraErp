@@ -11,7 +11,7 @@
     "lint": "next lint",
     "clean": "rm -rf .next out",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright install chromium && playwright test"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
