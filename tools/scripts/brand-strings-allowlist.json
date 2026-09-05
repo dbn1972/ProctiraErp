@@ -60,6 +60,7 @@
       "**/docs/**",
       "**/*.keyboard.md"
     ],
+    "cursor-agent-skills": [".cursor/**"],
     "redesign-mockups-and-screen-sheets": ["redesign/**", "**/screens/**"],
     "web-app-manifest-default-brand": ["**/public/manifest.json"],
     "dod-reports-generated": ["tools/dod-checks/reports/**"],
