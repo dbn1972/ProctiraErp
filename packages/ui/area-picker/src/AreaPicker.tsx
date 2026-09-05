@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import type { AreaPickerProps, AreaNode } from './types';
+
+import type { AreaNode, AreaPickerProps } from './types';
 
 /**
  * AreaPicker component for hierarchical tree selection of geographic/administrative areas.
@@ -175,7 +176,9 @@ export function AreaPicker({
           {hasChildren && (
             <button
               type="button"
-              onClick={() => toggleExpand(node.id)}
+              onClick={() => {
+                void toggleExpand(node.id);
+              }}
               className="proctira-area-picker__expand-btn"
               aria-label={isExpanded ? `Collapse ${node.name}` : `Expand ${node.name}`}
               disabled={disabled}

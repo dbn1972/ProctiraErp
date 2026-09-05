@@ -114,7 +114,9 @@
     {
       "files": [
         "**/*.test.ts",
-        "**/*.spec.ts"
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx"
       ],
       "rules": {
         "@typescript-eslint/no-unsafe-assignment": "off",
@@ -148,7 +150,9 @@
     "*.mjs",
     "vitest.config.ts",
     "**/*.test.ts",
+    "**/*.test.tsx",
     "**/*.spec.ts",
+    "**/*.spec.tsx",
     "**/__tests__/**",
     "**/*.property.test.ts"
   ]
