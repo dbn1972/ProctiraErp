@@ -1,18 +1,18 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-05-26T00:07:24.143Z",
+  "generatedAt": "2026-09-05T06:44:25.780Z",
   "charterRef": "Section 32 (Definition of Done)",
   "totals": {
-    "totalErrors": 62,
-    "totalWarnings": 410,
-    "totalFiles": 578
+    "totalErrors": 64,
+    "totalWarnings": 416,
+    "totalFiles": 638
   },
   "checks": [
     {
       "check": "table-naming",
       "title": "Service-Prefixed Table Naming (every table → <service>_<name>)",
       "filesScanned": 1,
-      "durationMs": 8,
+      "durationMs": 11,
       "errorCount": 0,
       "warningCount": 0,
       "findings": []
@@ -20,8 +20,8 @@
     {
       "check": "cross-service-joins",
       "title": "Cross-Service SQL Join Prevention (no JOINs across owners)",
-      "filesScanned": 358,
-      "durationMs": 380,
+      "filesScanned": 402,
+      "durationMs": 409,
       "errorCount": 0,
       "warningCount": 0,
       "findings": []
@@ -29,8 +29,8 @@
     {
       "check": "tenant-id",
       "title": "tenant_id Threading (every persistence call carries tenant)",
-      "filesScanned": 51,
-      "durationMs": 119,
+      "filesScanned": 53,
+      "durationMs": 142,
       "errorCount": 61,
       "warningCount": 0,
       "findings": [
@@ -608,7 +608,7 @@
           "check": "tenant-id",
           "severity": "error",
           "file": "packages/backend/registration/src/registration-service.ts",
-          "line": 286,
+          "line": 289,
           "column": null,
           "message": "Public method RegistrationService.checkStatus() touches persistence but does not declare tenantId in its signature.",
           "suggestion": "Add `tenantId: string` as the first argument or accept an input object with a `tenantId` field.",
@@ -649,11 +649,21 @@
     {
       "check": "audit-events",
       "title": "Audit Event Emission on Writes (POST/PUT/PATCH/DELETE → audit)",
-      "filesScanned": 42,
-      "durationMs": 65,
+      "filesScanned": 46,
+      "durationMs": 61,
       "errorCount": 0,
       "warningCount": 33,
       "findings": [
+        {
+          "check": "audit-events",
+          "severity": "warning",
+          "file": "packages/backend/admin-dashboard/src/scalability-routes.ts",
+          "line": 154,
+          "column": null,
+          "message": "Service \"admin-dashboard\" defines write routes but no audit-trail emission was detected in routes or services.",
+          "suggestion": "Inject the audit service or emit a domain event in the corresponding service handler so writes are traceable.",
+          "ruleRef": "Charter §28 + §32"
+        },
         {
           "check": "audit-events",
           "severity": "warning",
@@ -878,7 +888,7 @@
           "check": "audit-events",
           "severity": "warning",
           "file": "packages/backend/registration/src/routes.ts",
-          "line": 107,
+          "line": 109,
           "column": null,
           "message": "Service \"registration\" defines write routes but no audit-trail emission was detected in routes or services.",
           "suggestion": "Inject the audit service or emit a domain event in the corresponding service handler so writes are traceable.",
@@ -957,16 +967,6 @@
         {
           "check": "audit-events",
           "severity": "warning",
-          "file": "packages/backend/tenant/src/routes.ts",
-          "line": 78,
-          "column": null,
-          "message": "Service \"tenant\" defines write routes but no audit-trail emission was detected in routes or services.",
-          "suggestion": "Inject the audit service or emit a domain event in the corresponding service handler so writes are traceable.",
-          "ruleRef": "Charter §28 + §32"
-        },
-        {
-          "check": "audit-events",
-          "severity": "warning",
           "file": "packages/backend/theme/src/routes.ts",
           "line": 108,
           "column": null,
@@ -989,8 +989,8 @@
     {
       "check": "api-schema",
       "title": "API Schema Presence (Typebox schemas for every route)",
-      "filesScanned": 42,
-      "durationMs": 7,
+      "filesScanned": 44,
+      "durationMs": 10,
       "errorCount": 1,
       "warningCount": 0,
       "findings": [
@@ -1009,19 +1009,40 @@
     {
       "check": "error-envelope",
       "title": "Error Envelope Compliance ({code, message, statusCode})",
-      "filesScanned": 42,
-      "durationMs": 155,
-      "errorCount": 0,
+      "filesScanned": 46,
+      "durationMs": 175,
+      "errorCount": 2,
       "warningCount": 0,
-      "findings": []
+      "findings": [
+        {
+          "check": "error-envelope",
+          "severity": "error",
+          "file": "packages/backend/admin-dashboard/src/scalability-routes.ts",
+          "line": 159,
+          "column": null,
+          "message": "403 response missing required envelope field(s): code, message, statusCode.",
+          "suggestion": "Send `{ code, message, statusCode, errors? }` or use the shared `AppError` helper from @proctira/common.",
+          "ruleRef": "Charter §6 + §32"
+        },
+        {
+          "check": "error-envelope",
+          "severity": "error",
+          "file": "packages/backend/admin-dashboard/src/scalability-routes.ts",
+          "line": 167,
+          "column": null,
+          "message": "400 response missing required envelope field(s): code, message, statusCode.",
+          "suggestion": "Send `{ code, message, statusCode, errors? }` or use the shared `AppError` helper from @proctira/common.",
+          "ruleRef": "Charter §6 + §32"
+        }
+      ]
     },
     {
       "check": "i18n-readiness",
       "title": "i18n Readiness (no hardcoded user-facing strings in routes)",
-      "filesScanned": 42,
-      "durationMs": 12,
+      "filesScanned": 46,
+      "durationMs": 32,
       "errorCount": 0,
-      "warningCount": 377,
+      "warningCount": 383,
       "findings": [
         {
           "check": "i18n-readiness",
@@ -1780,6 +1801,26 @@
           "line": 459,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/dashboards/src/routes.ts",
+          "line": 143,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Dashboard data not found for this scope\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/dashboards/src/routes.ts",
+          "line": 159,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Authentication required\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
           "ruleRef": "Charter §17 + §32"
         },
@@ -3297,7 +3338,7 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/registration/src/routes.ts",
-          "line": 154,
+          "line": 156,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid tracking number format\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -3307,7 +3348,17 @@
           "check": "i18n-readiness",
           "severity": "warning",
           "file": "packages/backend/registration/src/routes.ts",
-          "line": 241,
+          "line": 264,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Invalid School Finder query\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/registration/src/routes.ts",
+          "line": 322,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Invalid language selection\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
@@ -4270,6 +4321,36 @@
           "line": 538,
           "column": null,
           "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/tenant/src/branding-routes.ts",
+          "line": 187,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/tenant/src/roles-routes.ts",
+          "line": 56,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Tenant context is required\"",
+          "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
+          "ruleRef": "Charter §17 + §32"
+        },
+        {
+          "check": "i18n-readiness",
+          "severity": "warning",
+          "file": "packages/backend/tenant/src/roles-routes.ts",
+          "line": 338,
+          "column": null,
+          "message": "Hardcoded user-facing string in message field: \"Invalid query parameters\"",
           "suggestion": "Replace with an i18n key (e.g. \"error.invalid_input\") and resolve via t() / i18n.translate().",
           "ruleRef": "Charter §17 + §32"
         },

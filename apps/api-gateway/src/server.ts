@@ -4,8 +4,8 @@
  * Starts the Fastify API Gateway server.
  */
 
-import { loadConfig } from './config.js';
 import { buildApp } from './app.js';
+import { loadConfig } from './config.js';
 
 async function main() {
   const config = loadConfig();
@@ -23,10 +23,12 @@ async function main() {
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
   for (const signal of signals) {
-    process.on(signal, async () => {
-      app.log.info(`Received ${signal}, shutting down gracefully...`);
-      await app.close();
-      process.exit(0);
+    process.on(signal, () => {
+      void (async () => {
+        app.log.info(`Received ${signal}, shutting down gracefully...`);
+        await app.close();
+        process.exit(0);
+      })();
     });
   }
 }

@@ -145,9 +145,7 @@ export function parseAcceptEncoding(header: string | undefined): Set<SupportedEn
  * supported encoding, which signals the caller to drop the header
  * entirely so identity is served.
  */
-export function buildForwardedAcceptEncoding(
-  accepted: Set<SupportedEncoding>,
-): string {
+export function buildForwardedAcceptEncoding(accepted: Set<SupportedEncoding>): string {
   const parts: string[] = [];
   for (const encoding of SUPPORTED_ENCODINGS) {
     if (accepted.has(encoding)) parts.push(encoding);
@@ -155,10 +153,7 @@ export function buildForwardedAcceptEncoding(
   return parts.join(', ');
 }
 
-const staticAssetsPlugin: FastifyPluginAsync<StaticAssetsOptions> = async (
-  fastify,
-  options,
-) => {
+const staticAssetsPlugin: FastifyPluginAsync<StaticAssetsOptions> = async (fastify, options) => {
   const { root } = options;
 
   // NOTE: the `prefix` option is consumed by Fastify itself when this
@@ -169,9 +164,7 @@ const staticAssetsPlugin: FastifyPluginAsync<StaticAssetsOptions> = async (
   // scope already takes care of the URL prefix.
 
   if (!root) {
-    fastify.log.info(
-      'static-assets plugin: no `root` configured, skipping registration',
-    );
+    fastify.log.info('static-assets plugin: no `root` configured, skipping registration');
     return;
   }
 
@@ -199,9 +192,7 @@ const staticAssetsPlugin: FastifyPluginAsync<StaticAssetsOptions> = async (
   // Encapsulated in this plugin's scope: only routes registered via
   // @fastify/static below see the rewritten header.
   fastify.addHook('onRequest', async (request) => {
-    const accepted = parseAcceptEncoding(
-      request.headers['accept-encoding'] as string | undefined,
-    );
+    const accepted = parseAcceptEncoding(request.headers['accept-encoding']);
     const forwarded = buildForwardedAcceptEncoding(accepted);
     if (forwarded.length > 0) {
       request.headers['accept-encoding'] = forwarded;

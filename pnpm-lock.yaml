@@ -167,9 +167,15 @@ importers:
       '@proctira/backend-examination':
         specifier: workspace:*
         version: link:../../packages/backend/examination
+      '@proctira/backend-health':
+        specifier: workspace:*
+        version: link:../../packages/backend/health
       '@proctira/backend-institution':
         specifier: workspace:*
         version: link:../../packages/backend/institution
+      '@proctira/backend-scholarship':
+        specifier: workspace:*
+        version: link:../../packages/backend/scholarship
       '@proctira/backend-staff':
         specifier: workspace:*
         version: link:../../packages/backend/staff

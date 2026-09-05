@@ -9,14 +9,14 @@
  *
  * Persistence status (current schema):
  *  - student / institution / staff (incl. assignments) / attendance /
- *    assessment / examination: Prisma-backed (Postgres + RLS) via their
- *    create*Repository factories when DATABASE_URL is set, else in-memory.
+ *    assessment / examination / scholarship: Prisma-backed (Postgres + RLS)
+ *    via their create*Repository factories when DATABASE_URL is set, else
+ *    in-memory (scholarship + health currently seed in-memory demo data).
  *  - assessment report-card repositories are not wired yet (no Prisma
  *    implementation); report-card routes stay disabled.
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
-import type { FastifyInstance } from 'fastify';
 import {
   assessmentPlugin,
   createAssessmentItemRepository,
@@ -24,28 +24,31 @@ import {
   createGradingSchemeRepository,
   createOutcomeRepository,
 } from '@proctira/backend-assessment';
-import {
-  attendancePlugin,
-  createAttendanceRepository,
-} from '@proctira/backend-attendance';
+import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
 import {
   createDocumentRepository,
   createExaminationRepository,
   createResultRepository,
   examinationPlugin,
 } from '@proctira/backend-examination';
+import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import {
-  createInstitutionRepository,
-  institutionPlugin,
-} from '@proctira/backend-institution';
+  healthPlugin,
+  InMemoryHealthRepository,
+} from '@proctira/backend-health';
+import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
   createStaffRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
+import { healthUiPlugin } from './health-ui-plugin.js';
+import { createHealthUiSeed } from './health-ui-seed.js';
+import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
@@ -135,6 +138,40 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         assessmentItemRepository: createAssessmentItemRepository(),
         outcomeRepository: createOutcomeRepository(),
         resultRepository: createAssessmentResultRepository(),
+      });
+    },
+  },
+  {
+    name: 'scholarship',
+    proxyPrefixes: ['/scholarships'],
+    register: async (scope) => {
+      // In-memory repository with demo seed until Prisma scholarship schema
+      // is wired through createScholarshipRepository.
+      const repository = new InMemoryScholarshipRepository();
+      await seedScholarshipDemoData(repository);
+      await scope.register(scholarshipPlugin, {
+        repository,
+        prefix: '/scholarships',
+      });
+    },
+  },
+  {
+    name: 'health',
+    proxyPrefixes: ['/health'],
+    register: async (scope) => {
+      // In-memory domain plugin + redesign UI aggregates until Prisma health
+      // models land. UI routes must register before/with the domain plugin so
+      // App Router pages can list records / special needs / counselling /
+      // screenings without composing student-scoped resource calls.
+      const repository = new InMemoryHealthRepository();
+      // UI aggregates first so redesign list paths are stable; domain CRUD
+      // remains available under resource-scoped paths.
+      await scope.register(healthUiPlugin, {
+        seed: createHealthUiSeed(),
+      });
+      await scope.register(healthPlugin, {
+        repository,
+        prefix: '/health',
       });
     },
   },

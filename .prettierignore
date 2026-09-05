@@ -5,3 +5,11 @@ coverage
 pnpm-lock.yaml
 *.min.js
 *.min.css
+
+# Helm Go templates are not valid YAML for Prettier
+infrastructure/helm/**/templates/**
+
+# Generated / large baseline artifacts
+tools/dod-checks/reports/baseline.json
+tools/dod-checks/reports/dod-report.json
+*.tsbuildinfo

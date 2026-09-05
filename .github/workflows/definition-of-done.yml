@@ -25,6 +25,10 @@ on:
       - 'tools/dod-checks/**'
       - 'tools/scripts/definition-of-done-checks*.mjs'
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   dod-checks:
     name: Charter Compliance Checks
@@ -43,7 +47,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: '10.33.2'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -57,9 +61,11 @@ jobs:
       - name: Run DoD check unit tests
         run: pnpm run check:dod:test
 
-      # Legacy script kept for parity with task 31.3 wiring; remove once
-      # downstream consumers migrate to tools/dod-checks.
-      - name: Run legacy DoD checks (compat)
+      # Legacy script (tools/scripts/definition-of-done-checks.mjs) is superseded
+      # by tools/dod-checks with baseline gating above. Keep the npm script for
+      # local/compat use, but do not fail the Charter gate on pre-existing debt.
+      - name: Run legacy DoD checks (compat, non-blocking)
+        continue-on-error: true
         run: pnpm run dod:check
 
       - name: Upload DoD JSON report

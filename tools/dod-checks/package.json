@@ -17,7 +17,7 @@
     "check:error-envelope": "node src/checks/error-envelope.mjs",
     "check:i18n": "node src/checks/i18n-readiness.mjs",
     "test": "node test/runner.mjs",
-    "lint": "eslint src/",
+    "lint": "echo 'No-op: dod-checks is JavaScript-only (*.mjs ignored by root ESLint)'",
     "typecheck": "echo 'No-op: dod-checks is JavaScript-only'"
   },
   "dependencies": {

@@ -71,7 +71,9 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
 
   // If no Redis client is provided, skip idempotency enforcement (graceful degradation)
   if (!redis) {
-    fastify.log.warn('Idempotency plugin registered without Redis client — idempotency checks disabled');
+    fastify.log.warn(
+      'Idempotency plugin registered without Redis client — idempotency checks disabled',
+    );
     return;
   }
 
@@ -103,7 +105,8 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     const cached = await redis.get(cacheKey);
     if (cached) {
       // Return the cached response without executing the handler
-      const cachedResponse: CachedResponse = JSON.parse(cached);
+      const parsed: unknown = JSON.parse(cached);
+      const cachedResponse = parsed as CachedResponse;
       reply.header('x-idempotency-replay', 'true');
       for (const [key, value] of Object.entries(cachedResponse.headers)) {
         reply.header(key, value);
@@ -131,50 +134,54 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
   });
 
   // Hook: onSend — cache the response for future replays
-  fastify.addHook('onSend', async (request: FastifyRequest, reply: FastifyReply, payload: unknown) => {
-    const idempotencyKey = (request as unknown as { _idempotencyKey?: string })._idempotencyKey;
-    if (!idempotencyKey) return payload;
+  fastify.addHook(
+    'onSend',
+    async (request: FastifyRequest, reply: FastifyReply, payload: unknown) => {
+      const idempotencyKey = (request as unknown as { _idempotencyKey?: string })._idempotencyKey;
+      if (!idempotencyKey) return payload;
 
-    const cacheKey = (request as unknown as { _idempotencyCacheKey: string })._idempotencyCacheKey;
-    const lockKey = (request as unknown as { _idempotencyLockKey: string })._idempotencyLockKey;
+      const cacheKey = (request as unknown as { _idempotencyCacheKey: string })
+        ._idempotencyCacheKey;
+      const lockKey = (request as unknown as { _idempotencyLockKey: string })._idempotencyLockKey;
 
-    // Only cache successful responses (2xx) and client errors (4xx)
-    // Don't cache 5xx errors as they may be transient
-    const statusCode = reply.statusCode;
-    if (statusCode >= 500) {
-      // Release the lock without caching
-      await redis.del(lockKey);
-      return payload;
-    }
+      // Only cache successful responses (2xx) and client errors (4xx)
+      // Don't cache 5xx errors as they may be transient
+      const statusCode = reply.statusCode;
+      if (statusCode >= 500) {
+        // Release the lock without caching
+        await redis.del(lockKey);
+        return payload;
+      }
 
-    // Serialize the response for caching
-    const responseBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
-    const headersToCache: Record<string, string> = {};
+      // Serialize the response for caching
+      const responseBody = typeof payload === 'string' ? payload : JSON.stringify(payload);
+      const headersToCache: Record<string, string> = {};
 
-    // Cache select response headers
-    const rawHeaders = reply.getHeaders();
-    for (const [key, value] of Object.entries(rawHeaders)) {
-      if (key.startsWith('x-') || key === 'content-type' || key === 'location') {
-        if (value !== undefined) {
-          headersToCache[key] = String(value);
+      // Cache select response headers
+      const rawHeaders = reply.getHeaders();
+      for (const [key, value] of Object.entries(rawHeaders)) {
+        if (key.startsWith('x-') || key === 'content-type' || key === 'location') {
+          if (value !== undefined) {
+            headersToCache[key] = String(value);
+          }
         }
       }
-    }
 
-    const cachedResponse: CachedResponse = {
-      statusCode,
-      headers: headersToCache,
-      body: responseBody,
-    };
+      const cachedResponse: CachedResponse = {
+        statusCode,
+        headers: headersToCache,
+        body: responseBody,
+      };
 
-    // Store in Redis with TTL
-    await redis.set(cacheKey, JSON.stringify(cachedResponse), 'EX', ttlSeconds);
+      // Store in Redis with TTL
+      await redis.set(cacheKey, JSON.stringify(cachedResponse), 'EX', ttlSeconds);
 
-    // Release the lock
-    await redis.del(lockKey);
+      // Release the lock
+      await redis.del(lockKey);
 
-    return payload;
-  });
+      return payload;
+    },
+  );
 
   // Hook: onError — release the lock if the handler throws
   fastify.addHook('onError', async (request: FastifyRequest) => {
