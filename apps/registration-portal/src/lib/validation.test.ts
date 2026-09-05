@@ -5,8 +5,10 @@ import { describe, expect, it } from 'vitest';
 import {
   ALLOWED_FILE_TYPES,
   DEFAULT_MAX_FILE_SIZE,
+  institutionTypeToApplySlug,
   isValidDateOfBirth,
   isValidEmail,
+  isValidInstitutionId,
   isValidPhone,
   isValidTrackingNumber,
   validateFile,
@@ -104,5 +106,29 @@ describe('isValidDateOfBirth', () => {
     expect(isValidDateOfBirth('2018/03/15')).toBe(false);
     expect(isValidDateOfBirth('2024-02-31')).toBe(false);
     expect(isValidDateOfBirth('not-a-date')).toBe(false);
+  });
+});
+
+describe('isValidInstitutionId', () => {
+  it('accepts RFC-4122 UUIDs', () => {
+    expect(isValidInstitutionId('11111111-1111-4111-8111-111111111111')).toBe(true);
+  });
+  it('rejects empty and non-UUID values', () => {
+    expect(isValidInstitutionId('')).toBe(false);
+    expect(isValidInstitutionId('not-a-uuid')).toBe(false);
+    expect(isValidInstitutionId('11111111111141118111111111111111')).toBe(false);
+  });
+});
+
+describe('institutionTypeToApplySlug', () => {
+  it('maps known type names', () => {
+    expect(institutionTypeToApplySlug('Primary School')).toBe('primary');
+    expect(institutionTypeToApplySlug('Secondary')).toBe('secondary');
+    expect(institutionTypeToApplySlug('TVET College')).toBe('tvet');
+    expect(institutionTypeToApplySlug('Preschool')).toBe('preschool');
+  });
+  it('defaults unknown types to primary', () => {
+    expect(institutionTypeToApplySlug(undefined)).toBe('primary');
+    expect(institutionTypeToApplySlug('Other')).toBe('primary');
   });
 });

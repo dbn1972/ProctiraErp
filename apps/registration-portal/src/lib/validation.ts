@@ -102,3 +102,24 @@ export function isValidDateOfBirth(value: string): boolean {
   // Round-trip check to reject impossible dates like 2024-02-31
   return date.toISOString().slice(0, 10) === value;
 }
+
+/** UUID v4 (or any RFC-4122 variant) used as institution identifiers. */
+export function isValidInstitutionId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value.trim(),
+  );
+}
+
+/**
+ * Maps an institution type display name to an apply-flow slug.
+ * Falls back to `primary` when the type is unknown.
+ */
+export function institutionTypeToApplySlug(typeName: string | undefined | null): string {
+  const normalized = (typeName ?? '').toLowerCase();
+  if (normalized.includes('secondary') || normalized.includes('high')) return 'secondary';
+  if (normalized.includes('tvet') || normalized.includes('vocational')) return 'tvet';
+  if (normalized.includes('pre') || normalized.includes('nursery') || normalized.includes('kg')) {
+    return 'preschool';
+  }
+  return 'primary';
+}

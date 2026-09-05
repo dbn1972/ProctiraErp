@@ -12,7 +12,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 
-import { RegistrationService, generateTrackingNumber, validateDocuments, validateCustomFields } from './registration-service.js';
+import {
+  RegistrationService,
+  generateTrackingNumber,
+  validateDocuments,
+  validateCustomFields,
+} from './registration-service.js';
 import { InMemoryRegistrationRepository } from './in-memory-repository.js';
 import type { FormConfiguration } from './schemas.js';
 import { ALLOWED_FILE_TYPES, MAX_FILE_SIZE_BYTES, TRACKING_NUMBER_PREFIX } from './schemas.js';
@@ -106,7 +111,9 @@ describe('RegistrationService', () => {
     it('should throw BusinessRuleError for inactive institution', async () => {
       const input = { ...validInput, institutionId: '22345678-1234-4123-8123-123456789abc' };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(BusinessRuleError);
+      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
 
     it('should validate documents and reject invalid file types', async () => {
@@ -122,7 +129,9 @@ describe('RegistrationService', () => {
         ],
       };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(ValidationError);
+      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+        ValidationError,
+      );
     });
 
     it('should validate documents and reject oversized files', async () => {
@@ -138,7 +147,9 @@ describe('RegistrationService', () => {
         ],
       };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(ValidationError);
+      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+        ValidationError,
+      );
     });
 
     it('should accept valid documents', async () => {
@@ -182,12 +193,12 @@ describe('RegistrationService', () => {
 
       const input = {
         ...validInput,
-        customFields: [
-          { fieldId: 'previous_school', value: null },
-        ],
+        customFields: [{ fieldId: 'previous_school', value: null }],
       };
 
-      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(ValidationError);
+      await expect(service.submitRegistration(testTenantId, input)).rejects.toThrow(
+        ValidationError,
+      );
     });
 
     it('should accept valid custom fields', async () => {
@@ -207,9 +218,7 @@ describe('RegistrationService', () => {
 
       const input = {
         ...validInput,
-        customFields: [
-          { fieldId: 'previous_school', value: 'Old School Elementary' },
-        ],
+        customFields: [{ fieldId: 'previous_school', value: 'Old School Elementary' }],
       };
 
       const result = await service.submitRegistration(testTenantId, input);
@@ -230,7 +239,7 @@ describe('RegistrationService', () => {
         guardianPhone: '+1-555-0101',
       });
 
-      const status = await service.checkStatus(submission.trackingNumber);
+      const status = await service.checkStatus(submission.trackingNumber, '2012-05-09');
 
       expect(status.trackingNumber).toBe(submission.trackingNumber);
       expect(status.status).toBe('pending');
@@ -241,7 +250,24 @@ describe('RegistrationService', () => {
     });
 
     it('should throw NotFoundError for invalid tracking number', async () => {
-      await expect(service.checkStatus('REG-ZZZZZZZZ')).rejects.toThrow(NotFoundError);
+      await expect(service.checkStatus('REG-ZZZZZZZZ', '2010-01-01')).rejects.toThrow(
+        NotFoundError,
+      );
+    });
+
+    it('should throw NotFoundError for mismatched date of birth', async () => {
+      const submission = await service.submitRegistration(testTenantId, {
+        institutionId: testInstitutionId,
+        firstName: 'Lisa',
+        lastName: 'Simpson',
+        dateOfBirth: '2012-05-09',
+        gender: 'female',
+        guardianName: 'Marge Simpson',
+        guardianPhone: '+1-555-0101',
+      });
+      await expect(service.checkStatus(submission.trackingNumber, '2000-01-01')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 
@@ -321,7 +347,13 @@ describe('RegistrationService', () => {
           institutionTypeId: testInstitutionTypeId,
           fields: [
             { id: 'field1', label: 'Field 1', type: 'text', required: true },
-            { id: 'field2', label: 'Field 2', type: 'select', required: false, options: [{ value: 'a', label: 'A' }] },
+            {
+              id: 'field2',
+              label: 'Field 2',
+              type: 'select',
+              required: false,
+              options: [{ value: 'a', label: 'A' }],
+            },
           ],
         },
       ]);
@@ -360,7 +392,12 @@ describe('validateDocuments', () => {
   it('should return no errors for valid documents', () => {
     const errors = validateDocuments([
       { fileName: 'photo.jpg', fileType: 'image/jpeg', fileSize: 1024, documentType: 'photo' },
-      { fileName: 'cert.pdf', fileType: 'application/pdf', fileSize: 2048, documentType: 'certificate' },
+      {
+        fileName: 'cert.pdf',
+        fileType: 'application/pdf',
+        fileSize: 2048,
+        documentType: 'certificate',
+      },
     ]);
     expect(errors).toHaveLength(0);
   });
@@ -375,7 +412,12 @@ describe('validateDocuments', () => {
 
   it('should return error for oversized file', () => {
     const errors = validateDocuments([
-      { fileName: 'big.jpg', fileType: 'image/jpeg', fileSize: MAX_FILE_SIZE_BYTES + 1, documentType: 'photo' },
+      {
+        fileName: 'big.jpg',
+        fileType: 'image/jpeg',
+        fileSize: MAX_FILE_SIZE_BYTES + 1,
+        documentType: 'photo',
+      },
     ]);
     expect(errors).toHaveLength(1);
     expect(errors[0]!.rule).toBe('maxFileSize');
@@ -383,7 +425,12 @@ describe('validateDocuments', () => {
 
   it('should return multiple errors for multiple invalid documents', () => {
     const errors = validateDocuments([
-      { fileName: 'bad.exe', fileType: 'application/x-executable', fileSize: MAX_FILE_SIZE_BYTES + 1, documentType: 'other' },
+      {
+        fileName: 'bad.exe',
+        fileType: 'application/x-executable',
+        fileSize: MAX_FILE_SIZE_BYTES + 1,
+        documentType: 'other',
+      },
     ]);
     expect(errors).toHaveLength(2); // Both type and size errors
   });
@@ -393,8 +440,23 @@ describe('validateCustomFields', () => {
   const formConfig: FormConfiguration = {
     institutionTypeId: 'type-001',
     fields: [
-      { id: 'name', label: 'Name', type: 'text', required: true, validation: { minLength: 2, maxLength: 50 } },
-      { id: 'grade', label: 'Grade', type: 'select', required: true, options: [{ value: '1', label: 'Grade 1' }, { value: '2', label: 'Grade 2' }] },
+      {
+        id: 'name',
+        label: 'Name',
+        type: 'text',
+        required: true,
+        validation: { minLength: 2, maxLength: 50 },
+      },
+      {
+        id: 'grade',
+        label: 'Grade',
+        type: 'select',
+        required: true,
+        options: [
+          { value: '1', label: 'Grade 1' },
+          { value: '2', label: 'Grade 2' },
+        ],
+      },
       { id: 'notes', label: 'Notes', type: 'textarea', required: false },
     ],
   };
@@ -411,11 +473,10 @@ describe('validateCustomFields', () => {
   });
 
   it('should return error for missing required field', () => {
-    const errors = validateCustomFields(
-      [{ fieldId: 'name', value: 'John' }],
-      formConfig,
+    const errors = validateCustomFields([{ fieldId: 'name', value: 'John' }], formConfig);
+    expect(errors.some((e) => e.field === 'customFields.grade' && e.rule === 'required')).toBe(
+      true,
     );
-    expect(errors.some((e) => e.field === 'customFields.grade' && e.rule === 'required')).toBe(true);
   });
 
   it('should return error for invalid select option', () => {

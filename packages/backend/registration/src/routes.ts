@@ -160,7 +160,11 @@ export async function registerRegistrationRoutes(
       }
 
       try {
-        const status = await registrationService.checkStatus(paramsResult.data.trackingNumber);
+        const dob =
+          typeof (request.query as { dob?: string }).dob === 'string'
+            ? (request.query as { dob?: string }).dob
+            : undefined;
+        const status = await registrationService.checkStatus(paramsResult.data.trackingNumber, dob);
         return reply.status(200).send(status);
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -247,7 +251,9 @@ export async function registerRegistrationRoutes(
 
       const candidate: Record<string, unknown> = {
         ...(parseNumber(raw.latitude) !== undefined ? { latitude: parseNumber(raw.latitude) } : {}),
-        ...(parseNumber(raw.longitude) !== undefined ? { longitude: parseNumber(raw.longitude) } : {}),
+        ...(parseNumber(raw.longitude) !== undefined
+          ? { longitude: parseNumber(raw.longitude) }
+          : {}),
         ...(parseNumber(raw.radiusKm) !== undefined ? { radiusKm: parseNumber(raw.radiusKm) } : {}),
         ...(parseList(raw.areaIds) ? { areaIds: parseList(raw.areaIds) } : {}),
         ...(parseList(raw.schoolTypes) ? { schoolTypes: parseList(raw.schoolTypes) } : {}),
@@ -347,10 +353,7 @@ export async function registerRegistrationRoutes(
    */
   fastify.get(
     `${prefix}/language`,
-    async function getLanguageHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function getLanguageHandler(request: FastifyRequest, reply: FastifyReply) {
       const sessionId = resolveSessionId(request);
       const session = await sessionStore.get(sessionId);
       const language = session?.language ?? 'en';

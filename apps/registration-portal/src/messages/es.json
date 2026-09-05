@@ -76,7 +76,11 @@
     "submitSuccess": "Solicitud enviada con éxito",
     "trackingNumberLabel": "Su número de seguimiento",
     "keepTrackingNumber": "Guarde este número para consultar el estado. Necesitará el número y la fecha de nacimiento del estudiante.",
-    "stepLabel": "Paso {current} de {total}"
+    "stepLabel": "Paso {current} de {total}",
+    "institutionRequired": "Seleccione una escuela antes de enviar. Use Buscar escuelas.",
+    "invalidDateOfBirth": "Ingrese una fecha de nacimiento válida (AAAA-MM-DD).",
+    "invalidPhone": "Ingrese un teléfono de tutor válido.",
+    "invalidEmail": "Ingrese un correo de tutor válido."
   },
   "documents": {
     "title": "Subir documentos",

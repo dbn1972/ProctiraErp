@@ -11,11 +11,7 @@
  * - 16.5: Multi-language interface with session-persisted language selection
  * - 16.6: Check application status by tracking number without authentication
  */
-import {
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -61,7 +57,7 @@ export function validateDocuments(documents: DocumentUpload[]): FieldError[] {
     const doc = documents[i]!;
 
     // Validate file type
-    if (!ALLOWED_FILE_TYPES.includes(doc.fileType as typeof ALLOWED_FILE_TYPES[number])) {
+    if (!ALLOWED_FILE_TYPES.includes(doc.fileType as (typeof ALLOWED_FILE_TYPES)[number])) {
       errors.push({
         field: `documents[${i}].fileType`,
         rule: 'fileType',
@@ -242,7 +238,8 @@ export class RegistrationService {
     const trackingNumber = generateTrackingNumber();
 
     // Get institution name for the response
-    const institutionName = (await this.repository.getInstitutionName(input.institutionId)) ?? 'Unknown';
+    const institutionName =
+      (await this.repository.getInstitutionName(input.institutionId)) ?? 'Unknown';
 
     // Create registration entity
     const entity = await this.repository.create({
@@ -286,9 +283,18 @@ export class RegistrationService {
    *
    * @throws NotFoundError if tracking number not found
    */
-  async checkStatus(trackingNumber: string): Promise<RegistrationStatusResponse> {
+  async checkStatus(
+    trackingNumber: string,
+    dateOfBirth?: string,
+  ): Promise<RegistrationStatusResponse> {
     const registration = await this.repository.findByTrackingNumber(trackingNumber);
     if (!registration) {
+      throw new NotFoundError(`Registration with tracking number '${trackingNumber}' not found`);
+    }
+
+    // Require DOB match so tracking numbers alone cannot disclose applicant PII.
+    // Missing or mismatched DOB returns the same NotFoundError (no oracle).
+    if (!dateOfBirth || dateOfBirth !== registration.dateOfBirth) {
       throw new NotFoundError(`Registration with tracking number '${trackingNumber}' not found`);
     }
 
@@ -377,12 +383,9 @@ export class RegistrationService {
       };
     }
     if (query.areaIds && query.areaIds.length > 0) filter.areaIds = query.areaIds;
-    if (query.schoolTypes && query.schoolTypes.length > 0)
-      filter.schoolTypes = query.schoolTypes;
-    if (query.gradeLevels && query.gradeLevels.length > 0)
-      filter.gradeLevels = query.gradeLevels;
-    if (query.search && query.search.trim().length > 0)
-      filter.search = query.search.trim();
+    if (query.schoolTypes && query.schoolTypes.length > 0) filter.schoolTypes = query.schoolTypes;
+    if (query.gradeLevels && query.gradeLevels.length > 0) filter.gradeLevels = query.gradeLevels;
+    if (query.search && query.search.trim().length > 0) filter.search = query.search.trim();
 
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
