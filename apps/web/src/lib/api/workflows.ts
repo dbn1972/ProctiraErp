@@ -3,7 +3,7 @@
  *
  * Validates: Requirement 13.1 — workflow definitions, instances, approvals.
  */
-import { gatewayFetch } from './gateway';
+import { gatewayFetch, GatewayError } from './gateway';
 
 export interface WorkflowStep {
   id: string;
@@ -45,6 +45,12 @@ export interface WorkflowApproval {
   requestedBy: string;
 }
 
+export interface CreateWorkflowDefinitionInput {
+  name: string;
+  module: string;
+  steps: Array<{ name: string; approverRole: string }>;
+}
+
 export async function listWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
   const result = await gatewayFetch<{ data: WorkflowDefinition[] }>(
     '/workflows/definitions',
@@ -63,6 +69,23 @@ export async function getWorkflowDefinition(
   return result.data;
 }
 
+export async function createWorkflowDefinition(
+  input: CreateWorkflowDefinitionInput,
+): Promise<WorkflowDefinition> {
+  const result = await gatewayFetch<WorkflowDefinition>('/workflows/definitions', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'WORKFLOW_CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create workflow definition',
+    });
+  }
+  return result.data;
+}
+
 export async function listWorkflowInstances(): Promise<WorkflowInstance[]> {
   const result = await gatewayFetch<{ data: WorkflowInstance[] }>(
     '/workflows/instances',
@@ -77,4 +100,26 @@ export async function listPendingApprovals(): Promise<WorkflowApproval[]> {
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
+}
+
+export async function decideWorkflowApproval(
+  approvalId: string,
+  decision: 'approve' | 'reject',
+): Promise<{ id: string; instanceId: string; status: string }> {
+  const result = await gatewayFetch<{
+    id: string;
+    instanceId: string;
+    status: string;
+  }>(`/workflows/approvals/${approvalId}/${decision}`, {
+    method: 'POST',
+    json: {},
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'WORKFLOW_DECISION_FAILED',
+      message: result.error?.message ?? `Failed to ${decision} approval`,
+    });
+  }
+  return result.data;
 }

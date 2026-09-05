@@ -6,14 +6,9 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-import {
-  Button,
-  Card,
-  CardContent,
-  FormField,
-  Input,
-  Textarea,
-} from '@proctira/ui/components';
+import { Button } from '@proctira/ui/components';
+
+import { NewDefinitionForm } from '../../_components/new-definition-form';
 
 export default function NewWorkflowDefinitionPage() {
   return (
@@ -35,38 +30,7 @@ export default function NewWorkflowDefinitionPage() {
         </p>
       </div>
 
-      <Card className="max-w-[860px]">
-        <CardContent className="p-6">
-          <form className="space-y-5" noValidate>
-            <FormField id="wf-name" label="Workflow name" required>
-              <Input id="wf-name" name="name" placeholder="Student transfer approval" />
-            </FormField>
-            <FormField id="wf-module" label="Module" required>
-              <Input id="wf-module" name="module" placeholder="student" />
-            </FormField>
-            <FormField
-              id="wf-steps"
-              label="Steps"
-              required
-              hint="One step per line: stepName,roleName"
-            >
-              <Textarea
-                id="wf-steps"
-                name="steps"
-                rows={6}
-                placeholder={'Principal review,PRINCIPAL\nDistrict approval,DISTRICT_ADMIN'}
-              />
-            </FormField>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <Button asChild variant="outline" type="button">
-                <Link href="/workflows">Cancel</Link>
-              </Button>
-              <Button type="submit">Create definition</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <NewDefinitionForm />
     </div>
   );
 }
