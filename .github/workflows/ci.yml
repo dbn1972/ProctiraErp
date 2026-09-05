@@ -24,6 +24,10 @@ env:
   NODE_VERSION: '20'
   PNPM_VERSION: '10.33.2'
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
   # ---------------------------------------------------------------------------
   # Detect which packages/apps changed to enable selective builds
@@ -69,6 +73,8 @@ jobs:
               - 'turbo.json'
               - 'tsconfig.base.json'
               - 'pnpm-lock.yaml'
+              - '.github/workflows/**'
+              - '.eslintrc*'
 
   # ---------------------------------------------------------------------------
   # Lint - ESLint + Prettier check
@@ -81,6 +87,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -124,6 +134,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -151,6 +165,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -188,6 +206,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -236,6 +258,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -322,6 +348,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -412,6 +442,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -463,6 +497,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
@@ -508,6 +546,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          # pull_request checkout defaults to a merge commit, so HEAD~1 is the
+          # base branch tip and turbo ...[HEAD~1] selects the entire PR. Check
+          # out the PR head (or push SHA) so the filter means "tip commit only".
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
       - uses: pnpm/action-setup@v4
