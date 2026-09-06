@@ -1,7 +1,7 @@
 # DEV — SIS Master schedule / sections / room conflicts (WS2)
 
 **Capability / module:** Master schedule · Sections · Rostering · Conflict engine · Publish  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` (see tip SHA after push)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `88a293f3fe2a607d3c8cd52b6392e06183381ae7`  
 **Owner / agent:** cloud SERVER agent  
 **Date (UTC):** 2026-09-06  
 **Peer parity target:** Registrar builds course sections with room + teacher, enrolls students, detects room∩time / teacher∩time clashes (409), and publishes draft → published so attendance can list meeting periods (PowerSchool / IC-class master schedule slice)  
