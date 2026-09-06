@@ -1,7 +1,7 @@
 # SIS Timetable — enterprise test checklist notes (WS1)
 
 **Module:** Academics · Timetable / Bell / Substitutions  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `7a52a0406575063c247960a97481f103f81faa65`  
 **Environment:** cloud agent / local gateway  
 **Tester / agent:** cloud SERVER agent  
 **Date (UTC):** 2026-09-06  
@@ -59,7 +59,7 @@ Backend unit/property: clash helper + service tests under `@proctira/backend-tim
 
 | Screen | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path |
 | --- | --- | --- | --- | --- |
-| Bell / Timetable / Subs | ☐ | ☐ | ☐ | `/opt/cursor/artifacts/sis-timetable-audit/` |
+| Bell / Timetable / Subs | ☑ | ☑ | ☑ | `/opt/cursor/artifacts/sis-timetable-audit/*_{desktop,tablet,mobile}_*.png` |
 
 Horizontal scroll / clipped CTA issues: TBD after capture run.
 
