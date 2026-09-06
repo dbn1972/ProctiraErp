@@ -1,7 +1,7 @@
 # SIS Timetable — enterprise test checklist notes (WS1)
 
 **Module:** Academics · Timetable / Bell / Substitutions  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `7a52a0406575063c247960a97481f103f81faa65`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `c42a4a992a46e2b284410444124357fa50f070e5`  
 **Environment:** cloud agent / local gateway  
 **Tester / agent:** cloud SERVER agent  
 **Date (UTC):** 2026-09-06  

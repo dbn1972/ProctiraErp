@@ -1,7 +1,7 @@
 # DEV — SIS Timetable / bell / substitutions (WS1)
 
 **Capability / module:** Timetable · Bell schedules · Substitutions  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `7a52a0406575063c247960a97481f103f81faa65`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `c42a4a992a46e2b284410444124357fa50f070e5`  
 **Owner / agent:** cloud SERVER agent  
 **Date (UTC):** 2026-09-06  
 **Peer parity target:** Registrar can define bell schedules + periods, view/edit institution period grid, assign substitute teachers with teacher double-book → 409 (PowerSchool / IC-class timetable slice)  
