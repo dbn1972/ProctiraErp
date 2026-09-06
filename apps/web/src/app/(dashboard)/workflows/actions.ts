@@ -32,10 +32,7 @@ export type CreateDefinitionInput = {
   description?: string;
 };
 
-function toErrorState<T = unknown>(
-  error: unknown,
-  fallback: string,
-): ActionState<T> {
+function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
   if (error instanceof GatewayError) {
     return { status: 'error', message: error.message || fallback };
   }
@@ -121,10 +118,7 @@ async function createDefinitionFromParts(input: {
     };
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    return toErrorState<{ definitionId: string }>(
-      error,
-      'Failed to create workflow definition',
-    );
+    return toErrorState<{ definitionId: string }>(error, 'Failed to create workflow definition');
   }
 }
 
