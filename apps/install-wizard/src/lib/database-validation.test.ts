@@ -6,7 +6,7 @@ const valid = {
   provider: 'postgresql',
   host: 'localhost',
   port: 5432,
-  database: 'proctira',
+  database: 'appdb',
   username: 'postgres',
   password: 'secret',
   poolSize: 10,
