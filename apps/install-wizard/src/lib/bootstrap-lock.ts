@@ -22,7 +22,13 @@ export interface InstallSession {
   createdAt: number;
 }
 
-const sessions = new Map<string, InstallSession>();
+const g = globalThis as unknown as {
+  __proctiraInstallSessions?: Map<string, InstallSession>;
+};
+
+const sessions: Map<string, InstallSession> =
+  g.__proctiraInstallSessions ?? new Map<string, InstallSession>();
+g.__proctiraInstallSessions = sessions;
 
 function randomToken(): string {
   const bytes = new Uint8Array(24);
