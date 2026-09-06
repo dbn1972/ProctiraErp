@@ -18,6 +18,8 @@ import { chromium } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_ROOT = path.resolve(__dirname, '..', 'screens');
+// Cookie host must match this origin exactly (localhost ≠ 127.0.0.1) or
+// dashboard captures silently land on /login.
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3001';
 
 /**
@@ -46,7 +48,7 @@ function mintToken() {
     tenantId: '00000000-0000-4000-8000-0000000000aa',
     email: 'demo@proctira.dev',
     displayName: 'Demo Admin',
-    roles: [{ roleId: 'super-admin', areaId: null }],
+    roles: [{ roleId: 'super-admin', roleName: 'SUPER_ADMIN', areaId: null }],
     exp: Math.floor(Date.now() / 1000) + 86_400,
   });
   return `${header}.${payload}.sig`;
@@ -60,6 +62,8 @@ const SCREENS = {
     ['forgot-password', '/forgot-password'],
     ['reset-password', '/reset-password'],
     ['mfa', '/mfa'],
+    ['logout', '/logout'],
+    ['oauth-callback', '/oauth/callback'],
   ],
   public: [['track', '/track']],
   dashboard: [['overview', '/']],
@@ -75,6 +79,30 @@ const SCREENS = {
   institutions: [
     ['list', '/institutions'],
     ['new', '/institutions/new'],
+    [
+      'profile',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}`,
+    ],
+    [
+      'overview',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/overview`,
+    ],
+    [
+      'edit',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/edit`,
+    ],
+    [
+      'classes',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/classes`,
+    ],
+    [
+      'grades',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/grades`,
+    ],
+    [
+      'infrastructure',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/infrastructure`,
+    ],
   ],
   'academic-periods': [['list', '/academic-periods']],
   attendance: [
@@ -96,25 +124,47 @@ const SCREENS = {
     ['approvals', '/workflows/approvals'],
     ['instances', '/workflows/instances'],
     ['definition-new', '/workflows/definitions/new'],
+    [
+      'definition-detail',
+      `/workflows/definitions/${process.env.WORKFLOW_DEFINITION_ID ?? 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1'}`,
+    ],
   ],
   scholarships: [
-    ['list', '/scholarships'],
-    ['applications', '/scholarships/applications'],
-    ['disbursements', '/scholarships/disbursements'],
+    ['programs', '/scholarships'],
     ['program-new', '/scholarships/programs/new'],
+    [
+      'program-detail',
+      `/scholarships/programs/${process.env.SCHOLARSHIP_PROGRAM_ID ?? '11111111-1111-4111-8111-111111111111'}`,
+    ],
+    ['applications', '/scholarships/applications'],
+    [
+      'application-detail',
+      `/scholarships/applications/${process.env.SCHOLARSHIP_APPLICATION_ID ?? '22222222-2222-4222-8222-222222222222'}`,
+    ],
+    ['disbursements', '/scholarships/disbursements'],
   ],
   reports: [
     ['list', '/reports'],
     ['new', '/reports/new'],
+    [
+      'results',
+      `/reports/${process.env.REPORT_TEMPLATE_ID ?? 'rrrrrrrr-rrrr-4rrr-8rrr-rrrrrrrrrrr1'}/results`,
+    ],
   ],
   health: [
     ['list', '/health'],
+    ['screenings', '/health/screenings'],
+    [
+      'student-profile',
+      `/health/${process.env.HEALTH_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'}`,
+    ],
     ['counselling', '/health/counselling'],
     ['special-needs', '/health/special-needs'],
   ],
   'data-warehouse': [
     ['overview', '/data-warehouse'],
     ['import', '/data-warehouse/import'],
+    ['field-mapping', '/data-warehouse/field-mapping'],
     ['map', '/data-warehouse/map'],
   ],
   admin: [
@@ -124,6 +174,7 @@ const SCREENS = {
     ['permissions', '/admin/permissions'],
     ['tenant', '/admin/tenant'],
   ],
+  track: [['public-track', '/track']],
 };
 
 async function main() {
@@ -159,6 +210,9 @@ async function main() {
             timeout: 30_000,
           });
           await page.waitForTimeout(2500);
+          if (page.url().includes('/login')) {
+            throw new Error(`login redirect (cookie host must match BASE_URL=${BASE_URL})`);
+          }
           await page.screenshot({ path: file, fullPage: true });
           pOk += 1;
         } catch (err) {

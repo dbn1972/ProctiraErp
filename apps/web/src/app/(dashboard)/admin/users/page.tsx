@@ -17,6 +17,7 @@ import {
 import { listUsers } from '@/lib/api/admin.server';
 import { type AdminUser } from '@/lib/api/admin';
 import { cn } from '@/lib/utils';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 import { InviteUserButton } from '../_components/invite-user-button';
 
@@ -70,6 +71,11 @@ export default async function AdminUsersPage() {
         </div>
         <InviteUserButton />
       </div>
+
+      <ScaffoldModeBanner
+        surface="Admin users"
+        detail="Nested admin UI scaffold. Lists stay empty when tenant admin APIs are offline."
+      />
 
       <Card className="overflow-hidden">
         <CardContent className="p-0">

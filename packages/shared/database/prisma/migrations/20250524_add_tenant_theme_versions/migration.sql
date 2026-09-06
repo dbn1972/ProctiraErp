@@ -18,6 +18,8 @@
 -- are monotonically increasing and never collide for a single tenant. The
 -- service layer assigns the next revision = `MAX(revision) + 1` per tenant.
 
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE "tenant_theme_versions" (
     "id"           UUID         NOT NULL DEFAULT uuid_generate_v4(),
     "tenant_id"    UUID         NOT NULL,

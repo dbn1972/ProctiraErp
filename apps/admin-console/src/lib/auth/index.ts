@@ -4,18 +4,10 @@
  * exported separately from `./server` to avoid pulling `next/headers` into
  * client bundles.
  */
-export {
-  PLATFORM_ROLES,
-  PLATFORM_ROLE_LABELS,
-  AREA_ROLES,
-  hasRole,
-} from './roles';
+export { PLATFORM_ROLES, PLATFORM_ROLE_LABELS, AREA_ROLES, hasRole } from './roles';
 export type { PlatformRole, AdminArea } from './roles';
 
-export {
-  decodeAdminToken,
-  isAdminTokenExpired,
-} from './session';
+export { decodeAdminToken, isAdminTokenExpired } from './session';
 export type { AdminTokenPayload } from './session';
 
 export {
@@ -29,3 +21,6 @@ export type { AuthCookieOptions } from './cookies';
 
 export { signIn, signOut, ADMIN_AUTH_ENDPOINTS } from './client';
 export type { AdminSignInResult } from './client';
+
+export { sanitizeReturnTo } from './return-to';
+export { PUBLIC_PATHS, isPublicPath } from './public-paths';

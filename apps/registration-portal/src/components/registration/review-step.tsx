@@ -4,6 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { submitRegistration, type RegistrationSubmissionInput } from '@/lib/api';
+import {
+  isValidDateOfBirth,
+  isValidEmail,
+  isValidInstitutionId,
+  isValidPhone,
+} from '@/lib/validation';
 import { useRegistration } from './registration-context';
 
 /**
@@ -24,6 +30,24 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
 
   async function handleSubmit() {
     if (!draft.gender) return; // type-narrowed below
+
+    if (!isValidInstitutionId(draft.institutionId)) {
+      setError(t('registration.institutionRequired'));
+      return;
+    }
+    if (!isValidDateOfBirth(draft.dateOfBirth)) {
+      setError(t('registration.invalidDateOfBirth'));
+      return;
+    }
+    if (!isValidPhone(draft.guardianPhone)) {
+      setError(t('registration.invalidPhone'));
+      return;
+    }
+    if (draft.guardianEmail && !isValidEmail(draft.guardianEmail)) {
+      setError(t('registration.invalidEmail'));
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -66,7 +90,9 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
   return (
     <div className="space-y-6">
       <div className="card">
-        <h2 className="mb-4 text-lg font-bold tracking-tight text-gray-900">{t('registration.review')}</h2>
+        <h2 className="mb-4 text-lg font-bold tracking-tight text-gray-900">
+          {t('registration.review')}
+        </h2>
         <dl className="grid gap-y-3 text-sm sm:grid-cols-2 sm:gap-x-6">
           <Row label={t('registration.firstName')} value={draft.firstName} />
           <Row label={t('registration.lastName')} value={draft.lastName} />
@@ -99,7 +125,10 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
       </div>
 
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700" role="alert">
+        <div
+          className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+          role="alert"
+        >
           {error}
         </div>
       )}

@@ -18,7 +18,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { listTenants } from '@/lib/api/tenants';
 import { listPlugins } from '@/lib/api/plugins';
 import { listBreakGlassRequests } from '@/lib/api/break-glass';
@@ -68,15 +68,16 @@ export default async function DashboardPage() {
         }
       />
 
-      {(tenants.source === 'stub' || health.source === 'stub') && (
-        <Alert variant="info" className="mb-6">
-          <AlertTitle>Showing stub data</AlertTitle>
-          <AlertDescription>
-            One or more upstream services are unreachable. Pages render
-            deterministic fixtures so workflows can still be exercised.
-          </AlertDescription>
-        </Alert>
-      )}
+      <StubDataBanner
+        force={
+          tenants.source === 'stub' ||
+          plugins.source === 'stub' ||
+          breakGlass.source === 'stub' ||
+          health.source === 'stub' ||
+          audit.source === 'stub'
+        }
+        detail="One or more upstream platform services are unreachable. Overview tiles and timelines use deterministic fixtures — not live production metrics."
+      />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatTile

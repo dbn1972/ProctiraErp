@@ -8,7 +8,7 @@
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import {
@@ -21,16 +21,9 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
-import {
-  staffFormSchema,
-  type StaffFormValues,
-} from '@/lib/validation/staff-schema';
+import { staffFormSchema, type StaffFormValues } from '@/lib/validation/staff-schema';
 
-import {
-  createStaffAction,
-  updateStaffAction,
-  type ActionState,
-} from '../actions';
+import { createStaffAction, updateStaffAction, type ActionState } from '../actions';
 
 interface StaffFormProps {
   mode: 'create' | 'edit';
@@ -40,9 +33,13 @@ interface StaffFormProps {
 
 export function StaffForm({ mode, staffId, initialValues }: StaffFormProps) {
   const router = useRouter();
-  const [serverState, setServerState] =
-    useState<ActionState<{ staffId: string }> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<{ staffId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const form = useForm<StaffFormValues>({
     resolver: zodResolver(staffFormSchema),
@@ -81,6 +78,8 @@ export function StaffForm({ mode, staffId, initialValues }: StaffFormProps) {
 
   return (
     <form
+      data-hydrated={hydrated ? 'true' : 'false'}
+      data-testid="staff-form"
       noValidate
       onSubmit={(event) => {
         void handleSubmit(onSubmit)(event);
@@ -100,9 +99,7 @@ export function StaffForm({ mode, staffId, initialValues }: StaffFormProps) {
       <Card>
         <CardHeader>
           <CardTitle>Personal information</CardTitle>
-          <CardDescription>
-            All fields are required (Requirement 7.7).
-          </CardDescription>
+          <CardDescription>All fields are required (Requirement 7.7).</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
@@ -112,11 +109,7 @@ export function StaffForm({ mode, staffId, initialValues }: StaffFormProps) {
               required
               error={errors.firstName?.message ?? null}
             >
-              <Input
-                id="firstName"
-                autoComplete="given-name"
-                {...register('firstName')}
-              />
+              <Input id="firstName" autoComplete="given-name" {...register('firstName')} />
             </FormField>
 
             <FormField
@@ -125,11 +118,7 @@ export function StaffForm({ mode, staffId, initialValues }: StaffFormProps) {
               required
               error={errors.lastName?.message ?? null}
             >
-              <Input
-                id="lastName"
-                autoComplete="family-name"
-                {...register('lastName')}
-              />
+              <Input id="lastName" autoComplete="family-name" {...register('lastName')} />
             </FormField>
 
             <FormField
@@ -166,11 +155,7 @@ export function StaffForm({ mode, staffId, initialValues }: StaffFormProps) {
               <Input id="contactPhone" type="tel" {...register('contactPhone')} />
             </FormField>
 
-            <FormField
-              id="contactEmail"
-              label="Email"
-              error={errors.contactEmail?.message ?? null}
-            >
+            <FormField id="contactEmail" label="Email" error={errors.contactEmail?.message ?? null}>
               <Input id="contactEmail" type="email" {...register('contactEmail')} />
             </FormField>
 
@@ -188,12 +173,7 @@ export function StaffForm({ mode, staffId, initialValues }: StaffFormProps) {
       </Card>
 
       <div className="flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isPending}>
           Cancel
         </Button>
         <Button type="submit" disabled={isPending}>

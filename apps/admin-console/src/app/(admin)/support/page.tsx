@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,14 +30,14 @@ export default async function SupportPage({
   searchParams: { tenantId?: string };
 }) {
   const session = await requireRole('support', '/support');
-  const { tenants } = await listTenants();
+  const { tenants, source: tenantsSource } = await listTenants();
 
   const selectedTenantId = searchParams?.tenantId;
   const selectedTenant = tenants.find((t) => t.id === selectedTenantId) ?? null;
 
   // An active break-glass grant for this tenant + the current operator is
   // required to enable masquerade. Stub: look up by requester email.
-  const { requests } = await listBreakGlassRequests();
+  const { requests, source: bgSource } = await listBreakGlassRequests();
   const hasActiveGrant = requests.some(
     (request) =>
       request.status === 'active' &&
@@ -49,6 +50,11 @@ export default async function SupportPage({
       <PageHeader
         title="Support tooling"
         description="Inspect tenants, view impact-scope, and (with break-glass) masquerade for support."
+      />
+
+      <StubDataBanner
+        force={tenantsSource === 'stub' || bgSource === 'stub'}
+        detail="Tenant picker and break-glass grant checks use stub fixtures when the gateway is offline. Masquerade never opens a live elevated session in stub mode."
       />
 
       <div className="grid gap-4 lg:grid-cols-3">

@@ -49,20 +49,15 @@ test.describe('a11y — public surfaces (no backend required)', () => {
     await runAxe(page, { checkpointLabel: '/login' });
   });
 
-  test('public application-tracking page is WCAG 2.1 AA clean', async ({
-    page,
-  }) => {
+  test('public application-tracking page is WCAG 2.1 AA clean', async ({ page }) => {
     // Stub the backend so the empty form state is what axe scans.
-    await page.route(
-      '**/api/v1/registrations/**',
-      async (route) => {
-        await route.fulfill({
-          status: 404,
-          contentType: 'application/json',
-          body: JSON.stringify({ error: 'NOT_FOUND' }),
-        });
-      },
-    );
+    await page.route('**/api/v1/registration/applications/**', async (route) => {
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'NOT_FOUND' }),
+      });
+    });
 
     await page.goto('/track');
     await expect(page.getByLabel(/tracking number/i)).toBeVisible();
@@ -81,6 +76,26 @@ test.describe('a11y — public surfaces (no backend required)', () => {
     }
     await runAxe(page, { checkpointLabel: '/signup' });
   });
+
+  for (const route of [
+    { path: '/forgot-password', label: /email/i },
+    { path: '/reset-password', label: /password/i },
+    { path: '/mfa', label: /code|verification|authenticator|digit/i },
+  ] as const) {
+    test(`${route.path} is WCAG 2.1 AA clean`, async ({ page }) => {
+      const response = await page.goto(route.path);
+      if (response && response.status() >= 400) {
+        test.skip(true, `${route.path} is not enabled in this build`);
+      }
+      // Best-effort wait for primary form chrome; MFA may render digit inputs.
+      await page
+        .getByLabel(route.label)
+        .first()
+        .waitFor({ state: 'visible', timeout: 5_000 })
+        .catch(() => undefined);
+      await runAxe(page, { checkpointLabel: route.path });
+    });
+  }
 });
 
 // ────────────────────────────────────────────────────────────────────
@@ -106,18 +121,30 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     await runAxe(page, { checkpointLabel: '/students' });
   });
 
+  for (const path of [
+    '/reports',
+    '/data-warehouse',
+    '/data-warehouse/import',
+    '/data-warehouse/field-mapping',
+    '/data-warehouse/map',
+    '/admin',
+  ] as const) {
+    test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
+      await loginAsTenantAdmin(page);
+      await page.goto(path);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await runAxe(page, { checkpointLabel: path });
+    });
+  }
+
   test('institutions list is WCAG 2.1 AA clean', async ({ page }) => {
     await loginAsTenantAdmin(page);
     await page.goto('/institutions');
-    await expect(
-      page.getByRole('heading', { name: /institutions/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: /institutions/i })).toBeVisible();
     await runAxe(page, { checkpointLabel: '/institutions' });
   });
 
-  test('registration portal wizard — step 1 is WCAG 2.1 AA clean', async ({
-    page,
-  }) => {
+  test('registration portal wizard — step 1 is WCAG 2.1 AA clean', async ({ page }) => {
     // The registration portal lives at port 3002 in dev. We use the
     // PLAYWRIGHT_BASE_URL escape hatch so this test points at it when
     // the orchestrator boots both servers.

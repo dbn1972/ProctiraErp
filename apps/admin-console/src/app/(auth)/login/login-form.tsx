@@ -9,12 +9,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { signIn } from '@/lib/auth';
+import { sanitizeReturnTo, signIn } from '@/lib/auth';
 
 /** Platform admin login form. */
 export function LoginForm() {
   const searchParams = useSearchParams();
-  const returnTo = searchParams?.get('returnTo') || '/';
+  const returnTo = sanitizeReturnTo(searchParams?.get('returnTo'));
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,12 +39,9 @@ export function LoginForm() {
     <Card className="w-full max-w-md border-none shadow-none lg:shadow-sm">
       <CardContent className="p-8">
         <header className="mb-6 space-y-2">
-          <h1 className="text-2xl font-semibold tracking-tight text-primary">
-            Sign in
-          </h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-primary">Sign in</h1>
           <p className="text-sm text-muted-foreground">
-            Use your platform-admin credentials. Tenant accounts cannot sign in
-            here.
+            Use your platform-admin credentials. Tenant accounts cannot sign in here.
           </p>
         </header>
 
@@ -83,9 +80,7 @@ export function LoginForm() {
             />
           </div>
           <Button type="submit" className="w-full" disabled={submitting}>
-            {submitting && (
-              <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
-            )}
+            {submitting && <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />}
             {submitting ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>

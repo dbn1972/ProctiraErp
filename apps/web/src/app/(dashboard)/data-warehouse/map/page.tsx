@@ -1,13 +1,17 @@
 /**
- * GIS map viewer — interactive Leaflet map (Design System v2.0).
- *
- * Cite: redesign/web/data-warehouse-map.html
+ * GIS map viewer (Server Component shell + placeholder) — v2.0 redesign.
  *
  * Validates: Requirement 15.1 — geospatial map of institution data.
  *
- * - Fetches geo features from GET /data-warehouse/map/features
- * - Falls back to institution profile lat/lng when GIS is empty
- * - Supports ?institutionId= to focus / highlight a school
+ * Renders a server-rendered list of geo features and a placeholder map
+ * surface. The interactive Leaflet/MapLibre layer is intentionally
+ * progressive-enhancement: a deferred client component plugs in once
+ * the map library is wired into the bundle.
+ *
+ * v2.0 changes:
+ * - Back link + text-3xl font-extrabold page head with subtitle
+ * - Map placeholder + mapped-institutions list restyled per house
+ *   conventions; data fetching and aria labels unchanged
  */
 import Link from 'next/link';
 import { ArrowLeft, MapPin } from 'lucide-react';
@@ -20,55 +24,17 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import {
-  listGeoFeatures,
-  listInstitutionMapMarkers,
-  type DwGeoFeature,
-} from '@/lib/api/data-warehouse';
-import { cn } from '@/lib/utils';
-
-import { DataWarehouseMapClient } from './map-client';
+import { listGeoFeatures } from '@/lib/api/data-warehouse';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 export const dynamic = 'force-dynamic';
 
-interface PageProps {
-  searchParams?: { institutionId?: string };
-}
-
-function mergeFeatures(
-  gis: DwGeoFeature[],
-  fromProfiles: DwGeoFeature[],
-): DwGeoFeature[] {
-  if (gis.length > 0) {
-    const byId = new Map(gis.map((f) => [f.institutionId, f]));
-    for (const profile of fromProfiles) {
-      if (!byId.has(profile.institutionId)) {
-        byId.set(profile.institutionId, profile);
-      }
-    }
-    return Array.from(byId.values());
-  }
-  return fromProfiles;
-}
-
-export default async function DataWarehouseMapPage({ searchParams }: PageProps) {
-  const focusInstitutionId = searchParams?.institutionId?.trim() || null;
-
-  const [gisFeatures, profileMarkers] = await Promise.all([
-    listGeoFeatures(),
-    listInstitutionMapMarkers({ pageSize: 500 }),
-  ]);
-
-  const features = mergeFeatures(gisFeatures, profileMarkers);
-  const sourceLabel =
-    gisFeatures.length > 0
-      ? 'GIS features'
-      : profileMarkers.length > 0
-        ? 'institution profiles'
-        : 'no sources';
+export default async function DataWarehouseMapPage() {
+  const features = await listGeoFeatures();
 
   return (
     <section aria-labelledby="map-heading" className="space-y-6">
+      {/* ── Back link ── */}
       <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/data-warehouse">
           <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -76,6 +42,7 @@ export default async function DataWarehouseMapPage({ searchParams }: PageProps) 
         </Link>
       </Button>
 
+      {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1
@@ -86,24 +53,34 @@ export default async function DataWarehouseMapPage({ searchParams }: PageProps) 
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Visualise institutions on a map and inspect enrolment density by region.
-            {focusInstitutionId ? ' Focusing on the selected institution.' : ''}
           </p>
         </div>
       </div>
+
+      <ScaffoldModeBanner
+        surface="GIS map"
+        detail="Interactive Leaflet/MapLibre is progressive-enhancement. Empty feature lists mean the warehouse map API is offline — not fabricated coordinates."
+      />
 
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Map</CardTitle>
           <CardDescription>
-            {features.length.toLocaleString()} markers from {sourceLabel}. Pan and zoom to
-            explore; click a pin for details.
+            Interactive map (Leaflet/MapLibre) renders client-side. Markers below show
+            the {features.length.toLocaleString()} institutions with geo coordinates.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DataWarehouseMapClient
-            features={features}
-            focusInstitutionId={focusInstitutionId}
-          />
+          <div
+            role="img"
+            aria-label="Map placeholder"
+            className="flex h-80 items-center justify-center rounded-lg border border-dashed bg-secondary/40 text-sm text-muted-foreground"
+          >
+            <div className="flex flex-col items-center gap-2">
+              <MapPin className="h-10 w-10" aria-hidden="true" />
+              <span>Interactive map renders here.</span>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -121,51 +98,34 @@ export default async function DataWarehouseMapPage({ searchParams }: PageProps) 
             </p>
           ) : (
             <ul className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {features.map((feature) => {
-                const focused = feature.institutionId === focusInstitutionId;
-                return (
-                  <li
-                    key={feature.institutionId}
-                    id={focused ? `institution-${feature.institutionId}` : undefined}
-                    className={cn(
-                      'rounded-lg border bg-card p-4 text-sm shadow-sm transition-colors',
-                      focused && 'border-teal-500 ring-2 ring-teal-500/30',
-                    )}
-                  >
-                    <div className="flex items-start gap-3">
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-                          focused
-                            ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300'
-                            : 'bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400',
-                        )}
-                      >
-                        <MapPin className="h-5 w-5" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-foreground">{feature.name}</p>
-                        <p className="text-xs text-muted-foreground">{feature.type}</p>
-                      </div>
+              {features.map((feature) => (
+                <li
+                  key={feature.institutionId}
+                  className="rounded-lg border bg-card p-4 text-sm shadow-sm"
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
+                    >
+                      <MapPin className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-foreground">{feature.name}</p>
+                      <p className="text-xs text-muted-foreground">{feature.type}</p>
                     </div>
-                    <p className="mt-3 font-mono text-[11px] text-muted-foreground">
-                      {feature.latitude.toFixed(4)}, {feature.longitude.toFixed(4)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Enrolment:{' '}
-                      <span className="font-semibold tabular-nums text-foreground">
-                        {feature.enrolment.toLocaleString()}
-                      </span>
-                    </p>
-                    {focused ? (
-                      <p className="mt-2 text-[11px] font-semibold text-teal-700 dark:text-teal-400">
-                        Focused from institution overview
-                      </p>
-                    ) : null}
-                  </li>
-                );
-              })}
+                  </div>
+                  <p className="mt-3 font-mono text-[11px] text-muted-foreground">
+                    {feature.latitude.toFixed(4)}, {feature.longitude.toFixed(4)}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Enrolment:{' '}
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {feature.enrolment.toLocaleString()}
+                    </span>
+                  </p>
+                </li>
+              ))}
             </ul>
           )}
         </CardContent>

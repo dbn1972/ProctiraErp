@@ -18,8 +18,8 @@
     "test:search": "vitest run --config vitest.config.ts src/search",
     "test:cache": "vitest run --config vitest.config.ts src/cache",
     "test:report": "vitest run --config vitest.config.ts src/report",
-    "test:e2e": "playwright test --config=playwright.config.ts",
-    "test:e2e:headed": "playwright test --config=playwright.config.ts --headed",
+    "test:e2e": "playwright install chromium && playwright test --config=playwright.config.ts",
+    "test:e2e:headed": "playwright install chromium && playwright test --config=playwright.config.ts --headed",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit"
   },

@@ -19,6 +19,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { TenantsFilter } from './tenants-filter';
 import { listTenants, type TenantStatus } from '@/lib/api/tenants';
 import { requireRole } from '@/lib/auth/server';
@@ -46,7 +47,7 @@ export default async function TenantsPage({
     : 'all';
   const search = searchParams?.q ?? '';
 
-  const { tenants } = await listTenants({ status, search });
+  const { tenants, source } = await listTenants({ status, search });
 
   // Unfiltered counts for the KPI row (real, derived only).
   const { tenants: allTenants } = await listTenants();
@@ -71,6 +72,8 @@ export default async function TenantsPage({
           </Button>
         }
       />
+
+      <StubDataBanner source={source} />
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile title="Total tenants" value={allTenants.length} icon={Building2} />

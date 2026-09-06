@@ -1,20 +1,12 @@
 /**
  * Report run configuration page.
  *
- * Layout per redesign/web/reports-new.html:
- *  - Template + filters form
- *  - Output format selection
- *  - Note which analytical report types the gateway data source supports
- *
  * Validates: Requirement 17.1 — configure filters and generate report.
  */
 import Link from 'next/link';
-import { ArrowLeft, Info } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
   Button,
   Card,
   CardContent,
@@ -31,8 +23,7 @@ import {
 } from '@proctira/ui/components';
 import { getReportTemplate, listReportTemplates } from '@/lib/api/reports';
 import type { ReportTemplate, ReportFilter } from '@/lib/api/reports';
-
-export const dynamic = 'force-dynamic';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 interface PageProps {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -59,113 +50,91 @@ export default async function NewReportPage({ searchParams }: PageProps) {
         </Link>
       </Button>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-            New report
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pick a template, set filters, and download once the run completes.
-          </p>
-        </div>
-        <Button asChild variant="ghost" size="sm">
-          <Link href="/reports">Cancel</Link>
-        </Button>
+      <div>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+          New report
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Pick a template, set filters, and download once the run completes.
+        </p>
       </div>
 
-      <Alert>
-        <Info className="h-4 w-4" aria-hidden="true" />
-        <AlertTitle>Supported analytical types</AlertTitle>
-        <AlertDescription>
-          Enrollment, students, attendance summary, examination results, and
-          scholarship applications/utilization. Other types return empty rows.
-        </AlertDescription>
-      </Alert>
+      <ScaffoldModeBanner
+        surface="Report builder"
+        detail="Builder UI is interactive for layout review. Generating/downloading a run requires a live reports service — empty template lists mean the gateway is offline."
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Report builder</CardTitle>
-              <CardDescription>
-                Choose what to report and how to scope the output.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-5" noValidate>
-                <FormField id="report-template" label="Report type" required>
-                  <Select defaultValue={requestedTemplate?.id}>
-                    <SelectTrigger id="report-template">
-                      <SelectValue placeholder="Select a template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {templates.length === 0 ? (
-                        <SelectItem value="__none" disabled>
-                          No templates available
-                        </SelectItem>
-                      ) : (
-                        templates.map((tpl) => (
-                          <SelectItem key={tpl.id} value={tpl.id}>
-                            {tpl.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </FormField>
-
-                {requestedTemplate ? (
-                  <FilterFields template={requestedTemplate} />
+      <Card className="max-w-[860px]">
+        <CardHeader>
+          <CardTitle className="text-base">Template</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FormField id="report-template" label="Template" required>
+            <Select defaultValue={requestedTemplate?.id}>
+              <SelectTrigger id="report-template">
+                <SelectValue placeholder="Select a template" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.length === 0 ? (
+                  <SelectItem value="__none" disabled>
+                    No templates available
+                  </SelectItem>
                 ) : (
-                  <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
-                    Select a template to configure filters.
-                  </p>
+                  templates.map((tpl) => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      {tpl.name}
+                    </SelectItem>
+                  ))
                 )}
+              </SelectContent>
+            </Select>
+          </FormField>
+        </CardContent>
+      </Card>
 
-                <FormField id="report-format" label="Output format" required>
-                  <Select defaultValue={requestedTemplate?.format[0] ?? 'PDF'}>
-                    <SelectTrigger id="report-format">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(requestedTemplate?.format ?? ['PDF', 'XLSX', 'CSV']).map(
-                        (fmt) => (
-                          <SelectItem key={fmt} value={fmt}>
-                            {fmt}
-                          </SelectItem>
-                        ),
-                      )}
-                    </SelectContent>
-                  </Select>
-                </FormField>
+      <Card className="max-w-[860px]">
+        <CardHeader>
+          <CardTitle className="text-base">Filters</CardTitle>
+          <CardDescription>
+            {requestedTemplate
+              ? `Configure ${requestedTemplate.filters.length} filter fields for ${requestedTemplate.name}.`
+              : 'Filters appear when a template is selected.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-5" noValidate>
+            {requestedTemplate ? (
+              <FilterFields template={requestedTemplate} />
+            ) : (
+              <p className="rounded-md border border-dashed py-6 text-center text-sm text-muted-foreground">
+                Select a template above to configure filters.
+              </p>
+            )}
 
-                <div className="flex justify-end gap-3 pt-2">
-                  <Button asChild variant="outline" type="button">
-                    <Link href="/reports">Cancel</Link>
-                  </Button>
-                  <Button type="submit">Generate report</Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+            <FormField id="report-format" label="Output format" required>
+              <Select defaultValue={requestedTemplate?.format[0] ?? 'PDF'}>
+                <SelectTrigger id="report-format">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(requestedTemplate?.format ?? ['PDF', 'XLSX', 'CSV']).map((fmt) => (
+                    <SelectItem key={fmt} value={fmt}>
+                      {fmt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
 
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="text-base">Preview</CardTitle>
-            <CardDescription>
-              A live preview will appear here once report generation is wired.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border-2 border-dashed border-border bg-muted/30 px-4 py-10 text-center text-xs text-muted-foreground">
-              {requestedTemplate
-                ? `Preview for ${requestedTemplate.name}`
-                : 'Select a template to preview scope'}
+            <div className="flex justify-end gap-3 pt-2">
+              <Button asChild variant="outline" type="button">
+                <Link href="/reports">Cancel</Link>
+              </Button>
+              <Button type="submit">Generate report</Button>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -180,9 +149,6 @@ function FilterFields({ template }: { template: ReportTemplate }) {
   }
   return (
     <div className="space-y-4">
-      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        Filters
-      </p>
       {template.filters.map((filter) => (
         <FilterControl key={filter.key} filter={filter} />
       ))}
@@ -193,11 +159,7 @@ function FilterFields({ template }: { template: ReportTemplate }) {
 function FilterControl({ filter }: { filter: ReportFilter }) {
   if (filter.type === 'select') {
     return (
-      <FormField
-        id={`filter-${filter.key}`}
-        label={filter.label}
-        required={filter.required}
-      >
+      <FormField id={`filter-${filter.key}`} label={filter.label} required={filter.required}>
         <Select>
           <SelectTrigger id={`filter-${filter.key}`}>
             <SelectValue placeholder={`Select ${filter.label.toLowerCase()}`} />
@@ -214,21 +176,11 @@ function FilterControl({ filter }: { filter: ReportFilter }) {
     );
   }
   return (
-    <FormField
-      id={`filter-${filter.key}`}
-      label={filter.label}
-      required={filter.required}
-    >
+    <FormField id={`filter-${filter.key}`} label={filter.label} required={filter.required}>
       <Input
         id={`filter-${filter.key}`}
         name={filter.key}
-        type={
-          filter.type === 'number'
-            ? 'number'
-            : filter.type === 'date'
-              ? 'date'
-              : 'text'
-        }
+        type={filter.type === 'number' ? 'number' : filter.type === 'date' ? 'date' : 'text'}
       />
     </FormField>
   );

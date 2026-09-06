@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "node .cursor/hooks/enterprise-test-gate.cjs sessionStart"
+      }
+    ],
+    "beforeSubmitPrompt": [
+      {
+        "command": "node .cursor/hooks/enterprise-test-gate.cjs beforeSubmitPrompt"
+      }
+    ],
+    "stop": [
+      {
+        "command": "node .cursor/hooks/enterprise-test-gate.cjs stop",
+        "loop_limit": 4
+      }
+    ],
+    "beforeShellExecution": [
+      {
+        "command": "node .cursor/hooks/enterprise-test-gate.cjs beforeShellExecution"
+      }
+    ]
+  }
+}

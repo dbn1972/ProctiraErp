@@ -1,24 +1,15 @@
 /**
  * Report run results page — list past runs and download outputs.
  *
- * Layout per redesign/web/reports-results.html:
- *  - Status pill + Re-run / Download actions
- *  - Summary KPIs from run metadata (not inventing row data)
- *  - Past runs table
- *
  * Validates: Requirement 17.1 — download generated report outputs.
- * Analytical ReportDataSource is wired for common school report types.
  */
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import {
-  ArrowLeft,
-  Download,
-  FileBarChart,
-  RefreshCw,
-} from 'lucide-react';
+import { ArrowLeft, Download, FileBarChart } from 'lucide-react';
 
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Button,
   Card,
   CardContent,
@@ -32,14 +23,13 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { cn } from '@/lib/utils';
 import {
   getReportTemplate,
   listReportRuns,
   type ReportRun,
 } from '@/lib/api/reports';
-
-export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: { id: string };
@@ -51,11 +41,43 @@ export default async function ReportResultsPage({ params }: PageProps) {
     listReportRuns(params.id),
   ]);
 
-  if (!template) notFound();
+  if (!template) {
+    return (
+      <section aria-labelledby="report-runs-heading" className="space-y-6">
+        <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+          <Link href="/reports">
+            <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Reports
+          </Link>
+        </Button>
+        <div>
+          <h1
+            id="report-runs-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            Report results
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Template unavailable for id{' '}
+            <code className="font-mono text-xs">{params.id}</code>.
+          </p>
+        </div>
+        <ScaffoldModeBanner
+          surface="Report results"
+          detail="The reports gateway did not return this template. Showing a stable empty/error state instead of inventing demo runs."
+        />
+        <Alert variant="warning">
+          <AlertTitle>Template not found</AlertTitle>
+          <AlertDescription>
+            No live template matched this id. Connect the reports service or pick a
+            template from the catalog.
+          </AlertDescription>
+        </Alert>
+      </section>
+    );
+  }
 
-  const readyRuns = runs.filter((run) => run.status === 'READY');
-  const latestReady = readyRuns[0] ?? null;
-  const latestRun = runs[0] ?? null;
+  const readyRuns = runs.filter((run) => run.status === 'READY').length;
 
   return (
     <section aria-labelledby="report-runs-heading" className="space-y-6">
@@ -68,92 +90,67 @@ export default async function ReportResultsPage({ params }: PageProps) {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h1
-              id="report-runs-heading"
-              className="text-3xl font-extrabold tracking-tight text-foreground"
-            >
-              {template.name}
-            </h1>
-            {latestRun ? <RunStatus status={latestRun.status} /> : null}
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {latestRun
-              ? `Last run ${latestRun.generatedAt} · by ${latestRun.generatedBy}`
-              : template.description}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/reports/new?templateId=${template.id}`}>
-              <RefreshCw className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Re-run
-            </Link>
-          </Button>
-          {latestReady?.downloadUrl ? (
-            <Button asChild size="sm">
-              <a href={latestReady.downloadUrl} download>
-                <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-                Download {latestReady.format}
-              </a>
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              type="button"
-              disabled
-              title="Download unavailable until a ready artifact exists"
-            >
-              <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Download
-            </Button>
-          )}
+          <h1
+            id="report-runs-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            {template.name}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">{template.description}</p>
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KpiCard label="Total runs" value={runs.length.toLocaleString()} />
-        <KpiCard
-          label="Ready to download"
-          value={readyRuns.length.toLocaleString()}
-        />
-        <KpiCard
-          label="Output formats"
-          value={
-            template.format.length > 0
-              ? template.format.join(', ')
-              : 'Currently unavailable'
-          }
-          compact
-        />
-      </div>
+      <ScaffoldModeBanner surface="Report results" />
+
+      <Card>
+        <CardHeader className="flex flex-row items-start gap-3 space-y-0">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <FileBarChart className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <CardTitle className="text-base">{template.name} results</CardTitle>
+            <CardDescription>
+              {template.module} · {runs.length.toLocaleString()} run
+              {runs.length === 1 ? '' : 's'} · {readyRuns.toLocaleString()} ready to
+              download
+            </CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-muted-foreground">Total runs</dt>
+              <dd className="mt-0.5 text-2xl font-bold tabular-nums text-foreground">
+                {runs.length.toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Ready</dt>
+              <dd className="mt-0.5 text-2xl font-bold tabular-nums text-foreground">
+                {readyRuns.toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">Output formats</dt>
+              <dd className="mt-0.5 text-sm font-semibold text-foreground">
+                {template.format.length > 0
+                  ? template.format.join(', ')
+                  : 'Currently unavailable'}
+              </dd>
+            </div>
+          </dl>
+        </CardContent>
+      </Card>
 
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
-          <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <FileBarChart className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div>
-              <CardTitle className="text-base">Past runs</CardTitle>
-              <CardDescription>
-                {template.module} · reports generated for this template.
-                Rows populate when the template type matches a wired data source.
-              </CardDescription>
-            </div>
-          </div>
+          <CardTitle className="text-base">Past runs</CardTitle>
+          <CardDescription>Reports generated for this template.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {runs.length === 0 ? (
             <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-              No results yet for this template.{' '}
-              <Link
-                href={`/reports/new?templateId=${template.id}`}
-                className="font-medium text-primary hover:underline"
-              >
-                Run it now
-              </Link>
-              .
+              No results yet for this template.
             </p>
           ) : (
             <Table aria-label="Report runs">
@@ -174,9 +171,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
                       {run.generatedAt}
                     </TableCell>
                     <TableCell>{run.generatedBy}</TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {run.format}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs">{run.format}</TableCell>
                     <TableCell className="text-end tabular-nums">
                       {run.fileSizeKb} KB
                     </TableCell>
@@ -187,10 +182,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
                       {run.downloadUrl && run.status === 'READY' ? (
                         <Button asChild variant="ghost" size="sm">
                           <a href={run.downloadUrl} download>
-                            <Download
-                              className="me-1.5 h-4 w-4"
-                              aria-hidden="true"
-                            />
+                            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
                             Download
                           </a>
                         </Button>
@@ -209,36 +201,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
   );
 }
 
-function KpiCard({
-  label,
-  value,
-  compact = false,
-}: {
-  label: string;
-  value: string;
-  compact?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p
-          className={cn(
-            'mt-1 font-extrabold text-foreground',
-            compact ? 'text-lg' : 'text-3xl tabular-nums',
-          )}
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
-
-const STATUS_STYLES: Record<
-  ReportRun['status'],
-  { label: string; className: string }
-> = {
+const STATUS_STYLES: Record<ReportRun['status'], { label: string; className: string }> = {
   READY: {
     label: 'Ready',
     className:

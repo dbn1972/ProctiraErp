@@ -27,6 +27,7 @@ import {
   Card,
   CardContent,
 } from '@proctira/ui/components';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { listReportTemplates, type ReportTemplate } from '@/lib/api/reports';
 import { cn } from '@/lib/utils';
 
@@ -103,6 +104,15 @@ export default async function ReportsPage() {
           </Link>
         </Button>
       </div>
+
+      <ScaffoldModeBanner
+        surface="Reports catalog"
+        detail={
+          templates.length === 0
+            ? 'No report templates loaded from the gateway. The empty catalog is expected until the reports service is reachable — this is not a production failure silent-hide.'
+            : 'Templates listed here come from the reports gateway when connected; otherwise the catalog stays empty rather than inventing fixtures.'
+        }
+      />
 
       {templates.length === 0 ? (
         <Card className="overflow-hidden">

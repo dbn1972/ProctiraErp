@@ -3,6 +3,7 @@ import { Check, Info } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -37,6 +38,11 @@ export default async function NewTenantPage() {
             <Link href="/tenants">Cancel</Link>
           </Button>
         }
+      />
+
+      <StubDataBanner
+        force
+        detail="When the tenant-service gateway is offline, provisioning accepts the form and returns a simulated stub tenant — no live schema or bucket is created."
       />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">

@@ -114,6 +114,12 @@ export default async function HealthRecordsPage() {
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
+            <Link href="/health/screenings">
+              <HeartPulse className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Screenings
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href="/health/special-needs">
               <Users className="me-1.5 h-4 w-4" aria-hidden="true" />
               Special needs

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { FormFieldDefinition } from '@/lib/api';
 import {
+  isValidDateOfBirth,
   isValidEmail,
   isValidPhone,
   validateRequiredFields,
@@ -44,6 +45,10 @@ export function PersonalInfoForm({ institutionType, customFields }: PersonalInfo
       ['firstName', 'lastName', 'dateOfBirth', 'gender', 'guardianName', 'guardianPhone'],
     );
 
+    if (draft.dateOfBirth && !isValidDateOfBirth(draft.dateOfBirth)) {
+      fieldErrors['dateOfBirth'] = 'invalid_date';
+    }
+
     if (draft.guardianEmail && !isValidEmail(draft.guardianEmail)) {
       fieldErrors['guardianEmail'] = 'invalid_email';
     }
@@ -81,7 +86,9 @@ export function PersonalInfoForm({ institutionType, customFields }: PersonalInfo
 
   return (
     <form onSubmit={handleSubmit} className="card space-y-6" noValidate>
-      <h2 className="text-lg font-bold tracking-tight text-gray-900">{t('registration.personalInfo')}</h2>
+      <h2 className="text-lg font-bold tracking-tight text-gray-900">
+        {t('registration.personalInfo')}
+      </h2>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
@@ -114,14 +121,15 @@ export function PersonalInfoForm({ institutionType, customFields }: PersonalInfo
         />
         <div>
           <label htmlFor="gender" className="input-label">
-            {t('registration.gender')} <span className="text-red-500" aria-hidden="true">*</span>
+            {t('registration.gender')}{' '}
+            <span className="text-red-500" aria-hidden="true">
+              *
+            </span>
           </label>
           <select
             id="gender"
             value={draft.gender}
-            onChange={(e) =>
-              update({ gender: e.target.value as 'male' | 'female' | 'other' | '' })
-            }
+            onChange={(e) => update({ gender: e.target.value as 'male' | 'female' | 'other' | '' })}
             className="input-field"
             aria-required="true"
             aria-invalid={Boolean(errors['gender'])}
@@ -200,12 +208,26 @@ interface FieldProps {
   autoComplete?: string;
 }
 
-function Field({ id, label, type = 'text', required, value, onChange, error, autoComplete }: FieldProps) {
+function Field({
+  id,
+  label,
+  type = 'text',
+  required,
+  value,
+  onChange,
+  error,
+  autoComplete,
+}: FieldProps) {
   return (
     <div>
       <label htmlFor={id} className="input-label">
         {label}
-        {required && <span className="text-red-500" aria-hidden="true"> *</span>}
+        {required && (
+          <span className="text-red-500" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
       </label>
       <input
         id={id}
@@ -240,7 +262,12 @@ function CustomField({ field, value, onChange, error }: CustomFieldProps) {
     <div className={field.type === 'textarea' ? 'sm:col-span-2' : ''}>
       <label htmlFor={id} className="input-label">
         {field.label}
-        {field.required && <span className="text-red-500" aria-hidden="true"> *</span>}
+        {field.required && (
+          <span className="text-red-500" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
       </label>
       {field.type === 'select' && field.options ? (
         <select

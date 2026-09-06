@@ -46,11 +46,25 @@ const DASHBOARD_ROUTES = [
   { path: '/examinations', label: 'examinations' },
   { path: '/scholarships', label: 'scholarships' },
   { path: '/health', label: 'health' },
+  { path: '/health/screenings', label: 'health-screenings' },
+  { path: '/health/counselling', label: 'health-counselling' },
+  { path: '/health/special-needs', label: 'health-special-needs' },
   { path: '/workflows', label: 'workflows' },
+  { path: '/workflows/approvals', label: 'workflows-approvals' },
+  { path: '/workflows/instances', label: 'workflows-instances' },
+  { path: '/workflows/definitions/new', label: 'workflows-definition-new' },
   { path: '/reports', label: 'reports' },
+  { path: '/reports/new', label: 'reports-new' },
   { path: '/data-warehouse', label: 'data warehouse' },
+  { path: '/data-warehouse/import', label: 'data-warehouse-import' },
+  { path: '/data-warehouse/field-mapping', label: 'data-warehouse-field-mapping' },
+  { path: '/data-warehouse/map', label: 'data-warehouse-gis-map' },
   { path: '/academic-periods', label: 'academic periods' },
   { path: '/admin', label: 'admin' },
+  { path: '/admin/users', label: 'admin-users' },
+  { path: '/admin/roles', label: 'admin-roles' },
+  { path: '/admin/permissions', label: 'admin-permissions' },
+  { path: '/admin/tenant', label: 'admin-tenant' },
 ] as const;
 
 /**
@@ -90,12 +104,14 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
       await loginAsTenantAdmin(page);
       await page.goto(route.path);
       // Wait for the main content area to be visible before scanning.
-      await page.waitForSelector('[role="main"], main', {
-        state: 'visible',
-        timeout: 15_000,
-      }).catch(() => {
-        // Some routes may not have a <main> landmark yet; proceed anyway.
-      });
+      await page
+        .waitForSelector('[role="main"], main', {
+          state: 'visible',
+          timeout: 15_000,
+        })
+        .catch(() => {
+          // Some routes may not have a <main> landmark yet; proceed anyway.
+        });
 
       await setTheme(page, 'light');
       await runAxe(page, {
@@ -108,12 +124,44 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
     }) => {
       await loginAsTenantAdmin(page);
       await page.goto(route.path);
-      await page.waitForSelector('[role="main"], main', {
-        state: 'visible',
-        timeout: 15_000,
-      }).catch(() => {
-        // Some routes may not have a <main> landmark yet; proceed anyway.
+      await page
+        .waitForSelector('[role="main"], main', {
+          state: 'visible',
+          timeout: 15_000,
+        })
+        .catch(() => {
+          // Some routes may not have a <main> landmark yet; proceed anyway.
+        });
+
+      await setTheme(page, 'dark');
+      await runAxe(page, {
+        checkpointLabel: `${route.path} [dark]`,
       });
+    });
+  }
+});
+
+/**
+ * Public Auth surfaces do not need a live backend — keep a always-on dark
+ * parity smoke so Auth enterprise claims are not gated solely on dashboard.
+ */
+const AUTH_PUBLIC_ROUTES = [
+  { path: '/login', label: 'login' },
+  { path: '/signup', label: 'signup' },
+  { path: '/forgot-password', label: 'forgot-password' },
+  { path: '/reset-password', label: 'reset-password' },
+  { path: '/mfa', label: 'mfa' },
+] as const;
+
+test.describe('Property F-2: Dark Mode Parity — Auth public surfaces (always on)', () => {
+  for (const route of AUTH_PUBLIC_ROUTES) {
+    test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in dark mode`, async ({
+      page,
+    }) => {
+      const response = await page.goto(route.path);
+      if (!response || response.status() >= 400) {
+        test.skip(true, `${route.path} is not enabled in this build`);
+      }
 
       await setTheme(page, 'dark');
       await runAxe(page, {

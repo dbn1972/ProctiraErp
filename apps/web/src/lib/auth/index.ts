@@ -38,3 +38,5 @@ export type {
   TermsAcceptancePayload,
   TokenPayload,
 } from './session';
+
+export { sanitizeReturnTo } from './return-to';

@@ -9,7 +9,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { DocumentUploadMetadata } from '@/lib/api';
+import { isValidInstitutionId } from '@/lib/validation';
 
 /**
  * Multi-step registration form state, persisted in `sessionStorage` so the
@@ -75,21 +77,32 @@ export function RegistrationProvider({
   institutionType: string;
   children: ReactNode;
 }) {
+  const searchParams = useSearchParams();
   const [draft, setDraft] = useState<RegistrationDraft>(() => initialDraft(institutionType));
 
-  // Hydrate from sessionStorage after mount (avoids SSR mismatch)
+  // Hydrate from sessionStorage after mount (avoids SSR mismatch), then apply
+  // any `?institutionId=` query from the school-finder Apply CTA.
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const queryInstitutionId = searchParams?.get('institutionId') ?? '';
+    const queryId = isValidInstitutionId(queryInstitutionId) ? queryInstitutionId : '';
     try {
       const raw = window.sessionStorage.getItem(storageKey(institutionType));
       if (raw) {
         const parsed = JSON.parse(raw) as RegistrationDraft;
-        setDraft({ ...initialDraft(institutionType), ...parsed, institutionType });
+        setDraft({
+          ...initialDraft(institutionType),
+          ...parsed,
+          institutionType,
+          institutionId: queryId || parsed.institutionId || '',
+        });
+      } else if (queryId) {
+        setDraft({ ...initialDraft(institutionType), institutionId: queryId });
       }
     } catch {
-      // Corrupt session storage — start fresh.
+      setDraft({ ...initialDraft(institutionType), institutionId: queryId });
     }
-  }, [institutionType]);
+  }, [institutionType, searchParams]);
 
   // Persist on every change
   useEffect(() => {
@@ -106,7 +119,10 @@ export function RegistrationProvider({
   }, []);
 
   const setCustomField = useCallback((fieldId: string, value: string) => {
-    setDraft((prev) => ({ ...prev, customFields: { ...prev.customFields, [fieldId]: value } }));
+    setDraft((prev) => ({
+      ...prev,
+      customFields: { ...prev.customFields, [fieldId]: value },
+    }));
   }, []);
 
   const addDocument = useCallback((doc: DocumentUploadMetadata) => {

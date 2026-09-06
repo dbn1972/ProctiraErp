@@ -9,7 +9,7 @@
     "dev": "next dev --port 3001",
     "start": "next start",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright install chromium && playwright test",
     "test:e2e:ui": "playwright test --ui",
     "lint": "next lint",
     "clean": "rm -rf .next out",

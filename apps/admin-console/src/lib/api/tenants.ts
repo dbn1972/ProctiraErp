@@ -122,10 +122,17 @@ export async function listTenants(params: ListTenantsParams = {}): Promise<{
 }
 
 /** Fetch a single tenant by id. Falls back to stub fixtures. */
-export async function getTenant(id: string): Promise<Tenant | null> {
+export async function getTenant(
+  id: string,
+): Promise<{ tenant: Tenant | null; source: 'gateway' | 'stub' }> {
   const response = await gatewayFetch<Tenant>(`/tenants/${id}`);
-  if (response.ok && response.data) return response.data;
-  return STUB_TENANTS.find((t) => t.id === id) ?? null;
+  if (response.ok && response.data) {
+    return { tenant: response.data, source: 'gateway' };
+  }
+  return {
+    tenant: STUB_TENANTS.find((t) => t.id === id) ?? null,
+    source: 'stub',
+  };
 }
 
 export interface CreateTenantInput {

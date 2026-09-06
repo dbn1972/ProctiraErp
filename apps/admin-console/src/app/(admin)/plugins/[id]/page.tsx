@@ -1,7 +1,8 @@
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { MissingResource } from '@/components/missing-resource';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,8 +26,18 @@ export default async function PluginDetailPage({
   params: { id: string };
 }) {
   await requireRole('plugins', `/plugins/${params.id}`);
-  const plugin = await getPlugin(params.id);
-  if (!plugin) notFound();
+  const { plugin, source } = await getPlugin(params.id);
+  if (!plugin) {
+    return (
+      <MissingResource
+        title="Plugin"
+        resourceLabel="Plugin"
+        id={params.id}
+        backHref="/plugins"
+        backLabel="Back to marketplace"
+      />
+    );
+  }
 
   return (
     <>
@@ -39,6 +50,8 @@ export default async function PluginDetailPage({
           </Button>
         }
       />
+
+      <StubDataBanner source={source} />
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <StatusBadge status={plugin.status} />

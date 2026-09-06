@@ -24,10 +24,7 @@ test.describe('auth — sign-in (local credentials)', () => {
     let loginRequestBody: Record<string, unknown> | null = null;
 
     await page.route('**/api/auth/login', async (route) => {
-      loginRequestBody = route.request().postDataJSON() as Record<
-        string,
-        unknown
-      >;
+      loginRequestBody = route.request().postDataJSON() as Record<string, unknown>;
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -38,8 +35,8 @@ test.describe('auth — sign-in (local credentials)', () => {
     await page.goto('/login');
 
     // The credential form is visible before we proceed.
-    const email = page.getByLabel(/email/i);
-    const password = page.getByLabel(/password/i, { exact: true });
+    const email = page.getByRole('textbox', { name: /email/i });
+    const password = page.getByRole('textbox', { name: /^password$/i });
     await expect(email).toBeVisible();
     await expect(password).toBeVisible();
 
@@ -60,20 +57,16 @@ test.describe('auth — sign-in (local credentials)', () => {
     });
   });
 
-  test('invalid credentials surface the upstream error message', async ({
-    page,
-  }) => {
+  test('invalid credentials surface the upstream error message', async ({ page }) => {
     await mockLogin(page, { invalid: 'Invalid email or password.' });
 
     await page.goto('/login');
-    await page.getByLabel(/email/i).fill('admin@school.edu');
-    await page.getByLabel(/password/i, { exact: true }).fill('wrong-password');
+    await page.getByRole('textbox', { name: /email/i }).fill('admin@school.edu');
+    await page.getByRole('textbox', { name: /^password$/i }).fill('wrong-password');
     await page.getByRole('button', { name: /sign in/i }).click();
 
     // The destructive alert renders inside the form panel.
-    await expect(
-      page.getByText(/invalid email or password/i),
-    ).toBeVisible();
+    await expect(page.getByText(/invalid email or password/i)).toBeVisible();
 
     // The user is still on /login because the response was 401.
     expect(new URL(page.url()).pathname).toBe('/login');

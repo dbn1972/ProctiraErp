@@ -42,7 +42,7 @@ export type {
   ComplianceStatus,
 } from './scholarship-repository.js';
 
-// In-memory repository (for testing)
+// In-memory repository (for testing / gateway demo seed)
 export { InMemoryScholarshipRepository } from './in-memory-repository.js';
 
 // Prisma repository (Postgres + RLS) + factory

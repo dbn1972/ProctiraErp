@@ -8,9 +8,9 @@
  * Example: GET /api/v1/institutions/123 → institutions service at http://localhost:3002/institutions/123
  */
 
+import { CircuitBreaker, CircuitBreakerError } from '@proctira/common';
 import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-import { CircuitBreaker, CircuitBreakerError } from '@proctira/common';
 
 import type { ServiceRoute } from '../config.js';
 
@@ -35,11 +35,14 @@ const serviceBreakers = new Map<string, CircuitBreaker>();
 
 function getBreaker(serviceName: string): CircuitBreaker {
   if (!serviceBreakers.has(serviceName)) {
-    serviceBreakers.set(serviceName, new CircuitBreaker({
-      name: serviceName,
-      failureThreshold: 5,
-      resetTimeoutMs: 30000,
-    }));
+    serviceBreakers.set(
+      serviceName,
+      new CircuitBreaker({
+        name: serviceName,
+        failureThreshold: 5,
+        resetTimeoutMs: 30000,
+      }),
+    );
   }
   return serviceBreakers.get(serviceName)!;
 }
@@ -95,38 +98,49 @@ const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
     const fullPrefix = `${versionPrefix}${route.prefix}`;
 
     // Register wildcard route for the service
-    fastify.all(`${fullPrefix}`, {
-      schema: {
-        description: `Route to ${serviceName} service`,
-        tags: [serviceName],
+    fastify.all(
+      `${fullPrefix}`,
+      {
+        schema: {
+          description: `Route to ${serviceName} service`,
+          tags: [serviceName],
+        },
       },
-    }, createProxyHandler(serviceName, route, ''));
+      createProxyHandler(serviceName, route, ''),
+    );
 
-    fastify.all(`${fullPrefix}/*`, {
-      schema: {
-        description: `Route to ${serviceName} service`,
-        tags: [serviceName],
+    fastify.all(
+      `${fullPrefix}/*`,
+      {
+        schema: {
+          description: `Route to ${serviceName} service`,
+          tags: [serviceName],
+        },
       },
-    }, createProxyHandler(serviceName, route, fullPrefix));
+      createProxyHandler(serviceName, route, fullPrefix),
+    );
   }
 
   // Register a route listing all available services (no auth required)
-  fastify.get(`${versionPrefix}/services`, {
-    schema: {
-      description: 'List all registered backend services',
-      tags: ['Gateway'],
-      response: {
-        200: {
-          type: 'object',
-          properties: {
-            services: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  name: { type: 'string' },
-                  prefix: { type: 'string' },
-                  target: { type: 'string' },
+  fastify.get(
+    `${versionPrefix}/services`,
+    {
+      schema: {
+        description: 'List all registered backend services',
+        tags: ['Gateway'],
+        response: {
+          200: {
+            type: 'object',
+            properties: {
+              services: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    prefix: { type: 'string' },
+                    target: { type: 'string' },
+                  },
                 },
               },
             },
@@ -134,15 +148,16 @@ const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
         },
       },
     },
-  }, async (_request, _reply) => {
-    return {
-      services: Object.entries(services).map(([name, route]) => ({
-        name,
-        prefix: `${versionPrefix}${route.prefix}`,
-        target: route.target,
-      })),
-    };
-  });
+    async (_request, _reply) => {
+      return {
+        services: Object.entries(services).map(([name, route]) => ({
+          name,
+          prefix: `${versionPrefix}${route.prefix}`,
+          target: route.target,
+        })),
+      };
+    },
+  );
 };
 
 /** Build the outbound headers, dropping hop-by-hop entries. */
@@ -179,11 +194,7 @@ function buildForwardBody(request: FastifyRequest): BodyInit | undefined {
  * on network errors / timeouts. HTTP responses (including upstream 4xx/5xx)
  * are passed through unchanged.
  */
-function createProxyHandler(
-  serviceName: string,
-  route: ServiceRoute,
-  _fullPrefix: string,
-) {
+function createProxyHandler(serviceName: string, route: ServiceRoute, _fullPrefix: string) {
   const breaker = getBreaker(serviceName);
   const timeoutMs = route.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 

@@ -4,6 +4,7 @@ import {
   getAuthServiceUrl,
   refreshTokenCookieOptions,
 } from '@/lib/auth/cookies';
+import { sanitizeReturnTo } from '@/lib/auth/return-to';
 import { AUTH_COOKIES } from '@/lib/auth/session';
 
 /**
@@ -20,7 +21,7 @@ export async function GET(request: Request): Promise<NextResponse> {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const provider = url.searchParams.get('provider');
-  const returnTo = url.searchParams.get('returnTo') || '/';
+  const returnTo = sanitizeReturnTo(url.searchParams.get('returnTo'));
   const errorParam = url.searchParams.get('error');
 
   if (errorParam) {
@@ -83,11 +84,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     refreshTokenCookieOptions(),
   );
   if (data.session?.id) {
-    response.cookies.set(
-      AUTH_COOKIES.SESSION_ID,
-      data.session.id,
-      accessTokenCookieOptions(),
-    );
+    response.cookies.set(AUTH_COOKIES.SESSION_ID, data.session.id, accessTokenCookieOptions());
   }
   return response;
 }
@@ -98,7 +95,9 @@ function redirectToLogin(
 ): NextResponse {
   const loginUrl = new URL('/login', request.url);
   if (params.error) loginUrl.searchParams.set('error', params.error);
-  if (params.returnTo) loginUrl.searchParams.set('returnTo', params.returnTo);
+  if (params.returnTo) {
+    loginUrl.searchParams.set('returnTo', sanitizeReturnTo(params.returnTo));
+  }
   return NextResponse.redirect(loginUrl);
 }
 

@@ -21,10 +21,7 @@ import {
   type PasswordRating,
   type PasswordStrengthRule,
 } from '@proctira/ui/components';
-import {
-  scorePasswordDetails,
-  type PasswordScoreDetails,
-} from '@proctira/auth';
+import { scorePasswordDetails, type PasswordScoreDetails } from '@proctira/auth';
 import { OAuthIcon } from '@/components/auth/oauth-icon';
 import {
   DEFAULT_PRIVACY_VERSION,
@@ -33,7 +30,7 @@ import {
   signUp,
   type SignupRole,
 } from '@/lib/api/auth';
-import { OAUTH_PROVIDERS, getOAuthAuthorizeUrl } from '@/lib/auth';
+import { OAUTH_PROVIDERS, getOAuthAuthorizeUrl, sanitizeReturnTo } from '@/lib/auth';
 
 /**
  * `<SignUpForm>` — Next.js client component that renders the sign-up
@@ -91,10 +88,7 @@ const PASSWORD_RULES: readonly PasswordRule[] = [
 function gradePassword(password: string): PasswordGrade {
   if (!password) return { rating: 'weak', satisfied: 0, percent: 0 };
   const details = scorePasswordDetails(password);
-  const satisfied = PASSWORD_RULES.reduce(
-    (n, rule) => (rule.satisfied(details) ? n + 1 : n),
-    0,
-  );
+  const satisfied = PASSWORD_RULES.reduce((n, rule) => (rule.satisfied(details) ? n + 1 : n), 0);
   return {
     rating: details.rating,
     satisfied,
@@ -129,7 +123,7 @@ export function SignUpForm(): JSX.Element {
   const tCommon = useTranslations('common');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams.get('returnTo') || '/';
+  const returnTo = sanitizeReturnTo(searchParams.get('returnTo'));
 
   // Personal information + role + password fields.
   const [fullName, setFullName] = useState('');
@@ -196,10 +190,7 @@ export function SignUpForm(): JSX.Element {
   }, [t]);
 
   const grade = gradePassword(password);
-  const passwordDetails = useMemo(
-    () => scorePasswordDetails(password),
-    [password],
-  );
+  const passwordDetails = useMemo(() => scorePasswordDetails(password), [password]);
 
   function ratingLabel(rating: PasswordRating): string {
     switch (rating) {
@@ -229,8 +220,7 @@ export function SignUpForm(): JSX.Element {
     if (!fullName.trim()) next.fullName = t('fullNameRequired');
     if (!email.trim()) next.email = t('emailRequired');
     else if (!isLikelyEmail(email)) next.email = t('emailInvalid');
-    if (!institutionName.trim())
-      next.institution = t('institutionNameRequired');
+    if (!institutionName.trim()) next.institution = t('institutionNameRequired');
     if (!roleId) next.role = t('roleRequired');
     if (!password) next.password = t('passwordRequired');
     else if (grade.rating === 'weak') next.password = t('passwordTooWeak');
@@ -246,9 +236,7 @@ export function SignUpForm(): JSX.Element {
     termsAcceptedAtRef.current = checked ? new Date().toISOString() : null;
   }
 
-  async function handleSubmit(
-    event: React.FormEvent<HTMLFormElement>,
-  ): Promise<void> {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setFormError(null);
     const nextErrors = validate();
@@ -256,8 +244,7 @@ export function SignUpForm(): JSX.Element {
     if (Object.keys(nextErrors).length > 0) return;
 
     setIsSubmitting(true);
-    const acceptedAt =
-      termsAcceptedAtRef.current ?? new Date().toISOString();
+    const acceptedAt = termsAcceptedAtRef.current ?? new Date().toISOString();
 
     const result = await signUp({
       fullName: fullName.trim(),
@@ -304,12 +291,7 @@ export function SignUpForm(): JSX.Element {
           >
             {t('checkYourEmailToActivate', { email: confirmedEmail })}
           </p>
-          <Button
-            asChild
-            variant="link"
-            className="mt-6"
-            data-testid="signup-confirmation-back"
-          >
+          <Button asChild variant="link" className="mt-6" data-testid="signup-confirmation-back">
             <Link href="/login">{t('backToSignIn')}</Link>
           </Button>
         </CardContent>
@@ -331,31 +313,18 @@ export function SignUpForm(): JSX.Element {
         </header>
 
         {formError && (
-          <Alert
-            variant="destructive"
-            className="mb-4"
-            data-testid="signup-form-error"
-          >
+          <Alert variant="destructive" className="mb-4" data-testid="signup-form-error">
             <AlertDescription>{formError}</AlertDescription>
           </Alert>
         )}
 
         {rolesError && !formError && (
-          <Alert
-            variant="warning"
-            className="mb-4"
-            data-testid="signup-roles-error"
-          >
+          <Alert variant="warning" className="mb-4" data-testid="signup-roles-error">
             <AlertDescription>{rolesError}</AlertDescription>
           </Alert>
         )}
 
-        <form
-          onSubmit={handleSubmit}
-          noValidate
-          aria-label={t('signUp')}
-          className="space-y-5"
-        >
+        <form onSubmit={handleSubmit} noValidate aria-label={t('signUp')} className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor={fieldIds.fullName}>{t('fullName')}</Label>
@@ -370,9 +339,7 @@ export function SignUpForm(): JSX.Element {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 aria-invalid={errors.fullName ? 'true' : undefined}
-                aria-describedby={
-                  errors.fullName ? `${fieldIds.fullName}-error` : undefined
-                }
+                aria-describedby={errors.fullName ? `${fieldIds.fullName}-error` : undefined}
               />
               {errors.fullName && (
                 <p
@@ -398,9 +365,7 @@ export function SignUpForm(): JSX.Element {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 aria-invalid={errors.email ? 'true' : undefined}
-                aria-describedby={
-                  errors.email ? `${fieldIds.email}-error` : undefined
-                }
+                aria-describedby={errors.email ? `${fieldIds.email}-error` : undefined}
               />
               {errors.email && (
                 <p
@@ -416,9 +381,7 @@ export function SignUpForm(): JSX.Element {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor={fieldIds.institution}>
-                {t('institutionName')}
-              </Label>
+              <Label htmlFor={fieldIds.institution}>{t('institutionName')}</Label>
               <Input
                 id={fieldIds.institution}
                 name="institutionName"
@@ -430,11 +393,7 @@ export function SignUpForm(): JSX.Element {
                 value={institutionName}
                 onChange={(e) => setInstitutionName(e.target.value)}
                 aria-invalid={errors.institution ? 'true' : undefined}
-                aria-describedby={
-                  errors.institution
-                    ? `${fieldIds.institution}-error`
-                    : undefined
-                }
+                aria-describedby={errors.institution ? `${fieldIds.institution}-error` : undefined}
               />
               {errors.institution && (
                 <p
@@ -463,9 +422,7 @@ export function SignUpForm(): JSX.Element {
                 loadingPlaceholder={tCommon('loading')}
                 ariaLabel={t('yourRole')}
                 ariaInvalid={Boolean(errors.role)}
-                ariaDescribedBy={
-                  errors.role ? `${fieldIds.role}-error` : undefined
-                }
+                ariaDescribedBy={errors.role ? `${fieldIds.role}-error` : undefined}
                 data-testid="signup-role-trigger"
               />
               {errors.role && (
@@ -503,9 +460,7 @@ export function SignUpForm(): JSX.Element {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                  aria-label={
-                    showPassword ? t('hidePassword') : t('showPassword')
-                  }
+                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                   tabIndex={-1}
                 >
                   {showPassword ? (
@@ -527,9 +482,7 @@ export function SignUpForm(): JSX.Element {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor={fieldIds.confirmPassword}>
-                {t('confirmPassword')}
-              </Label>
+              <Label htmlFor={fieldIds.confirmPassword}>{t('confirmPassword')}</Label>
               <div className="relative">
                 <Input
                   id={fieldIds.confirmPassword}
@@ -542,9 +495,7 @@ export function SignUpForm(): JSX.Element {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   aria-invalid={errors.confirmPassword ? 'true' : undefined}
                   aria-describedby={
-                    errors.confirmPassword
-                      ? `${fieldIds.confirmPassword}-error`
-                      : undefined
+                    errors.confirmPassword ? `${fieldIds.confirmPassword}-error` : undefined
                   }
                   className="pe-10"
                 />
@@ -552,11 +503,7 @@ export function SignUpForm(): JSX.Element {
                   type="button"
                   onClick={() => setShowConfirmPassword((v) => !v)}
                   className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                  aria-label={
-                    showConfirmPassword
-                      ? t('hidePassword')
-                      : t('showPassword')
-                  }
+                  aria-label={showConfirmPassword ? t('hidePassword') : t('showPassword')}
                   tabIndex={-1}
                 >
                   {showConfirmPassword ? (
@@ -597,9 +544,7 @@ export function SignUpForm(): JSX.Element {
                 id={fieldIds.terms}
                 checked={agreedToTerms}
                 onCheckedChange={(value) => handleTermsToggle(value === true)}
-                aria-describedby={
-                  errors.terms ? `${fieldIds.terms}-error` : undefined
-                }
+                aria-describedby={errors.terms ? `${fieldIds.terms}-error` : undefined}
                 data-testid="signup-terms"
               />
               <span className="text-foreground">
@@ -611,7 +556,7 @@ export function SignUpForm(): JSX.Element {
                         <Link
                           key={`terms-${index}`}
                           href="/legal/terms"
-                          className="font-medium text-accent hover:underline"
+                          className="font-medium text-primary hover:underline"
                         >
                           {t('termsLinkLabel')}
                         </Link>
@@ -622,7 +567,7 @@ export function SignUpForm(): JSX.Element {
                         <Link
                           key={`privacy-${index}`}
                           href="/legal/privacy"
-                          className="font-medium text-accent hover:underline"
+                          className="font-medium text-primary hover:underline"
                         >
                           {t('privacyLinkLabel')}
                         </Link>
@@ -649,12 +594,7 @@ export function SignUpForm(): JSX.Element {
             className="w-full"
             data-testid="signup-submit"
           >
-            {isSubmitting && (
-              <Loader2
-                className="me-2 h-4 w-4 animate-spin"
-                aria-hidden="true"
-              />
-            )}
+            {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />}
             {isSubmitting ? t('creatingAccount') : t('signUp')}
           </Button>
         </form>
@@ -666,9 +606,7 @@ export function SignUpForm(): JSX.Element {
                 <div className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">
-                  {t('orSignUpWith')}
-                </span>
+                <span className="bg-card px-2 text-muted-foreground">{t('orSignUpWith')}</span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
@@ -698,7 +636,7 @@ export function SignUpForm(): JSX.Element {
           {t('alreadyHaveAccount')}{' '}
           <Link
             href={`/login${returnTo !== '/' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''}`}
-            className="font-medium text-accent hover:underline"
+            className="font-medium text-primary hover:underline"
           >
             {t('signInLink')}
           </Link>
@@ -706,7 +644,9 @@ export function SignUpForm(): JSX.Element {
         {/* Reference router so unused-var doesn't fire — preserved for
             future post-success client-side navigation parity with the
             login form. */}
-        <span hidden aria-hidden="true">{router ? '' : ''}</span>
+        <span hidden aria-hidden="true">
+          {router ? '' : ''}
+        </span>
       </CardContent>
     </Card>
   );

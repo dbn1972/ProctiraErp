@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { getWebAppLoginUrl } from '@/lib/site';
 import { cn } from '@/lib/utils';
 
 const PRIMARY_LINKS: ReadonlyArray<{ href: string; label: string }> = [
@@ -14,6 +15,8 @@ const PRIMARY_LINKS: ReadonlyArray<{ href: string; label: string }> = [
   { href: '/#pricing', label: 'Pricing' },
   { href: '/about', label: 'Company' },
 ];
+
+const LOGIN_HREF = getWebAppLoginUrl();
 
 /**
  * Public site header with primary navigation, brand mark, and login CTA.
@@ -39,15 +42,10 @@ export function SiteHeader() {
           >
             <span className="text-sm font-bold">O</span>
           </span>
-          <span className="text-lg font-semibold tracking-tight text-foreground">
-            ProctiraERP
-          </span>
+          <span className="text-lg font-semibold tracking-tight text-foreground">ProctiraERP</span>
         </Link>
 
-        <nav
-          className="hidden items-center gap-6 md:flex"
-          aria-label="Primary"
-        >
+        <nav className="hidden items-center gap-6 md:flex" aria-label="Primary">
           {PRIMARY_LINKS.map((item) => (
             <Link
               key={item.href}
@@ -61,7 +59,7 @@ export function SiteHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <Button asChild variant="ghost" size="sm">
-            <Link href="/login">Login</Link>
+            <Link href={LOGIN_HREF}>Login</Link>
           </Button>
           <Button asChild size="sm">
             <Link href="/contact">Contact sales</Link>
@@ -79,16 +77,17 @@ export function SiteHeader() {
           aria-label={open ? 'Close menu' : 'Open menu'}
           onClick={() => setOpen((value) => !value)}
         >
-          {open ? <X aria-hidden="true" className="h-5 w-5" /> : <Menu aria-hidden="true" className="h-5 w-5" />}
+          {open ? (
+            <X aria-hidden="true" className="h-5 w-5" />
+          ) : (
+            <Menu aria-hidden="true" className="h-5 w-5" />
+          )}
         </button>
       </div>
 
       {open ? (
         <div id="mobile-nav" className="border-t border-border md:hidden">
-          <nav
-            className="container flex flex-col gap-1 py-4"
-            aria-label="Primary mobile"
-          >
+          <nav className="container flex flex-col gap-1 py-4" aria-label="Primary mobile">
             {PRIMARY_LINKS.map((item) => (
               <Link
                 key={item.href}
@@ -101,7 +100,7 @@ export function SiteHeader() {
             ))}
             <div className="mt-2 flex flex-col gap-2">
               <Button asChild variant="outline" size="sm">
-                <Link href="/login" onClick={() => setOpen(false)}>
+                <Link href={LOGIN_HREF} onClick={() => setOpen(false)}>
                   Login
                 </Link>
               </Button>

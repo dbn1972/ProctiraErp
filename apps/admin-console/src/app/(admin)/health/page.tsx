@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import {
   Card,
   CardContent,
@@ -53,8 +54,10 @@ export default async function HealthPage() {
     <>
       <PageHeader
         title="System health"
-        description={`Snapshot generated ${formatDateTime(health.generatedAt)}${source === 'stub' ? ' (stub data)' : ''}.`}
+        description={`Snapshot generated ${formatDateTime(health.generatedAt)}.`}
       />
+
+      <StubDataBanner source={source} />
 
       {/* Adapter cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

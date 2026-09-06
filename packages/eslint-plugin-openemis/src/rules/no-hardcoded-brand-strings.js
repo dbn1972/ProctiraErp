@@ -1,9 +1,10 @@
 /**
  * @fileoverview ESLint rule that flags any literal occurrence of a tenant
- * brand name (default: "ProctiraERP", "EduZo") in source files. Charter §32 +
- * Design §M (Brand-Name Flexibility, Requirement 43): every visible brand
- * string MUST come from `useBrand()` / `<DocumentTitle>` / brand config so
- * white-label deployments can rename the product without touching code.
+ * brand name (default: "ProctiraERP", "Proctira", "EduZo") in source files.
+ * Charter §32 + Design §M (Brand-Name Flexibility, Requirement 43): every
+ * visible brand string MUST come from `useBrand()` / `<DocumentTitle>` /
+ * brand config so white-label deployments can rename the product without
+ * touching code.
  *
  * The rule inspects:
  *   - JSX text nodes ............... `<h1>ProctiraERP</h1>`
@@ -27,25 +28,24 @@
  *
  * Configuration (rule options object):
  *   {
- *     "brands": string[]   // brand names to flag (default: ["ProctiraERP", "EduZo"])
+ *     "brands": string[]   // brand names to flag (default: ["ProctiraERP", "Proctira", "EduZo"])
  *   }
  */
 
-"use strict";
+'use strict';
 
-const path = require("path");
+const path = require('path');
 
-const DEFAULT_BRANDS = ["ProctiraERP", "EduZo"];
+const DEFAULT_BRANDS = ['ProctiraERP', 'Proctira', 'EduZo'];
 
-const DOCS_URL =
-  "https://proctira.dev/docs/eslint/no-hardcoded-brand-strings";
+const DOCS_URL = 'https://proctira.dev/docs/eslint/no-hardcoded-brand-strings';
 
 /**
  * Escape a string so it can be embedded in a RegExp source.
  * @param {string} s
  */
 function escapeRegExp(s) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -65,14 +65,11 @@ function escapeRegExp(s) {
  * Non-matches: "proctira-data-grid", "@proctira/auth", "proctira.org",
  *              "TheProctiraERPClass", "myproctira2024", "proctira_token"
  */
-const IDENTIFIER_CHARS = "A-Za-z0-9\\-_./@:";
+const IDENTIFIER_CHARS = 'A-Za-z0-9\\-_./@:';
 
 function buildBrandRegex(brands) {
-  const alternation = brands.map((b) => escapeRegExp(b)).join("|");
-  return new RegExp(
-    `(?<![${IDENTIFIER_CHARS}])(${alternation})(?![${IDENTIFIER_CHARS}])`,
-    "gi",
-  );
+  const alternation = brands.map((b) => escapeRegExp(b)).join('|');
+  return new RegExp(`(?<![${IDENTIFIER_CHARS}])(${alternation})(?![${IDENTIFIER_CHARS}])`, 'gi');
 }
 
 /**
@@ -82,8 +79,8 @@ function buildBrandRegex(brands) {
  * works because all the patterns we test are suffix-matches.
  */
 function normalizePath(filename) {
-  if (!filename) return "";
-  return filename.split(path.sep).join("/");
+  if (!filename) return '';
+  return filename.split(path.sep).join('/');
 }
 
 /**
@@ -118,22 +115,22 @@ function isBrandMarkedLocaleCatalog(filename, sourceText) {
 /** @type {import('eslint').Rule.RuleModule} */
 module.exports = {
   meta: {
-    type: "problem",
+    type: 'problem',
     docs: {
       description:
         "Disallow hardcoded tenant brand names (e.g. 'ProctiraERP', 'EduZo') in source code; resolve them from `useBrand()` / brand config so the platform stays white-label-friendly.",
-      category: "Best Practices",
+      category: 'Best Practices',
       recommended: true,
       url: DOCS_URL,
     },
     schema: [
       {
-        type: "object",
+        type: 'object',
         additionalProperties: false,
         properties: {
           brands: {
-            type: "array",
-            items: { type: "string", minLength: 1 },
+            type: 'array',
+            items: { type: 'string', minLength: 1 },
             uniqueItems: true,
             minItems: 1,
           },
@@ -141,20 +138,16 @@ module.exports = {
       },
     ],
     messages: {
-      hardcoded:
-        'Brand string "{{brand}}" must come from useBrand() / brand config.',
+      hardcoded: 'Brand string "{{brand}}" must come from useBrand() / brand config.',
     },
   },
 
   create(context) {
     const options = context.options[0] || {};
     const brands =
-      Array.isArray(options.brands) && options.brands.length > 0
-        ? options.brands
-        : DEFAULT_BRANDS;
+      Array.isArray(options.brands) && options.brands.length > 0 ? options.brands : DEFAULT_BRANDS;
 
-    const filename =
-      typeof context.getFilename === "function" ? context.getFilename() : "";
+    const filename = typeof context.getFilename === 'function' ? context.getFilename() : '';
 
     if (isStaticAllowlistedFile(filename)) {
       return {};
@@ -162,10 +155,8 @@ module.exports = {
 
     // Locale-catalog allowlist needs the source text to look for the marker.
     const sourceCode =
-      typeof context.getSourceCode === "function"
-        ? context.getSourceCode()
-        : context.sourceCode;
-    const sourceText = sourceCode && sourceCode.getText ? sourceCode.getText() : "";
+      typeof context.getSourceCode === 'function' ? context.getSourceCode() : context.sourceCode;
+    const sourceText = sourceCode && sourceCode.getText ? sourceCode.getText() : '';
     if (isBrandMarkedLocaleCatalog(filename, sourceText)) {
       return {};
     }
@@ -177,13 +168,13 @@ module.exports = {
      * lastIndex for each call so it can be reused safely.
      */
     function reportMatches(node, text) {
-      if (typeof text !== "string" || text.length === 0) return;
+      if (typeof text !== 'string' || text.length === 0) return;
       brandRegex.lastIndex = 0;
       let match;
       while ((match = brandRegex.exec(text)) !== null) {
         context.report({
           node,
-          messageId: "hardcoded",
+          messageId: 'hardcoded',
           data: { brand: match[1] },
         });
         // Guard against zero-width matches (shouldn't happen for our regex
@@ -203,24 +194,21 @@ module.exports = {
       const parent = node.parent;
       if (!parent) return false;
       if (
-        (parent.type === "ImportDeclaration" ||
-          parent.type === "ExportAllDeclaration" ||
-          parent.type === "ExportNamedDeclaration") &&
+        (parent.type === 'ImportDeclaration' ||
+          parent.type === 'ExportAllDeclaration' ||
+          parent.type === 'ExportNamedDeclaration') &&
         parent.source === node
       ) {
         return true;
       }
-      if (
-        parent.type === "ImportExpression" &&
-        parent.source === node
-      ) {
+      if (parent.type === 'ImportExpression' && parent.source === node) {
         return true;
       }
       if (
-        parent.type === "CallExpression" &&
+        parent.type === 'CallExpression' &&
         parent.callee &&
-        parent.callee.type === "Identifier" &&
-        parent.callee.name === "require" &&
+        parent.callee.type === 'Identifier' &&
+        parent.callee.name === 'require' &&
         parent.arguments[0] === node
       ) {
         return true;
@@ -236,7 +224,7 @@ module.exports = {
 
       // String literals: title="ProctiraERP", { title: "ProctiraERP" }, etc.
       Literal(node) {
-        if (typeof node.value !== "string") return;
+        if (typeof node.value !== 'string') return;
         if (isModuleSpecifierLiteral(node)) return;
         reportMatches(node, node.value);
       },
@@ -244,7 +232,7 @@ module.exports = {
       // Template literals: `Welcome to ProctiraERP, ${user}`
       TemplateElement(node) {
         const cooked = node.value && node.value.cooked;
-        if (typeof cooked !== "string" || cooked.length === 0) return;
+        if (typeof cooked !== 'string' || cooked.length === 0) return;
         reportMatches(node, cooked);
       },
     };

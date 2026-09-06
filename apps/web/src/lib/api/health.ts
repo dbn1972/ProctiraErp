@@ -1,7 +1,8 @@
 /**
  * Health service client.
  *
- * Validates: Requirement 12.1 — health records, special needs, counselling.
+ * Validates: Requirement 12.1 — health records, special needs, counselling,
+ * screenings.
  *
  * Access control: Backend health-service enforces role-based access. Pages
  * call requireSession() and pass the access token through gatewayFetch.
@@ -40,17 +41,33 @@ export interface CounsellingSession {
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
 }
 
+export interface ScreeningProgram {
+  id: string;
+  name: string;
+  description?: string | null;
+  gradeLevel: string;
+  assessmentTypes: string[];
+  scheduledDate?: string | null;
+  status: string;
+}
+
 /**
  * Returns true when the user has the role required to access health records.
- * Health PII access is gated to: HEALTH_OFFICER, NURSE, ADMIN, SUPER_ADMIN.
+ * Accepts UI enum names and backend snake_case roles.
  */
 export function canAccessHealthRecords(roles: Array<{ roleName: string }>): boolean {
   const allowed = new Set([
     'HEALTH_OFFICER',
     'NURSE',
-    'ADMIN',
+    'HEALTH_ADMIN',
     'SUPER_ADMIN',
-    'PRINCIPAL',
+    'SYSTEM_ADMIN',
+    'COUNSELLOR',
+    'health_officer',
+    'school_nurse',
+    'health_admin',
+    'system_admin',
+    'counsellor',
   ]);
   return roles.some((role) => allowed.has(role.roleName));
 }
@@ -82,6 +99,14 @@ export async function listSpecialNeeds(): Promise<SpecialNeedRecord[]> {
 export async function listCounsellingSessions(): Promise<CounsellingSession[]> {
   const result = await gatewayFetch<{ data: CounsellingSession[] }>(
     '/health/counselling',
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function listScreeningPrograms(): Promise<ScreeningProgram[]> {
+  const result = await gatewayFetch<{ data: ScreeningProgram[] }>(
+    '/health/screenings',
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
