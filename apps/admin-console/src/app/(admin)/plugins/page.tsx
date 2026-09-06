@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { listPlugins } from '@/lib/api/plugins';
 import { requireRole } from '@/lib/auth/server';
@@ -26,7 +27,7 @@ import { formatDate } from '@/lib/utils';
 
 export default async function PluginsPage() {
   await requireRole('plugins', '/plugins');
-  const { plugins } = await listPlugins();
+  const { plugins, source } = await listPlugins();
 
   const reviewQueue = plugins.filter(
     (p) => p.status === 'submitted' || p.status === 'in_review',
@@ -41,6 +42,8 @@ export default async function PluginsPage() {
         title="Plugin marketplace"
         description="Third-party submissions are sandboxed and manually reviewed before any tenant can install them. Decide approve / reject / revoke / disable."
       />
+
+      <StubDataBanner source={source} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">

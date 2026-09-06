@@ -16,6 +16,7 @@ import {
   Input,
 } from '@proctira/ui/components';
 import { getTenantConfig } from '@/lib/api/admin.server';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,6 +44,11 @@ export default async function TenantConfigPage() {
           </Button>
         ) : null}
       </div>
+
+      <ScaffoldModeBanner
+        surface="Admin tenant"
+        detail="Nested admin UI scaffold. Settings form stays empty when tenant admin APIs are offline."
+      />
 
       {config ? (
         <form id="tenant-config-form" className="space-y-6">

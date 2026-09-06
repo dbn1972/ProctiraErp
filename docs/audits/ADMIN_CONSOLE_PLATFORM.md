@@ -47,11 +47,12 @@ Backend unit/property: ☑ pass — `pnpm --filter @proctira/admin-console test`
 
 ## 2. E2E (Playwright)
 
-| Journey                             | Spec file                                                | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                      |
-| ----------------------------------- | -------------------------------------------------------- | ---------------------------- | ------- | ------ | ----------------------------- |
-| Public login / forbidden / redirect | `apps/admin-console/e2e/01-platform-admin-smoke.spec.ts` | N/A public                   | ☐       | ☐      | Spec added                    |
-| Authenticated inventory             | same                                                     | ☐ gated                      | ☐       | ☐      | Needs seeded operator session |
-| Negative / open-redirect            | unit + public e2e                                        | ☑ unit                       | n/a     | n/a    | `return-to.test.ts`           |
+| Journey                             | Spec file                                                          | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                      |
+| ----------------------------------- | ------------------------------------------------------------------ | ---------------------------- | ------- | ------ | --------------------------------------------- |
+| Public login / forbidden / redirect | `apps/admin-console/e2e/01-platform-admin-smoke.spec.ts`           | N/A public                   | ☐       | ☐      | Spec added                                    |
+| Inventory 200 + h1 (stub JWT)       | `apps/admin-console/e2e/02-platform-admin-inventory-smoke.spec.ts` | N/A ungated                  | ☐       | ☐      | Always runs; fake `platform_admin` cookie     |
+| Authenticated live inventory        | `01-platform-admin-smoke.spec.ts`                                  | ☐ gated                      | ☐       | ☐      | Needs seeded operator + live gateway          |
+| Negative / open-redirect            | unit + public e2e                                                  | ☑ unit                       | n/a     | n/a    | `return-to.test.ts`                           |
 
 ---
 
@@ -102,10 +103,11 @@ Horizontal scroll / clipped CTA: not visually verified this pass.
 
 ## 7. Residual risks / waivers
 
-1. **Live operator IdP / auth-service E2E** — authenticated inventory gated; public smokes always runnable once Playwright deps installed.
-2. **API stubs** — many list/detail pages still use stub data (`source: 'stub'`).
-3. **Dark / axe / mobile capture packs** — not wired for admin-console this pass.
-4. **JWT signature** — middleware/session decode structure + expiry only; signature verified upstream.
-5. **Deploy registry** — infra Build Images failures are not feature blockers.
+1. **Live operator IdP / auth-service E2E** — live write journeys still gated on `E2E_BACKEND_READY`; ungated inventory smoke (`02-…`) covers 200+h1 with stub JWT.
+2. **API stubs (residual)** — tenants/plans/plugins/themes/break-glass/support/health/audit clients still fall back to deterministic fixtures when the gateway is unreachable. UI now shows a clear **Stub / demo mode** banner (`data-testid="stub-data-banner"`). Do not treat stub KPIs as production metrics.
+3. **Write paths offline** — tenant provision, plugin/theme decisions, and break-glass create/approve can succeed against stubs without creating live schema, marketplace, or elevated sessions.
+4. **Dark / axe / mobile capture packs** — not wired for admin-console this pass (no invented screenshots).
+5. **JWT signature** — middleware/session decode structure + expiry only; signature verified upstream.
+6. **Deploy registry** — infra Build Images failures are not feature blockers.
 
-**Verdict:** Auth harden + enterprise evidence hooks **Ready with waivers** above.
+**Verdict:** Honesty banners + ungated inventory smoke improve readiness; **live gateway wiring still required** before production claim.

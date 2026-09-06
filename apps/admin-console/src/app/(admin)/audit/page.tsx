@@ -1,6 +1,7 @@
 import { ShieldCheck } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import {
   Card,
   CardContent,
@@ -31,7 +32,7 @@ export default async function AuditPage({
   searchParams: { q?: string; resourceType?: string; tenantId?: string };
 }) {
   await requireRole('audit', '/audit');
-  const [{ entries }, { tenants }] = await Promise.all([
+  const [auditResult, tenantsResult] = await Promise.all([
     listAudit({
       search: searchParams?.q,
       resourceType: searchParams?.resourceType,
@@ -39,6 +40,8 @@ export default async function AuditPage({
     }),
     listTenants(),
   ]);
+  const { entries, source } = auditResult;
+  const { tenants } = tenantsResult;
 
   // Resolve tenant IDs to names so raw UUIDs are never surfaced.
   const tenantName = new Map(tenants.map((t) => [t.id, t.name]));
@@ -53,6 +56,8 @@ export default async function AuditPage({
         title="Audit log"
         description="Platform-wide record of admin actions, break-glass grants, and lifecycle events."
       />
+
+      <StubDataBanner source={source} />
 
       <Alert variant="info" className="mb-6">
         <ShieldCheck className="h-4 w-4" />

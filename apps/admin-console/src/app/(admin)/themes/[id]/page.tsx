@@ -1,7 +1,8 @@
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { MissingResource } from '@/components/missing-resource';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -24,8 +25,18 @@ export default async function ThemeDetailPage({
   params: { id: string };
 }) {
   await requireRole('themes', `/themes/${params.id}`);
-  const theme = await getTheme(params.id);
-  if (!theme) notFound();
+  const { theme, source } = await getTheme(params.id);
+  if (!theme) {
+    return (
+      <MissingResource
+        title="Theme"
+        resourceLabel="Theme"
+        id={params.id}
+        backHref="/themes"
+        backLabel="Back to themes"
+      />
+    );
+  }
 
   return (
     <>
@@ -39,10 +50,13 @@ export default async function ThemeDetailPage({
         }
       />
 
+      <StubDataBanner source={source} />
+
       <div className="mb-6 flex items-center gap-3">
         <StatusBadge status={theme.status} />
         <span className="text-sm text-muted-foreground">
-          Submitted {formatDateTime(theme.submittedAt)} · {theme.tokenOverrides} token overrides
+          Submitted {formatDateTime(theme.submittedAt)} · {theme.tokenOverrides}{' '}
+          token overrides
         </span>
       </div>
 

@@ -25,6 +25,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { listGeoFeatures } from '@/lib/api/data-warehouse';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,6 +56,11 @@ export default async function DataWarehouseMapPage() {
           </p>
         </div>
       </div>
+
+      <ScaffoldModeBanner
+        surface="GIS map"
+        detail="Interactive Leaflet/MapLibre is progressive-enhancement. Empty feature lists mean the warehouse map API is offline — not fabricated coordinates."
+      />
 
       <Card>
         <CardHeader className="pb-3">

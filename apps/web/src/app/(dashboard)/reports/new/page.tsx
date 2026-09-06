@@ -23,6 +23,7 @@ import {
 } from '@proctira/ui/components';
 import { getReportTemplate, listReportTemplates } from '@/lib/api/reports';
 import type { ReportTemplate, ReportFilter } from '@/lib/api/reports';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 interface PageProps {
   searchParams?: Record<string, string | string[] | undefined>;
@@ -57,6 +58,11 @@ export default async function NewReportPage({ searchParams }: PageProps) {
           Pick a template, set filters, and download once the run completes.
         </p>
       </div>
+
+      <ScaffoldModeBanner
+        surface="Report builder"
+        detail="Builder UI is interactive for layout review. Generating/downloading a run requires a live reports service — empty template lists mean the gateway is offline."
+      />
 
       <Card className="max-w-[860px]">
         <CardHeader>

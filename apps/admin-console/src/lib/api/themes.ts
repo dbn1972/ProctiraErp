@@ -73,10 +73,17 @@ export async function listThemes(): Promise<{
   return { themes: STUB_THEMES, source: 'stub' };
 }
 
-export async function getTheme(id: string): Promise<ThemeSubmission | null> {
+export async function getTheme(
+  id: string,
+): Promise<{ theme: ThemeSubmission | null; source: 'gateway' | 'stub' }> {
   const response = await gatewayFetch<ThemeSubmission>(`/themes/${id}`);
-  if (response.ok && response.data) return response.data;
-  return STUB_THEMES.find((t) => t.id === id) ?? null;
+  if (response.ok && response.data) {
+    return { theme: response.data, source: 'gateway' };
+  }
+  return {
+    theme: STUB_THEMES.find((t) => t.id === id) ?? null,
+    source: 'stub',
+  };
 }
 
 export async function themeAction(

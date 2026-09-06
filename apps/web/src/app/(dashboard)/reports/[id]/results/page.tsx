@@ -4,10 +4,12 @@
  * Validates: Requirement 17.1 — download generated report outputs.
  */
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 import { ArrowLeft, Download, FileBarChart } from 'lucide-react';
 
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Button,
   Card,
   CardContent,
@@ -21,6 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { cn } from '@/lib/utils';
 import {
   getReportTemplate,
@@ -38,7 +41,41 @@ export default async function ReportResultsPage({ params }: PageProps) {
     listReportRuns(params.id),
   ]);
 
-  if (!template) notFound();
+  if (!template) {
+    return (
+      <section aria-labelledby="report-runs-heading" className="space-y-6">
+        <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
+          <Link href="/reports">
+            <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Reports
+          </Link>
+        </Button>
+        <div>
+          <h1
+            id="report-runs-heading"
+            className="text-3xl font-extrabold tracking-tight text-foreground"
+          >
+            Report results
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Template unavailable for id{' '}
+            <code className="font-mono text-xs">{params.id}</code>.
+          </p>
+        </div>
+        <ScaffoldModeBanner
+          surface="Report results"
+          detail="The reports gateway did not return this template. Showing a stable empty/error state instead of inventing demo runs."
+        />
+        <Alert variant="warning">
+          <AlertTitle>Template not found</AlertTitle>
+          <AlertDescription>
+            No live template matched this id. Connect the reports service or pick a
+            template from the catalog.
+          </AlertDescription>
+        </Alert>
+      </section>
+    );
+  }
 
   const readyRuns = runs.filter((run) => run.status === 'READY').length;
 
@@ -59,11 +96,11 @@ export default async function ReportResultsPage({ params }: PageProps) {
           >
             {template.name}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {template.description}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{template.description}</p>
         </div>
       </div>
+
+      <ScaffoldModeBanner surface="Report results" />
 
       <Card>
         <CardHeader className="flex flex-row items-start gap-3 space-y-0">
@@ -74,8 +111,8 @@ export default async function ReportResultsPage({ params }: PageProps) {
             <CardTitle className="text-base">{template.name} results</CardTitle>
             <CardDescription>
               {template.module} · {runs.length.toLocaleString()} run
-              {runs.length === 1 ? '' : 's'} ·{' '}
-              {readyRuns.toLocaleString()} ready to download
+              {runs.length === 1 ? '' : 's'} · {readyRuns.toLocaleString()} ready to
+              download
             </CardDescription>
           </div>
         </CardHeader>
@@ -108,9 +145,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Past runs</CardTitle>
-          <CardDescription>
-            Reports generated for this template.
-          </CardDescription>
+          <CardDescription>Reports generated for this template.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {runs.length === 0 ? (

@@ -16,6 +16,7 @@ import {
   Card,
   CardContent,
 } from '@proctira/ui/components';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 const sections = [
   {
@@ -68,6 +69,11 @@ export default function AdminLandingPage() {
           </p>
         </div>
       </div>
+
+      <ScaffoldModeBanner
+        surface="Administration"
+        detail="Admin hub and nested settings are UI scaffolds. Nested lists stay empty when tenant admin APIs are offline rather than inventing accounts."
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         {sections.map((section) => {

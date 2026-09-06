@@ -93,10 +93,17 @@ export async function listPlugins(): Promise<{
   return { plugins: STUB_PLUGINS, source: 'stub' };
 }
 
-export async function getPlugin(id: string): Promise<PluginSubmission | null> {
+export async function getPlugin(
+  id: string,
+): Promise<{ plugin: PluginSubmission | null; source: 'gateway' | 'stub' }> {
   const response = await gatewayFetch<PluginSubmission>(`/plugins/${id}`);
-  if (response.ok && response.data) return response.data;
-  return STUB_PLUGINS.find((p) => p.id === id) ?? null;
+  if (response.ok && response.data) {
+    return { plugin: response.data, source: 'gateway' };
+  }
+  return {
+    plugin: STUB_PLUGINS.find((p) => p.id === id) ?? null,
+    source: 'stub',
+  };
 }
 
 export type PluginAction = 'approve' | 'revoke' | 'disable' | 'reject';
