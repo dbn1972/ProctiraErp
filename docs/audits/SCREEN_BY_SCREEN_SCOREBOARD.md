@@ -160,7 +160,7 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | 2026-09-06 | _(this tip)_ | Auth ungated matrix (chromium+mobile); Public axe+contact always-on+multidevice; Registration axe+multidevice; contrast a11y fixes                                              | Auth/Public/Registration **9.5**; program ~**9.3**  |
 | 2026-09-06 | _(this tip)_ | Mobile: goldens 10→16; Linux xvfb IT (login/tenant/students/attendance/notif); real `linux_*.png`; Inter fonts bundled; Android device-farm residual only                       | Mobile **9.3**; program ~**9.4**                    |
 | 2026-09-06 | _(this tip)_ | Other Portals: install CSRF/token BFF + bootstrap lock ungated smoke; backend 409 lock; API-key reserved-name harden; Playwright 15+7 pass                                      | Portals **9.5**; program ~**9.4**                   |
-| 2026-09-06 | _(pending tip)_ | WS4 board export packs: CBSE/ICSE/MH-STATE generators + 422 gate + Examinations UI; live cert smoke 3 packs | Examinations board exports **9.4**; product gap closed for 3 boards |
+| 2026-09-06 | `7902b9b` | WS4 board export packs: CBSE/ICSE/MH-STATE generators + 422 gate + Examinations UI; live cert smoke 3 packs | Examinations board exports **9.4**; product gap closed for 3 boards |
 
 ## How to read when you ask “updated score?”
 

@@ -1,7 +1,7 @@
 # DEV — SIS Board compliance export packs (WS4)
 
 **Capability / module:** Multi-board marksheet / exam export packs (CBSE · ICSE · MH-STATE)  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` (tip SHA pinned after push)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `7902b9b7e66558aaf6ac49e7a290ac6660551afa`  
 **Owner / agent:** cloud SERVER agent  
 **Date (UTC):** 2026-09-06  
 **Peer parity target:** Registrar / board officer can generate board-specific marksheet + exam result artifacts from live cert grades with job status/download and incomplete-grade 422 gate (PowerSchool / board-office export slice)  
