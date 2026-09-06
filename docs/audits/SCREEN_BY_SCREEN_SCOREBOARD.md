@@ -9,8 +9,8 @@
 
 | Metric | Value |
 | --- | --- |
-| Weighted program score | **8.7 / 10** (Services / Insights / Admin at 9.5; Auth/IdP + device-farm still cap program) |
-| Honest ceiling without IdP / device-farm | ~**8.7–9.0** |
+| Weighted program score | **9.0 / 10** (Services / Insights / Admin at 9.5; Portals 9.2; Mobile 9.1; Auth/IdP + device-farm still cap program) |
+| Honest ceiling without IdP / device-farm | ~**9.0–9.2** |
 | Claim when user asks | Always cite this file + tip SHA |
 
 ### Status legend
@@ -36,8 +36,8 @@
 | Platform Admin Console | 13 | **9.5** | 9.5 | Operator IdP / axe pack | Prefer-live gateway + expanded smokes |
 | Registration Portal | 7 | 9.0 | 9.5 | Live apply + axe + multidevice | Metadata-only draft + submit upload landed |
 | Public Website | 12 | 9.3 | 9.5 | Full status provider + axe | Webhook forward + honest status landed |
-| Other Portals | 5 | 8.0 | 9.5 | Live developer IdP/mint | Validation harden (demo residual) |
-| Mobile App (native) | 22 | 8.2 | 9.5 | Device-farm PNGs | Widget goldens expanded (login/home/students/attendance) |
+| Other Portals | 5 | **9.2** | 9.5 | Live developer IdP/mint + bootstrap lock | Axe + expanded ungated smokes + validation harden |
+| Mobile App (native) | 22 | **9.1** | 9.5 | Device-farm PNGs | Widget goldens 10 shells + analyze clean |
 
 ---
 
@@ -124,19 +124,19 @@
 | Status | 9.3 | Ready w/ waivers | External status provider |
 | Contact | 9.3 | Ready w/ waivers | Always-on CRM webhook in prod |
 
-### Other Portals (8.0 → 9.5)
+### Other Portals (9.2 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
-| Developer portal | 8.0 | Ready w/ waivers | Live key mint |
-| Install wizard | 8.0 | Ready w/ waivers | Live bootstrap lock proof |
+| Developer portal | 9.3 | Ready w/ waivers | Live key mint (waived 2026-09-06) |
+| Install wizard | 9.2 | Ready w/ waivers | Bootstrap lock + CSRF residual |
 
-### Mobile (8.2 → 9.5)
+### Mobile (9.1 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
-| Core journeys (18) | 8.2 | Ready w/ waivers | Device-farm PNGs (widget goldens: login/home/students/attendance) |
-| Notifications / Reports prefs (4) | 7.0 | Not formally audited | Formal inventory + goldens |
+| Core journeys (18) | 9.1 | Ready w/ waivers | Device-farm PNGs (widget goldens: 10 shells) |
+| Notifications / Reports prefs (4) | 9.0 | Ready w/ waivers | Device-farm PNGs |
 
 ---
 
@@ -149,7 +149,8 @@
 | 2026-09-06 | `c81ba96` | Mobile goldens; Health counselling create UI+API+smoke | counselling 8.5; Services ~8.1 |
 | 2026-09-06 | a0245f4+ | Academics exam POST + ATTENDANCE/ASSESSMENTS audits | Academics 8.4 |
 | 2026-09-06 | `8b87585` | Insights conditional scaffold + Admin `04` + Public | Insights/Admin ~8.2; Public 9.3 |
-| 2026-09-06 | _(this tip)_ | PG counselling; Insights/Admin live plugins; Services `19`/`17b`/`14c`/`05` | Services/Insights/Admin **9.5**; program ~**8.7** |
+| 2026-09-06 | `effdd5b` | PG counselling; Insights/Admin live plugins; Services `19`/`17b`/`14c`/`05` | Services/Insights/Admin **9.5** |
+| 2026-09-06 | `f201bf8` | Other Portals axe/smokes + Mobile goldens 10 shells | Portals **9.2**; Mobile **9.1**; program ~**9.0** |
 
 ## How to read when you ask “updated score?”
 
