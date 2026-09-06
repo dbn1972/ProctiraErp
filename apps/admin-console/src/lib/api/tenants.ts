@@ -104,6 +104,10 @@ export async function listTenants(params: ListTenantsParams = {}): Promise<{
     const items = response.data.items ?? response.data.data ?? [];
     return { tenants: items, source: 'gateway' };
   }
+  // Prefer live gateway: if the host responded, do not invent stub rows.
+  if (response.status > 0) {
+    return { tenants: [], source: 'gateway' };
+  }
 
   const filtered = STUB_TENANTS.filter((tenant) => {
     if (params.status && params.status !== 'all' && tenant.status !== params.status) {
@@ -128,6 +132,9 @@ export async function getTenant(
   const response = await gatewayFetch<Tenant>(`/tenants/${id}`);
   if (response.ok && response.data) {
     return { tenant: response.data, source: 'gateway' };
+  }
+  if (response.status > 0) {
+    return { tenant: null, source: 'gateway' };
   }
   return {
     tenant: STUB_TENANTS.find((t) => t.id === id) ?? null,

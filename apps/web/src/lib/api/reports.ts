@@ -87,3 +87,30 @@ export async function listReportRuns(templateId?: string): Promise<{
   }
   return { runs: [], source: 'scaffold' };
 }
+
+export interface GenerateReportInput {
+  templateId: string;
+  format: 'PDF' | 'XLSX' | 'CSV';
+  filters?: Record<string, string>;
+}
+
+/** Live write proof — POST /reports/generate against the Insights UI plugin. */
+export async function generateReport(input: GenerateReportInput): Promise<{
+  run: ReportRun | null;
+  source: ScaffoldDataSource;
+  error?: string;
+}> {
+  const result = await gatewayFetch<ReportRun>('/reports/generate', {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (result.ok && result.data) {
+    return { run: result.data, source: 'gateway' };
+  }
+  return {
+    run: null,
+    source: scaffoldSourceFromResponse(false, result.status),
+    error: result.error?.message ?? 'Failed to generate report',
+  };
+}

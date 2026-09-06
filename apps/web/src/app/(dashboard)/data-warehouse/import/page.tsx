@@ -60,10 +60,10 @@ export default async function DataWarehouseImportPage() {
       </div>
 
       <ScaffoldModeBanner
-        force
         source={source}
+        force={source === 'scaffold'}
         surface="Data warehouse import"
-        detail="Upload and database forms validate locally. Successful submits are demo acknowledgements only — no import jobs are queued without a live warehouse API."
+        detail="Upload and database forms validate locally. When the gateway responds, submits queue POST /data-warehouse/import/jobs."
       />
 
       <ImportStepper activeIndex={0} />
@@ -77,7 +77,7 @@ export default async function DataWarehouseImportPage() {
         </Button>
       </div>
 
-      <ImportSourceForms />
+      <ImportSourceForms liveImport={source === 'gateway'} />
 
       <Card className="overflow-hidden">
         <CardHeader className="pb-3">

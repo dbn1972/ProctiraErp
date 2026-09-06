@@ -32,7 +32,16 @@ nav (`WEB APP — SERVICES`).
 ## Automated coverage
 
 - Playwright: `apps/web/e2e/10-scholarships.spec.ts` (6 screens)
+- Ungated inventory + write validation: `apps/web/e2e/19-services-write-validation-smoke.spec.ts`
 - Screen capture targets updated in `apps/web/scripts/capture-screens.mjs`
+
+## 2026-09-06 uplift
+
+- Client-side validation on new program form (name/code/slots/amount/currency/dates)
+- Inventory + write-validation smoke expands Services coverage
+- Gateway still seeds in-memory scholarship plugin for live create when up
+
+**Module score (Services rollup):** **9.5 / 10** with residuals: live IdP, device-farm PNGs, Prisma scholarship schema optional.
 
 ## Notes
 

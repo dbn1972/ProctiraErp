@@ -79,3 +79,30 @@ export async function listGeoFeatures(): Promise<{
   }
   return { features: [], source: 'scaffold' };
 }
+
+export interface CreateImportJobInput {
+  source: 'EXCEL' | 'CSV' | 'DATABASE';
+  filename: string;
+  rows?: number;
+}
+
+/** Live write proof — POST /data-warehouse/import/jobs. */
+export async function createImportJob(input: CreateImportJobInput): Promise<{
+  job: DwImportJob | null;
+  source: ScaffoldDataSource;
+  error?: string;
+}> {
+  const result = await gatewayFetch<DwImportJob>('/data-warehouse/import/jobs', {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (result.ok && result.data) {
+    return { job: result.data, source: 'gateway' };
+  }
+  return {
+    job: null,
+    source: result.status > 0 ? 'gateway' : 'scaffold',
+    error: result.error?.message ?? 'Failed to create import job',
+  };
+}

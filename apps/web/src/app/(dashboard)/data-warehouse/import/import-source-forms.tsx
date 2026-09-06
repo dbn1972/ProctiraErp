@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { Database, FileSpreadsheet, FileText } from 'lucide-react';
 
 import {
@@ -17,26 +17,32 @@ import {
   Input,
 } from '@proctira/ui/components';
 
+import { createImportJobAction } from '../../reports/actions';
+
 /**
  * Import source forms with client-side validation.
- * Submit stays demo-only until the warehouse import API is wired.
+ * When `liveImport` is true, queues jobs via POST /data-warehouse/import/jobs.
  */
-export function ImportSourceForms() {
+export function ImportSourceForms({ liveImport = false }: { liveImport?: boolean }) {
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-3" data-live-import={liveImport ? 'true' : 'false'}>
       <FileImportCard
         icon={<FileSpreadsheet className="h-6 w-6" aria-hidden="true" />}
         title="Excel"
         description="Upload an .xlsx workbook (max 50 MB)."
         accept=".xlsx,.xls"
+        source="EXCEL"
+        liveImport={liveImport}
       />
       <FileImportCard
         icon={<FileText className="h-6 w-6" aria-hidden="true" />}
         title="CSV"
         description="Upload a .csv file with a header row."
         accept=".csv"
+        source="CSV"
+        liveImport={liveImport}
       />
-      <DatabaseImportCard />
+      <DatabaseImportCard liveImport={liveImport} />
     </div>
   );
 }
@@ -46,19 +52,24 @@ function FileImportCard({
   title,
   description,
   accept,
+  source,
+  liveImport,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
   accept: string;
+  source: 'EXCEL' | 'CSV';
+  liveImport: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const [demoMessage, setDemoMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setDemoMessage(null);
+    setMessage(null);
     const form = event.currentTarget;
     const input = form.elements.namedItem('file') as HTMLInputElement | null;
     const file = input?.files?.[0];
@@ -66,9 +77,26 @@ function FileImportCard({
       setError(`Choose a ${title} file before uploading.`);
       return;
     }
-    setDemoMessage(
-      `Demo only — “${file.name}” was validated locally. No import job was queued (warehouse API not connected).`,
-    );
+
+    if (!liveImport) {
+      setMessage(
+        `Demo only — “${file.name}” was validated locally. No import job was queued (warehouse API not connected).`,
+      );
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await createImportJobAction({
+        source,
+        filename: file.name,
+        rows: 0,
+      });
+      if (result.status === 'error') {
+        setError(result.message ?? 'Failed to queue import');
+        return;
+      }
+      setMessage(result.message ?? `Import job ${result.id} queued.`);
+    });
   }
 
   return (
@@ -90,7 +118,7 @@ function FileImportCard({
             aria-invalid={Boolean(error)}
             onChange={() => {
               setError(null);
-              setDemoMessage(null);
+              setMessage(null);
             }}
           />
           {error && (
@@ -98,14 +126,21 @@ function FileImportCard({
               {error}
             </p>
           )}
-          {demoMessage && (
-            <Alert variant="warning" data-testid={`${title.toLowerCase()}-demo-submit`}>
-              <AlertTitle>Demo submit</AlertTitle>
-              <AlertDescription>{demoMessage}</AlertDescription>
+          {message && (
+            <Alert
+              variant={liveImport ? 'default' : 'warning'}
+              data-testid={
+                liveImport
+                  ? `${title.toLowerCase()}-live-submit`
+                  : `${title.toLowerCase()}-demo-submit`
+              }
+            >
+              <AlertTitle>{liveImport ? 'Import queued' : 'Demo submit'}</AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
-          <Button type="submit" size="sm">
-            Upload
+          <Button type="submit" size="sm" disabled={pending}>
+            {pending ? 'Uploading…' : 'Upload'}
           </Button>
         </form>
       </CardContent>
@@ -113,14 +148,15 @@ function FileImportCard({
   );
 }
 
-function DatabaseImportCard() {
+function DatabaseImportCard({ liveImport }: { liveImport: boolean }) {
   const [error, setError] = useState<string | null>(null);
-  const [demoMessage, setDemoMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setDemoMessage(null);
+    setMessage(null);
     const form = event.currentTarget;
     const connection = (
       form.elements.namedItem('connection') as HTMLInputElement | null
@@ -133,9 +169,26 @@ function DatabaseImportCard() {
       setError('Enter a connection URL such as postgres://user:pass@host/db.');
       return;
     }
-    setDemoMessage(
-      'Demo only — connection string validated locally. No remote database pull was started.',
-    );
+
+    if (!liveImport) {
+      setMessage(
+        'Demo only — connection string validated locally. No remote database pull was started.',
+      );
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await createImportJobAction({
+        source: 'DATABASE',
+        filename: connection.replace(/:\/\/.*@/, '://***@').slice(0, 80),
+        rows: 0,
+      });
+      if (result.status === 'error') {
+        setError(result.message ?? 'Failed to queue import');
+        return;
+      }
+      setMessage(result.message ?? `Import job ${result.id} queued.`);
+    });
   }
 
   return (
@@ -159,7 +212,7 @@ function DatabaseImportCard() {
               aria-invalid={Boolean(error)}
               onChange={() => {
                 setError(null);
-                setDemoMessage(null);
+                setMessage(null);
               }}
             />
           </FormField>
@@ -168,14 +221,17 @@ function DatabaseImportCard() {
               {error}
             </p>
           )}
-          {demoMessage && (
-            <Alert variant="warning" data-testid="database-demo-submit">
-              <AlertTitle>Demo submit</AlertTitle>
-              <AlertDescription>{demoMessage}</AlertDescription>
+          {message && (
+            <Alert
+              variant={liveImport ? 'default' : 'warning'}
+              data-testid={liveImport ? 'database-live-submit' : 'database-demo-submit'}
+            >
+              <AlertTitle>{liveImport ? 'Import queued' : 'Demo submit'}</AlertTitle>
+              <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
-          <Button type="submit" size="sm">
-            Import
+          <Button type="submit" size="sm" disabled={pending}>
+            {pending ? 'Importing…' : 'Import'}
           </Button>
         </form>
       </CardContent>

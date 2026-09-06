@@ -105,6 +105,9 @@ export async function listBreakGlassRequests(): Promise<{
       source: 'gateway',
     };
   }
+  if (response.status > 0) {
+    return { requests: [], source: 'gateway' };
+  }
   return { requests: STUB_REQUESTS, source: 'stub' };
 }
 

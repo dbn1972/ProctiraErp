@@ -70,7 +70,13 @@ export function NewDefinitionForm() {
   return (
     <Card className="max-w-[860px]">
       <CardContent className="p-6">
-        <form className="space-y-5" noValidate onSubmit={onSubmit}>
+        <form
+          className="space-y-5"
+          noValidate
+          onSubmit={onSubmit}
+          aria-label="Create workflow definition"
+          data-testid="workflow-definition-form"
+        >
           <FormField id="wf-name" label="Workflow name" required>
             <Input
               id="wf-name"
@@ -103,7 +109,7 @@ export function NewDefinitionForm() {
           </FormField>
 
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-destructive" role="alert" data-testid="workflow-definition-error">
               {error}
             </p>
           ) : null}

@@ -41,6 +41,35 @@ export function NewProgramForm() {
     const applicationEndDate = String(fd.get('applicationEndDate') ?? '');
     const eligibilityNotes = String(fd.get('eligibility') ?? '').trim();
 
+    if (!name) {
+      setError('Program name is required.');
+      return;
+    }
+    if (!code) {
+      setError('Program code is required.');
+      return;
+    }
+    if (!Number.isFinite(totalSlots) || totalSlots < 1) {
+      setError('Total slots must be at least 1.');
+      return;
+    }
+    if (!Number.isFinite(awardAmount) || awardAmount <= 0) {
+      setError('Award amount must be greater than 0.');
+      return;
+    }
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      setError('Currency must be a 3-letter ISO code.');
+      return;
+    }
+    if (!applicationStartDate || !applicationEndDate) {
+      setError('Application window dates are required.');
+      return;
+    }
+    if (applicationEndDate < applicationStartDate) {
+      setError('Application end date must be on or after the start date.');
+      return;
+    }
+
     startTransition(async () => {
       setError(null);
       const result = await createScholarshipProgramAction({
@@ -73,7 +102,13 @@ export function NewProgramForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-5" noValidate onSubmit={onSubmit}>
+        <form
+          className="space-y-5"
+          noValidate
+          onSubmit={onSubmit}
+          aria-label="Create scholarship program"
+          data-testid="scholarship-program-form"
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="program-name" label="Name" required>
               <Input
@@ -123,7 +158,7 @@ export function NewProgramForm() {
           </FormField>
 
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-destructive" role="alert" data-testid="scholarship-program-error">
               {error}
             </p>
           ) : null}

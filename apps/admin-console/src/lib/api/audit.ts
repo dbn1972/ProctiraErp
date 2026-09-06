@@ -99,6 +99,9 @@ export async function listAudit(
       source: 'gateway',
     };
   }
+  if (response.status > 0) {
+    return { entries: [], source: 'gateway' };
+  }
 
   const filtered = STUB_ENTRIES.filter((entry) => {
     if (query.actor && entry.actor !== query.actor) return false;

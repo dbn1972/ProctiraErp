@@ -9,12 +9,13 @@
  *
  * Persistence status (current schema):
  *  - student / institution / staff (incl. assignments) / attendance /
- *    assessment / examination / scholarship: Prisma-backed (Postgres + RLS)
- *    via their create*Repository factories when DATABASE_URL is set, else
- *    in-memory (scholarship + health + workflows currently seed in-memory
- *    demo data for redesign UI aggregates).
- *  - assessment report-card repositories are not wired yet (no Prisma
- *    implementation); report-card routes stay disabled.
+ *    assessment / examination: Prisma-backed (Postgres + RLS) via their
+ *    create*Repository factories when DATABASE_URL is set, else in-memory.
+ *  - health counselling: raw SQL + `pg` when DATABASE_URL is set (no Prisma);
+ *    other health entities + scholarships + workflows seed in-memory.
+ *  - insights / platform-admin: in-process UI aggregates with write endpoints.
+ *  - assessment report-card repositories are not wired yet; report-card routes
+ *    stay disabled.
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -32,7 +33,7 @@ import {
   createResultRepository,
   examinationPlugin,
 } from '@proctira/backend-examination';
-import { healthPlugin, InMemoryHealthRepository } from '@proctira/backend-health';
+import { healthPlugin, createHealthRepository } from '@proctira/backend-health';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
@@ -46,10 +47,11 @@ import type { FastifyInstance } from 'fastify';
 import type { GatewayConfig } from './config.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
+import { insightsUiPlugin } from './insights-ui-plugin.js';
+import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 import { createWorkflowUiSeed } from './workflow-ui-seed.js';
-
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
   /** Logical name (for logging). */
@@ -159,20 +161,44 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'health',
     proxyPrefixes: ['/health'],
     register: async (scope) => {
-      // In-memory domain plugin + redesign UI aggregates until Prisma health
-      // models land. UI routes must register before/with the domain plugin so
-      // App Router pages can list records / special needs / counselling /
-      // screenings without composing student-scoped resource calls.
-      const repository = new InMemoryHealthRepository();
-      // UI aggregates first so redesign list paths are stable; domain CRUD
-      // remains available under resource-scoped paths.
+      // Postgres counselling overlay when DATABASE_URL is set (raw pg, no Prisma).
+      // Other health entities stay in-memory until their SQL schemas land.
+      // UI aggregates merge seed + live counselling writes for list sync.
+      const repository = createHealthRepository();
       await scope.register(healthUiPlugin, {
         seed: createHealthUiSeed(),
+        repository,
       });
       await scope.register(healthPlugin, {
         repository,
         prefix: '/health',
       });
+    },
+  },
+  {
+    name: 'insights',
+    proxyPrefixes: ['/reports', '/data-warehouse'],
+    register: async (scope) => {
+      // Redesign Insights UI aggregates (templates / runs / DW indicators /
+      // import jobs / map features) with in-process write endpoints so App
+      // Router banners can hide when the gateway responds.
+      await scope.register(insightsUiPlugin);
+    },
+  },
+  {
+    name: 'platform-admin',
+    proxyPrefixes: [
+      '/tenants',
+      '/plugins',
+      '/break-glass',
+      '/plans',
+      '/themes',
+      '/platform',
+      '/audit',
+    ],
+    register: async (scope) => {
+      // Prefer live gateway responses for Platform Admin Console clients.
+      await scope.register(platformAdminUiPlugin);
     },
   },
   {

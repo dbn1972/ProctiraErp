@@ -365,6 +365,12 @@ export class InMemoryHealthRepository implements HealthRepository {
     return paginate(items, pagination);
   }
 
+  async listAllCounsellingSessions(tenantId: string): Promise<CounsellingSessionEntity[]> {
+    return Array.from(this.counsellingSessions.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
+  }
+
   // ─── Screening Programs ───────────────────────────────────────────────────
 
   async createScreeningProgram(data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>): Promise<ScreeningProgramEntity> {

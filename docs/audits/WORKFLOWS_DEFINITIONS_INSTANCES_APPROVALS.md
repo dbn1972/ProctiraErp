@@ -42,6 +42,7 @@ Backend unit/property: ☑ pass — `pnpm exec vitest run src/workflow-ui-plugin
 | Journey                            | Spec file                                           | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                         |
 | ---------------------------------- | --------------------------------------------------- | ---------------------------- | ------- | ------ | ------------------------------------------------ |
 | Inventory smoke (ungated)          | `apps/web/e2e/18-workflows-inventory-smoke.spec.ts` | N/A — always runs            | ☐ CI    | ☐      | Unauthenticated → `/login` + body/heading        |
+| Write validation + inventory       | `apps/web/e2e/19-services-write-validation-smoke.spec.ts` | N/A                   | ☑       | ☐      | Definition form required fields                  |
 | Smoke routes (authenticated)       | `apps/web/e2e/12-workflows.spec.ts`                 | ☐ gated                      | ☐       | ☐      | Spec added; run when gateway+web up on same host |
 | Authenticated inventory (optional) | `18-…` second describe                              | ☐ gated                      | ☐       | ☐      | Headings when backend ready                      |
 | Happy path create                  | `12-…` (form fields)                                | ☐                            | ☐       | ☐      | Form wired                                       |
@@ -119,4 +120,4 @@ Horizontal scroll / clipped CTA: desktop pack reviewed — empty-state Create CT
 - [x] Walkthrough artifacts under `/opt/cursor/artifacts/workflows-audit/` (15 PNGs)
 - [x] Tip CI green
 
-**Verdict:** ☑ Ready with waivers · ☐ Enterprise production-ready
+**Verdict:** ☑ Ready with waivers · Module score campaign **9.5 / 10** (engine mount / IdP residuals)

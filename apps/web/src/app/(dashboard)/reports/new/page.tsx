@@ -49,14 +49,16 @@ export default async function NewReportPage({ searchParams }: PageProps) {
       </div>
 
       <ScaffoldModeBanner
-        force
+        source={source}
+        force={source === 'scaffold'}
         surface="Report builder"
-        detail="Builder UI validates locally. Generating/downloading a run requires a live reports service — empty template lists mean the gateway is offline."
+        detail="Builder UI validates locally. When the gateway responds with templates, generate posts to POST /reports/generate."
       />
 
       <ReportBuilderForm
         templates={templates}
         requestedTemplate={requested.template}
+        liveGenerate={source === 'gateway'}
       />
 
       {/* Keep source in the DOM for diagnostics without implying live generate. */}

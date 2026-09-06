@@ -90,6 +90,9 @@ export async function listPlugins(): Promise<{
       source: 'gateway',
     };
   }
+  if (response.status > 0) {
+    return { plugins: [], source: 'gateway' };
+  }
   return { plugins: STUB_PLUGINS, source: 'stub' };
 }
 
@@ -114,6 +117,9 @@ export async function getPlugin(
         source: 'gateway',
       };
     }
+  }
+  if (response.status > 0) {
+    return { plugin: null, source: 'gateway' };
   }
   return {
     plugin: STUB_PLUGINS.find((t) => t.id === id) ?? null,

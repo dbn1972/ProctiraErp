@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 
 import {
@@ -19,9 +19,13 @@ import {
 import { cn } from '@/lib/utils';
 import type { ReportTemplate, ReportFilter } from '@/lib/api/reports';
 
+import { generateReportAction } from '../actions';
+
 interface ReportBuilderFormProps {
   templates: ReportTemplate[];
   requestedTemplate: ReportTemplate | null;
+  /** When true, POST /reports/generate is available via the gateway. */
+  liveGenerate?: boolean;
 }
 
 const selectClassName = cn(
@@ -32,16 +36,17 @@ const selectClassName = cn(
 );
 
 /**
- * Report builder with client-side validation.
- * Generate remains demo-only until the reports run API is wired.
+ * Report builder with client-side validation + optional live generate write proof.
  */
 export function ReportBuilderForm({
   templates,
   requestedTemplate,
+  liveGenerate = false,
 }: ReportBuilderFormProps) {
   const [selectedId, setSelectedId] = useState(requestedTemplate?.id ?? '');
   const [error, setError] = useState<string | null>(null);
-  const [demoMessage, setDemoMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
 
   const selected =
     templates.find((tpl) => tpl.id === selectedId) ??
@@ -50,7 +55,7 @@ export function ReportBuilderForm({
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
-    setDemoMessage(null);
+    setSuccessMessage(null);
 
     const form = new FormData(event.currentTarget);
     const templateId = String(form.get('templateId') ?? '').trim();
@@ -59,26 +64,44 @@ export function ReportBuilderForm({
       return;
     }
 
-    const format = String(form.get('report-format') ?? '').trim();
+    const format = String(form.get('report-format') ?? '').trim() as
+      | 'PDF'
+      | 'XLSX'
+      | 'CSV';
     if (!format) {
       setError('Choose an output format.');
       return;
     }
 
+    const filters: Record<string, string> = {};
     if (selected) {
       for (const filter of selected.filters) {
-        if (!filter.required) continue;
         const value = String(form.get(filter.key) ?? '').trim();
-        if (!value) {
+        if (filter.required && !value) {
           setError(`${filter.label} is required.`);
           return;
         }
+        if (value) filters[filter.key] = value;
       }
     }
 
-    setDemoMessage(
-      'Demo only — report generation is not wired to a live reports service. Filters were validated locally.',
-    );
+    if (!liveGenerate) {
+      setSuccessMessage(
+        'Demo only — report generation is not wired to a live reports service. Filters were validated locally.',
+      );
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await generateReportAction({ templateId, format, filters });
+      if (result.status === 'error') {
+        setError(result.message ?? 'Failed to generate report');
+        return;
+      }
+      setSuccessMessage(
+        result.message ?? `Report run ${result.id} created via live gateway.`,
+      );
+    });
   }
 
   return (
@@ -86,6 +109,7 @@ export function ReportBuilderForm({
       className="space-y-6"
       aria-label="Report builder form"
       data-testid="report-builder-form"
+      data-live-generate={liveGenerate ? 'true' : 'false'}
       onSubmit={onSubmit}
       noValidate
     >
@@ -104,7 +128,7 @@ export function ReportBuilderForm({
               onChange={(event) => {
                 setSelectedId(event.target.value);
                 setError(null);
-                setDemoMessage(null);
+                setSuccessMessage(null);
               }}
             >
               <option value="">Select a template</option>
@@ -166,10 +190,15 @@ export function ReportBuilderForm({
               {error}
             </p>
           )}
-          {demoMessage && (
-            <Alert variant="warning" data-testid="report-builder-demo-submit">
-              <AlertTitle>Demo generate</AlertTitle>
-              <AlertDescription>{demoMessage}</AlertDescription>
+          {successMessage && (
+            <Alert
+              variant={liveGenerate ? 'default' : 'warning'}
+              data-testid={
+                liveGenerate ? 'report-builder-live-submit' : 'report-builder-demo-submit'
+              }
+            >
+              <AlertTitle>{liveGenerate ? 'Report generated' : 'Demo generate'}</AlertTitle>
+              <AlertDescription>{successMessage}</AlertDescription>
             </Alert>
           )}
 
@@ -177,7 +206,9 @@ export function ReportBuilderForm({
             <Button asChild variant="outline" type="button">
               <Link href="/reports">Cancel</Link>
             </Button>
-            <Button type="submit">Generate report</Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? 'Generating…' : 'Generate report'}
+            </Button>
           </div>
         </CardContent>
       </Card>
