@@ -7,7 +7,7 @@ interface StepperProps {
   currentStepIndex: number;
 }
 
-export function Stepper({ steps, currentStepIndex }: StepperProps) {
+export function Stepper({ steps, currentStepIndex: _currentStepIndex }: StepperProps) {
   return (
     <nav
       aria-label="Setup progress"
