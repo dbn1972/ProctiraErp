@@ -96,12 +96,27 @@ export async function listPlugins(): Promise<{
 export async function getPlugin(
   id: string,
 ): Promise<{ plugin: PluginSubmission | null; source: 'gateway' | 'stub' }> {
-  const response = await gatewayFetch<PluginSubmission>(`/plugins/${id}`);
-  if (response.ok && response.data) {
-    return { plugin: response.data, source: 'gateway' };
+  const response = await gatewayFetch<
+    PluginSubmission | { data?: PluginSubmission; item?: PluginSubmission }
+  >(`/plugins/${id}`);
+  if (response.ok && response.data && typeof response.data === 'object') {
+    const raw =
+      'id' in response.data && typeof (response.data as PluginSubmission).id === 'string'
+        ? (response.data as PluginSubmission)
+        : ((response.data as { data?: PluginSubmission; item?: PluginSubmission }).data ??
+          (response.data as { data?: PluginSubmission; item?: PluginSubmission }).item);
+    if (raw && typeof raw.id === 'string') {
+      return {
+        plugin: {
+          ...raw,
+          permissions: Array.isArray(raw.permissions) ? raw.permissions : [],
+        },
+        source: 'gateway',
+      };
+    }
   }
   return {
-    plugin: STUB_PLUGINS.find((p) => p.id === id) ?? null,
+    plugin: STUB_PLUGINS.find((t) => t.id === id) ?? null,
     source: 'stub',
   };
 }

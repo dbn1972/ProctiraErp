@@ -47,7 +47,7 @@ async function setupOperatorSession(page: Page): Promise<void> {
   });
 
   const baseUrl = new URL(
-    page.url() === 'about:blank' ? 'http://127.0.0.1:3004' : page.url(),
+    page.url() === 'about:blank' ? 'http://127.0.0.1:3014' : page.url(),
   );
 
   await page.context().addCookies([

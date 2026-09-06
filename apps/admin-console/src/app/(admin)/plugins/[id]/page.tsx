@@ -80,7 +80,7 @@ export default async function PluginDetailPage({
                 Permissions
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {plugin.permissions.map((p) => (
+                {(plugin.permissions ?? []).map((p) => (
                   <Badge key={p} variant="warning" className="font-mono">
                     {p}
                   </Badge>
