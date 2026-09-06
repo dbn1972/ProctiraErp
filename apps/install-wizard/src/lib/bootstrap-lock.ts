@@ -4,13 +4,7 @@
  */
 
 /** Wizard UI order (differs from Fastify install plugin CDN-first order). */
-export const BOOTSTRAP_STEPS = [
-  'database',
-  'storage',
-  'cache',
-  'queue',
-  'cdn',
-] as const;
+export const BOOTSTRAP_STEPS = ['database', 'storage', 'cache', 'queue', 'cdn'] as const;
 
 export type BootstrapStep = (typeof BOOTSTRAP_STEPS)[number];
 
