@@ -63,6 +63,54 @@ void main() {
       goldenName: 'attendance_shell',
     );
   });
+
+  testWidgets('institutions shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _InstitutionsShellPreview(),
+      goldenName: 'institutions_shell',
+    );
+  });
+
+  testWidgets('scholarships shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _ScholarshipsShellPreview(),
+      goldenName: 'scholarships_shell',
+    );
+  });
+
+  testWidgets('health shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _HealthShellPreview(),
+      goldenName: 'health_shell',
+    );
+  });
+
+  testWidgets('examinations shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _ExaminationsShellPreview(),
+      goldenName: 'examinations_shell',
+    );
+  });
+
+  testWidgets('profile shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _ProfileShellPreview(),
+      goldenName: 'profile_shell',
+    );
+  });
+
+  testWidgets('notifications shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _NotificationsShellPreview(),
+      goldenName: 'notifications_shell',
+    );
+  });
 }
 
 class _LoginChromePreview extends StatelessWidget {
@@ -271,6 +319,192 @@ class _AttendanceShellPreview extends StatelessWidget {
             title: Text('Jordan Lee'),
             subtitle: Text('Absent'),
             trailing: Icon(Icons.cancel_outlined),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InstitutionsShellPreview extends StatelessWidget {
+  const _InstitutionsShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Institutions')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const <Widget>[
+          ListTile(
+            leading: Icon(Icons.apartment_outlined),
+            title: Text('Greenfield High'),
+            subtitle: Text('CBSE · Mumbai'),
+          ),
+          ListTile(
+            leading: Icon(Icons.apartment_outlined),
+            title: Text('Riverside Academy'),
+            subtitle: Text('ICSE · Pune'),
+          ),
+          ListTile(
+            leading: Icon(Icons.apartment_outlined),
+            title: Text('North District School'),
+            subtitle: Text('State · Nagpur'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScholarshipsShellPreview extends StatelessWidget {
+  const _ScholarshipsShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Scholarships')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          Card(
+            child: ListTile(
+              title: const Text('Merit STEM 2026'),
+              subtitle: const Text('Open · Applications due Sep 30'),
+              trailing: FilledButton(
+                onPressed: () {},
+                child: const Text('Apply'),
+              ),
+            ),
+          ),
+          const Card(
+            child: ListTile(
+              title: Text('Need-based Aid'),
+              subtitle: Text('In review · 2 docs pending'),
+              trailing: Icon(Icons.hourglass_top_outlined),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HealthShellPreview extends StatelessWidget {
+  const _HealthShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Health records')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const <Widget>[
+          ListTile(
+            leading: Icon(Icons.monitor_heart_outlined),
+            title: Text('Vision screening'),
+            subtitle: Text('Completed · 2026-08-12'),
+          ),
+          ListTile(
+            leading: Icon(Icons.psychology_outlined),
+            title: Text('Counselling note'),
+            subtitle: Text('Confidential · staff only'),
+          ),
+          ListTile(
+            leading: Icon(Icons.accessibility_new_outlined),
+            title: Text('Special needs plan'),
+            subtitle: Text('Active accommodations'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExaminationsShellPreview extends StatelessWidget {
+  const _ExaminationsShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Examinations')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const <Widget>[
+          ListTile(
+            leading: Icon(Icons.assignment_outlined),
+            title: Text('Term 1 Midterms'),
+            subtitle: Text('Sep 15–20 · 4 papers'),
+          ),
+          ListTile(
+            leading: Icon(Icons.assignment_turned_in_outlined),
+            title: Text('Board Prelims'),
+            subtitle: Text('Results published'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileShellPreview extends StatelessWidget {
+  const _ProfileShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profile')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          const ListTile(
+            leading: CircleAvatar(child: Text('FS')),
+            title: Text('Field Staff'),
+            subtitle: Text('staff@demo.proctira.org'),
+          ),
+          const Divider(),
+          const ListTile(
+            leading: Icon(Icons.badge_outlined),
+            title: Text('Tenant'),
+            subtitle: Text('proctira-multiboard-cert'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Sign out'),
+            onTap: () {},
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationsShellPreview extends StatelessWidget {
+  const _NotificationsShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notifications')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const <Widget>[
+          SwitchListTile(
+            value: true,
+            onChanged: null,
+            title: Text('Attendance sync alerts'),
+            subtitle: Text('Offline queue failures'),
+          ),
+          SwitchListTile(
+            value: false,
+            onChanged: null,
+            title: Text('Scholarship deadlines'),
+            subtitle: Text('Program close reminders'),
+          ),
+          ListTile(
+            leading: Icon(Icons.mark_email_unread_outlined),
+            title: Text('2 unread approvals'),
+            subtitle: Text('Workflow inbox'),
           ),
         ],
       ),

@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test';
 
+import { runAxe } from './helpers/axe';
+
 /**
  * Install Wizard production smoke.
- * First-run UI always runs. Live configure/finalize gates on E2E_BACKEND_READY.
+ * First-run UI + axe always run. Live configure/finalize gates on E2E_BACKEND_READY.
  */
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
@@ -16,6 +18,28 @@ test.describe('Install Wizard — first-run UI', () => {
       page.getByRole('heading', { name: /step 1.*database|database/i }).first(),
     ).toBeVisible();
     await expect(page.getByLabel(/host/i).first()).toBeVisible();
+    await expect(page.getByTestId('database-step')).toBeVisible();
+  });
+
+  test('stepper lists all six setup stages', async ({ page }) => {
+    await page.goto('/');
+    for (const label of [
+      'Database',
+      'Object Storage',
+      'Redis Cache',
+      'Message Queue',
+      'CDN',
+      'Admin Account',
+    ]) {
+      await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
+    }
+  });
+
+  test('database step shows client validation when credentials empty', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('database-test-submit').click();
+    await expect(page.getByTestId('db-error-username')).toContainText(/required/i);
+    await expect(page.getByTestId('db-error-password')).toContainText(/required/i);
   });
 
   test('footer links are not empty hash stubs', async ({ page }) => {
@@ -37,6 +61,14 @@ test.describe('Install Wizard — first-run UI', () => {
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
     expect(body).toMatchObject({ status: 'ok', service: 'install-wizard' });
+  });
+});
+
+test.describe('Install Wizard — axe WCAG 2.1 AA', () => {
+  test('setup home has no critical axe violations', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTestId('database-step')).toBeVisible();
+    await runAxe(page, { checkpointLabel: 'install-wizard-home' });
   });
 });
 

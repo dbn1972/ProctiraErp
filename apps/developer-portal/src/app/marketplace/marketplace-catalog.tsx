@@ -86,6 +86,7 @@ function PluginCard({ plugin }: { plugin: MarketplacePlugin }) {
         className="mt-4 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700"
         disabled
         title="Install requires a connected marketplace service"
+        data-testid={`marketplace-install-${plugin.id}`}
       >
         Install (not connected)
       </button>

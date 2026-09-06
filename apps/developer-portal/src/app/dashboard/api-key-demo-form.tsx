@@ -2,7 +2,11 @@
 
 import { useState, type FormEvent } from 'react';
 
-const SCOPES = ['students:read', 'attendance:write', 'webhooks:manage'] as const;
+import {
+  API_KEY_SCOPES,
+  validateApiKeyRequest,
+  type ApiKeyScope,
+} from '@/lib/api-key-validation';
 
 /**
  * Client-only API key request demo.
@@ -10,18 +14,19 @@ const SCOPES = ['students:read', 'attendance:write', 'webhooks:manage'] as const
  */
 export function ApiKeyDemoForm() {
   const [name, setName] = useState('');
-  const [scope, setScope] = useState<(typeof SCOPES)[number]>('students:read');
+  const [scope, setScope] = useState<ApiKeyScope>('students:read');
   const [error, setError] = useState<string | null>(null);
   const [ack, setAck] = useState<string | null>(null);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAck(null);
-    const trimmed = name.trim();
-    if (trimmed.length < 3) {
-      setError('Key name must be at least 3 characters.');
+    const errors = validateApiKeyRequest({ name, scope });
+    if (errors) {
+      setError(errors.name ?? errors.scope ?? 'Invalid key request.');
       return;
     }
+    const trimmed = name.trim();
     setError(null);
     setAck(
       `Demo only — "${trimmed}" with scope ${scope} was validated locally. Live key issuance is not connected.`,
@@ -47,6 +52,7 @@ export function ApiKeyDemoForm() {
           className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
           placeholder="Attendance sync"
           autoComplete="off"
+          maxLength={64}
         />
       </div>
 
@@ -58,10 +64,10 @@ export function ApiKeyDemoForm() {
           id="api-key-scope"
           name="scope"
           value={scope}
-          onChange={(e) => setScope(e.target.value as (typeof SCOPES)[number])}
+          onChange={(e) => setScope(e.target.value as ApiKeyScope)}
           className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
         >
-          {SCOPES.map((item) => (
+          {API_KEY_SCOPES.map((item) => (
             <option key={item} value={item}>
               {item}
             </option>

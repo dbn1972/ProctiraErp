@@ -48,7 +48,7 @@ export function Stepper({ steps, currentStepIndex }: StepperProps) {
                       ? 'font-semibold text-gray-900'
                       : step.status === 'completed'
                         ? 'font-medium text-primary-700'
-                        : 'text-gray-400'
+                        : 'text-gray-600'
                   }`}
                 >
                   {step.label}
