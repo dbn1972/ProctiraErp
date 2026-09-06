@@ -17,7 +17,11 @@ export interface InventoryItem {
 export async function listInventoryItems(): Promise<InventoryItem[]> {
   try {
     const res = await gatewayFetch<{ data: InventoryItem[] }>('/inventory/items');
-    return Array.isArray(res) ? res : (res.data ?? []);
+    if (Array.isArray(res.data)) return res.data;
+    if (res.data && typeof res.data === 'object' && Array.isArray(res.data.data)) {
+      return res.data.data;
+    }
+    return [];
   } catch {
     return [];
   }

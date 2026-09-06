@@ -18,7 +18,11 @@ export interface AlumniProfile {
 export async function listAlumniProfiles(): Promise<AlumniProfile[]> {
   try {
     const res = await gatewayFetch<{ data: AlumniProfile[] }>('/alumni/profiles');
-    return Array.isArray(res) ? res : (res.data ?? []);
+    if (Array.isArray(res.data)) return res.data;
+    if (res.data && typeof res.data === 'object' && Array.isArray(res.data.data)) {
+      return res.data.data;
+    }
+    return [];
   } catch {
     return [];
   }

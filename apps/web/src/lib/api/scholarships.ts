@@ -42,6 +42,18 @@ export interface ScholarshipDisbursement {
   status: 'SCHEDULED' | 'PROCESSED' | 'FAILED';
 }
 
+export interface CreateScholarshipProgramInput {
+  name: string;
+  code?: string;
+  description?: string;
+  applicationStartDate: string;
+  applicationEndDate: string;
+  totalSlots: number;
+  awardAmount: number;
+  currency?: string;
+  eligibilityNotes?: string;
+}
+
 export interface UpdateScholarshipProgramInput {
   name?: string;
   description?: string;
@@ -113,6 +125,35 @@ export async function getScholarshipProgram(id: string): Promise<ScholarshipProg
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data ? mapProgram(result.data) : null;
+}
+
+export async function createScholarshipProgram(
+  input: CreateScholarshipProgramInput,
+): Promise<ScholarshipProgram> {
+  const description = [
+    input.code ? `Code: ${input.code}` : null,
+    input.description,
+    input.eligibilityNotes,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const result = await gatewayFetch<Record<string, unknown>>('/scholarships/programs', {
+    method: 'POST',
+    json: {
+      name: input.name,
+      description: description || undefined,
+      applicationStartDate: input.applicationStartDate,
+      applicationEndDate: input.applicationEndDate,
+      totalSlots: input.totalSlots,
+      amountPerRecipient: input.awardAmount,
+      currency: input.currency ?? 'INR',
+    },
+  });
+  if (!result.data) {
+    throw new Error(result.error?.message ?? 'Failed to create scholarship program');
+  }
+  return mapProgram(result.data);
 }
 
 export async function updateScholarshipProgram(

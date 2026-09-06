@@ -16,15 +16,25 @@ export interface RosterEntry {
   };
 }
 
+/** Aggregate percentage report (student / class / institution scope). */
 export interface AttendancePercentageResult {
-  studentId: string;
-  percentage: number;
-  presentDays: number;
-  totalDays: number;
+  scope: string;
+  totalRecords: number;
+  presentCount: number;
+  absentCount: number;
+  excusedCount: number;
+  lateCount: number;
+  attendancePercentage: number;
+  absencePercentage: number;
 }
 
 export interface BulkAttendanceResponse {
-  created: number;
-  updated: number;
-  errors?: Array<{ studentId: string; message: string }>;
+  recorded: unknown[];
+  updated: unknown[];
+  errors: Array<{ studentId: string; message: string }>;
+  summary: {
+    totalRecorded: number;
+    totalUpdated: number;
+    totalErrors: number;
+  };
 }

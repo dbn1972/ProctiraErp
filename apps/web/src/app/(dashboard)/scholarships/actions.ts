@@ -1,20 +1,46 @@
 'use server';
 
 /**
- * Server Actions for scholarship program updates and disbursement retries.
+ * Server Actions for scholarship program create/update and disbursement retries.
  */
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
+  createScholarshipProgram,
   updateDisbursement,
   updateScholarshipProgram,
+  type CreateScholarshipProgramInput,
   type UpdateScholarshipProgramInput,
 } from '@/lib/api/scholarships';
 
 export interface ScholarshipActionState {
   status: 'idle' | 'success' | 'error';
   message?: string;
+  programId?: string;
+}
+
+export async function createScholarshipProgramAction(
+  input: CreateScholarshipProgramInput,
+): Promise<ScholarshipActionState> {
+  try {
+    const program = await createScholarshipProgram(input);
+    revalidatePath('/scholarships');
+    revalidatePath(`/scholarships/programs/${program.id}`);
+    return {
+      status: 'success',
+      message: 'Program created.',
+      programId: program.id,
+    };
+  } catch (error) {
+    const message =
+      error instanceof GatewayError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Failed to create program';
+    return { status: 'error', message };
+  }
 }
 
 export async function updateScholarshipProgramAction(

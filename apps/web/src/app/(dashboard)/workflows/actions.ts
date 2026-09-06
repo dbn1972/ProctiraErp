@@ -22,7 +22,15 @@ export interface ActionState<T = unknown> {
   message?: string;
   fieldErrors?: Record<string, string>;
   data?: T;
+  definitionId?: string;
 }
+
+export type CreateDefinitionInput = {
+  name: string;
+  module: string;
+  steps: Array<{ name: string; approverRole: string }>;
+  description?: string;
+};
 
 function toErrorState<T = unknown>(
   error: unknown,
@@ -44,6 +52,80 @@ function isRedirectError(error: unknown): boolean {
     'digest' in error &&
     String((error as { digest?: string }).digest).startsWith('NEXT_REDIRECT')
   );
+}
+
+function parseFormSteps(raw: string): Array<{ name: string; role: string }> {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [stepName, role] = line.split(',').map((p) => p.trim());
+      return { name: stepName ?? '', role: role ?? '' };
+    })
+    .filter((s) => s.name && s.role);
+}
+
+async function createDefinitionFromParts(input: {
+  name: string;
+  module: string;
+  description?: string;
+  steps: Array<{ name: string; role: string }>;
+  redirectOnSuccess: boolean;
+}): Promise<ActionState<{ definitionId: string }>> {
+  const name = input.name.trim();
+  const moduleName = input.module.trim();
+  const steps = input.steps.filter((s) => s.name.trim() && s.role.trim());
+
+  if (!name) {
+    return {
+      status: 'error',
+      message: 'Workflow name is required.',
+      fieldErrors: { name: 'Required' },
+    };
+  }
+  if (!moduleName) {
+    return {
+      status: 'error',
+      message: 'Module / entity type is required.',
+      fieldErrors: { module: 'Required' },
+    };
+  }
+  if (steps.length === 0) {
+    return {
+      status: 'error',
+      message: 'Add at least one step as “stepName,roleName” per line.',
+      fieldErrors: { steps: 'At least one step is required' },
+    };
+  }
+
+  try {
+    await requireSession('/workflows');
+    const definitionInput = buildDefinitionFromSteps({
+      name,
+      entityType: moduleName,
+      description: input.description?.trim() || undefined,
+      steps,
+    });
+    const definition = await createWorkflowDefinition(definitionInput);
+    revalidatePath('/workflows');
+    revalidatePath(`/workflows/definitions/${definition.id}`);
+    if (input.redirectOnSuccess) {
+      redirect(`/workflows/definitions/${definition.id}`);
+    }
+    return {
+      status: 'success',
+      message: 'Definition created.',
+      definitionId: definition.id,
+      data: { definitionId: definition.id },
+    };
+  } catch (error) {
+    if (isRedirectError(error)) throw error;
+    return toErrorState<{ definitionId: string }>(
+      error,
+      'Failed to create workflow definition',
+    );
+  }
 }
 
 export async function approveWorkflowAction(
@@ -90,63 +172,54 @@ export async function rejectWorkflowAction(
   }
 }
 
-export async function createWorkflowDefinitionAction(
-  _prev: ActionState<{ definitionId: string }> | null,
-  formData: FormData,
-): Promise<ActionState<{ definitionId: string }>> {
-  const name = String(formData.get('name') ?? '').trim();
-  const module = String(formData.get('module') ?? '').trim();
-  const description = String(formData.get('description') ?? '').trim();
-  const stepsRaw = String(formData.get('steps') ?? '');
-
-  if (!name) {
-    return {
-      status: 'error',
-      message: 'Workflow name is required.',
-      fieldErrors: { name: 'Required' },
-    };
-  }
-  if (!module) {
-    return {
-      status: 'error',
-      message: 'Module / entity type is required.',
-      fieldErrors: { module: 'Required' },
-    };
-  }
-
-  const steps = stepsRaw
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [stepName, role] = line.split(',').map((p) => p.trim());
-      return { name: stepName ?? '', role: role ?? '' };
-    })
-    .filter((s) => s.name && s.role);
-
-  if (steps.length === 0) {
-    return {
-      status: 'error',
-      message: 'Add at least one step as “stepName,roleName” per line.',
-      fieldErrors: { steps: 'At least one step is required' },
-    };
-  }
+/** Client button path: approval id maps to instance id on this backend. */
+export async function decideWorkflowApprovalAction(
+  approvalId: string,
+  decision: 'approve' | 'reject',
+): Promise<ActionState> {
+  const session = await requireSession('/workflows/approvals');
 
   try {
-    const input = buildDefinitionFromSteps({
-      name,
-      entityType: module,
-      description: description || undefined,
-      steps,
+    await transitionWorkflowInstance(approvalId, {
+      action: decision,
+      actorId: session.user.sub,
     });
-    const definition = await createWorkflowDefinition(input);
+    revalidatePath('/workflows/approvals');
+    revalidatePath('/workflows/instances');
     revalidatePath('/workflows');
-    redirect(`/workflows/definitions/${definition.id}`);
+    return {
+      status: 'success',
+      message: decision === 'approve' ? 'Approved.' : 'Rejected.',
+    };
   } catch (error) {
-    if (isRedirectError(error)) throw error;
-    return toErrorState<{ definitionId: string }>(
-      error,
-      'Failed to create workflow definition',
-    );
+    return toErrorState(error, `Failed to ${decision} approval`);
   }
+}
+
+/** useFormState (FormData) + imperative client object create. */
+export async function createWorkflowDefinitionAction(
+  prevOrInput: ActionState<{ definitionId: string }> | null | CreateDefinitionInput,
+  formData?: FormData,
+): Promise<ActionState<{ definitionId: string }>> {
+  if (formData instanceof FormData) {
+    return createDefinitionFromParts({
+      name: String(formData.get('name') ?? ''),
+      module: String(formData.get('module') ?? ''),
+      description: String(formData.get('description') ?? ''),
+      steps: parseFormSteps(String(formData.get('steps') ?? '')),
+      redirectOnSuccess: true,
+    });
+  }
+
+  const input = prevOrInput as CreateDefinitionInput;
+  return createDefinitionFromParts({
+    name: input.name,
+    module: input.module,
+    description: input.description,
+    steps: input.steps.map((s) => ({
+      name: s.name,
+      role: s.approverRole,
+    })),
+    redirectOnSuccess: false,
+  });
 }

@@ -15,7 +15,11 @@ export interface LibraryTitle {
 export async function listLibraryTitles(): Promise<LibraryTitle[]> {
   try {
     const res = await gatewayFetch<{ data: LibraryTitle[] }>('/library/titles');
-    return Array.isArray(res) ? res : (res.data ?? []);
+    if (Array.isArray(res.data)) return res.data;
+    if (res.data && typeof res.data === 'object' && Array.isArray(res.data.data)) {
+      return res.data.data;
+    }
+    return [];
   } catch {
     return [];
   }
