@@ -7,9 +7,17 @@ import { expect, test, type Page } from '@playwright/test';
 
 const EXAM_ID = '11111111-1111-4111-8111-111111111111';
 
-const ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
+/** Always-on inventory: list + create shell (no seeded exam required). */
+const UNGATED_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
   { path: '/examinations', heading: /examination/i },
   { path: '/examinations/new', heading: /schedule examination/i },
+];
+
+/**
+ * Detail tabs need a real/seeded examination. Gate on E2E_BACKEND_READY so
+ * offline runs do not assert 200 against `notFound()` for a fake UUID.
+ */
+const SEEDED_DETAIL_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
   { path: `/examinations/${EXAM_ID}`, heading: /.+/ },
   { path: `/examinations/${EXAM_ID}/candidates`, heading: /.+/ },
   { path: `/examinations/${EXAM_ID}/results`, heading: /.+/ },
@@ -61,8 +69,22 @@ test.describe('Examinations — inventory smoke (ungated)', () => {
     await setupTenantSession(page);
   });
 
-  for (const route of ROUTES) {
+  for (const route of UNGATED_ROUTES) {
     test(`${route.path} returns usable shell`, async ({ page }) => {
+      const response = await page.goto(route.path, { waitUntil: 'domcontentloaded' });
+      expect(response, `missing response for ${route.path}`).toBeTruthy();
+      expect(response!.status(), `${route.path} status`).toBeLessThan(400);
+      await expect(page.locator('main h1, h1').first()).toBeVisible();
+      await expect(page.locator('main h1, h1').first()).toHaveText(route.heading);
+    });
+  }
+
+  for (const route of SEEDED_DETAIL_ROUTES) {
+    test(`${route.path} returns usable shell (seeded backend)`, async ({ page }) => {
+      test.skip(
+        process.env.E2E_BACKEND_READY !== '1',
+        'Examination detail requires seeded exams API (E2E_BACKEND_READY=1)',
+      );
       const response = await page.goto(route.path, { waitUntil: 'domcontentloaded' });
       expect(response, `missing response for ${route.path}`).toBeTruthy();
       expect(response!.status(), `${route.path} status`).toBeLessThan(400);
