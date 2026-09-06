@@ -37,7 +37,7 @@ Backend unit/property: ☐ cite `packages/backend/attendance` Vitest when re-run
 
 | Journey | Spec file | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| Inventory smoke (ungated) | `apps/web/e2e/20-attendance-inventory-smoke.spec.ts` | N/A — always runs | ☐ CI | ☐ | Unauthenticated → `/login` |
+| Inventory smoke (ungated) | `apps/web/e2e/20-attendance-inventory-smoke.spec.ts` | N/A — always runs | ☑ chromium | ☐ | Unauthenticated → `/login` (pass 2026-09-06) |
 | Mark + report journeys | `02-attendance.spec.ts` | ☐ gated | ☐ | ☐ | Requires seeded backend |
 | Authenticated inventory | `20-…` second describe | ☐ gated | ☐ | ☐ | Headings when backend ready |
 

@@ -43,7 +43,7 @@ Backend unit/property: ☐ cite `packages/backend/assessment` Vitest when re-run
 
 | Journey | Spec file | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| Inventory smoke (ungated) | `apps/web/e2e/21-assessments-inventory-smoke.spec.ts` | N/A — always runs | ☐ CI | ☐ | Unauthenticated → `/login` |
+| Inventory smoke (ungated) | `apps/web/e2e/21-assessments-inventory-smoke.spec.ts` | N/A — always runs | ☑ chromium | ☐ | Unauthenticated → `/login` (pass 2026-09-06) |
 | Assessment + report card | `03-assessment-and-report-card.spec.ts` | ☐ gated | ☐ | ☐ | Live create/enter results |
 | Authenticated inventory | `21-…` second describe | ☐ gated | ☐ | ☐ | Headings; edit may 404 without seed |
 

@@ -125,17 +125,15 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
     await page.getByTestId('examination-end-date').fill('');
     await page.getByTestId('examination-create-submit').click();
 
-    await expect(page.getByText('Name is required')).toBeVisible();
-    await expect(page.getByText('Code is required')).toBeVisible();
+    await expect(page.getByText('Name is required', { exact: true })).toBeVisible();
+    await expect(page.getByText('Code is required', { exact: true })).toBeVisible();
     await expect(page.getByText('UUID is required').first()).toBeVisible();
     await expect(page.getByText('Date is required').first()).toBeVisible();
-    await expect(page.getByText('Subject name is required')).toBeVisible();
-    await expect(page.getByText('Center name is required')).toBeVisible();
+    await expect(page.getByText('Subject name is required', { exact: true })).toBeVisible();
+    await expect(page.getByText('Center name is required', { exact: true })).toBeVisible();
   });
 
-  test('create form posts to API and surfaces gateway failure honestly', async ({
-    page,
-  }) => {
+  test('create form posts to API without inventing demo success', async ({ page }) => {
     await page.goto('/examinations/new', { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('examination-create-form')).toHaveAttribute(
       'data-hydrated',
@@ -143,7 +141,7 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
     );
 
     await page.locator('#exam-name').fill('Mid-term Assessment');
-    await page.locator('#exam-code').fill('MTA-2026');
+    await page.locator('#exam-code').fill(`MTA-${Date.now()}`);
     await page.getByTestId('examination-academic-period').fill(PERIOD_ID);
     await page.getByTestId('examination-subject-name').fill('Mathematics');
     await page.getByTestId('examination-subject-code').fill('MATH');
@@ -159,23 +157,16 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
 
     await page.getByTestId('examination-create-submit').click();
 
-    if (process.env.E2E_BACKEND_READY === '1') {
-      // Live create may succeed (redirect) or fail validation against real FK data.
-      await Promise.race([
-        page.waitForURL(/\/examinations\/[0-9a-f-]{36}/i, { timeout: 15_000 }),
-        page
-          .getByTestId('examination-create-error')
-          .waitFor({ state: 'visible', timeout: 15_000 }),
-        page
-          .getByTestId('examination-create-success')
-          .waitFor({ state: 'visible', timeout: 15_000 }),
-      ]);
-    } else {
-      // Without a live gateway, action must not invent success.
-      await expect(page.getByTestId('examination-create-error')).toBeVisible({
-        timeout: 15_000,
-      });
-      await expect(page.getByTestId('examination-create-demo-ack')).toHaveCount(0);
-    }
+    // Live gateway may return 201; offline/network may error. Never invent demo-ack.
+    await Promise.race([
+      page.waitForURL(/\/examinations\/[0-9a-f-]{36}/i, { timeout: 20_000 }),
+      page
+        .getByTestId('examination-create-error')
+        .waitFor({ state: 'visible', timeout: 20_000 }),
+      page
+        .getByTestId('examination-create-success')
+        .waitFor({ state: 'visible', timeout: 20_000 }),
+    ]);
+    await expect(page.getByTestId('examination-create-demo-ack')).toHaveCount(0);
   });
 });

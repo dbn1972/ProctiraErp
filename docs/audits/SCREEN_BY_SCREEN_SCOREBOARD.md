@@ -147,7 +147,7 @@
 | 2026-09-06 | _(pending)_ | Scoreboard opened; P0/P1 campaign started | baseline 8.0 |
 | 2026-09-06 | `c81ba96` | Mobile students+attendance goldens; Health counselling create UI+API+smoke | Mobile 7.8→8.2; counselling 7.5→8.5; Services ~8.1 |
 | 2026-09-06 | _(this tip)_ | People `15c` assignment/appraisal validation; Registration metadata-only docs | People 8.0→8.4; Registration 8.5→9.0; program ~8.1 |
-| 2026-09-06 | _(this commit)_ | Academics: exam POST create wiring + ATTENDANCE/ASSESSMENTS/EXAMINATIONS audits + ungated smokes 20/21 | Academics 8.0→8.4; program ~8.1 |
+| 2026-09-06 | a0245f4+ | Academics: exam POST create wiring + ATTENDANCE/ASSESSMENTS/EXAMINATIONS audits + ungated smokes 20/21 (Playwright 13 pass / 11 skip) | Academics 8.0→8.4; program ~8.1 |
 
 ## How to read when you ask “updated score?”
 

@@ -46,7 +46,7 @@ Backend unit/property: ☑ historical — `packages/backend/examination` route t
 | Journey | Spec file | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | Unauthenticated → `/login` | `apps/web/e2e/19-examinations-inventory-smoke.spec.ts` | N/A | ☐ CI | ☐ | list + new |
-| Session shell + create validation | `19-…` | N/A ungated validation; live create branch when ready | ☐ | ☐ | Required-field asserts; gateway error without backend |
+| Session shell + create validation | `19-…` | Create hit live gateway in cloud run (success banner) | ☑ chromium | ☐ | 13 passed / 11 skipped across 19–21 (2026-09-06) |
 | Detail tabs | `19-…` seeded describe | ☐ gated | ☐ | ☐ | Needs real exam id |
 
 ---
