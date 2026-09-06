@@ -77,11 +77,11 @@ include(flutter/generated_plugins.cmake)
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build
-# directory.
+# directory. Always force the bundle dir — stale CMake caches (or CI hosts
+# that seed CMAKE_INSTALL_PREFIX=/usr/local) otherwise try to install into
+# a root-owned path and break `flutter test -d linux integration_test/`.
 set(BUILD_BUNDLE_DIR "${PROJECT_BINARY_DIR}/bundle")
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
-endif()
+set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
 
 # Start with a clean build bundle directory every time.
 install(CODE "

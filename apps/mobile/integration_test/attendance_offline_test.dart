@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:proctira_mobile/core/sync/sync_models.dart';
 import 'package:sqflite/sqflite.dart';
@@ -61,7 +60,7 @@ void main() {
       await pumpJourneyApp(tester);
 
       // Navigate to the attendance screen.
-      _navigateTo(tester, '/attendance');
+      goJourney('/attendance');
       await tester.pumpAndSettle();
 
       // Enter institution ID and load the roster.
@@ -172,7 +171,7 @@ void main() {
       await pumpJourneyApp(tester);
 
       // Navigate to attendance and mark present.
-      _navigateTo(tester, '/attendance');
+      goJourney('/attendance');
       await tester.pumpAndSettle();
 
       await tester.enterText(
@@ -206,13 +205,6 @@ void main() {
       expect(dispatched.payload['status'], 'PRESENT');
     },
   );
-}
-
-/// Navigate using GoRouter without needing to find UI navigation elements.
-void _navigateTo(WidgetTester tester, String location) {
-  final BuildContext context =
-      tester.element(find.byType(MaterialApp).first);
-  GoRouter.of(context).go(location);
 }
 
 /// Pump frames until the recording dispatcher is invoked or timeout.

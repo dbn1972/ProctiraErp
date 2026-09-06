@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Widget-level visual evidence for mobile chrome shells.
+/// Widget-level visual evidence for mobile chrome shells (16 shells).
 ///
 /// These are **not** native device-farm captures. They exercise Flutter's
 /// test renderer and write goldens under test/goldens (copied to artifacts).
@@ -109,6 +109,56 @@ void main() {
       tester: tester,
       home: const _NotificationsShellPreview(),
       goldenName: 'notifications_shell',
+    );
+  });
+
+  testWidgets('notification preferences shell golden snapshot',
+      (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _NotificationPreferencesShellPreview(),
+      goldenName: 'notification_preferences_shell',
+    );
+  });
+
+  testWidgets('reports shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _ReportsShellPreview(),
+      goldenName: 'reports_shell',
+    );
+  });
+
+  testWidgets('report detail shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _ReportDetailShellPreview(),
+      goldenName: 'report_detail_shell',
+    );
+  });
+
+  testWidgets('assessments shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _AssessmentsShellPreview(),
+      goldenName: 'assessments_shell',
+    );
+  });
+
+  testWidgets('tenant shell golden snapshot', (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _TenantShellPreview(),
+      goldenName: 'tenant_shell',
+    );
+  });
+
+  testWidgets('student profile shell golden snapshot',
+      (WidgetTester tester) async {
+    await snapshotShell(
+      tester: tester,
+      home: const _StudentProfileShellPreview(),
+      goldenName: 'student_profile_shell',
     );
   });
 }
@@ -485,26 +535,374 @@ class _NotificationsShellPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Notifications')),
+      appBar: AppBar(
+        title: const Text('Notifications'),
+        actions: <Widget>[
+          IconButton(
+            icon: const Icon(Icons.tune_outlined),
+            tooltip: 'Preferences',
+            onPressed: () {},
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: const <Widget>[
-          SwitchListTile(
-            value: true,
-            onChanged: null,
-            title: Text('Attendance sync alerts'),
-            subtitle: Text('Offline queue failures'),
-          ),
-          SwitchListTile(
-            value: false,
-            onChanged: null,
-            title: Text('Scholarship deadlines'),
-            subtitle: Text('Program close reminders'),
-          ),
           ListTile(
             leading: Icon(Icons.mark_email_unread_outlined),
             title: Text('2 unread approvals'),
             subtitle: Text('Workflow inbox'),
+          ),
+          ListTile(
+            leading: Icon(Icons.fact_check_outlined),
+            title: Text('Attendance sync failed'),
+            subtitle: Text('3 marks still queued'),
+          ),
+          ListTile(
+            leading: Icon(Icons.insert_chart_outlined),
+            title: Text('Report ready'),
+            subtitle: Text('Attendance summary · Sep 6'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationPreferencesShellPreview extends StatelessWidget {
+  const _NotificationPreferencesShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final ThemeData theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Notification Preferences')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: <Widget>[
+          Text(
+            'CHANNELS',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Column(
+              children: const <Widget>[
+                SwitchListTile(
+                  value: true,
+                  onChanged: null,
+                  secondary: Icon(Icons.notifications_active_outlined),
+                  title: Text('Push notifications'),
+                  subtitle: Text('Receive alerts on your device'),
+                ),
+                Divider(height: 1),
+                SwitchListTile(
+                  value: true,
+                  onChanged: null,
+                  secondary: Icon(Icons.email_outlined),
+                  title: Text('Email notifications'),
+                  subtitle: Text('Receive alerts via email'),
+                ),
+                Divider(height: 1),
+                SwitchListTile(
+                  value: true,
+                  onChanged: null,
+                  secondary: Icon(Icons.inbox_outlined),
+                  title: Text('In-app notifications'),
+                  subtitle: Text('Show in the notification inbox'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'CATEGORIES',
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Column(
+              children: const <Widget>[
+                SwitchListTile(
+                  value: true,
+                  onChanged: null,
+                  secondary: Icon(Icons.fact_check_outlined),
+                  title: Text('Attendance alerts'),
+                  subtitle: Text('Absence threshold warnings'),
+                ),
+                Divider(height: 1),
+                SwitchListTile(
+                  value: true,
+                  onChanged: null,
+                  secondary: Icon(Icons.assignment_turned_in_outlined),
+                  title: Text('Workflow approvals'),
+                  subtitle: Text('Pending approval requests'),
+                ),
+                Divider(height: 1),
+                SwitchListTile(
+                  value: false,
+                  onChanged: null,
+                  secondary: Icon(Icons.insert_chart_outlined),
+                  title: Text('Report ready'),
+                  subtitle: Text('When a generated report is available'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: () {},
+            child: const Text('Save Preferences'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportsShellPreview extends StatelessWidget {
+  const _ReportsShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reports')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        children: <Widget>[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFF0EA5E9).withValues(alpha: 0.30),
+              ),
+            ),
+            child: const Row(
+              children: <Widget>[
+                Icon(Icons.info_outline, size: 18, color: Color(0xFF0EA5E9)),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Reports generate on the server. Open a quick report or a ready file.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'QUICK REPORTS',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const ListTile(
+            leading: Icon(Icons.fact_check_outlined),
+            title: Text('Attendance summary'),
+            subtitle: Text('Daily attendance totals across the institution.'),
+          ),
+          const ListTile(
+            leading: Icon(Icons.people_alt_outlined),
+            title: Text('Enrollment summary'),
+            subtitle: Text('Enrollment counts grouped by class and grade.'),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'GENERATED REPORTS',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const ListTile(
+            leading: Icon(Icons.description_outlined),
+            title: Text('Board enrollment export'),
+            subtitle: Text('Ready · CSV'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportDetailShellPreview extends StatelessWidget {
+  const _ReportDetailShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Attendance summary')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          const ListTile(
+            leading: Icon(Icons.fact_check_outlined),
+            title: Text('Attendance summary'),
+            subtitle: Text('Daily attendance totals across the institution.'),
+          ),
+          const Divider(),
+          const ListTile(
+            leading: Icon(Icons.schedule_outlined),
+            title: Text('Status'),
+            subtitle: Text('Ready to generate'),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.play_arrow_outlined),
+            label: const Text('Generate report'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () {},
+            icon: const Icon(Icons.download_outlined),
+            label: const Text('Download last export'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AssessmentsShellPreview extends StatelessWidget {
+  const _AssessmentsShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Assessments')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: const <Widget>[
+          ListTile(
+            leading: Icon(Icons.grade_outlined),
+            title: Text('Mathematics · Term 1'),
+            subtitle: Text('82% · Continuous assessment'),
+          ),
+          ListTile(
+            leading: Icon(Icons.grade_outlined),
+            title: Text('Science · Term 1'),
+            subtitle: Text('74% · Continuous assessment'),
+          ),
+          ListTile(
+            leading: Icon(Icons.grade_outlined),
+            title: Text('English · Term 1'),
+            subtitle: Text('88% · Continuous assessment'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TenantShellPreview extends StatelessWidget {
+  const _TenantShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: colors.primary,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Center(
+                  child: Text(
+                    'P',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Select tenant',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              const Text('Enter the school or board tenant to continue.'),
+              const SizedBox(height: 24),
+              const TextField(
+                decoration: InputDecoration(
+                  labelText: 'Tenant id',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const TextField(
+                decoration: InputDecoration(
+                  labelText: 'Display name (optional)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () {},
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StudentProfileShellPreview extends StatelessWidget {
+  const _StudentProfileShellPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Student profile')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: <Widget>[
+          const ListTile(
+            leading: CircleAvatar(child: Text('AK')),
+            title: Text('Amina Khan'),
+            subtitle: Text('STU-1042 · Grade 9'),
+          ),
+          const Divider(),
+          ListTile(
+            leading: const Icon(Icons.history_edu_outlined),
+            title: const Text('Enrollment history'),
+            onTap: () {},
+          ),
+          ListTile(
+            leading: const Icon(Icons.document_scanner_outlined),
+            title: const Text('Capture document'),
+            onTap: () {},
+          ),
+          ListTile(
+            leading: const Icon(Icons.monitor_heart_outlined),
+            title: const Text('Health records'),
+            onTap: () {},
           ),
         ],
       ),

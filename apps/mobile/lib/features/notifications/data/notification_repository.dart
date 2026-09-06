@@ -34,7 +34,9 @@ class CachedNotification {
     if (rawPayload != null && rawPayload.isNotEmpty) {
       try {
         final dynamic v = jsonDecode(rawPayload);
-        if (v is Map<String, dynamic>) decoded = v;
+        if (v is Map) {
+          decoded = Map<String, dynamic>.from(v);
+        }
       } catch (_) {/* ignore malformed cached payloads */}
     }
     return CachedNotification(

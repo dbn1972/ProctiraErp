@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:proctira_mobile/core/sync/sync_engine.dart';
 import 'package:proctira_mobile/core/sync/sync_models.dart';
@@ -58,26 +57,26 @@ void main() {
 
       // GoRouter redirects past `/login` because the user is authenticated;
       // navigate directly to `/attendance` to skip the home tile dance.
-      _go(tester, '/attendance');
+      goJourney('/attendance');
       await tester.pumpAndSettle();
 
       // Type the institution id and tap "Load roster".
-      final Finder institutionField = find.widgetWithText(
-        TextField,
-        'Institution ID',
-      );
+      final Finder institutionField = find.byType(TextField).first;
       expect(institutionField, findsOneWidget);
       await tester.enterText(institutionField, 'inst-1');
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Load roster'));
+      final Finder loadRoster = find.text('Load roster');
+      await tester.ensureVisible(loadRoster);
+      await tester.tap(loadRoster);
       await tester.pumpAndSettle();
 
       // Assert the seeded student row is present.
       expect(find.text('Ada Lovelace'), findsOneWidget);
 
-      // Tap the "PRESENT" choice chip on the roster row.
-      await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'PRESENT'));
-      await tester.tap(find.widgetWithText(ChoiceChip, 'PRESENT'));
+      // Tap the Present segment ("P") on the roster row.
+      final Finder presentChip = find.text('P');
+      expect(presentChip, findsWidgets);
+      await tester.tap(presentChip.first);
       await tester.pumpAndSettle();
 
       // The attendance row is now in the offline cache, unsynced.
@@ -117,14 +116,6 @@ void main() {
       expect(dispatched.payload['status'], 'PRESENT');
     },
   );
-}
-
-/// Reach into the running app to grab the GoRouter instance and navigate
-/// without hunting for invisible navigation tiles.
-void _go(WidgetTester tester, String location) {
-  final BuildContext context =
-      tester.element(find.byType(MaterialApp).first);
-  GoRouter.of(context).go(location);
 }
 
 /// Repeatedly pump frames until [RecordingSyncDispatcher.wasInvoked] flips,

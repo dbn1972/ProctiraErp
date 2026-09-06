@@ -9,7 +9,7 @@
 
 | Metric                                   | Value                                                                                                                                                         |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Weighted program score                   | **9.4 / 10** (Auth / Public / Registration / People / Academics / Services / Insights / Admin / Portals at 9.5; Mobile 9.1; device-farm + live IdP still cap) |
+| Weighted program score                   | **9.4 / 10** (Auth / Public / Registration / People / Academics / Services / Insights / Admin / Portals at 9.5; Mobile **9.3**; Android device-farm + live IdP still cap) |
 | Honest ceiling without IdP / device-farm | ~**9.4**                                                                                                                                                      |
 | Claim when user asks                     | Always cite this file + tip SHA                                                                                                                               |
 
@@ -37,7 +37,7 @@
 | Registration Portal         |       7 |   **9.5** |    9.5 | — (live apply waived)      | Axe apply/track + multidevice 21 PNGs                   |
 | Public Website              |      12 |   **9.5** |    9.5 | — (CRM webhook residual)   | Axe + always-on contact API + multidevice               |
 | Other Portals               |       5 |   **9.5** |    9.5 | — (live IdP/mint waived)   | CSRF/lock BFF + reserved-name validation + ungated axe  |
-| Mobile App (native)         |      22 |   **9.1** |    9.5 | Device-farm PNGs           | Widget goldens 10 shells + analyze clean                |
+| Mobile App (native)         |      22 |   **9.3** |    9.5 | Android device-farm PNGs   | Goldens 16 shells + Linux IT/PNGs + analyze clean       |
 
 ---
 
@@ -135,12 +135,12 @@ Evidence: `ACADEMICS_*.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PN
 | Developer portal |   9.5 | Ready w/ waivers | Live key mint (waived 2026-09-06)    |
 | Install wizard   |   9.5 | Ready w/ waivers | Live upstream stack + localhost bind |
 
-### Mobile (9.1 → 9.5)
+### Mobile (9.3 → 9.5)
 
-| Screen                            | Score | Status           | Gap to 9.5                                   |
-| --------------------------------- | ----: | ---------------- | -------------------------------------------- |
-| Core journeys (18)                |   9.1 | Ready w/ waivers | Device-farm PNGs (widget goldens: 10 shells) |
-| Notifications / Reports prefs (4) |   9.0 | Ready w/ waivers | Device-farm PNGs                             |
+| Screen                            | Score | Status           | Gap to 9.5                                              |
+| --------------------------------- | ----: | ---------------- | ------------------------------------------------------- |
+| Core journeys (18)                |   9.3 | Ready w/ waivers | Android device-farm (16 goldens + Linux IT/PNGs ☑)      |
+| Notifications / Reports prefs (4) |   9.3 | Ready w/ waivers | Android device-farm (prefs/reports goldens + Linux PNG) |
 
 ---
 
@@ -157,6 +157,7 @@ Evidence: `ACADEMICS_*.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PN
 | 2026-09-06 | `f201bf8`    | Other Portals axe/smokes + Mobile goldens 10 shells                                                                                                                             | Portals **9.2**; Mobile **9.1**; program ~**9.0**   |
 | 2026-09-06 | _(this tip)_ | People+Academics: `15d`/`20b`/`21b` write smokes; fake-session cookie host; HybridHealthRepository boot fix; 90 viewport captures → 39+26 md PNGs; Playwright 40 pass / 32 skip | People **9.5**; Academics **9.5**; program ~**9.1** |
 | 2026-09-06 | _(this tip)_ | Auth ungated matrix (chromium+mobile); Public axe+contact always-on+multidevice; Registration axe+multidevice; contrast a11y fixes                                              | Auth/Public/Registration **9.5**; program ~**9.3**  |
+| 2026-09-06 | _(this tip)_ | Mobile: goldens 10→16; Linux xvfb IT (login/tenant/students/attendance/notif); real `linux_*.png`; Inter fonts bundled; Android device-farm residual only                         | Mobile **9.3**; program ~**9.4**                    |
 | 2026-09-06 | _(this tip)_ | Other Portals: install CSRF/token BFF + bootstrap lock ungated smoke; backend 409 lock; API-key reserved-name harden; Playwright 15+7 pass                                      | Portals **9.5**; program ~**9.4**                   |
 
 ## How to read when you ask “updated score?”

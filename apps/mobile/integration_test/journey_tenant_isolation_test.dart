@@ -1,8 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:proctira_mobile/core/tenant/tenant_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -70,7 +68,7 @@ void main() {
       });
 
       await pumpJourneyApp(tester);
-      _go(tester, '/students');
+      goJourney('/students');
       await tester.pumpAndSettle();
 
       // Tenant A view: Ada is visible, Brent is not.
@@ -85,9 +83,9 @@ void main() {
         displayName: 'Tenant B',
       );
 
-      _go(tester, '/');
+      goJourney('/');
       await tester.pumpAndSettle();
-      _go(tester, '/students');
+      goJourney('/students');
       await tester.pumpAndSettle();
 
       // Tenant B view: Brent is visible, Ada is not.
@@ -97,8 +95,3 @@ void main() {
   );
 }
 
-void _go(WidgetTester tester, String location) {
-  final BuildContext context =
-      tester.element(find.byType(MaterialApp).first);
-  GoRouter.of(context).go(location);
-}

@@ -10,6 +10,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:proctira_mobile/app/app.dart';
 import 'package:proctira_mobile/core/auth/auth_bloc.dart';
 import 'package:proctira_mobile/core/di/injector.dart';
+import 'package:proctira_mobile/core/router/app_router.dart';
 import 'package:proctira_mobile/core/storage/database.dart';
 import 'package:proctira_mobile/core/sync/connectivity_monitor.dart';
 import 'package:proctira_mobile/core/sync/sync_dispatcher.dart';
@@ -260,6 +261,13 @@ Future<void> _replaceSyncEngine(RecordingSyncDispatcher dispatcher) async {
 /// redirects, and theming all behave like the real app.
 Widget buildJourneyApp() {
   return const OpenEmisApp();
+}
+
+/// Navigate via the registered [AppRouter] — do not use
+/// `GoRouter.of(MaterialApp)` because `MaterialApp.router` does not put a
+/// [GoRouter] on that element (Linux/live bindings expose this reliably).
+void goJourney(String location) {
+  getIt<AppRouter>().config.go(location);
 }
 
 /// Pump the app and wait for first-frame settle. The harness waits an extra
