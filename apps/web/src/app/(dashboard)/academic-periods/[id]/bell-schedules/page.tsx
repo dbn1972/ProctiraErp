@@ -12,7 +12,7 @@ import {
   PeriodCreateForm,
 } from '@/components/timetable/bell-schedule-forms';
 import { listInstitutions } from '@/lib/api/institutions';
-import { ApiClientError, listAcademicPeriods } from '@/lib/institutions/api';
+import { listAcademicPeriods } from '@/lib/institutions/api';
 import { listBellSchedules, listPeriods } from '@/lib/api/timetable';
 
 export const dynamic = 'force-dynamic';
@@ -28,12 +28,17 @@ export default async function BellSchedulesPage({ params }: PageProps) {
   try {
     const periods = await listAcademicPeriods();
     periodName = periods.find((p) => p.id === academicPeriodId)?.name ?? academicPeriodId;
-  } catch (error) {
-    if (!(error instanceof ApiClientError)) throw error;
+  } catch {
+    // Keep UUID label when academic-period service is unavailable.
   }
 
-  const institutions = await listInstitutions({ pageSize: 50 });
-  const defaultInstitutionId = institutions[0]?.id ?? '';
+  let defaultInstitutionId = '';
+  try {
+    const institutions = await listInstitutions({ pageSize: 50 });
+    defaultInstitutionId = institutions[0]?.id ?? '';
+  } catch {
+    defaultInstitutionId = '';
+  }
 
   const schedulesResult = await listBellSchedules({ academicPeriodId });
   const apiError = schedulesResult.ok ? null : schedulesResult.error;
