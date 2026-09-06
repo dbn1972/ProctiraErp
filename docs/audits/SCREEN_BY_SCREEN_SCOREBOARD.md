@@ -77,14 +77,14 @@ Evidence: `OVERVIEW_PEOPLE_DASHBOARD_STUDENTS_STAFF.md` · `/opt/cursor/artifact
 
 ### Web App — Academics (**9.5**)
 
-| Screen                                                          | Score | Status           | Gap / residual beyond 9.5               |
-| --------------------------------------------------------------- | ----: | ---------------- | --------------------------------------- |
-| Institutions · (8 screens)                                      |   9.5 | Ready w/ waivers | Live write E2E                          |
-| Academic periods                                                |   9.5 | Ready w/ waivers | Formal deep audit residual              |
-| Attendance · mark / reports                                     |   9.5 | Ready w/ waivers | Live mark needs classes table (`20b` ☑) |
-| Assessments · (5 screens)                                       |   9.5 | Ready w/ waivers | Live scheme POST (`21b` ☑)              |
-| Examinations · list / detail / candidates / documents / results |   9.5 | Ready w/ waivers | Seeded exam detail gated                |
-| Examinations · schedule (create)                                |   9.5 | Ready w/ waivers | Live 201 needs examinations table       |
+| Screen                                                          | Score | Status           | Gap / residual beyond 9.5                   |
+| --------------------------------------------------------------- | ----: | ---------------- | ------------------------------------------- |
+| Institutions · (8 screens)                                      |   9.5 | Ready w/ waivers | Live write E2E                              |
+| Academic periods                                                |   9.5 | Ready w/ waivers | Formal deep audit residual                  |
+| Attendance · mark / reports                                     |   9.5 | Ready w/ waivers | Live mark needs classes table (`20b` ☑)     |
+| Assessments · (5 screens)                                       |   9.5 | Ready w/ waivers | Live scheme POST (`21b` ☑)                  |
+| Examinations · list / detail / candidates / documents / results |   9.5 | Ready w/ waivers | Seeded exam detail gated                    |
+| Examinations · schedule (create)                                |   9.5 | Ready w/ waivers | Live 201 needs examinations table           |
 | Examinations · board export packs (CBSE/ICSE/MH)                |   9.4 | Ready w/ waivers | Live packs ☑; IdP/RBAC/device-farm residual |
 
 Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PNGs) · `/opt/cursor/artifacts/sis-board-exports/`.
@@ -147,20 +147,20 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 
 ## Evidence log (append-only)
 
-| UTC        | Tip SHA      | Change                                                                                                                                                                          | Score impact                                        |
-| ---------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| 2026-09-06 | live-db      | Raw SQL live Postgres onboard: 3 boards × 6 schools × 500 students                                                                                                              | Data-plane cert PASS                                |
-| 2026-09-06 | _(pending)_  | Scoreboard opened; P0/P1 campaign started                                                                                                                                       | baseline 8.0                                        |
-| 2026-09-06 | `c81ba96`    | Mobile goldens; Health counselling create UI+API+smoke                                                                                                                          | counselling 8.5; Services ~8.1                      |
-| 2026-09-06 | a0245f4+     | Academics exam POST + ATTENDANCE/ASSESSMENTS audits                                                                                                                             | Academics 8.4                                       |
-| 2026-09-06 | `8b87585`    | Insights conditional scaffold + Admin `04` + Public                                                                                                                             | Insights/Admin ~8.2; Public 9.3                     |
-| 2026-09-06 | `effdd5b`    | PG counselling; Insights/Admin live plugins; Services `19`/`17b`/`14c`/`05`                                                                                                     | Services/Insights/Admin **9.5**                     |
-| 2026-09-06 | `f201bf8`    | Other Portals axe/smokes + Mobile goldens 10 shells                                                                                                                             | Portals **9.2**; Mobile **9.1**; program ~**9.0**   |
-| 2026-09-06 | _(this tip)_ | People+Academics: `15d`/`20b`/`21b` write smokes; fake-session cookie host; HybridHealthRepository boot fix; 90 viewport captures → 39+26 md PNGs; Playwright 40 pass / 32 skip | People **9.5**; Academics **9.5**; program ~**9.1** |
-| 2026-09-06 | _(this tip)_ | Auth ungated matrix (chromium+mobile); Public axe+contact always-on+multidevice; Registration axe+multidevice; contrast a11y fixes                                              | Auth/Public/Registration **9.5**; program ~**9.3**  |
-| 2026-09-06 | _(this tip)_ | Mobile: goldens 10→16; Linux xvfb IT (login/tenant/students/attendance/notif); real `linux_*.png`; Inter fonts bundled; Android device-farm residual only                       | Mobile **9.3**; program ~**9.4**                    |
-| 2026-09-06 | _(this tip)_ | Other Portals: install CSRF/token BFF + bootstrap lock ungated smoke; backend 409 lock; API-key reserved-name harden; Playwright 15+7 pass                                      | Portals **9.5**; program ~**9.4**                   |
-| 2026-09-06 | `a3c456b`    | SIS epic WS0–WS4 on **server** live Postgres: timetable, master schedule+conflicts, gradebook/GPA/transcripts, CBSE/ICSE/MH-STATE export packs (raw SQL, no Prisma)            | Academics product parity uplift; program still **~9.4** (IdP/device-farm cap) |
+| UTC        | Tip SHA      | Change                                                                                                                                                                          | Score impact                                                                  |
+| ---------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 2026-09-06 | live-db      | Raw SQL live Postgres onboard: 3 boards × 6 schools × 500 students                                                                                                              | Data-plane cert PASS                                                          |
+| 2026-09-06 | _(pending)_  | Scoreboard opened; P0/P1 campaign started                                                                                                                                       | baseline 8.0                                                                  |
+| 2026-09-06 | `c81ba96`    | Mobile goldens; Health counselling create UI+API+smoke                                                                                                                          | counselling 8.5; Services ~8.1                                                |
+| 2026-09-06 | a0245f4+     | Academics exam POST + ATTENDANCE/ASSESSMENTS audits                                                                                                                             | Academics 8.4                                                                 |
+| 2026-09-06 | `8b87585`    | Insights conditional scaffold + Admin `04` + Public                                                                                                                             | Insights/Admin ~8.2; Public 9.3                                               |
+| 2026-09-06 | `effdd5b`    | PG counselling; Insights/Admin live plugins; Services `19`/`17b`/`14c`/`05`                                                                                                     | Services/Insights/Admin **9.5**                                               |
+| 2026-09-06 | `f201bf8`    | Other Portals axe/smokes + Mobile goldens 10 shells                                                                                                                             | Portals **9.2**; Mobile **9.1**; program ~**9.0**                             |
+| 2026-09-06 | _(this tip)_ | People+Academics: `15d`/`20b`/`21b` write smokes; fake-session cookie host; HybridHealthRepository boot fix; 90 viewport captures → 39+26 md PNGs; Playwright 40 pass / 32 skip | People **9.5**; Academics **9.5**; program ~**9.1**                           |
+| 2026-09-06 | _(this tip)_ | Auth ungated matrix (chromium+mobile); Public axe+contact always-on+multidevice; Registration axe+multidevice; contrast a11y fixes                                              | Auth/Public/Registration **9.5**; program ~**9.3**                            |
+| 2026-09-06 | _(this tip)_ | Mobile: goldens 10→16; Linux xvfb IT (login/tenant/students/attendance/notif); real `linux_*.png`; Inter fonts bundled; Android device-farm residual only                       | Mobile **9.3**; program ~**9.4**                                              |
+| 2026-09-06 | _(this tip)_ | Other Portals: install CSRF/token BFF + bootstrap lock ungated smoke; backend 409 lock; API-key reserved-name harden; Playwright 15+7 pass                                      | Portals **9.5**; program ~**9.4**                                             |
+| 2026-09-06 | `a3c456b`    | SIS epic WS0–WS4 on **server** live Postgres: timetable, master schedule+conflicts, gradebook/GPA/transcripts, CBSE/ICSE/MH-STATE export packs (raw SQL, no Prisma)             | Academics product parity uplift; program still **~9.4** (IdP/device-farm cap) |
 
 ## How to read when you ask “updated score?”
 
