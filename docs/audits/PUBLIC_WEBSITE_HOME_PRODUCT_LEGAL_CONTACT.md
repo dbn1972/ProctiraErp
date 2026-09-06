@@ -97,8 +97,8 @@ Backend unit/property: ☑ — `pnpm --filter @proctira/public-website test`
 ## 7. Residual risks / waivers
 
 1. In-memory contact rate limit is not durable across replicas — use edge/WAF in production.
-2. Contact API optionally forwards to `CONTACT_WEBHOOK_URL` (CRM/ticketing); without that env var it still accepts + stores locally (no invented CRM).
-3. Status page uses honest pre-launch / local health-probe copy (not a fake “all green” provider).
+2. Contact API optionally forwards to `CONTACT_WEBHOOK_URL` (CRM/ticketing); without that env var it still accepts locally with honeypot + rate limit (no invented CRM success).
+3. Status page is honest: without `STATUS_PROBE_WEB_URL` / `STATUS_PROBE_API_URL` / `STATUS_PROBE_AUTH_URL` it shows **pre-launch / not instrumented** (not a fake all-green board). Optional probes mark Responding / Degraded / Unreachable / Not monitored per row.
 4. No CSP headers / axe suite in this app yet.
 5. Multidevice screenshot pack deferred to host capture.
 6. Deploy registry infra failures are not feature blockers.

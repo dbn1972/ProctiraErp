@@ -13,6 +13,7 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth/server';
+import { listTenants } from '@/lib/api/tenants';
 
 import { NewTenantForm } from './new-tenant-form';
 
@@ -27,6 +28,7 @@ const PROVISIONED_ITEMS = [
 
 export default async function NewTenantPage() {
   await requireRole('tenants', '/tenants/new');
+  const { source } = await listTenants();
 
   return (
     <>
@@ -41,7 +43,7 @@ export default async function NewTenantPage() {
       />
 
       <StubDataBanner
-        force
+        source={source}
         detail="When the tenant-service gateway is offline, provisioning accepts the form and returns a simulated stub tenant — no live schema or bucket is created."
       />
 

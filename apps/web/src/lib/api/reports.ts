@@ -4,6 +4,12 @@
  * Validates: Requirement 17.1 — report templates, configuration, and outputs.
  */
 import { gatewayFetch } from './gateway';
+import {
+  scaffoldSourceFromResponse,
+  type ScaffoldDataSource,
+} from './insights-source';
+
+export type { ScaffoldDataSource };
 
 export interface ReportTemplate {
   id: string;
@@ -34,23 +40,41 @@ export interface ReportRun {
   downloadUrl: string | null;
 }
 
-export async function listReportTemplates(): Promise<ReportTemplate[]> {
+export async function listReportTemplates(): Promise<{
+  templates: ReportTemplate[];
+  source: ScaffoldDataSource;
+}> {
   const result = await gatewayFetch<{ data: ReportTemplate[] }>('/reports/templates', {
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data?.data ?? [];
+  if (result.ok) {
+    return { templates: result.data?.data ?? [], source: 'gateway' };
+  }
+  return { templates: [], source: 'scaffold' };
 }
 
-export async function getReportTemplate(id: string): Promise<ReportTemplate | null> {
+export async function getReportTemplate(id: string): Promise<{
+  template: ReportTemplate | null;
+  source: ScaffoldDataSource;
+}> {
   const result = await gatewayFetch<ReportTemplate>(`/reports/templates/${id}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data;
+  if (result.ok) {
+    return { template: result.data, source: 'gateway' };
+  }
+  return {
+    template: null,
+    source: scaffoldSourceFromResponse(false, result.status),
+  };
 }
 
-export async function listReportRuns(templateId?: string): Promise<ReportRun[]> {
+export async function listReportRuns(templateId?: string): Promise<{
+  runs: ReportRun[];
+  source: ScaffoldDataSource;
+}> {
   const path = templateId
     ? `/reports/runs?templateId=${encodeURIComponent(templateId)}`
     : '/reports/runs';
@@ -58,5 +82,8 @@ export async function listReportRuns(templateId?: string): Promise<ReportRun[]> 
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data?.data ?? [];
+  if (result.ok) {
+    return { runs: result.data?.data ?? [], source: 'gateway' };
+  }
+  return { runs: [], source: 'scaffold' };
 }

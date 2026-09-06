@@ -69,12 +69,14 @@ export default async function DashboardPage() {
       />
 
       <StubDataBanner
-        force={
+        source={
           tenants.source === 'stub' ||
           plugins.source === 'stub' ||
           breakGlass.source === 'stub' ||
           health.source === 'stub' ||
           audit.source === 'stub'
+            ? 'stub'
+            : 'gateway'
         }
         detail="One or more upstream platform services are unreachable. Overview tiles and timelines use deterministic fixtures — not live production metrics."
       />

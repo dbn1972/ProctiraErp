@@ -21,7 +21,7 @@ import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 export const dynamic = 'force-dynamic';
 
 export default async function TenantConfigPage() {
-  const config = await getTenantConfig();
+  const { config, source } = await getTenantConfig();
 
   return (
     <section aria-labelledby="tenant-heading" className="space-y-6">
@@ -46,6 +46,7 @@ export default async function TenantConfigPage() {
       </div>
 
       <ScaffoldModeBanner
+        source={source}
         surface="Admin tenant"
         detail="Nested admin UI scaffold. Settings form stays empty when tenant admin APIs are offline."
       />

@@ -36,10 +36,16 @@ interface PageProps {
 }
 
 export default async function ReportResultsPage({ params }: PageProps) {
-  const [template, runs] = await Promise.all([
+  const [templateResult, runsResult] = await Promise.all([
     getReportTemplate(params.id),
     listReportRuns(params.id),
   ]);
+  const { template, source: templateSource } = templateResult;
+  const { runs, source: runsSource } = runsResult;
+  const source =
+    templateSource === 'scaffold' || runsSource === 'scaffold'
+      ? 'scaffold'
+      : 'gateway';
 
   if (!template) {
     return (
@@ -63,6 +69,8 @@ export default async function ReportResultsPage({ params }: PageProps) {
           </p>
         </div>
         <ScaffoldModeBanner
+          source={source}
+          force={source === 'scaffold'}
           surface="Report results"
           detail="The reports gateway did not return this template. Showing a stable empty/error state instead of inventing demo runs."
         />
@@ -100,7 +108,7 @@ export default async function ReportResultsPage({ params }: PageProps) {
         </div>
       </div>
 
-      <ScaffoldModeBanner surface="Report results" />
+      <ScaffoldModeBanner source={source} surface="Report results" />
 
       <Card>
         <CardHeader className="flex flex-row items-start gap-3 space-y-0">

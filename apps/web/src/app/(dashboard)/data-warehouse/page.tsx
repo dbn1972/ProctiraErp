@@ -43,7 +43,7 @@ import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 export const dynamic = 'force-dynamic';
 
 export default async function DataWarehousePage() {
-  const indicators = await listIndicators();
+  const { indicators, source } = await listIndicators();
 
   return (
     <section aria-labelledby="dw-heading" className="space-y-6">
@@ -77,6 +77,7 @@ export default async function DataWarehousePage() {
       </div>
 
       <ScaffoldModeBanner
+        source={source}
         surface="Data warehouse"
         detail={
           indicators.length === 0

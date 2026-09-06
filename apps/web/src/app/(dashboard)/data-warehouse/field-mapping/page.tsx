@@ -51,6 +51,7 @@ export default function DataWarehouseFieldMappingPage() {
       </div>
 
       <ScaffoldModeBanner
+        force
         surface="Field mapping"
         detail="Demo columns are shown until an upload attaches real headers. Continue validates locally; it does not start a live validate/run job."
       />

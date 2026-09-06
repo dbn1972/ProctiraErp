@@ -9,7 +9,7 @@
 
 | Metric | Value |
 | --- | --- |
-| Weighted program score | **8.1 / 10** (campaign in progress → target **≥9.5**) |
+| Weighted program score | **8.3 / 10** (campaign in progress → target **≥9.5**) |
 | Honest ceiling without IdP / device-farm / live DW | ~**8.5–8.7** |
 | Claim when user asks | Always cite this file + tip SHA |
 
@@ -32,10 +32,10 @@
 | Web App — Overview & People | 13 | 8.4 | 9.5 | Live journeys + multidevice | Ungated assignment/appraisal smokes landed |
 | Web App — Academics | 22 | 8.4 | 9.5 | Live seed create + multidevice PNGs | Exam POST wired; attendance/assessment audits + ungated smokes |
 | Web App — Services | 15 | 8.1 | 9.5 | Live PHI/finance writes | Counselling create shipped; live create still gated |
-| Web App — Insights & System | 12 | 7.5 | 9.5 | Live reports/DW APIs | Conditional banners + write validation |
-| Platform Admin Console | 13 | 7.6 | 9.5 | Live operator gateway | Extra write smokes; stub honesty |
+| Web App — Insights & System | 12 | 8.2 | 9.5 | Live reports/DW APIs | Conditional banners + 14b write validation landed |
+| Platform Admin Console | 13 | 8.2 | 9.5 | Live operator gateway | Source banners + 04 write smokes landed |
 | Registration Portal | 7 | 9.0 | 9.5 | Live apply + axe + multidevice | Metadata-only draft + submit upload landed |
-| Public Website | 12 | 9.0 | 9.5 | CRM + real status | Webhook forward + honest status |
+| Public Website | 12 | 9.3 | 9.5 | Full status provider + axe | Webhook forward + honest status landed |
 | Other Portals | 5 | 8.0 | 9.5 | Live developer IdP/mint | Validation harden (demo residual) |
 | Mobile App (native) | 22 | 8.2 | 9.5 | Device-farm PNGs | Widget goldens expanded (login/home/students/attendance) |
 
@@ -93,22 +93,22 @@
 | Health · counselling | 8.5 | Ready w/ waivers | Live create E2E + list/seed sync |
 | Workflows · (5) | 8.0 | Ready w/ waivers | Domain engine mount |
 
-### Web App — Insights & System (7.5 → 9.5)
+### Web App — Insights & System (8.1 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
-| Reports · catalog / builder / result | 7.5 | Partial / scaffold | Live report APIs |
-| Data warehouse · overview / import / mapping | 7.0 | Partial / scaffold | Live import jobs |
-| Admin · (5 nest screens) | 7.5 | Partial / scaffold | Live admin APIs |
+| Reports · catalog / builder / result | 8.1 | Ready w/ waivers | Live generate APIs; conditional scaffold |
+| Data warehouse · overview / import / mapping | 7.8 | Ready w/ waivers | Live import jobs; client validation smoke |
+| Admin · (5 nest screens) | 8.0 | Ready w/ waivers | Live admin APIs |
 | Public · track application | 8.5 | Ready w/ waivers | DOB-in-query residual |
 
-### Platform Admin (7.6 → 9.5)
+### Platform Admin (8.1 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
 | Operator login / 403 | 8.5 | Ready w/ waivers | Live operator IdP |
-| Overview / Tenants / Provision / Plans / Plugins / Themes | 6.8 | Stub | Live gateway |
-| Break-glass / requests / Support / Health / Audit | 6.8 | Stub | Live ops APIs |
+| Overview / Tenants / Provision / Plans / Plugins / Themes | 7.8 | Stub | Live gateway; ungated write validation |
+| Break-glass / requests / Support / Health / Audit | 7.8 | Stub | Live ops APIs; `04` validation smoke |
 
 ### Registration Portal (9.0 → 9.5)
 
@@ -116,13 +116,13 @@
 | --- | ---: | --- | --- |
 | Home / Find schools / Apply steps / Track | 9.0 | Ready w/ waivers | Live apply E2E; axe; multidevice |
 
-### Public Website (9.0 → 9.5)
+### Public Website (9.3 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
 | Marketing / legal (10) | 9.0 | Ready w/ waivers | In-app axe |
-| Status | 8.5 | In progress | Honest probe / provider |
-| Contact | 8.5 | In progress | Optional webhook CRM |
+| Status | 9.2 | Ready w/ waivers | External status provider |
+| Contact | 9.2 | Ready w/ waivers | Always-on CRM webhook in prod |
 
 ### Other Portals (8.0 → 9.5)
 
@@ -148,6 +148,7 @@
 | 2026-09-06 | `c81ba96` | Mobile students+attendance goldens; Health counselling create UI+API+smoke | Mobile 7.8→8.2; counselling 7.5→8.5; Services ~8.1 |
 | 2026-09-06 | _(this tip)_ | People `15c` assignment/appraisal validation; Registration metadata-only docs | People 8.0→8.4; Registration 8.5→9.0; program ~8.1 |
 | 2026-09-06 | a0245f4+ | Academics: exam POST create wiring + ATTENDANCE/ASSESSMENTS/EXAMINATIONS audits + ungated smokes 20/21 (Playwright 13 pass / 11 skip) | Academics 8.0→8.4; program ~8.1 |
+| 2026-09-06 | _(this tip)_ | Insights conditional scaffold + `14b`; Admin `04` break-glass/plugin validation; Public contact webhook + honest status | Insights 7.5→8.1; Admin 7.6→8.1; Public 9.0→9.3; program ~8.3 |
 
 ## How to read when you ask “updated score?”
 

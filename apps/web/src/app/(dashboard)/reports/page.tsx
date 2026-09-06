@@ -18,7 +18,7 @@ import { listReportTemplates, type ReportTemplate } from '@/lib/api/reports';
 export const dynamic = 'force-dynamic';
 
 export default async function ReportsPage() {
-  const templates = await listReportTemplates();
+  const { templates, source } = await listReportTemplates();
 
   const grouped = groupByModule(templates);
   const moduleCount = grouped.length;
@@ -51,6 +51,7 @@ export default async function ReportsPage() {
       </div>
 
       <ScaffoldModeBanner
+        source={source}
         surface="Reports catalog"
         detail={
           templates.length === 0

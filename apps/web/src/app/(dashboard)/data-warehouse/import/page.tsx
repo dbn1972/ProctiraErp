@@ -34,7 +34,7 @@ export const dynamic = 'force-dynamic';
 const IMPORT_STEPS = ['Source', 'Mapping', 'Validate', 'Run'] as const;
 
 export default async function DataWarehouseImportPage() {
-  const jobs = await listImportJobs();
+  const { jobs, source } = await listImportJobs();
 
   return (
     <section aria-labelledby="dw-import-heading" className="space-y-6">
@@ -60,6 +60,8 @@ export default async function DataWarehouseImportPage() {
       </div>
 
       <ScaffoldModeBanner
+        force
+        source={source}
         surface="Data warehouse import"
         detail="Upload and database forms validate locally. Successful submits are demo acknowledgements only — no import jobs are queued without a live warehouse API."
       />

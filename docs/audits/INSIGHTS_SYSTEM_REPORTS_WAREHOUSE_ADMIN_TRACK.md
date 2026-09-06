@@ -114,4 +114,4 @@ Horizontal scroll / clipped CTA: desktop pack reviewed — scaffold banners and 
 6. **Deploy registry** — infra failure when Build Images runs; not a feature blocker.
 7. **Multidevice PNG pack** — filled 2026-09-06 under `/opt/cursor/artifacts/insights-system-audit/` (39 PNGs; scaffold banners visible).
 
-**Verdict:** Ready with waivers — conditional scaffold banners + ungated inventory/`14b` write-validation smokes + multidevice pack; **live warehouse/reports/admin APIs still required** before production claim. Module score campaign: **7.5 → ~8.1**.
+**Verdict:** Ready with waivers — conditional scaffold banners + ungated inventory/`14b` write-validation smokes + multidevice pack; **live warehouse/reports/admin APIs still required** before production claim. Module score campaign: **7.5 → ~8.2**.

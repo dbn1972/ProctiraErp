@@ -4,6 +4,9 @@
  * Validates: Requirement 15.1 — indicators, imports, GIS map.
  */
 import { gatewayFetch } from './gateway';
+import type { ScaffoldDataSource } from './insights-source';
+
+export type { ScaffoldDataSource };
 
 export interface DwIndicator {
   id: string;
@@ -35,26 +38,44 @@ export interface DwGeoFeature {
   enrolment: number;
 }
 
-export async function listIndicators(): Promise<DwIndicator[]> {
+export async function listIndicators(): Promise<{
+  indicators: DwIndicator[];
+  source: ScaffoldDataSource;
+}> {
   const result = await gatewayFetch<{ data: DwIndicator[] }>('/data-warehouse/indicators', {
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data?.data ?? [];
+  if (result.ok) {
+    return { indicators: result.data?.data ?? [], source: 'gateway' };
+  }
+  return { indicators: [], source: 'scaffold' };
 }
 
-export async function listImportJobs(): Promise<DwImportJob[]> {
+export async function listImportJobs(): Promise<{
+  jobs: DwImportJob[];
+  source: ScaffoldDataSource;
+}> {
   const result = await gatewayFetch<{ data: DwImportJob[] }>(
     '/data-warehouse/import/jobs',
     { throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.data?.data ?? [];
+  if (result.ok) {
+    return { jobs: result.data?.data ?? [], source: 'gateway' };
+  }
+  return { jobs: [], source: 'scaffold' };
 }
 
-export async function listGeoFeatures(): Promise<DwGeoFeature[]> {
+export async function listGeoFeatures(): Promise<{
+  features: DwGeoFeature[];
+  source: ScaffoldDataSource;
+}> {
   const result = await gatewayFetch<{ data: DwGeoFeature[] }>('/data-warehouse/map/features', {
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.data?.data ?? [];
+  if (result.ok) {
+    return { features: result.data?.data ?? [], source: 'gateway' };
+  }
+  return { features: [], source: 'scaffold' };
 }

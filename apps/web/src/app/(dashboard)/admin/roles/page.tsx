@@ -18,7 +18,7 @@ import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminRolesPage() {
-  const roles = await listRoles();
+  const { roles, source } = await listRoles();
 
   return (
     <section aria-labelledby="roles-heading" className="space-y-6">
@@ -50,6 +50,7 @@ export default async function AdminRolesPage() {
       </div>
 
       <ScaffoldModeBanner
+        source={source}
         surface="Admin roles"
         detail="Nested admin UI scaffold. Lists stay empty when tenant admin APIs are offline."
       />

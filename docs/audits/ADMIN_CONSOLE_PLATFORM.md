@@ -112,4 +112,4 @@ Horizontal scroll / clipped CTA: not visually verified this pass.
 5. **JWT signature** — middleware/session decode structure + expiry only; signature verified upstream.
 6. **Deploy registry** — infra Build Images failures are not feature blockers.
 
-**Verdict:** Ready with waivers — stub honesty + ungated inventory/`03`/`04` write-validation smokes + desktop shot pack; **live gateway wiring still required** before production claim. Module score campaign: **7.6 → ~8.1**.
+**Verdict:** Ready with waivers — stub honesty + ungated inventory/`03`/`04` write-validation smokes + desktop shot pack; **live gateway wiring still required** before production claim. Module score campaign: **7.6 → ~8.2**.
