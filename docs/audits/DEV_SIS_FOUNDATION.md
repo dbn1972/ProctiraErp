@@ -1,7 +1,7 @@
 # Enterprise module development checklist
 
 **Capability / module:** SIS Foundation (WS0) + Timetable schema (WS1 data plane)  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` (see git tip after commit)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `b0a275f8eca7b5ed92fb1002c7cc0f08dee84c13`  
 **Owner / agent:** Cloud server agent (SIS foundation)  
 **Date (UTC):** 2026-09-06  
 **Peer parity target:** Shared SIS primitives (rooms, bell/periods, sections/meetings, substitutions, grading scales, export jobs) so timetable / master schedule / gradebook streams can land without schema churn  
@@ -161,6 +161,7 @@ Screen / API inventory (schema slice — routes TBD in WS1 UI):
 | Enforce RBAC + tenant deny tests | Track A + E | 2026-09-06 |
 | Seed sample rooms/bell rows (optional demos) | Track A | 2026-09-06 |
 | Parallel stub schema used TEXT ids — replaced with UUID FKs; consumers must use `bell_periods` (view `periods` for read alias) | Track A | 2026-09-06 |
+| `pg-timetable-repository.ts` still targets stub columns (`periods` table, TEXT section_meetings shape) — needs align to UUID FK schema before live API | Track A | 2026-09-06 |
 | Gradebook/GPA/transcript APIs | Track C (WS3) | 2026-09-06 |
 
 **Verdict:** ☑ Ready w/ waivers · ☐ **10/10 product slice** (foundation data plane only — not full timetable product 10/10)
