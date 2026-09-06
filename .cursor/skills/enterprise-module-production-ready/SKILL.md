@@ -10,7 +10,9 @@ description: >-
 
 # Enterprise Module Production-Ready Testing
 
-This skill is the **Definition of Done** for any redesign nav module (e.g. Scholarships, Health). Hooks in `.cursor/hooks.json` activate an enterprise-test session when the user asks for full/E2E/production-ready testing; the `stop` hook follows up until the bar below is met or explicitly waived.
+This skill is the **Definition of Test** for any redesign nav module (e.g. Scholarships, Health). Hooks in `.cursor/hooks.json` activate an enterprise-test session when the user asks for full/E2E/production-ready testing; the `stop` hook follows up until the bar below is met or explicitly waived.
+
+For **building / implementing** missing product capability (schedule, gradebook, transcripts, board exports, etc.), also follow `.cursor/skills/enterprise-module-development/SKILL.md` (**Definition of Build**) and the plan `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`. Product **10/10** requires both build and test exit criteria.
 
 ## Honest coverage map (do not overclaim)
 

@@ -18,11 +18,18 @@ const ROOT = process.cwd();
 const STATE_DIR = path.join(ROOT, '.cursor/hooks/state');
 const STATE_FILE = path.join(STATE_DIR, 'enterprise-test-session.json');
 const SKILL = '.cursor/skills/enterprise-module-production-ready/SKILL.md';
+const DEV_SKILL = '.cursor/skills/enterprise-module-development/SKILL.md';
 const CHECKLIST_TEMPLATE =
   'docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md';
+const DEV_CHECKLIST_TEMPLATE =
+  'docs/audits/templates/ENTERPRISE_MODULE_DEV_CHECKLIST.md';
+const SIS_PLAN = 'docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md';
 
 const TEST_INTENT =
   /\b(e2e|end[\s-]?to[\s-]?end|full\s+test|production[\s-]?ready|enterprise|world[\s-]?class|multidevice|multi[\s-]?device|ux\s+test|a11y|accessib|security\s+test|tenant\s+isolation|audit\s+(health|scholarship)|fully\s+test|test\s+hooks)\b/i;
+
+const DEV_INTENT =
+  /\b(implement|build|develop|close\s+gap|feature|product\s+parity|gradebook|transcript|timetable|bell\s+schedule|master\s+schedule|room\s+conflict|board\s+export|marksheet|cbse|icse|gpa|report\s+cards?|substitution|rostering)\b/i;
 
 const MODULE_HINTS = [
   {
@@ -30,7 +37,10 @@ const MODULE_HINTS = [
     re: /\bhealth\b|\bscreenings?\b|\bcounselling\b|\bcounseling\b|\bspecial\s+needs\b/,
   },
   { id: 'scholarships', re: /\bscholarships?\b|\bdisbursements?\b/ },
-  { id: 'academics', re: /\bacademics?\b|\battendance\b|\benrol+ments?\b/ },
+  {
+    id: 'academics',
+    re: /\bacademics?\b|\battendance\b|\benrol+ments?\b|\btimetable\b|\bgradebook\b|\btranscript/,
+  },
 ];
 
 function readStdin() {
@@ -182,10 +192,14 @@ function scoreCompleteness(state) {
 function skillContext(extra) {
   return [
     'ENTERPRISE PRODUCTION-READY TEST POLICY (project hooks active).',
-    `Mandatory skill: ${SKILL}`,
-    `Checklist template: ${CHECKLIST_TEMPLATE}`,
+    `Mandatory test skill: ${SKILL}`,
+    `Mandatory development skill (when building/closing gaps): ${DEV_SKILL}`,
+    `Test checklist: ${CHECKLIST_TEMPLATE}`,
+    `Dev checklist: ${DEV_CHECKLIST_TEMPLATE}`,
+    `SIS peer-parity plan: ${SIS_PLAN}`,
     'Pillars required before claiming done: Functionality, E2E (live when possible), UX/a11y, Multidevice captures, Security/tenant/RBAC, CI gates, Evidence pack.',
     'Do not equate route-smoke or skipped Playwright with enterprise production-ready.',
+    'Do not claim product 10/10 without development skill exit criteria + test skill evidence.',
     extra || '',
   ]
     .filter(Boolean)
@@ -206,7 +220,10 @@ async function sessionStart(input) {
 
 async function beforeSubmitPrompt(input) {
   const prompt = String(input.prompt || '');
-  if (!TEST_INTENT.test(prompt) && !detectModules(prompt).length) {
+  const isTest = TEST_INTENT.test(prompt) || detectModules(prompt).length;
+  const isDev = DEV_INTENT.test(prompt);
+
+  if (!isTest && !isDev) {
     out({ continue: true });
     return;
   }
@@ -214,11 +231,12 @@ async function beforeSubmitPrompt(input) {
   const modules = detectModules(prompt);
   const prev = loadState() || {};
   const next = {
-    active: true,
-    status: 'in_progress',
+    active: Boolean(isTest),
+    status: isTest ? 'in_progress' : prev.status || 'in_progress',
     startedAt: prev.startedAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     modules: [...new Set([...(prev.modules || []), ...modules])],
+    mode: isDev && isTest ? 'build+test' : isDev ? 'build' : 'test',
     pillars: prev.pillars || {
       functionality: false,
       e2e: false,
@@ -231,10 +249,21 @@ async function beforeSubmitPrompt(input) {
   };
   saveState(next);
 
+  const messages = [];
+  if (isDev) {
+    messages.push(
+      `Enterprise development hooks armed. Follow ${DEV_SKILL} and ${DEV_CHECKLIST_TEMPLATE}. SIS peer-parity plan: ${SIS_PLAN}. Build before claiming product 10/10.`,
+    );
+  }
+  if (isTest) {
+    messages.push(
+      `Enterprise test hooks armed. Follow ${SKILL} and ${CHECKLIST_TEMPLATE} before claiming production-ready.`,
+    );
+  }
+
   out({
     continue: true,
-    user_message:
-      'Enterprise test hooks armed. Agent must follow .cursor/skills/enterprise-module-production-ready/SKILL.md (E2E, UX, multidevice, functionality, security) and fill docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md before claiming production-ready.',
+    user_message: messages.join(' '),
   });
 }
 
