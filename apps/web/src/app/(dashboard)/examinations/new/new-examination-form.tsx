@@ -1,6 +1,12 @@
 'use client';
 
+/**
+ * Examination create form aligned with backend CreateExaminationSchema.
+ * Submits via createExaminationAction → POST /examinations (gateway plugin).
+ * Does not invent success — gateway failures surface as honest errors.
+ */
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 
@@ -13,50 +19,97 @@ import {
   CardTitle,
   FormField,
   Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@proctira/ui/components';
+import {
+  createExaminationFormSchema,
+  defaultCreateExaminationValues,
+  type CreateExaminationFormValues,
+} from '@/lib/validation/examination-schema';
 
-type FieldErrors = {
-  name?: string;
-  code?: string;
-  examinationDate?: string;
-};
+import {
+  createExaminationAction,
+  type ActionState,
+} from '../actions';
 
-/**
- * Client-validated examination create form.
- * Does not invent a successful backend create — submission acknowledges demo mode.
- */
-export function NewExaminationForm() {
-  const [name, setName] = useState('');
-  const [code, setCode] = useState('');
-  const [examinationDate, setExaminationDate] = useState('');
-  const [registrationStartDate, setRegistrationStartDate] = useState('');
-  const [registrationEndDate, setRegistrationEndDate] = useState('');
+export interface InstitutionOption {
+  id: string;
+  name: string;
+  code: string;
+}
+
+interface NewExaminationFormProps {
+  institutions: InstitutionOption[];
+}
+
+type FieldErrors = Record<string, string>;
+
+function flattenClientErrors(
+  issues: { path: PropertyKey[]; message: string }[],
+): FieldErrors {
+  const out: FieldErrors = {};
+  for (const issue of issues) {
+    const key = issue.path.map(String).join('.') || '_form';
+    if (!out[key]) out[key] = issue.message;
+  }
+  return out;
+}
+
+export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
+  const router = useRouter();
+  const [values, setValues] = useState<CreateExaminationFormValues>(() =>
+    defaultCreateExaminationValues(institutions[0]?.id ?? ''),
+  );
   const [errors, setErrors] = useState<FieldErrors>({});
-  const [demoAck, setDemoAck] = useState<string | null>(null);
+  const [serverState, setServerState] = useState<ActionState<{
+    examinationId: string;
+  }> | null>(null);
+  const [isPending, setIsPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
   }, []);
 
-  function validate(): FieldErrors {
-    const next: FieldErrors = {};
-    if (!name.trim()) next.name = 'Name is required';
-    if (!code.trim()) next.code = 'Code is required';
-    if (!examinationDate) next.examinationDate = 'Examination date is required';
-    return next;
+  function patchRoot<K extends keyof CreateExaminationFormValues>(
+    key: K,
+    value: CreateExaminationFormValues[K],
+  ) {
+    setValues((prev) => ({ ...prev, [key]: value }));
   }
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setDemoAck(null);
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length > 0) return;
-    setDemoAck(
-      'Demo validation passed — examination create is not connected to a live exams API in this build.',
-    );
+    setServerState(null);
+    const parsed = createExaminationFormSchema.safeParse(values);
+    if (!parsed.success) {
+      setErrors(flattenClientErrors(parsed.error.issues));
+      return;
+    }
+    setErrors({});
+    setIsPending(true);
+    try {
+      const result = await createExaminationAction(parsed.data);
+      setServerState(result);
+      if (result.status === 'success' && result.data?.examinationId) {
+        router.push(`/examinations/${result.data.examinationId}`);
+        router.refresh();
+      }
+      if (result.status === 'error' && result.fieldErrors) {
+        setErrors(result.fieldErrors);
+      }
+    } finally {
+      setIsPending(false);
+    }
   }
+
+  const subject = values.subjects[0]!;
+  const center = values.centers[0]!;
+  const scheme = values.gradingSchemes[0]!;
 
   return (
     <section aria-labelledby="new-exam-heading" className="space-y-6">
@@ -75,18 +128,22 @@ export function NewExaminationForm() {
           Schedule examination
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Define the examination cycle: name, code, date, and registration window.
+          Creates via POST /examinations — name, code, academic period, window,
+          subject, centre, and grading scheme (Requirement 10.1 / 10.7).
         </p>
       </div>
 
-      <Card className="max-w-[760px]">
+      <Card className="max-w-[860px]">
         <CardHeader>
           <CardTitle className="text-base">Examination details</CardTitle>
-          <CardDescription>Fields marked * are required.</CardDescription>
+          <CardDescription>
+            Start date must be at least 7 days ahead. Fields marked * are
+            required.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form
-            className="space-y-5"
+            className="space-y-6"
             noValidate
             onSubmit={onSubmit}
             data-testid="examination-create-form"
@@ -97,8 +154,8 @@ export function NewExaminationForm() {
                 <Input
                   id="exam-name"
                   name="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={values.name}
+                  onChange={(e) => patchRoot('name', e.target.value)}
                   placeholder="Final Year Examination"
                   aria-invalid={Boolean(errors.name)}
                 />
@@ -107,56 +164,315 @@ export function NewExaminationForm() {
                 <Input
                   id="exam-code"
                   name="code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="FYE-2025"
+                  value={values.code}
+                  onChange={(e) => patchRoot('code', e.target.value)}
+                  placeholder="FYE-2026"
                   aria-invalid={Boolean(errors.code)}
                 />
               </FormField>
             </div>
+
             <FormField
-              id="exam-date"
-              label="Examination date"
-              required
-              error={errors.examinationDate}
+              id="exam-description"
+              label="Description"
+              error={errors.description}
             >
               <Input
-                id="exam-date"
-                name="examinationDate"
-                type="date"
-                value={examinationDate}
-                onChange={(e) => setExaminationDate(e.target.value)}
-                aria-invalid={Boolean(errors.examinationDate)}
+                id="exam-description"
+                name="description"
+                value={values.description ?? ''}
+                onChange={(e) => patchRoot('description', e.target.value)}
+                placeholder="Optional summary"
               />
             </FormField>
+
+            <FormField
+              id="exam-period"
+              label="Academic period ID"
+              required
+              error={errors.academicPeriodId}
+            >
+              <Input
+                id="exam-period"
+                name="academicPeriodId"
+                value={values.academicPeriodId}
+                onChange={(e) => patchRoot('academicPeriodId', e.target.value)}
+                placeholder="UUID v4 of the academic period"
+                aria-invalid={Boolean(errors.academicPeriodId)}
+                data-testid="examination-academic-period"
+              />
+            </FormField>
+
             <div className="grid gap-4 md:grid-cols-2">
-              <FormField id="reg-start" label="Registration opens">
+              <FormField
+                id="exam-start"
+                label="Start date"
+                required
+                error={errors.startDate}
+              >
                 <Input
-                  id="reg-start"
-                  name="registrationStartDate"
+                  id="exam-start"
+                  name="startDate"
                   type="date"
-                  value={registrationStartDate}
-                  onChange={(e) => setRegistrationStartDate(e.target.value)}
+                  value={values.startDate}
+                  onChange={(e) => patchRoot('startDate', e.target.value)}
+                  aria-invalid={Boolean(errors.startDate)}
+                  data-testid="examination-start-date"
                 />
               </FormField>
-              <FormField id="reg-end" label="Registration closes">
+              <FormField
+                id="exam-end"
+                label="End date"
+                required
+                error={errors.endDate}
+              >
                 <Input
-                  id="reg-end"
-                  name="registrationEndDate"
+                  id="exam-end"
+                  name="endDate"
                   type="date"
-                  value={registrationEndDate}
-                  onChange={(e) => setRegistrationEndDate(e.target.value)}
+                  value={values.endDate}
+                  onChange={(e) => patchRoot('endDate', e.target.value)}
+                  aria-invalid={Boolean(errors.endDate)}
+                  data-testid="examination-end-date"
                 />
               </FormField>
             </div>
 
-            {demoAck ? (
+            <fieldset className="space-y-3 rounded-lg border border-border p-4">
+              <legend className="px-1 text-sm font-semibold">Subject *</legend>
+              <div className="grid gap-4 md:grid-cols-3">
+                <FormField
+                  id="subject-name"
+                  label="Name"
+                  required
+                  error={errors['subjects.0.name']}
+                >
+                  <Input
+                    id="subject-name"
+                    value={subject.name}
+                    onChange={(e) =>
+                      patchRoot('subjects', [
+                        { ...subject, name: e.target.value },
+                      ])
+                    }
+                    placeholder="Mathematics"
+                    data-testid="examination-subject-name"
+                  />
+                </FormField>
+                <FormField
+                  id="subject-code"
+                  label="Code"
+                  required
+                  error={errors['subjects.0.code']}
+                >
+                  <Input
+                    id="subject-code"
+                    value={subject.code}
+                    onChange={(e) =>
+                      patchRoot('subjects', [
+                        { ...subject, code: e.target.value },
+                      ])
+                    }
+                    placeholder="MATH"
+                    data-testid="examination-subject-code"
+                  />
+                </FormField>
+                <FormField
+                  id="subject-max"
+                  label="Max score"
+                  required
+                  error={errors['subjects.0.maxScore']}
+                >
+                  <Input
+                    id="subject-max"
+                    type="number"
+                    min={1}
+                    value={subject.maxScore}
+                    onChange={(e) =>
+                      patchRoot('subjects', [
+                        {
+                          ...subject,
+                          maxScore: Number(e.target.value) || 0,
+                        },
+                      ])
+                    }
+                  />
+                </FormField>
+              </div>
+            </fieldset>
+
+            <fieldset className="space-y-3 rounded-lg border border-border p-4">
+              <legend className="px-1 text-sm font-semibold">Centre *</legend>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  id="center-name"
+                  label="Name"
+                  required
+                  error={errors['centers.0.name']}
+                >
+                  <Input
+                    id="center-name"
+                    value={center.name}
+                    onChange={(e) =>
+                      patchRoot('centers', [
+                        { ...center, name: e.target.value },
+                      ])
+                    }
+                    placeholder="Main campus hall"
+                    data-testid="examination-center-name"
+                  />
+                </FormField>
+                <FormField
+                  id="center-code"
+                  label="Code"
+                  required
+                  error={errors['centers.0.code']}
+                >
+                  <Input
+                    id="center-code"
+                    value={center.code}
+                    onChange={(e) =>
+                      patchRoot('centers', [
+                        { ...center, code: e.target.value },
+                      ])
+                    }
+                    placeholder="CTR-A"
+                    data-testid="examination-center-code"
+                  />
+                </FormField>
+                <FormField
+                  id="center-institution"
+                  label="Institution"
+                  required
+                  error={errors['centers.0.institutionId']}
+                >
+                  {institutions.length > 0 ? (
+                    <Select
+                      value={center.institutionId || undefined}
+                      onValueChange={(v) =>
+                        patchRoot('centers', [
+                          { ...center, institutionId: v },
+                        ])
+                      }
+                    >
+                      <SelectTrigger
+                        id="center-institution"
+                        data-testid="examination-center-institution"
+                      >
+                        <SelectValue placeholder="Select institution" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {institutions.map((inst) => (
+                          <SelectItem key={inst.id} value={inst.id}>
+                            {inst.name} ({inst.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="center-institution"
+                      value={center.institutionId}
+                      onChange={(e) =>
+                        patchRoot('centers', [
+                          { ...center, institutionId: e.target.value },
+                        ])
+                      }
+                      placeholder="Institution UUID v4"
+                      data-testid="examination-center-institution"
+                    />
+                  )}
+                </FormField>
+                <FormField
+                  id="center-capacity"
+                  label="Capacity"
+                  required
+                  error={errors['centers.0.capacity']}
+                >
+                  <Input
+                    id="center-capacity"
+                    type="number"
+                    min={1}
+                    value={center.capacity}
+                    onChange={(e) =>
+                      patchRoot('centers', [
+                        {
+                          ...center,
+                          capacity: Number(e.target.value) || 0,
+                        },
+                      ])
+                    }
+                  />
+                </FormField>
+              </div>
+            </fieldset>
+
+            <fieldset className="space-y-3 rounded-lg border border-border p-4">
+              <legend className="px-1 text-sm font-semibold">
+                Grading scheme *
+              </legend>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  id="scheme-name"
+                  label="Name"
+                  required
+                  error={errors['gradingSchemes.0.name']}
+                >
+                  <Input
+                    id="scheme-name"
+                    value={scheme.name}
+                    onChange={(e) =>
+                      patchRoot('gradingSchemes', [
+                        { ...scheme, name: e.target.value },
+                      ])
+                    }
+                  />
+                </FormField>
+                <FormField
+                  id="scheme-pass"
+                  label="Pass threshold"
+                  required
+                  error={errors['gradingSchemes.0.passThreshold']}
+                >
+                  <Input
+                    id="scheme-pass"
+                    type="number"
+                    min={0}
+                    value={scheme.passThreshold}
+                    onChange={(e) =>
+                      patchRoot('gradingSchemes', [
+                        {
+                          ...scheme,
+                          passThreshold: Number(e.target.value) || 0,
+                        },
+                      ])
+                    }
+                  />
+                </FormField>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Default A/B/C/F thresholds (0–100) are included; adjust the pass
+                threshold if needed.
+              </p>
+            </fieldset>
+
+            {serverState?.status === 'error' && serverState.message ? (
               <p
-                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
-                role="status"
-                data-testid="examination-create-demo-ack"
+                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-950"
+                role="alert"
+                data-testid="examination-create-error"
               >
-                {demoAck}
+                {serverState.message}
+              </p>
+            ) : null}
+
+            {serverState?.status === 'success' ? (
+              <p
+                className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950"
+                role="status"
+                data-testid="examination-create-success"
+              >
+                Examination created — opening detail…
               </p>
             ) : null}
 
@@ -164,8 +480,12 @@ export function NewExaminationForm() {
               <Button asChild variant="outline" type="button">
                 <Link href="/examinations">Cancel</Link>
               </Button>
-              <Button type="submit" data-testid="examination-create-submit">
-                Create examination
+              <Button
+                type="submit"
+                disabled={isPending}
+                data-testid="examination-create-submit"
+              >
+                {isPending ? 'Creating…' : 'Create examination'}
               </Button>
             </div>
           </form>

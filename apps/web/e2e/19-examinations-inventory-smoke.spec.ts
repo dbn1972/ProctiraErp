@@ -1,11 +1,16 @@
+/**
+ * Examinations — ungated inventory + create validation smoke.
+ *
+ * Always-on: unauthenticated protected routes → /login.
+ * Fake-session suite: list/new shell + client validation against
+ * CreateExaminationSchema-aligned form (no invented create success).
+ * Detail tabs remain gated on E2E_BACKEND_READY.
+ */
 import { expect, test, type Page } from '@playwright/test';
 
-/**
- * Examinations — ungated inventory + client create validation smoke.
- * Live create journeys remain gated elsewhere when E2E_BACKEND_READY=1.
- */
-
 const EXAM_ID = '11111111-1111-4111-8111-111111111111';
+const PERIOD_ID = '22222222-2222-4222-8222-222222222222';
+const INSTITUTION_ID = '33333333-3333-4333-8333-333333333333';
 
 /** Always-on inventory: list + create shell (no seeded exam required). */
 const UNGATED_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
@@ -64,7 +69,20 @@ async function setupTenantSession(page: Page): Promise<void> {
   ]);
 }
 
-test.describe('Examinations — inventory smoke (ungated)', () => {
+test.describe('Examinations — unauthenticated inventory (ungated)', () => {
+  for (const route of UNGATED_ROUTES) {
+    test(`${route.path} unauthenticated → /login with body + heading`, async ({
+      page,
+    }) => {
+      await page.goto(route.path, { waitUntil: 'domcontentloaded' });
+      await expect(page).toHaveURL(/\/login/);
+      await expect(page.locator('body')).toBeVisible();
+      await expect(page.getByRole('heading').first()).toBeVisible();
+    });
+  }
+});
+
+test.describe('Examinations — inventory smoke (session cookie)', () => {
   test.beforeEach(async ({ page }) => {
     await setupTenantSession(page);
   });
@@ -93,22 +111,71 @@ test.describe('Examinations — inventory smoke (ungated)', () => {
     });
   }
 
-  test('create form validates required fields client-side', async ({ page }) => {
+  test('create form validates required CreateExamination fields client-side', async ({
+    page,
+  }) => {
     await page.goto('/examinations/new', { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('examination-create-form')).toHaveAttribute(
       'data-hydrated',
       'true',
     );
 
+    // Clear date defaults so required-date messages appear.
+    await page.getByTestId('examination-start-date').fill('');
+    await page.getByTestId('examination-end-date').fill('');
     await page.getByTestId('examination-create-submit').click();
+
     await expect(page.getByText('Name is required')).toBeVisible();
     await expect(page.getByText('Code is required')).toBeVisible();
-    await expect(page.getByText('Examination date is required')).toBeVisible();
+    await expect(page.getByText('UUID is required').first()).toBeVisible();
+    await expect(page.getByText('Date is required').first()).toBeVisible();
+    await expect(page.getByText('Subject name is required')).toBeVisible();
+    await expect(page.getByText('Center name is required')).toBeVisible();
+  });
+
+  test('create form posts to API and surfaces gateway failure honestly', async ({
+    page,
+  }) => {
+    await page.goto('/examinations/new', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('examination-create-form')).toHaveAttribute(
+      'data-hydrated',
+      'true',
+    );
 
     await page.locator('#exam-name').fill('Mid-term Assessment');
     await page.locator('#exam-code').fill('MTA-2026');
-    await page.locator('#exam-date').fill('2026-10-01');
+    await page.getByTestId('examination-academic-period').fill(PERIOD_ID);
+    await page.getByTestId('examination-subject-name').fill('Mathematics');
+    await page.getByTestId('examination-subject-code').fill('MATH');
+    await page.getByTestId('examination-center-name').fill('Hall A');
+    await page.getByTestId('examination-center-code').fill('CTR-A');
+
+    const institutionControl = page.getByTestId('examination-center-institution');
+    const tag = await institutionControl.evaluate((el) => el.tagName.toLowerCase());
+    if (tag === 'input') {
+      await institutionControl.fill(INSTITUTION_ID);
+    }
+    // Select path: default first institution may already be set from server props.
+
     await page.getByTestId('examination-create-submit').click();
-    await expect(page.getByTestId('examination-create-demo-ack')).toBeVisible();
+
+    if (process.env.E2E_BACKEND_READY === '1') {
+      // Live create may succeed (redirect) or fail validation against real FK data.
+      await Promise.race([
+        page.waitForURL(/\/examinations\/[0-9a-f-]{36}/i, { timeout: 15_000 }),
+        page
+          .getByTestId('examination-create-error')
+          .waitFor({ state: 'visible', timeout: 15_000 }),
+        page
+          .getByTestId('examination-create-success')
+          .waitFor({ state: 'visible', timeout: 15_000 }),
+      ]);
+    } else {
+      // Without a live gateway, action must not invent success.
+      await expect(page.getByTestId('examination-create-error')).toBeVisible({
+        timeout: 15_000,
+      });
+      await expect(page.getByTestId('examination-create-demo-ack')).toHaveCount(0);
+    }
   });
 });
