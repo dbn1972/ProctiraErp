@@ -151,6 +151,9 @@ export class InstallServiceImpl implements InstallService {
   async configureCDN(config: CdnConfigInput): Promise<ValidationResult> {
     this.logger.info({ adapter: config.adapter }, 'Configuring CDN adapter');
 
+    const locked = await this.assertBootstrapUnlocked('cdn');
+    if (locked) return locked;
+
     // Ensure we have an active run
     await this.ensureActiveRun();
 
@@ -190,6 +193,9 @@ export class InstallServiceImpl implements InstallService {
    */
   async configureDatabase(config: DatabaseConfigInput): Promise<ValidationResult> {
     this.logger.info({ provider: config.provider, host: config.host }, 'Configuring database');
+
+    const locked = await this.assertBootstrapUnlocked('database');
+    if (locked) return locked;
 
     await this.ensureActiveRun();
 
@@ -232,6 +238,9 @@ export class InstallServiceImpl implements InstallService {
   async configureStorage(config: StorageConfigInput): Promise<ValidationResult> {
     this.logger.info({ adapter: config.adapter, bucket: config.bucket }, 'Configuring storage');
 
+    const locked = await this.assertBootstrapUnlocked('storage');
+    if (locked) return locked;
+
     await this.ensureActiveRun();
 
     const orderError = this.checkStepOrder('storage');
@@ -271,6 +280,9 @@ export class InstallServiceImpl implements InstallService {
   async configureCache(config: CacheConfigInput): Promise<ValidationResult> {
     this.logger.info({ adapter: config.adapter }, 'Configuring cache');
 
+    const locked = await this.assertBootstrapUnlocked('cache');
+    if (locked) return locked;
+
     await this.ensureActiveRun();
 
     const orderError = this.checkStepOrder('cache');
@@ -309,6 +321,9 @@ export class InstallServiceImpl implements InstallService {
    */
   async configureQueue(config: QueueConfigInput): Promise<ValidationResult> {
     this.logger.info({ backend: config.backend }, 'Configuring queue');
+
+    const locked = await this.assertBootstrapUnlocked('queue');
+    if (locked) return locked;
 
     await this.ensureActiveRun();
 
@@ -350,6 +365,18 @@ export class InstallServiceImpl implements InstallService {
    */
   async finalizeBootstrap(): Promise<BootstrapResult> {
     this.logger.info('Finalizing bootstrap');
+
+    if (await this.isBootstrapLocked()) {
+      return {
+        success: false,
+        runId: this.currentRunId ?? 'none',
+        completedAt: new Date().toISOString(),
+        adapters: Object.fromEntries(
+          BOOTSTRAP_STEPS.map((step) => [step, 'configured' as AdapterStatus]),
+        ) as Record<BootstrapStep, AdapterStatus>,
+        error: 'Bootstrap already finalized; install endpoints are locked.',
+      };
+    }
 
     // Check all steps are completed
     const missingSteps = BOOTSTRAP_STEPS.filter((s) => !this.completedSteps.has(s));
@@ -446,6 +473,34 @@ export class InstallServiceImpl implements InstallService {
   }
 
   // ─── Private Helpers ─────────────────────────────────────────────────────────
+
+  /**
+   * True when bootstrap has already been finalized (one-time lock).
+   */
+  async isBootstrapLocked(): Promise<boolean> {
+    if (this.isBootstrapped) return true;
+    const latestRun = await this.store.getLatestRun();
+    if (latestRun?.status === 'completed') {
+      this.isBootstrapped = true;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Reject further configure calls after finalize (bootstrap lock).
+   */
+  private async assertBootstrapUnlocked(step: BootstrapStep): Promise<ValidationResult | null> {
+    if (await this.isBootstrapLocked()) {
+      return {
+        success: false,
+        step,
+        message: 'Bootstrap locked',
+        error: 'Bootstrap already finalized; install endpoints are locked.',
+      };
+    }
+    return null;
+  }
 
   /**
    * Ensures there's an active bootstrap run. Creates one if needed.

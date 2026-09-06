@@ -188,6 +188,112 @@ describe('installPlugin (Fastify routes)', () => {
       expect(body.success).toBe(false);
       expect(body.error).toContain('missing steps');
     });
+
+    it('should return 409 when configure/finalize is attempted after lock', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/install/configure/cdn',
+        payload: { adapter: 'nginx', baseUrl: 'https://cdn.example.com', tenantAware: true },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/install/configure/database',
+        payload: {
+          provider: 'postgresql',
+          host: 'localhost',
+          port: 5432,
+          database: 'proctira',
+          username: 'admin',
+          password: 'secret',
+        },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/install/configure/storage',
+        payload: {
+          adapter: 'minio',
+          bucket: 'files',
+          endpoint: 'http://localhost:9000',
+          accessKeyId: 'admin',
+          secretAccessKey: 'secret',
+        },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/install/configure/cache',
+        payload: { adapter: 'redis', host: 'localhost', port: 6379 },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/install/configure/queue',
+        payload: {
+          backend: 'rabbitmq',
+          rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' },
+        },
+      });
+      const finalized = await app.inject({ method: 'POST', url: '/install/finalize' });
+      expect(finalized.statusCode).toBe(200);
+
+      const lockedConfigure = await app.inject({
+        method: 'POST',
+        url: '/install/configure/cdn',
+        payload: { adapter: 'nginx', baseUrl: 'https://cdn.example.com', tenantAware: true },
+      });
+      expect(lockedConfigure.statusCode).toBe(409);
+      expect(lockedConfigure.json().error).toMatch(/already finalized|locked/i);
+
+      const lockedFinalize = await app.inject({ method: 'POST', url: '/install/finalize' });
+      expect(lockedFinalize.statusCode).toBe(409);
+    });
+  });
+
+  describe('install token gate', () => {
+    let secured: FastifyInstance;
+
+    beforeEach(async () => {
+      secured = Fastify();
+      await secured.register(installPlugin, {
+        loggerName: 'install-token-test',
+        installToken: 'test-install-secret',
+        connectivityTester: {
+          testCdn: async () => ({ healthy: true, latencyMs: 5 }),
+          testDatabase: async () => ({ healthy: true, latencyMs: 10 }),
+          testStorage: async () => ({ healthy: true, latencyMs: 8 }),
+          testCache: async () => ({ healthy: true, latencyMs: 2 }),
+          testQueue: async () => ({ healthy: true, latencyMs: 12 }),
+        },
+      });
+      await secured.ready();
+    });
+
+    afterEach(async () => {
+      await secured.close();
+    });
+
+    it('rejects mutate without token', async () => {
+      const response = await secured.inject({
+        method: 'POST',
+        url: '/install/configure/cdn',
+        payload: { adapter: 'nginx', baseUrl: 'https://cdn.example.com', tenantAware: true },
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('allows mutate with matching X-Install-Token', async () => {
+      const response = await secured.inject({
+        method: 'POST',
+        url: '/install/configure/cdn',
+        headers: { 'x-install-token': 'test-install-secret' },
+        payload: { adapter: 'nginx', baseUrl: 'https://cdn.example.com', tenantAware: true },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().success).toBe(true);
+    });
+
+    it('still allows public status without token', async () => {
+      const response = await secured.inject({ method: 'GET', url: '/install/status' });
+      expect(response.statusCode).toBe(200);
+    });
   });
 
   describe('GET /install/health', () => {

@@ -1,6 +1,7 @@
 /**
  * Client-side API key request validation for the developer dashboard demo.
- * Live minting is not connected; these checks keep the honesty demo consistent.
+ * Live minting is not connected; these checks keep the honesty demo consistent
+ * and reject unsafe / reserved names before any future mint path.
  */
 
 export const API_KEY_SCOPES = [
@@ -22,6 +23,15 @@ export interface ApiKeyRequestErrors {
 }
 
 const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9 _.-]{1,62}[a-zA-Z0-9]$/;
+const RESERVED_NAMES = new Set([
+  'admin',
+  'root',
+  'system',
+  'default',
+  'test',
+  'null',
+  'undefined',
+]);
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
@@ -43,9 +53,13 @@ export function validateApiKeyRequest(
     errors.name = 'Key name must be at least 3 characters.';
   } else if (name.length > 64) {
     errors.name = 'Key name must be at most 64 characters.';
+  } else if (/\s{2,}/.test(name)) {
+    errors.name = 'Key name must not contain consecutive spaces.';
   } else if (!NAME_RE.test(name)) {
     errors.name =
       'Key name must start and end with alphanumeric characters (letters, numbers, spaces, ., _, - allowed).';
+  } else if (RESERVED_NAMES.has(name.toLowerCase())) {
+    errors.name = 'Key name is reserved.';
   }
 
   if (!scope) {

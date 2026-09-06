@@ -58,9 +58,21 @@ test.describe('Developer Portal — public surfaces', () => {
     await page.getByLabel(/key name/i).fill('ab');
     await page.getByTestId('api-key-demo-submit').click();
     await expect(page.getByTestId('api-key-demo-error')).toContainText(/at least 3 characters/i);
+    await page.getByLabel(/key name/i).fill('admin');
+    await page.getByTestId('api-key-demo-submit').click();
+    await expect(page.getByTestId('api-key-demo-error')).toContainText(/reserved/i);
     await page.getByLabel(/key name/i).fill('Attendance sync');
     await page.getByTestId('api-key-demo-submit').click();
     await expect(page.getByTestId('api-key-demo-ack')).toContainText(/demo only/i);
+  });
+
+  test('dashboard exposes scope allowlist options', async ({ page }) => {
+    await page.goto('/dashboard');
+    const scope = page.getByLabel(/scope/i);
+    await expect(scope).toBeVisible();
+    await expect(scope.locator('option')).toHaveCount(3);
+    await expect(scope.locator('option[value="students:read"]')).toHaveCount(1);
+    await expect(scope.locator('option[value="webhooks:manage"]')).toHaveCount(1);
   });
 
   test('marketplace lists fixture plugins and filters', async ({ page }) => {
@@ -75,6 +87,17 @@ test.describe('Developer Portal — public surfaces', () => {
     await expect(page.getByTestId('marketplace-plugin-attendance-sms-bridge')).toHaveCount(0);
     await page.getByTestId('marketplace-search').fill('zzzz-no-match');
     await expect(page.getByTestId('marketplace-empty')).toBeVisible();
+  });
+
+  test('docs quickstart links stay on-site', async ({ page }) => {
+    await page.goto('/docs');
+    const dashboardCta = page.getByRole('link', { name: /dashboard|api key/i }).first();
+    if (await dashboardCta.count()) {
+      const href = await dashboardCta.getAttribute('href');
+      expect(href).toBeTruthy();
+      expect(href).not.toMatch(/^#/);
+    }
+    await expect(page.getByTestId('docs-sample-curl')).toBeVisible();
   });
 
   test('health endpoint reports developer-portal', async ({ request }) => {
