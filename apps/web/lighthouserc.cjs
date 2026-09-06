@@ -202,7 +202,9 @@ module.exports = {
   ci: {
     collect: {
       url: URLS,
-      numberOfRuns: 1,
+      // Three runs + median assertion absorbs single-run CI noise (e.g. 0.79
+      // vs the 0.80 desktop performance floor on anonymous /login).
+      numberOfRuns: 3,
       settings: PROFILE_SETTINGS,
       // The wrapper script (`tools/scripts/check-lighthouse.mjs`) starts
       // and stops the Next.js production server itself, so we don't ask

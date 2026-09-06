@@ -11,6 +11,7 @@ export function Stepper({ steps, currentStepIndex }: StepperProps) {
   return (
     <nav
       aria-label="Setup progress"
+      tabIndex={0}
       className="mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-6"
     >
       <ol className="flex min-w-max items-start sm:min-w-0">
