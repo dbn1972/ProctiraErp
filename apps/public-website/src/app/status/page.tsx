@@ -8,8 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'System status',
-  description:
-    'Operational status of ProctiraERP public services. Subscribe for incident updates.',
+  description: 'Operational status of ProctiraERP public services. Subscribe for incident updates.',
   alternates: { canonical: '/status' },
 };
 
@@ -184,9 +183,7 @@ export default async function StatusPage() {
             {overall.description}
           </p>
           {snapshot.probedAt ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Last probe: {snapshot.probedAt}
-            </p>
+            <p className="mt-3 text-xs text-muted-foreground">Last probe: {snapshot.probedAt}</p>
           ) : null}
         </div>
       </section>
@@ -194,9 +191,7 @@ export default async function StatusPage() {
       <section className="container py-16" aria-label="Component status">
         <div className="overflow-hidden rounded-2xl border border-border bg-card">
           <table className="w-full text-left text-sm">
-            <caption className="sr-only">
-              Operational status of ProctiraERP components
-            </caption>
+            <caption className="sr-only">Operational status of ProctiraERP components</caption>
             <tbody>
               {SERVICES.map((service) => {
                 const state = serviceState(service.probeKey, snapshot);
@@ -207,9 +202,7 @@ export default async function StatusPage() {
                     data-status={state}
                   >
                     <th scope="row" className="px-6 py-5 align-top">
-                      <span className="block font-semibold text-foreground">
-                        {service.name}
-                      </span>
+                      <span className="block font-semibold text-foreground">{service.name}</span>
                       <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
                         {service.detail}
                       </span>
@@ -230,9 +223,7 @@ export default async function StatusPage() {
         aria-labelledby="history-heading"
       >
         <div className="container max-w-3xl">
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
-            History
-          </p>
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">History</p>
           <h2
             id="history-heading"
             className="mt-3 text-3xl font-extrabold tracking-tight text-foreground md:text-4xl"
@@ -240,17 +231,15 @@ export default async function StatusPage() {
             Past incidents
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Incident history appears here only after a status provider is connected.
-            An empty list does not mean zero production incidents.
+            Incident history appears here only after a status provider is connected. An empty list
+            does not mean zero production incidents.
           </p>
           <div className="mt-8 rounded-2xl border border-border bg-card p-8 text-center">
             <Activity aria-hidden="true" className="mx-auto h-8 w-8 text-muted-foreground" />
-            <p className="mt-3 font-semibold text-foreground">
-              Incident feed not connected
-            </p>
+            <p className="mt-3 font-semibold text-foreground">Incident feed not connected</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Wire Statuspage, Instatus, or an internal feed before publishing
-              post-mortems on this surface.
+              Wire Statuspage, Instatus, or an internal feed before publishing post-mortems on this
+              surface.
             </p>
           </div>
         </div>
@@ -268,8 +257,8 @@ export default async function StatusPage() {
             Subscribe to status updates
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Operations teams can receive incident notifications by email, RSS,
-            or webhook once a provider is configured.
+            Operations teams can receive incident notifications by email, RSS, or webhook once a
+            provider is configured.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">
@@ -316,7 +305,7 @@ function StatusPill({ state }: { state: ProbeState }) {
     );
   }
   return (
-    <span className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs font-semibold text-muted-foreground">
+    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-semibold text-foreground">
       <span aria-hidden="true" className="h-2 w-2 rounded-full bg-muted-foreground/60" />
       Not monitored
     </span>

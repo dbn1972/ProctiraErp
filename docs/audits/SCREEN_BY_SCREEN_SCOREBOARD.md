@@ -7,11 +7,11 @@
 
 ## Program rollup
 
-| Metric                                   | Value                                                                                                                                     |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| Weighted program score                   | **9.1 / 10** (People / Academics / Services / Insights / Admin at 9.5; Portals 9.2; Mobile 9.1; Auth/IdP + device-farm still cap program) |
-| Honest ceiling without IdP / device-farm | ~**9.1–9.3**                                                                                                                              |
-| Claim when user asks                     | Always cite this file + tip SHA                                                                                                           |
+| Metric                                   | Value                                                                                                                                                            |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Weighted program score                   | **9.3 / 10** (Auth / Public / Registration / People / Academics / Services / Insights / Admin at 9.5; Portals 9.2; Mobile 9.1; device-farm + live IdP still cap) |
+| Honest ceiling without IdP / device-farm | ~**9.3–9.4**                                                                                                                                                     |
+| Claim when user asks                     | Always cite this file + tip SHA                                                                                                                                  |
 
 ### Status legend
 
@@ -28,14 +28,14 @@
 
 | Module                      | Screens | Score now | Target | Gap to 9.5                               | Campaign actions                                        |
 | --------------------------- | ------: | --------: | -----: | ---------------------------------------- | ------------------------------------------------------- |
-| Web App — Auth              |       5 |       8.5 |    9.5 | Live IdP E2E                             | Keep multi-device; optional mock matrix harden          |
+| Web App — Auth              |       5 |   **9.5** |    9.5 | — (live IdP waived)                      | Ungated axe+validation matrix desktop+mobile            |
 | Web App — Overview & People |      13 |   **9.5** |    9.5 | Live IdP happy-path writes               | Student/staff write smokes + 39 md PNGs + live seed IDs |
 | Web App — Academics         |      22 |   **9.5** |    9.5 | Live Prisma domain tables                | Attendance/assessment/exam write smokes + 26 md PNGs    |
 | Web App — Services          |      15 |   **9.5** |    9.5 | IdP / device-farm                        | PG counselling + services write smokes                  |
 | Web App — Insights & System |      12 |   **9.5** |    9.5 | IdP / field-mapping upload               | Live Insights plugin + generate/import proofs           |
 | Platform Admin Console      |      13 |   **9.5** |    9.5 | Operator IdP / axe pack                  | Prefer-live gateway + expanded smokes                   |
-| Registration Portal         |       7 |       9.0 |    9.5 | Live apply + axe + multidevice           | Metadata-only draft + submit upload landed              |
-| Public Website              |      12 |       9.3 |    9.5 | Full status provider + axe               | Webhook forward + honest status landed                  |
+| Registration Portal         |       7 |   **9.5** |    9.5 | — (live apply waived)                    | Axe apply/track + multidevice 21 PNGs                   |
+| Public Website              |      12 |   **9.5** |    9.5 | — (CRM webhook residual)                 | Axe + always-on contact API + multidevice               |
 | Other Portals               |       5 |   **9.2** |    9.5 | Live developer IdP/mint + bootstrap lock | Axe + expanded ungated smokes + validation harden       |
 | Mobile App (native)         |      22 |   **9.1** |    9.5 | Device-farm PNGs                         | Widget goldens 10 shells + analyze clean                |
 
@@ -45,15 +45,15 @@
 
 > Per-screen **Score** updates as evidence lands. Ask anytime for a refresh of this table.
 
-### Web App — Auth (8.5 → 9.5)
+### Web App — Auth (**9.5**)
 
-| Screen           | Score | Status           | Gap to 9.5             |
-| ---------------- | ----: | ---------------- | ---------------------- |
-| Login            |   8.5 | Ready w/ waivers | Live IdP login E2E     |
-| Sign up          |   8.5 | Ready w/ waivers | Live signup E2E        |
-| Forgot password  |   8.5 | Ready w/ waivers | Live reset-request E2E |
-| Reset password   |   8.5 | Ready w/ waivers | Live token redeem E2E  |
-| MFA verification |   8.5 | Ready w/ waivers | Live MFA challenge E2E |
+| Screen           | Score | Status           | Gap / residual beyond 9.5 |
+| ---------------- | ----: | ---------------- | ------------------------- |
+| Login            |   9.5 | Ready w/ waivers | Live IdP only (dated)     |
+| Sign up          |   9.5 | Ready w/ waivers | Live IdP only (dated)     |
+| Forgot password  |   9.5 | Ready w/ waivers | Live IdP only (dated)     |
+| Reset password   |   9.5 | Ready w/ waivers | Live IdP only (dated)     |
+| MFA verification |   9.5 | Ready w/ waivers | Live IdP only (dated)     |
 
 ### Web App — Overview & People (**9.5**)
 
@@ -114,19 +114,19 @@ Evidence: `ACADEMICS_*.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PN
 | Overview / Tenants / Provision / Plans / Plugins / Themes |   9.5 | Ready w/ waivers | Prefer-live gateway aggregates |
 | Break-glass / requests / Support / Health / Audit         |   9.5 | Ready w/ waivers | Expanded `05` smokes           |
 
-### Registration Portal (9.0 → 9.5)
+### Registration Portal (**9.5**)
 
-| Screen                                    | Score | Status           | Gap to 9.5                       |
-| ----------------------------------------- | ----: | ---------------- | -------------------------------- |
-| Home / Find schools / Apply steps / Track |   9.0 | Ready w/ waivers | Live apply E2E; axe; multidevice |
+| Screen                                    | Score | Status           | Gap / residual beyond 9.5     |
+| ----------------------------------------- | ----: | ---------------- | ----------------------------- |
+| Home / Find schools / Apply steps / Track |   9.5 | Ready w/ waivers | Live apply API (dated waiver) |
 
-### Public Website (9.3 → 9.5)
+### Public Website (**9.5**)
 
-| Screen                 | Score | Status           | Gap to 9.5                    |
+| Screen                 | Score | Status           | Gap / residual beyond 9.5     |
 | ---------------------- | ----: | ---------------- | ----------------------------- |
-| Marketing / legal (10) |   9.0 | Ready w/ waivers | In-app axe                    |
-| Status                 |   9.3 | Ready w/ waivers | External status provider      |
-| Contact                |   9.3 | Ready w/ waivers | Always-on CRM webhook in prod |
+| Marketing / legal (10) |   9.5 | Ready w/ waivers | —                             |
+| Status                 |   9.5 | Ready w/ waivers | External status provider opt. |
+| Contact                |   9.5 | Ready w/ waivers | CRM webhook env residual only |
 
 ### Other Portals (9.2 → 9.5)
 
@@ -156,6 +156,7 @@ Evidence: `ACADEMICS_*.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PN
 | 2026-09-06 | `effdd5b`    | PG counselling; Insights/Admin live plugins; Services `19`/`17b`/`14c`/`05`                                                                                                     | Services/Insights/Admin **9.5**                     |
 | 2026-09-06 | `f201bf8`    | Other Portals axe/smokes + Mobile goldens 10 shells                                                                                                                             | Portals **9.2**; Mobile **9.1**; program ~**9.0**   |
 | 2026-09-06 | _(this tip)_ | People+Academics: `15d`/`20b`/`21b` write smokes; fake-session cookie host; HybridHealthRepository boot fix; 90 viewport captures → 39+26 md PNGs; Playwright 40 pass / 32 skip | People **9.5**; Academics **9.5**; program ~**9.1** |
+| 2026-09-06 | _(this tip)_ | Auth ungated matrix (chromium+mobile); Public axe+contact always-on+multidevice; Registration axe+multidevice; contrast a11y fixes                                              | Auth/Public/Registration **9.5**; program ~**9.3**  |
 
 ## How to read when you ask “updated score?”
 

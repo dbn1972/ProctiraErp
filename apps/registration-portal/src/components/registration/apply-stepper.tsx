@@ -59,14 +59,14 @@ export function ApplyStepper() {
                     ? 'bg-primary-600 text-white'
                     : isActive
                       ? 'bg-white text-primary-700 ring-2 ring-primary-600'
-                      : 'bg-gray-100 text-gray-400'
+                      : 'bg-gray-100 text-gray-600'
                 }`}
               >
                 {isDone ? <Check className="h-4 w-4" aria-hidden="true" /> : index + 1}
               </span>
               <span
                 className={`hidden text-sm font-semibold sm:inline ${
-                  isActive ? 'text-gray-900' : isDone ? 'text-primary-700' : 'text-gray-400'
+                  isActive ? 'text-gray-900' : isDone ? 'text-primary-700' : 'text-gray-600'
                 }`}
               >
                 {labels[step]}

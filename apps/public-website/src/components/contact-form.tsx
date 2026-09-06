@@ -176,7 +176,7 @@ export function ContactForm() {
         </Button>
         <p className="text-xs text-muted-foreground">
           By sending, you agree to our{' '}
-          <a className="text-primary hover:underline" href="/privacy">
+          <a className="font-medium text-primary underline underline-offset-2" href="/privacy">
             Privacy Policy
           </a>
           .

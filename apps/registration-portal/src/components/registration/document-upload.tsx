@@ -87,7 +87,12 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
     <div>
       <label className="input-label">
         {label}
-        {required && <span className="text-red-500" aria-hidden="true"> *</span>}
+        {required && (
+          <span className="text-red-500" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
       </label>
 
       {existing ? (
@@ -111,13 +116,15 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
         </div>
       ) : (
         <div
-          {...getRootProps()}
+          {...getRootProps({
+            // Avoid nested-interactive: the file input is the sole control;
+            // do not also promote the wrapper to role=button.
+            role: undefined,
+            tabIndex: undefined,
+          })}
           className={`dropzone ${isDragActive ? 'dropzone-active' : ''}`}
-          role="button"
-          tabIndex={0}
-          aria-label={`Upload ${label}`}
         >
-          <input {...getInputProps()} aria-label={`File input for ${label}`} />
+          <input {...getInputProps()} aria-label={`Upload ${label}`} />
           {uploading ? (
             <div className="flex items-center gap-2">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
@@ -125,10 +132,11 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
             </div>
           ) : (
             <>
-              <Upload className="mb-2 h-8 w-8 text-gray-400" aria-hidden="true" />
-              <p className="text-sm text-gray-600">{t('dragDrop')}</p>
-              <p className="mt-1 text-xs text-gray-400">
-                {t('maxSize', { size: String(maxSizeMB) })} · {t('allowedTypes', { types: ALLOWED_EXTENSIONS })}
+              <Upload className="mb-2 h-8 w-8 text-gray-500" aria-hidden="true" />
+              <p className="text-sm text-gray-700">{t('dragDrop')}</p>
+              <p className="mt-1 text-xs text-gray-600">
+                {t('maxSize', { size: String(maxSizeMB) })} ·{' '}
+                {t('allowedTypes', { types: ALLOWED_EXTENSIONS })}
               </p>
             </>
           )}

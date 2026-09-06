@@ -30,12 +30,14 @@
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 31%;
 
-    --accent: 174 62% 40%; /* OpenEMIS teal */
+    /* Teal darkened so white accent-foreground meets WCAG AA on buttons */
+    --accent: 174 62% 32%;
     --accent-foreground: 0 0% 100%;
 
     /* Neutrals */
     --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    /* ~4.7:1 on white — was 47% (borderline fail on secondary/muted chips) */
+    --muted-foreground: 215 20% 38%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 222 47% 31%;
@@ -55,7 +57,9 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
   }
 
   /* Visible focus indicators meet WCAG 2.1 AA. */
