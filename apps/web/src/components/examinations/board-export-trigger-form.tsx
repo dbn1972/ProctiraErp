@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
-import { createBoardExportJobAction } from './actions';
+import { createBoardExportJobAction } from '@/app/(dashboard)/examinations/board-exports/actions';
 
 const PRESETS: Array<{
   label: string;
