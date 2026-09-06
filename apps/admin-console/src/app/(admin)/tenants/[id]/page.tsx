@@ -1,7 +1,8 @@
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { MissingResource } from '@/components/missing-resource';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,8 +35,18 @@ export default async function TenantDetailPage({
   searchParams: { provisioned?: string };
 }) {
   await requireRole('tenants', `/tenants/${params.id}`);
-  const tenant = await getTenant(params.id);
-  if (!tenant) notFound();
+  const { tenant, source } = await getTenant(params.id);
+  if (!tenant) {
+    return (
+      <MissingResource
+        title="Tenant"
+        resourceLabel="Tenant"
+        id={params.id}
+        backHref="/tenants"
+        backLabel="Back to tenants"
+      />
+    );
+  }
 
   const auditQuery = await listAudit({ tenantId: tenant.id });
 
@@ -50,6 +61,8 @@ export default async function TenantDetailPage({
           </Button>
         }
       />
+
+      <StubDataBanner source={source} />
 
       {searchParams?.provisioned === '1' && (
         <Alert variant="success" className="mb-6">

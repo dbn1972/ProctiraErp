@@ -13,6 +13,7 @@ import {
 } from '@proctira/ui/components';
 import { listRoles } from '@/lib/api/admin.server';
 import { cn } from '@/lib/utils';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,12 @@ export default async function AdminRolesPage() {
           </Button>
         </div>
       </div>
+
+      <ScaffoldModeBanner
+        surface="Admin roles"
+        detail="Nested admin UI scaffold. Lists stay empty when tenant admin APIs are offline."
+      />
+
 
       {roles.length === 0 ? (
         <Card>

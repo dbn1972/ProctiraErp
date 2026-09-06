@@ -8,7 +8,7 @@ const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
 const DEVELOPER_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
   { path: '/', heading: /build for|every school/i },
-  { path: '/docs', heading: /documentation/i },
+  { path: '/docs', heading: /^documentation$/i },
   { path: '/dashboard', heading: /developer dashboard/i },
   { path: '/marketplace', heading: /plugin marketplace/i },
 ];
@@ -23,10 +23,30 @@ test.describe('Developer Portal — public surfaces', () => {
     });
   }
 
-  test('home shows ProctiraERP Developers brand', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.getByText(/Proctira/i).first()).toBeVisible();
-    await expect(page.getByText(/Developers/i).first()).toBeVisible();
+  test('docs index includes sample curl and sections', async ({ page }) => {
+    await page.goto('/docs');
+    await expect(page.getByTestId('docs-sample-curl')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Quickstart' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Plugin SDK' })).toBeVisible();
+  });
+
+  test('dashboard API key demo validates locally', async ({ page }) => {
+    await page.goto('/dashboard');
+    await expect(page.getByTestId('dashboard-honesty-banner')).toBeVisible();
+    await page.getByTestId('api-key-demo-submit').click();
+    await expect(page.getByTestId('api-key-demo-error')).toContainText(/at least 3 characters/i);
+    await page.getByLabel(/key name/i).fill('Attendance sync');
+    await page.getByTestId('api-key-demo-submit').click();
+    await expect(page.getByTestId('api-key-demo-ack')).toContainText(/demo only/i);
+  });
+
+  test('marketplace lists fixture plugins and filters', async ({ page }) => {
+    await page.goto('/marketplace');
+    await expect(page.getByTestId('marketplace-honesty-banner')).toBeVisible();
+    await expect(page.getByTestId('marketplace-plugin-attendance-sms-bridge')).toBeVisible();
+    await page.getByTestId('marketplace-search').fill('OIDC');
+    await expect(page.getByTestId('marketplace-plugin-oidc-school-sso')).toBeVisible();
+    await expect(page.getByTestId('marketplace-plugin-attendance-sms-bridge')).toHaveCount(0);
   });
 
   test('health endpoint reports developer-portal', async ({ request }) => {

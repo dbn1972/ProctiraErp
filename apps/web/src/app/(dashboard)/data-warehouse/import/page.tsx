@@ -3,27 +3,19 @@
  *
  * Validates: Requirement 15.1 — Excel/CSV/database import job tracking.
  *
- * v2.0 changes:
- * - Back link + text-3xl font-extrabold page head with subtitle
- * - Visual numbered stepper (Source → Mapping → Validate → Run) above the
- *   existing upload source cards
- * - Source cards + database form kept 100% intact (file inputs, accept,
- *   aria labels, submit buttons, encType all unchanged)
- * - Import-history table restyled per house conventions
+ * Forms validate client-side; submit remains demo-only until the warehouse
+ * import API is wired (see ImportSourceForms).
  */
 import Link from 'next/link';
-import { ArrowLeft, Database, FileSpreadsheet, FileText } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 import {
-  Badge,
   Button,
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-  FormField,
-  Input,
   Table,
   TableBody,
   TableCell,
@@ -31,8 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { cn } from '@/lib/utils';
 import { listImportJobs, type DwImportJob } from '@/lib/api/data-warehouse';
+
+import { ImportSourceForms } from './import-source-forms';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +38,6 @@ export default async function DataWarehouseImportPage() {
 
   return (
     <section aria-labelledby="dw-import-heading" className="space-y-6">
-      {/* ── Back link ── */}
       <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/data-warehouse">
           <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -51,7 +45,6 @@ export default async function DataWarehouseImportPage() {
         </Link>
       </Button>
 
-      {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1
@@ -66,7 +59,11 @@ export default async function DataWarehouseImportPage() {
         </div>
       </div>
 
-      {/* ── Stepper ── */}
+      <ScaffoldModeBanner
+        surface="Data warehouse import"
+        detail="Upload and database forms validate locally. Successful submits are demo acknowledgements only — no import jobs are queued without a live warehouse API."
+      />
+
       <ImportStepper activeIndex={0} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
@@ -78,21 +75,7 @@ export default async function DataWarehouseImportPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <ImportSourceCard
-          icon={<FileSpreadsheet className="h-6 w-6" aria-hidden="true" />}
-          title="Excel"
-          description="Upload an .xlsx workbook (max 50 MB)."
-          accept=".xlsx,.xls"
-        />
-        <ImportSourceCard
-          icon={<FileText className="h-6 w-6" aria-hidden="true" />}
-          title="CSV"
-          description="Upload a .csv file with a header row."
-          accept=".csv"
-        />
-        <DatabaseImportCard />
-      </div>
+      <ImportSourceForms />
 
       <Card className="overflow-hidden">
         <CardHeader className="pb-3">
@@ -144,8 +127,6 @@ export default async function DataWarehouseImportPage() {
   );
 }
 
-/* ──────────────────────────────────────── Stepper ── */
-
 function ImportStepper({ activeIndex }: { activeIndex: number }) {
   return (
     <ol className="flex items-center gap-2" aria-label="Import progress">
@@ -185,64 +166,6 @@ function ImportStepper({ activeIndex }: { activeIndex: number }) {
         );
       })}
     </ol>
-  );
-}
-
-function ImportSourceCard({
-  icon,
-  title,
-  description,
-  accept,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  accept: string;
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2 text-primary">{icon}</div>
-          <CardTitle className="text-base">{title}</CardTitle>
-        </div>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-3" encType="multipart/form-data">
-          <Input type="file" accept={accept} aria-label={`Upload ${title} file`} />
-          <Button type="submit" size="sm">
-            Upload
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DatabaseImportCard() {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2 text-primary">
-            <Database className="h-6 w-6" aria-hidden="true" />
-          </div>
-          <CardTitle className="text-base">Database</CardTitle>
-        </div>
-        <CardDescription>Pull data from an external database connection.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-3">
-          <FormField id="db-conn" label="Connection string" required>
-            <Input id="db-conn" name="connection" placeholder="postgres://…" />
-          </FormField>
-          <Button type="submit" size="sm">
-            Import
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
   );
 }
 

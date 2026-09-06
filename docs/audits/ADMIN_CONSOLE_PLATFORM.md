@@ -47,11 +47,12 @@ Backend unit/property: ☑ pass — `pnpm --filter @proctira/admin-console test`
 
 ## 2. E2E (Playwright)
 
-| Journey                             | Spec file                                                | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                      |
-| ----------------------------------- | -------------------------------------------------------- | ---------------------------- | ------- | ------ | ----------------------------- |
-| Public login / forbidden / redirect | `apps/admin-console/e2e/01-platform-admin-smoke.spec.ts` | N/A public                   | ☐       | ☐      | Spec added                    |
-| Authenticated inventory             | same                                                     | ☐ gated                      | ☐       | ☐      | Needs seeded operator session |
-| Negative / open-redirect            | unit + public e2e                                        | ☑ unit                       | n/a     | n/a    | `return-to.test.ts`           |
+| Journey                             | Spec file                                                          | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                  |
+| ----------------------------------- | ------------------------------------------------------------------ | ---------------------------- | ------- | ------ | ----------------------------------------- |
+| Public login / forbidden / redirect | `apps/admin-console/e2e/01-platform-admin-smoke.spec.ts`           | N/A public                   | ☐       | ☐      | Spec added                                |
+| Inventory 200 + h1 (stub JWT)       | `apps/admin-console/e2e/02-platform-admin-inventory-smoke.spec.ts` | N/A ungated                  | ☐       | ☐      | Always runs; fake `platform_admin` cookie |
+| Authenticated live inventory        | `01-platform-admin-smoke.spec.ts`                                  | ☐ gated                      | ☐       | ☐      | Needs seeded operator + live gateway      |
+| Negative / open-redirect            | unit + public e2e                                                  | ☑ unit                       | n/a     | n/a    | `return-to.test.ts`                       |
 
 ---
 
@@ -69,9 +70,9 @@ Backend unit/property: ☑ pass — `pnpm --filter @proctira/admin-console test`
 
 ## 4. Multidevice captures
 
-| Screen                  | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path        |
-| ----------------------- | ------------ | ---------- | ---------- | -------------------- |
-| login / forbidden / hub | ☐            | ☐          | ☐          | Pending host capture |
+| Screen                                       | Desktop 1440   | Tablet 834 | Mobile 390 | Artifact path                                                                |
+| -------------------------------------------- | -------------- | ---------- | ---------- | ---------------------------------------------------------------------------- |
+| login / tenants / plans / health / audit / … | ☑ desktop pack | ☐          | ☐          | `/opt/cursor/artifacts/platform-admin-audit/` (13 PNGs; stub banner visible) |
 
 Horizontal scroll / clipped CTA: not visually verified this pass.
 
@@ -92,20 +93,21 @@ Horizontal scroll / clipped CTA: not visually verified this pass.
 
 ## 6. CI / production gates
 
-| Gate                           | Pass             | Link / SHA         |
-| ------------------------------ | ---------------- | ------------------ |
-| Lint / typecheck / unit        | ☐ pending tip CI | Local vitest 18/18 |
-| Integration (if DB touched)    | N/A              | no schema change   |
-| DoD / Lighthouse / tenant gate | ☐                | After PR push      |
+| Gate                           | Pass | Link / SHA                                                                                                                                                                                              |
+| ------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit        | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Integration (if DB touched)    | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
+| DoD / Lighthouse / tenant gate | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
 
 ---
 
 ## 7. Residual risks / waivers
 
-1. **Live operator IdP / auth-service E2E** — authenticated inventory gated; public smokes always runnable once Playwright deps installed.
-2. **API stubs** — many list/detail pages still use stub data (`source: 'stub'`).
-3. **Dark / axe / mobile capture packs** — not wired for admin-console this pass.
-4. **JWT signature** — middleware/session decode structure + expiry only; signature verified upstream.
-5. **Deploy registry** — infra Build Images failures are not feature blockers.
+1. **Live operator IdP / auth-service E2E** — live write journeys still gated on `E2E_BACKEND_READY`; ungated inventory smoke (`02-…`) covers 200+h1 with stub JWT; ungated tenant provision validation (`03-…`) covers zod field errors without claiming live provision.
+2. **API stubs (residual)** — tenants/plans/plugins/themes/break-glass/support/health/audit clients still fall back to deterministic fixtures when the gateway is unreachable. UI now shows a clear **Stub / demo mode** banner (`data-testid="stub-data-banner"`). Do not treat stub KPIs as production metrics.
+3. **Write paths offline** — tenant provision, plugin/theme decisions, and break-glass create/approve can succeed against stubs without creating live schema, marketplace, or elevated sessions.
+4. **Tablet/mobile + axe packs** — desktop pack filled; tablet/mobile/axe still thin.
+5. **JWT signature** — middleware/session decode structure + expiry only; signature verified upstream.
+6. **Deploy registry** — infra Build Images failures are not feature blockers.
 
-**Verdict:** Auth harden + enterprise evidence hooks **Ready with waivers** above.
+**Verdict:** Ready with waivers — honesty banners + ungated inventory smoke + desktop shot pack; **live gateway wiring still required** before production claim.

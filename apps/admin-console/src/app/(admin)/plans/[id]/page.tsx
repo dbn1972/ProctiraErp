@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
 import { PageHeader } from '@/components/layout/page-header';
+import { MissingResource } from '@/components/missing-resource';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,8 +23,18 @@ export default async function PlanDetailPage({
   params: { id: string };
 }) {
   await requireRole('plans', `/plans/${params.id}`);
-  const plan = await getPlan(params.id);
-  if (!plan) notFound();
+  const { plan, source } = await getPlan(params.id);
+  if (!plan) {
+    return (
+      <MissingResource
+        title="Plan"
+        resourceLabel="Plan"
+        id={params.id}
+        backHref="/plans"
+        backLabel="Back to plans"
+      />
+    );
+  }
 
   return (
     <>
@@ -36,6 +47,8 @@ export default async function PlanDetailPage({
           </Button>
         }
       />
+
+      <StubDataBanner source={source} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

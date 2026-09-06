@@ -86,11 +86,11 @@ Backend unit/property: ☑ — `pnpm --filter @proctira/public-website test`
 
 ## 6. CI / production gates
 
-| Gate                    | Pass                            | Link / SHA                |
-| ----------------------- | ------------------------------- | ------------------------- |
-| Lint / typecheck / unit | ☑ local (vitest 11, tsc, build) | Pending tip CI after push |
-| Integration             | N/A                             | no schema change          |
-| DoD / Lighthouse        | ☐                               | After PR push             |
+| Gate                    | Pass | Link / SHA                                                                                                                                                                                              |
+| ----------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Integration             | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
+| DoD / Lighthouse        | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
 
 ---
 
@@ -104,3 +104,7 @@ Backend unit/property: ☑ — `pnpm --filter @proctira/public-website test`
 6. Deploy registry infra failures are not feature blockers.
 
 **Verdict:** Ready with waivers above.
+
+## Screenshot pack (2026-09-06)
+
+Filled `/opt/cursor/artifacts/public-website-audit/` (12 PNGs). Multidevice tablet/mobile still thin for this portal.

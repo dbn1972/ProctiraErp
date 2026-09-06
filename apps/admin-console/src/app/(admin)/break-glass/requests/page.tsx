@@ -3,6 +3,7 @@ import { ArrowLeft, Info } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -31,10 +32,12 @@ export default async function BreakGlassRequestsPage({
 }) {
   const session = await requireRole('breakGlassRequest', '/break-glass/requests');
   const canDecide = hasRole(session.user.platformRole, 'breakGlassApprove');
-  const [{ requests }, { tenants }] = await Promise.all([
+  const [bg, tenantsResult] = await Promise.all([
     listBreakGlassRequests(),
     listTenants(),
   ]);
+  const { requests, source } = bg;
+  const { tenants } = tenantsResult;
 
   // Resolve tenant IDs to names so raw IDs are never surfaced.
   const tenantName = new Map(tenants.map((t) => [t.id, t.name]));
@@ -63,6 +66,8 @@ export default async function BreakGlassRequestsPage({
           </Button>
         }
       />
+
+      <StubDataBanner source={source} />
 
       {searchParams?.submitted && (
         <Alert variant="success" className="mb-6">

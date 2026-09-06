@@ -18,6 +18,8 @@ import { chromium } from '@playwright/test';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT_ROOT = path.resolve(__dirname, '..', 'screens');
+// Cookie host must match this origin exactly (localhost ≠ 127.0.0.1) or
+// dashboard captures silently land on /login.
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3001';
 
 /**
@@ -77,6 +79,30 @@ const SCREENS = {
   institutions: [
     ['list', '/institutions'],
     ['new', '/institutions/new'],
+    [
+      'profile',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}`,
+    ],
+    [
+      'overview',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/overview`,
+    ],
+    [
+      'edit',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/edit`,
+    ],
+    [
+      'classes',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/classes`,
+    ],
+    [
+      'grades',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/grades`,
+    ],
+    [
+      'infrastructure',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/infrastructure`,
+    ],
   ],
   'academic-periods': [['list', '/academic-periods']],
   attendance: [
@@ -184,6 +210,9 @@ async function main() {
             timeout: 30_000,
           });
           await page.waitForTimeout(2500);
+          if (page.url().includes('/login')) {
+            throw new Error(`login redirect (cookie host must match BASE_URL=${BASE_URL})`);
+          }
           await page.screenshot({ path: file, fullPage: true });
           pOk += 1;
         } catch (err) {

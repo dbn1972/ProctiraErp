@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -37,6 +38,11 @@ export default async function BreakGlassPage() {
             <Link href="/break-glass/requests">Open queue</Link>
           </Button>
         }
+      />
+
+      <StubDataBanner
+        force
+        detail="Break-glass create/approve APIs fall back to stub requests when the gateway is offline. Grants shown here are not live elevated sessions."
       />
 
       <Alert variant="warning" className="mb-6">

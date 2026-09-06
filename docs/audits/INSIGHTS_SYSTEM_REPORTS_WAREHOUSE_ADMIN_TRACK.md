@@ -49,11 +49,12 @@ Backend unit/property: ☑ pass — `packages/backend/data-warehouse` vitest (lo
 
 ## 2. E2E (Playwright)
 
-| Journey              | Spec file                                 | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                           |
-| -------------------- | ----------------------------------------- | ---------------------------- | ------- | ------ | ---------------------------------- |
-| Smoke routes         | `apps/web/e2e/13-insights-system.spec.ts` | ☐ gated                      | ☐       | ☐      | Spec added                         |
-| Public track         | same (no backend describe)                | N/A                          | ☐       | ☐      | Always runnable                    |
-| Negative / forbidden | deferred                                  | ☐                            | n/a     | n/a    | Waiver: permission matrix write UI |
+| Journey                    | Spec file                                                 | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                   |
+| -------------------------- | --------------------------------------------------------- | ---------------------------- | ------- | ------ | ------------------------------------------ |
+| Live smoke routes          | `apps/web/e2e/13-insights-system.spec.ts`                 | ☐ gated                      | ☐       | ☐      | Spec added                                 |
+| Inventory 200 + h1 + forms | `apps/web/e2e/14-insights-system-inventory-smoke.spec.ts` | N/A ungated                  | ☐       | ☐      | Always runs; fake tenant JWT + scaffold UI |
+| Public track               | `13` + `14`                                               | N/A                          | ☐       | ☐      | Always runnable                            |
+| Negative / forbidden       | deferred                                                  | ☐                            | n/a     | n/a    | Waiver: permission matrix write UI         |
 
 ---
 
@@ -71,11 +72,11 @@ Backend unit/property: ☑ pass — `packages/backend/data-warehouse` vitest (lo
 
 ## 4. Multidevice captures
 
-| Screen                       | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path                         |
-| ---------------------------- | ------------ | ---------- | ---------- | ------------------------------------- |
-| reports / DW / admin / track | ☐            | ☐          | ☐          | `capture-screens.mjs` TARGETS updated |
+| Screen                       | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path                                            |
+| ---------------------------- | ------------ | ---------- | ---------- | -------------------------------------------------------- |
+| reports / DW / admin / track | ☑            | ☑          | ☑          | `/opt/cursor/artifacts/insights-system-audit/` (39 PNGs) |
 
-Horizontal scroll / clipped CTA issues: not yet visually verified (capture pending host run).
+Horizontal scroll / clipped CTA: desktop pack reviewed — scaffold banners and primary CTAs visible.
 
 ---
 
@@ -94,20 +95,22 @@ Horizontal scroll / clipped CTA issues: not yet visually verified (capture pendi
 
 ## 6. CI / production gates
 
-| Gate                                           | Pass             | Link / SHA                      |
-| ---------------------------------------------- | ---------------- | ------------------------------- |
-| Lint / typecheck / unit                        | ☐ pending tip CI | Prettier tip files before merge |
-| Integration (if DB touched)                    | N/A              | no schema change                |
-| DoD / Lighthouse / tenant gate (as applicable) | ☐                | After PR push                   |
+| Gate                           | Pass | Link / SHA                                                                                                                                                                                              |
+| ------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit        | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Integration (if DB touched)    | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
+| DoD / Lighthouse / tenant gate | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
 
 ---
 
 ## 7. Residual risks / waivers
 
-1. **Live IdP / backend E2E** — gated on `E2E_BACKEND_READY`; smoke spec present.
-2. **Import write path** — upload + validate + run not wired to Server Actions yet.
-3. **Permission matrix mutations** — read/inspect UI only this pass.
-4. **Deploy registry** — infra failure when Build Images runs; not a feature blocker.
-5. **Multidevice PNG pack** — TARGETS ready; capture when web+auth token host available.
+1. **Live IdP / backend E2E** — still gated on `E2E_BACKEND_READY` in `13-…`; ungated inventory smoke (`14-…`) covers 200+h1 and client form validation without inventing live APIs.
+2. **Scaffold / empty honesty** — reports, data-warehouse, admin nest, import, and field-mapping show **Scaffold / demo mode** banners (`data-testid="scaffold-mode-banner"`). Catalogs stay empty when the gateway is offline (no fake report templates / indicators).
+3. **Import write path (residual)** — Excel/CSV/DB forms and field-mapping validate client-side and acknowledge **demo submit only**; upload → validate → run is not wired to Server Actions / warehouse jobs yet.
+4. **Report results without template** — missing template ids render a stable h1 + error state (HTTP 200) instead of a hard 404 so inventory smoke stays honest.
+5. **Permission matrix mutations** — read/inspect UI only this pass.
+6. **Deploy registry** — infra failure when Build Images runs; not a feature blocker.
+7. **Multidevice PNG pack** — filled 2026-09-06 under `/opt/cursor/artifacts/insights-system-audit/` (39 PNGs; scaffold banners visible).
 
-**Verdict:** Scaffolding + route fix (field mapping ≠ GIS) + enterprise evidence hooks Ready with waivers above.
+**Verdict:** Ready with waivers — honesty banners + ungated inventory smoke + multidevice pack; **live warehouse/reports/admin APIs still required** before production claim.

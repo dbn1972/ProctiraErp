@@ -83,10 +83,17 @@ export async function listPlans(): Promise<{
   return { plans: STUB_PLANS, source: 'stub' };
 }
 
-export async function getPlan(id: string): Promise<Plan | null> {
+export async function getPlan(
+  id: string,
+): Promise<{ plan: Plan | null; source: 'gateway' | 'stub' }> {
   const response = await gatewayFetch<Plan>(`/plans/${id}`);
-  if (response.ok && response.data) return response.data;
-  return STUB_PLANS.find((p) => p.id === id) ?? null;
+  if (response.ok && response.data) {
+    return { plan: response.data, source: 'gateway' };
+  }
+  return {
+    plan: STUB_PLANS.find((p) => p.id === id) ?? null,
+    source: 'stub',
+  };
 }
 
 export interface UpdatePlanEntitlementsInput {

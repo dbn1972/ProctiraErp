@@ -14,14 +14,14 @@ This skill is the **Definition of Done** for any redesign nav module (e.g. Schol
 
 ## Honest coverage map (do not overclaim)
 
-| Pillar            | What exists today                                                                                                                                                                                                             | What agents must still prove per module                                          |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **E2E journeys**  | Playwright under `apps/web/e2e/` (01–13 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Scholarships/Health/Workflows/Insights = dedicated smokes; live write paths still need backend-ready runs. | Live authenticated journey per screen + critical write path                      |
-| **UX / a11y**     | `a11y-axe`, dark-mode, RTL, touch-target, CLS, loading-skeleton specs; ESLint a11y + contrast gate                                                                                                                            | Module routes included in axe/dark/touch lists; no critical axe violations       |
-| **Multidevice**   | Playwright projects: Chromium/Firefox/WebKit + Pixel 5 + iPhone 13 + iPad. `apps/web/scripts/capture-screens.mjs` desktop/tablet/mobile PNGs. **No visual-diff CI**.                                                          | Capture **desktop + tablet + mobile** for every screen; spot-check touch targets |
-| **Functionality** | Backend unit/property tests for many domains                                                                                                                                                                                  | UI create/update/list/detail/error states against real or seeded API             |
-| **Security**      | Tenant-isolation release gate (`tools/tenant-isolation-tests/`); web `07-tenant-isolation` (students); `09-route-permission-coupling` (core SIS only)                                                                         | Cross-tenant deny + RBAC deny for **this** module’s sensitive routes             |
-| **CI gates**      | Lint, typecheck, unit, integration, DoD, Lighthouse, tenant isolation, bundle                                                                                                                                                 | Tip CI green; do not merge on skipped E2E alone                                  |
+| Pillar            | What exists today                                                                                                                                                                                                                                                                                                                 | What agents must still prove per module                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **E2E journeys**  | Playwright under `apps/web/e2e/` (01–16 + auth + UX properties). Many specs **skip** unless `E2E_BACKEND_READY=1`. Ungated inventory smokes: `15-overview-people-*`, `16-institutions-*` (unauthenticated → `/login`). Scholarships/Health/Workflows/Insights = dedicated smokes; live write paths still need backend-ready runs. | Live authenticated journey per screen + critical write path                      |
+| **UX / a11y**     | `a11y-axe`, dark-mode, RTL, touch-target, CLS, loading-skeleton specs; ESLint a11y + contrast gate                                                                                                                                                                                                                                | Module routes included in axe/dark/touch lists; no critical axe violations       |
+| **Multidevice**   | Playwright projects: Chromium/Firefox/WebKit + Pixel 5 + iPhone 13 + iPad. `apps/web/scripts/capture-screens.mjs` desktop/tablet/mobile PNGs. **No visual-diff CI**.                                                                                                                                                              | Capture **desktop + tablet + mobile** for every screen; spot-check touch targets |
+| **Functionality** | Backend unit/property tests for many domains                                                                                                                                                                                                                                                                                      | UI create/update/list/detail/error states against real or seeded API             |
+| **Security**      | Tenant-isolation release gate (`tools/tenant-isolation-tests/`); web `07-tenant-isolation` (students); `09-route-permission-coupling` (core SIS only)                                                                                                                                                                             | Cross-tenant deny + RBAC deny for **this** module’s sensitive routes             |
+| **CI gates**      | Lint, typecheck, unit, integration, DoD, Lighthouse, tenant isolation, bundle                                                                                                                                                                                                                                                     | Tip CI green; do not merge on skipped E2E alone                                  |
 
 ## When this skill applies
 
@@ -43,6 +43,37 @@ Work the pillars **in order**. Mark each checkbox only with evidence (path, run 
 2. Map each label → route(s) under `apps/web/src/app/(dashboard)/` and any federated `features/` router.
 3. Map API surface (`apps/web/src/lib/api/*`, gateway plugin, `packages/backend/<domain>/`).
 4. Write the screen inventory table in the audit doc (label, route, role, PII/PHI flag).
+
+**Overview & People (Dashboard / Students / Staff)** — minimum screens:
+
+| Nav label              | Primary route(s)                       |
+| ---------------------- | -------------------------------------- |
+| Dashboard · overview   | `/`                                    |
+| Students · list        | `/students`                            |
+| Students · profile     | `/students/[id]`                       |
+| Students · add / edit  | `/students/new`, `/students/[id]/edit` |
+| Students · import      | `/students/import`                     |
+| Students · transfer    | `/students/[id]/transfer`              |
+| Staff · list / profile | `/staff`, `/staff/[id]`                |
+| Staff · add / edit     | `/staff/new`, `/staff/[id]/edit`       |
+| Staff · assignment     | `/staff/[id]/assignments/new`          |
+| Staff · appraisal      | `/staff/[id]/appraisals/new`           |
+
+Overview & People skill notes: cite `/opt/cursor/artifacts/overview-people-audit/` for live/redesign PNGs. Prefer ungated `e2e/15-overview-people-inventory-smoke.spec.ts` (unauthenticated → `/login`); gate authenticated heading inventory on `E2E_BACKEND_READY`. Student create/import/transfer live journeys remain in `01`/`04`/`05` (gated). **Staff write-path E2E is still a residual gap.** Audit: `docs/audits/OVERVIEW_PEOPLE_DASHBOARD_STUDENTS_STAFF.md`.
+
+**Institutions (Academics)** — minimum screens:
+
+| Nav label                     | Primary route(s)                               |
+| ----------------------------- | ---------------------------------------------- |
+| Institutions · list           | `/institutions`                                |
+| Institutions · profile        | `/institutions/[id]` → `/overview`             |
+| Institutions · overview       | `/institutions/[id]/overview`                  |
+| Institutions · register/edit  | `/institutions/new`, `/institutions/[id]/edit` |
+| Institutions · classes        | `/institutions/[id]/classes`                   |
+| Institutions · grades         | `/institutions/[id]/grades`                    |
+| Institutions · infrastructure | `/institutions/[id]/infrastructure`            |
+
+Institutions skill notes: HTML probe evidence may exist at `/opt/cursor/artifacts/institutions-audit/summary.json` while **PNG pack is often still missing** — do not invent screenshots. Prefer ungated `e2e/16-institutions-inventory-smoke.spec.ts` (unauthenticated → `/login`); extend `capture-screens.mjs` TARGETS beyond list/new before claiming multidevice. Audit: `docs/audits/ACADEMICS_INSTITUTIONS.md`.
 
 **Health (from redesign nav)** — minimum screens:
 
@@ -150,20 +181,20 @@ Public Website skill notes: keep Login CTA on `NEXT_PUBLIC_WEB_APP_URL/login` (f
 
 **Other Portals — Developer Portal** (`apps/developer-portal`) — minimum screens:
 
-| Nav label          | Primary route(s)                                      |
-| ------------------ | ----------------------------------------------------- |
-| Developer portal   | `/`                                                   |
+| Nav label                               | Primary route(s)                                                   |
+| --------------------------------------- | ------------------------------------------------------------------ |
+| Developer portal                        | `/`                                                                |
 | Docs / Dashboard / Marketplace (linked) | `/docs`, `/dashboard`, `/marketplace` (coming-soon OK; **no 404**) |
-| Health             | `/api/health`                                         |
+| Health                                  | `/api/health`                                                      |
 
 Developer Portal skill notes: align `dev`/`start` port with Docker `PORT=3005`. Ensure `public/` exists for Dockerfile `COPY`. Prefer `e2e/01-developer-portal-smoke.spec.ts` (gate live API keys on `E2E_BACKEND_READY`). Do not invent fake login. Audit: `docs/audits/DEVELOPER_PORTAL_HOME.md`.
 
 **Other Portals — Install Wizard** (`apps/install-wizard`) — minimum screens:
 
-| Nav label        | Primary route(s) / steps                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------- |
-| Install wizard   | `/` multi-step: Database → Storage → Cache → Queue → CDN → Admin → Complete              |
-| Health           | `/api/health`                                                                            |
+| Nav label      | Primary route(s) / steps                                                    |
+| -------------- | --------------------------------------------------------------------------- |
+| Install wizard | `/` multi-step: Database → Storage → Cache → Queue → CDN → Admin → Complete |
+| Health         | `/api/health`                                                               |
 
 Install Wizard skill notes: first-run secret UI — never claim enterprise without bootstrap lock + smoke. Prefer shared Vitest `admin-validation` + hardened `api-client` (`!ok` → failed result). Footer/complete CTA must not use dead `#docs` / in-wizard `/login`. Smoke: `e2e/01-install-wizard-smoke.spec.ts` (gate live install API on `E2E_BACKEND_READY`). Audit: `docs/audits/INSTALL_WIZARD_SETUP.md`.
 
@@ -292,3 +323,5 @@ Enterprise claims for **Platform Admin**, **Registration Portal**, **Public Webs
 - Developer Portal audit: `docs/audits/DEVELOPER_PORTAL_HOME.md`
 - Install Wizard audit: `docs/audits/INSTALL_WIZARD_SETUP.md`
 - Workflows audit: `docs/audits/WORKFLOWS_DEFINITIONS_INSTANCES_APPROVALS.md`
+- Overview & People audit: `docs/audits/OVERVIEW_PEOPLE_DASHBOARD_STUDENTS_STAFF.md`
+- Institutions audit: `docs/audits/ACADEMICS_INSTITUTIONS.md`

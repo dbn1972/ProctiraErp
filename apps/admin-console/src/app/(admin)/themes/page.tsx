@@ -8,6 +8,7 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/card';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { listThemes } from '@/lib/api/themes';
 import { requireRole } from '@/lib/auth/server';
@@ -15,7 +16,7 @@ import { formatDate } from '@/lib/utils';
 
 export default async function ThemesPage() {
   await requireRole('themes', '/themes');
-  const { themes } = await listThemes();
+  const { themes, source } = await listThemes();
 
   return (
     <>
@@ -23,6 +24,8 @@ export default async function ThemesPage() {
         title="Theme gallery"
         description="Curated visual themes for tenants. Approve or reject vendor-submitted themes for the marketplace."
       />
+
+      <StubDataBanner source={source} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {themes.map((theme) => {

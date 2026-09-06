@@ -19,12 +19,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { StubDataBanner } from '@/components/stub-data-banner';
 import { listPlans } from '@/lib/api/plans';
 import { requireRole } from '@/lib/auth/server';
 
 export default async function PlansPage() {
   await requireRole('plans', '/plans');
-  const { plans } = await listPlans();
+  const { plans, source } = await listPlans();
 
   // Build a union of all entitlement keys/labels across plans for the matrix.
   const entitlementMap = new Map<string, string>();
@@ -41,6 +42,8 @@ export default async function PlansPage() {
         title="Plan management"
         description="Pricing tiers and the entitlements they grant by default. Changes apply at the next billing cycle and are recorded as plan.update events."
       />
+
+      <StubDataBanner source={source} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {plans.map((plan) => (

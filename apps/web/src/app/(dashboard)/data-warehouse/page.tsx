@@ -38,6 +38,7 @@ import {
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { listIndicators, type DwIndicator } from '@/lib/api/data-warehouse';
+import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,6 +75,15 @@ export default async function DataWarehousePage() {
           </Button>
         </div>
       </div>
+
+      <ScaffoldModeBanner
+        surface="Data warehouse"
+        detail={
+          indicators.length === 0
+            ? 'Indicator list is empty because the warehouse gateway is offline or unseeded — not because metrics were hidden.'
+            : 'Indicator values reflect the warehouse gateway when connected.'
+        }
+      />
 
       {/* ── KPI grid ── */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
