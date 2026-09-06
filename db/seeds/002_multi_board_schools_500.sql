@@ -11,6 +11,22 @@ DECLARE
 BEGIN
   SELECT id INTO tid FROM tenants WHERE slug = 'proctira-multiboard-cert';
   IF tid IS NOT NULL THEN
+    -- SIS foundation children (003) — ignore if tables not yet applied
+    BEGIN DELETE FROM substitutions WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM section_meetings WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM section_enrollments WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM grade_entries WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM gpa_snapshots WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM transcript_issuances WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM board_export_jobs WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM sections WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM bell_periods WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM bell_schedules WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM rooms WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM grading_scale_bands WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM grading_scales WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM credit_rules WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
+    BEGIN DELETE FROM board_codes WHERE tenant_id = tid; EXCEPTION WHEN undefined_table THEN NULL; END;
     DELETE FROM enrollments WHERE tenant_id = tid;
     DELETE FROM students WHERE tenant_id = tid;
     DELETE FROM staff WHERE tenant_id = tid;
