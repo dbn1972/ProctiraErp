@@ -1,5 +1,5 @@
 /**
- * @proctira/backend-timetable — WS1 bell schedules, period grid, substitutions.
+ * @proctira/backend-timetable — WS1 bell/substitutions + WS2 master schedule.
  *
  * Schema: db/sql/003_sis_timetable_schedule_schema.sql
  * Persistence: raw `pg` when DATABASE_URL is set; else in-memory.
@@ -7,6 +7,7 @@
 
 export {
   detectClashes,
+  detectRoomAndTeacherClashes,
   hasClashes,
   intervalsOverlap,
   timeToMinutes,
@@ -51,8 +52,13 @@ export type {
   TimetableRepository,
   BellScheduleEntity,
   PeriodEntity,
+  RoomEntity,
+  SectionEntity,
+  SectionEnrollmentEntity,
   SectionMeetingEntity,
+  SectionPublishStatus,
   SubstitutionEntity,
+  AttendancePeriodSlot,
 } from './timetable-repository.js';
 
 export {
@@ -63,4 +69,8 @@ export {
   CreateMeetingSchema,
   UpdateMeetingSchema,
   CreateSubstitutionSchema,
+  CreateSectionSchema,
+  UpdateSectionSchema,
+  EnrollStudentSchema,
+  CreateRoomSchema,
 } from './schemas.js';

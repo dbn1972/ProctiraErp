@@ -7,7 +7,12 @@ import {
   createBellSchedule,
   createMeeting,
   createPeriod,
+  createSection,
   createSubstitution,
+  enrollStudent,
+  publishSection,
+  unpublishSection,
+  withdrawStudent,
 } from '@/lib/api/timetable';
 
 export type TimetableActionResult =
@@ -75,6 +80,8 @@ export async function createMeetingAction(input: {
   try {
     const row = await createMeeting(input);
     revalidatePath(`/institutions/${input.institutionId}/timetable`);
+    revalidatePath(`/institutions/${input.institutionId}/schedule`);
+    revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
     return { ok: true, id: row.id };
   } catch (error) {
     return fail(error);
@@ -90,6 +97,80 @@ export async function createSubstitutionAction(input: {
   try {
     const row = await createSubstitution(input);
     revalidatePath('/staff/substitutions');
+    return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function createSectionAction(input: {
+  institutionId: string;
+  academicPeriodId: string;
+  name: string;
+  code?: string;
+  capacity?: number;
+  primaryTeacherId?: string;
+  defaultRoomId?: string;
+}): Promise<TimetableActionResult> {
+  try {
+    const row = await createSection(input);
+    revalidatePath(`/institutions/${input.institutionId}/schedule`);
+    return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function enrollStudentAction(input: {
+  institutionId: string;
+  sectionId: string;
+  studentId: string;
+}): Promise<TimetableActionResult> {
+  try {
+    const row = await enrollStudent(input.sectionId, input.studentId);
+    revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function withdrawStudentAction(input: {
+  institutionId: string;
+  sectionId: string;
+  studentId: string;
+}): Promise<TimetableActionResult> {
+  try {
+    const row = await withdrawStudent(input.sectionId, input.studentId);
+    revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function publishSectionAction(input: {
+  institutionId: string;
+  sectionId: string;
+}): Promise<TimetableActionResult> {
+  try {
+    const row = await publishSection(input.sectionId);
+    revalidatePath(`/institutions/${input.institutionId}/schedule`);
+    revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function unpublishSectionAction(input: {
+  institutionId: string;
+  sectionId: string;
+}): Promise<TimetableActionResult> {
+  try {
+    const row = await unpublishSection(input.sectionId);
+    revalidatePath(`/institutions/${input.institutionId}/schedule`);
+    revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
     return { ok: true, id: row.id };
   } catch (error) {
     return fail(error);

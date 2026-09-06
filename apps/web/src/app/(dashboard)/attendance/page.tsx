@@ -25,6 +25,7 @@ import {
   listInstitutions,
   type AcademicPeriod,
 } from '@/lib/api/institutions';
+import { listAttendancePeriods } from '@/lib/api/timetable';
 import { listClassesByInstitution } from '@/lib/institutions/api';
 import type { ClassSection } from '@/lib/institutions/types';
 
@@ -54,20 +55,29 @@ export default async function AttendancePage({ searchParams }: PageProps) {
   const today = new Date().toISOString().slice(0, 10);
   const date = readStringParam(searchParams, 'date') || today;
 
-  const [institutions, classes, academicPeriods, roster] = await Promise.all([
-    listInstitutions({ pageSize: 200 }),
-    institutionId
-      ? listClassesByInstitution(institutionId).catch(
-          () => [] as ClassSection[],
-        )
-      : Promise.resolve<ClassSection[]>([]),
-    institutionId
-      ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
-      : Promise.resolve<AcademicPeriod[]>([]),
-    classId && academicPeriodId
-      ? getClassRoster(classId, academicPeriodId, date)
-      : Promise.resolve<RosterEntry[]>([]),
-  ]);
+  const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
+
+  const [institutions, classes, academicPeriods, roster, publishedPeriods] =
+    await Promise.all([
+      listInstitutions({ pageSize: 200 }),
+      institutionId
+        ? listClassesByInstitution(institutionId).catch(
+            () => [] as ClassSection[],
+          )
+        : Promise.resolve<ClassSection[]>([]),
+      institutionId
+        ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
+        : Promise.resolve<AcademicPeriod[]>([]),
+      classId && academicPeriodId
+        ? getClassRoster(classId, academicPeriodId, date)
+        : Promise.resolve<RosterEntry[]>([]),
+      institutionId
+        ? listAttendancePeriods({ institutionId, dayOfWeek })
+        : Promise.resolve({ ok: true as const, data: [] }),
+    ]);
+
+  const publishedSlots =
+    publishedPeriods.ok === true ? publishedPeriods.data : [];
 
   return (
     <section aria-labelledby="attendance-heading" className="space-y-6">
@@ -91,6 +101,46 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           </Link>
         </Button>
       </div>
+
+      {institutionId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Published section meetings</CardTitle>
+            <CardDescription>
+              Period slots from the master schedule for this weekday (ISO day{' '}
+              {dayOfWeek}). Use as the period reference when marking
+              period-level attendance.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {publishedSlots.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No published section meetings for this day. Publish a section on
+                the institution Schedule tab to surface periods here.
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {publishedSlots.map((slot) => (
+                  <li
+                    key={slot.meetingId}
+                    className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-border/60 pb-2 last:border-0"
+                  >
+                    <span className="font-medium">
+                      {slot.sectionCode} · {slot.periodName}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {slot.startTime}–{slot.endTime}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      periodId={slot.periodId}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

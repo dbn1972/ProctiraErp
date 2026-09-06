@@ -10,6 +10,8 @@ import {
   listBellSchedules,
   listMeetings,
   listPeriods,
+  listRooms,
+  listSections,
 } from '@/lib/api/timetable';
 
 export const dynamic = 'force-dynamic';
@@ -33,10 +35,16 @@ export default async function InstitutionTimetablePage({ params }: PageProps) {
     academicPeriodId = '';
   }
 
-  const [meetingsResult, schedulesResult] = await Promise.all([
-    listMeetings({ institutionId, academicPeriodId: academicPeriodId || undefined }),
-    listBellSchedules({ institutionId }),
-  ]);
+  const [meetingsResult, schedulesResult, sectionsResult, roomsResult] =
+    await Promise.all([
+      listMeetings({ institutionId, academicPeriodId: academicPeriodId || undefined }),
+      listBellSchedules({ institutionId }),
+      listSections({
+        institutionId,
+        academicPeriodId: academicPeriodId || undefined,
+      }),
+      listRooms({ institutionId }),
+    ]);
 
   const apiError = !meetingsResult.ok
     ? meetingsResult.error
@@ -46,6 +54,14 @@ export default async function InstitutionTimetablePage({ params }: PageProps) {
 
   const meetings = meetingsResult.ok ? meetingsResult.data : [];
   const schedules = schedulesResult.ok ? schedulesResult.data : [];
+  const sectionOptions = (sectionsResult.ok ? sectionsResult.data : []).map((s) => ({
+    id: s.id,
+    label: `${s.code} · ${s.name} (${s.status})`,
+  }));
+  const roomOptions = (roomsResult.ok ? roomsResult.data : []).map((r) => ({
+    id: r.id,
+    label: `${r.code} · ${r.name}`,
+  }));
 
   const periodOptions: { id: string; label: string }[] = [];
   for (const schedule of schedules) {
@@ -93,6 +109,8 @@ export default async function InstitutionTimetablePage({ params }: PageProps) {
                   institutionId={institutionId}
                   academicPeriodId={academicPeriodId}
                   periodOptions={periodOptions}
+                  sectionOptions={sectionOptions}
+                  roomOptions={roomOptions}
                 />
               )}
             </CardContent>

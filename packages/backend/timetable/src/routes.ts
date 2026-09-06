@@ -18,6 +18,10 @@ import {
   CreateMeetingSchema,
   UpdateMeetingSchema,
   CreateSubstitutionSchema,
+  CreateSectionSchema,
+  UpdateSectionSchema,
+  EnrollStudentSchema,
+  CreateRoomSchema,
 } from './schemas.js';
 import {
   isTimetableClashError,
@@ -258,6 +262,7 @@ export async function registerTimetableRoutes(
         institutionId?: string;
         academicPeriodId?: string;
         staffId?: string;
+        sectionId?: string;
       };
       const rows = await service.listMeetings(tenantId, query);
       return reply.send({ data: rows });
@@ -368,6 +373,268 @@ export async function registerTimetableRoutes(
     try {
       const row = await service.createSubstitution(tenantId, validated.data);
       return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  // ── Rooms ───────────────────────────────────────────────────────────────────
+
+  fastify.get(`${prefix}/rooms`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as { institutionId?: string };
+      const rows = await service.listRooms(tenantId, {
+        institutionId: query.institutionId,
+      });
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/rooms`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    const validated = validate(CreateRoomSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const row = await service.createRoom(tenantId, {
+        institutionId: validated.data.institutionId,
+        code: validated.data.code,
+        name: validated.data.name,
+        capacity: validated.data.capacity ?? 30,
+        roomType: validated.data.roomType ?? 'CLASSROOM',
+        status: validated.data.status ?? 'active',
+      });
+      return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  // ── Sections (master schedule) ────────────────────────────────────────────
+
+  fastify.get(`${prefix}/sections`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as {
+        institutionId?: string;
+        academicPeriodId?: string;
+        status?: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      };
+      const rows = await service.listSections(tenantId, query);
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/sections/:id`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const row = await service.getSection(tenantId, id);
+      if (!row) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Section not found',
+          statusCode: 404,
+        });
+      }
+      const [enrollments, meetings] = await Promise.all([
+        service.listEnrollments(tenantId, id),
+        service.listMeetings(tenantId, { sectionId: id }),
+      ]);
+      return reply.send({ ...row, enrollments, meetings });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/sections`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    const validated = validate(CreateSectionSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const row = await service.createSection(tenantId, {
+        institutionId: validated.data.institutionId,
+        academicPeriodId: validated.data.academicPeriodId,
+        name: validated.data.name,
+        code: validated.data.code,
+        gradeId: validated.data.gradeId ?? null,
+        primaryTeacherId: validated.data.primaryTeacherId ?? null,
+        defaultRoomId: validated.data.defaultRoomId ?? null,
+        capacity: validated.data.capacity ?? 40,
+      });
+      return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.put(`${prefix}/sections/:id`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    const validated = validate(UpdateSectionSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const { id } = request.params as { id: string };
+      const row = await service.updateSection(tenantId, id, validated.data);
+      if (!row) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Section not found',
+          statusCode: 404,
+        });
+      }
+      return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.delete(`${prefix}/sections/:id`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const ok = await service.deleteSection(tenantId, id);
+      if (!ok) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Section not found',
+          statusCode: 404,
+        });
+      }
+      return reply.status(204).send();
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/sections/:id/enrollments`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const section = await service.getSection(tenantId, id);
+      if (!section) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Section not found',
+          statusCode: 404,
+        });
+      }
+      const rows = await service.listEnrollments(tenantId, id);
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/sections/:id/enrollments`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    const validated = validate(EnrollStudentSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const { id } = request.params as { id: string };
+      const row = await service.enrollStudent(tenantId, id, validated.data.studentId);
+      return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.delete(`${prefix}/sections/:id/enrollments/:studentId`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id, studentId } = request.params as { id: string; studentId: string };
+      const row = await service.withdrawStudent(tenantId, id, studentId);
+      return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/sections/:id/publish`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const row = await service.publishSection(tenantId, id);
+      return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/sections/:id/unpublish`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const row = await service.unpublishSection(tenantId, id);
+      return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  // ── Attendance periods from published meetings ────────────────────────────
+
+  fastify.get(`${prefix}/attendance-periods`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as { institutionId?: string; dayOfWeek?: string };
+      if (!query.institutionId) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'institutionId is required',
+          statusCode: 400,
+        });
+      }
+      const dayOfWeek = query.dayOfWeek ? Number(query.dayOfWeek) : undefined;
+      const rows = await service.listAttendancePeriods(tenantId, {
+        institutionId: query.institutionId,
+        dayOfWeek: Number.isFinite(dayOfWeek) ? dayOfWeek : undefined,
+      });
+      return reply.send({ data: rows });
     } catch (error) {
       return sendDomainError(reply, error);
     }

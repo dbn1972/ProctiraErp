@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   detectClashes,
+  detectRoomAndTeacherClashes,
   hasClashes,
   intervalsOverlap,
   timeToMinutes,
@@ -77,5 +78,37 @@ describe('detectClashes', () => {
     ]);
     expect(clashes).toHaveLength(1);
     expect(clashes[0]!.kind).toBe('INVALID_PERIOD');
+  });
+
+  it('flags student overload on overlapping enrolled slots', () => {
+    const meetings: MeetingSlot[] = [
+      { ...base[0]!, teacherId: 't1', roomId: 'r1', studentIds: ['s1', 's2'] },
+      {
+        ...base[1]!,
+        id: 'm2',
+        teacherId: 't2',
+        roomId: 'r2',
+        studentIds: ['s2', 's3'],
+      },
+    ];
+    const clashes = detectClashes(meetings);
+    expect(clashes.some((c) => c.kind === 'STUDENT_OVERLOAD' && c.resourceId === 's2')).toBe(
+      true,
+    );
+  });
+
+  it('detectRoomAndTeacherClashes omits student overload', () => {
+    const meetings: MeetingSlot[] = [
+      { ...base[0]!, teacherId: 't1', roomId: 'r1', studentIds: ['s1'] },
+      {
+        ...base[1]!,
+        id: 'm2',
+        teacherId: 't2',
+        roomId: 'r1',
+        studentIds: ['s1'],
+      },
+    ];
+    const clashes = detectRoomAndTeacherClashes(meetings);
+    expect(clashes.every((c) => c.kind === 'ROOM_DOUBLE_BOOK')).toBe(true);
   });
 });

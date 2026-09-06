@@ -1,6 +1,6 @@
 /**
- * Pure domain clash detection for timetable / master schedule (WS1 stub).
- * No I/O — used by unit tests and later by API conflict engine.
+ * Pure domain clash detection for timetable / master schedule (WS1 + WS2).
+ * No I/O — used by unit tests and the API conflict engine.
  */
 
 export type MeetingSlot = {
@@ -10,9 +10,15 @@ export type MeetingSlot = {
   endTime: string;
   teacherId?: string | null;
   roomId?: string | null;
+  /** Optional enrolled student ids for overload policy checks. */
+  studentIds?: string[];
 };
 
-export type ClashKind = 'TEACHER_DOUBLE_BOOK' | 'ROOM_DOUBLE_BOOK' | 'INVALID_PERIOD';
+export type ClashKind =
+  | 'TEACHER_DOUBLE_BOOK'
+  | 'ROOM_DOUBLE_BOOK'
+  | 'INVALID_PERIOD'
+  | 'STUDENT_OVERLOAD';
 
 export type Clash = {
   kind: ClashKind;
@@ -102,12 +108,41 @@ export function detectClashes(meetings: MeetingSlot[]): Clash[] {
           message: `Room ${a.roomId} double-booked on day ${a.dayOfWeek}`,
         });
       }
+
+      const sharedStudents = intersectStudents(a.studentIds, b.studentIds);
+      for (const studentId of sharedStudents) {
+        clashes.push({
+          kind: 'STUDENT_OVERLOAD',
+          meetingIds: [a.id, b.id],
+          resourceId: studentId,
+          message: `Student ${studentId} double-booked on day ${a.dayOfWeek}`,
+        });
+      }
     }
   }
 
   return clashes;
 }
 
+function intersectStudents(
+  a?: string[],
+  b?: string[],
+): string[] {
+  if (!a?.length || !b?.length) return [];
+  const setB = new Set(b);
+  return a.filter((id) => setB.has(id));
+}
+
 export function hasClashes(meetings: MeetingSlot[]): boolean {
   return detectClashes(meetings).length > 0;
+}
+
+/**
+ * Room ∩ time and teacher ∩ time only (WS2 publish gate helper).
+ * Ignores student overload unless callers attach studentIds.
+ */
+export function detectRoomAndTeacherClashes(meetings: MeetingSlot[]): Clash[] {
+  return detectClashes(meetings).filter(
+    (c) => c.kind === 'ROOM_DOUBLE_BOOK' || c.kind === 'TEACHER_DOUBLE_BOOK',
+  );
 }

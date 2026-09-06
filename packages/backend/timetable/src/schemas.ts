@@ -68,3 +68,40 @@ export const CreateSubstitutionSchema = Type.Object({
   status: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
 });
 export type CreateSubstitutionInput = Static<typeof CreateSubstitutionSchema>;
+
+export const CreateSectionSchema = Type.Object({
+  institutionId: Type.String({ minLength: 1 }),
+  academicPeriodId: Type.String({ minLength: 1 }),
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
+  gradeId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  primaryTeacherId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  defaultRoomId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  capacity: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })),
+});
+export type CreateSectionInput = Static<typeof CreateSectionSchema>;
+
+export const UpdateSectionSchema = Type.Object({
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  code: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
+  gradeId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  primaryTeacherId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  defaultRoomId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  capacity: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })),
+});
+export type UpdateSectionInput = Static<typeof UpdateSectionSchema>;
+
+export const EnrollStudentSchema = Type.Object({
+  studentId: Type.String({ minLength: 1 }),
+});
+export type EnrollStudentInput = Static<typeof EnrollStudentSchema>;
+
+export const CreateRoomSchema = Type.Object({
+  institutionId: Type.String({ minLength: 1 }),
+  code: Type.String({ minLength: 1, maxLength: 50 }),
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  capacity: Type.Optional(Type.Integer({ minimum: 1, maximum: 2000 })),
+  roomType: Type.Optional(Type.String({ minLength: 1, maxLength: 50 })),
+  status: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+});
+export type CreateRoomInput = Static<typeof CreateRoomSchema>;

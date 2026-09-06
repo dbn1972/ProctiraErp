@@ -7,13 +7,20 @@ import pg from 'pg';
 
 import { TimetableSchemaMissingError } from './timetable-errors.js';
 import type {
+  AttendancePeriodSlot,
   BellScheduleEntity,
   PeriodEntity,
+  RoomEntity,
+  SectionEnrollmentEntity,
+  SectionEntity,
   SectionMeetingEntity,
+  SectionPublishStatus,
   SubstitutionEntity,
   TimetableRepository,
   ListBellSchedulesFilter,
   ListMeetingsFilter,
+  ListRoomsFilter,
+  ListSectionsFilter,
   ListSubstitutionsFilter,
 } from './timetable-repository.js';
 
@@ -173,6 +180,54 @@ function mapSubstitution(row: Record<string, unknown>): SubstitutionEntity {
     substitutionDate: dateOnly(row.substitution_date),
     reason: row.reason == null ? null : String(row.reason),
     status: String(row.status),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+function mapRoom(row: Record<string, unknown>): RoomEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    institutionId: String(row.institution_id),
+    code: String(row.code),
+    name: String(row.name),
+    capacity: Number(row.capacity),
+    roomType: String(row.room_type),
+    status: String(row.status),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+function mapSection(row: Record<string, unknown>): SectionEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    institutionId: String(row.institution_id),
+    academicPeriodId: String(row.academic_period_id),
+    gradeId: row.grade_id == null ? null : String(row.grade_id),
+    code: String(row.code),
+    name: String(row.name),
+    primaryTeacherId: row.primary_teacher_id == null ? null : String(row.primary_teacher_id),
+    defaultRoomId: row.default_room_id == null ? null : String(row.default_room_id),
+    capacity: Number(row.capacity),
+    status: String(row.status).toUpperCase() as SectionPublishStatus,
+    publishedAt: row.published_at == null ? null : iso(row.published_at),
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
+}
+
+function mapEnrollment(row: Record<string, unknown>): SectionEnrollmentEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    sectionId: String(row.section_id),
+    studentId: String(row.student_id),
+    status: String(row.status),
+    enrolledAt: dateOnly(row.enrolled_at),
+    withdrawnAt: row.withdrawn_at == null ? null : dateOnly(row.withdrawn_at),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
@@ -394,6 +449,10 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.staffId);
         clauses.push(`sm.teacher_staff_id = $${params.length}`);
       }
+      if (filter?.sectionId) {
+        params.push(filter.sectionId);
+        clauses.push(`sm.section_id = $${params.length}`);
+      }
       const result = await this.pool.query(
         `${MEETING_SELECT}
          WHERE ${clauses.join(' AND ')}
@@ -564,6 +623,317 @@ export class PgTimetableRepository implements TimetableRepository {
       );
       const inserted = result.rows[0] as Record<string, unknown>;
       return mapSubstitution({ ...inserted, institution_id: row.institutionId });
+    });
+  }
+
+  async listRooms(tenantId: string, filter?: ListRoomsFilter) {
+    return withSchemaCheck(async () => {
+      const clauses = ['tenant_id = $1', 'deleted_at IS NULL'];
+      const params: unknown[] = [tenantId];
+      if (filter?.institutionId) {
+        params.push(filter.institutionId);
+        clauses.push(`institution_id = $${params.length}`);
+      }
+      const result = await this.pool.query(
+        `SELECT * FROM rooms WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+        params,
+      );
+      return result.rows.map((row) => mapRoom(row as Record<string, unknown>));
+    });
+  }
+
+  async getRoom(tenantId: string, id: string) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `SELECT * FROM rooms WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+        [tenantId, id],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapRoom(row) : null;
+    });
+  }
+
+  async createRoom(row: RoomEntity) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `INSERT INTO rooms (
+          id, tenant_id, institution_id, code, name, capacity, room_type, status,
+          created_at, updated_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9::timestamptz,$10::timestamptz
+        ) RETURNING *`,
+        [
+          row.id,
+          row.tenantId,
+          row.institutionId,
+          row.code,
+          row.name,
+          row.capacity,
+          row.roomType,
+          row.status,
+          row.createdAt,
+          row.updatedAt,
+        ],
+      );
+      return mapRoom(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listSections(tenantId: string, filter?: ListSectionsFilter) {
+    return withSchemaCheck(async () => {
+      const clauses = ['tenant_id = $1', 'deleted_at IS NULL'];
+      const params: unknown[] = [tenantId];
+      if (filter?.institutionId) {
+        params.push(filter.institutionId);
+        clauses.push(`institution_id = $${params.length}`);
+      }
+      if (filter?.academicPeriodId) {
+        params.push(filter.academicPeriodId);
+        clauses.push(`academic_period_id = $${params.length}`);
+      }
+      if (filter?.status) {
+        params.push(filter.status);
+        clauses.push(`status = $${params.length}::section_publish_status`);
+      }
+      const result = await this.pool.query(
+        `SELECT * FROM sections WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+        params,
+      );
+      return result.rows.map((row) => mapSection(row as Record<string, unknown>));
+    });
+  }
+
+  async getSection(tenantId: string, id: string) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `SELECT * FROM sections WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+        [tenantId, id],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapSection(row) : null;
+    });
+  }
+
+  async createSection(row: SectionEntity) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `INSERT INTO sections (
+          id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
+          primary_teacher_id, default_room_id, capacity, status, published_at,
+          created_at, updated_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::section_publish_status,
+          $12::timestamptz,$13::timestamptz,$14::timestamptz
+        ) RETURNING *`,
+        [
+          row.id,
+          row.tenantId,
+          row.institutionId,
+          row.academicPeriodId,
+          row.gradeId,
+          row.code,
+          row.name,
+          row.primaryTeacherId,
+          row.defaultRoomId,
+          row.capacity,
+          row.status,
+          row.publishedAt,
+          row.createdAt,
+          row.updatedAt,
+        ],
+      );
+      return mapSection(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async updateSection(tenantId: string, id: string, patch: Partial<SectionEntity>) {
+    return withSchemaCheck(async () => {
+      const cur = await this.getSection(tenantId, id);
+      if (!cur) return null;
+      const next = {
+        ...cur,
+        ...patch,
+        id: cur.id,
+        tenantId: cur.tenantId,
+        updatedAt: new Date().toISOString(),
+      };
+      const result = await this.pool.query(
+        `UPDATE sections SET
+          grade_id = $3,
+          code = $4,
+          name = $5,
+          primary_teacher_id = $6,
+          default_room_id = $7,
+          capacity = $8,
+          status = $9::section_publish_status,
+          published_at = $10::timestamptz,
+          updated_at = $11::timestamptz
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL
+         RETURNING *`,
+        [
+          tenantId,
+          id,
+          next.gradeId,
+          next.code,
+          next.name,
+          next.primaryTeacherId,
+          next.defaultRoomId,
+          next.capacity,
+          next.status,
+          next.publishedAt,
+          next.updatedAt,
+        ],
+      );
+      return mapSection(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async deleteSection(tenantId: string, id: string) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `UPDATE sections SET deleted_at = NOW(), updated_at = NOW()
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+        [tenantId, id],
+      );
+      return (result.rowCount ?? 0) > 0;
+    });
+  }
+
+  async listEnrollments(tenantId: string, sectionId: string) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `SELECT * FROM section_enrollments
+         WHERE tenant_id = $1 AND section_id = $2
+         ORDER BY enrolled_at ASC, created_at ASC`,
+        [tenantId, sectionId],
+      );
+      return result.rows.map((row) => mapEnrollment(row as Record<string, unknown>));
+    });
+  }
+
+  async getEnrollment(tenantId: string, sectionId: string, studentId: string) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `SELECT * FROM section_enrollments
+         WHERE tenant_id = $1 AND section_id = $2 AND student_id = $3`,
+        [tenantId, sectionId, studentId],
+      );
+      const row = result.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapEnrollment(row) : null;
+    });
+  }
+
+  async createEnrollment(row: SectionEnrollmentEntity) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `INSERT INTO section_enrollments (
+          id, tenant_id, section_id, student_id, status, enrolled_at, withdrawn_at,
+          created_at, updated_at
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6::date,$7::date,$8::timestamptz,$9::timestamptz
+        ) RETURNING *`,
+        [
+          row.id,
+          row.tenantId,
+          row.sectionId,
+          row.studentId,
+          row.status,
+          row.enrolledAt,
+          row.withdrawnAt,
+          row.createdAt,
+          row.updatedAt,
+        ],
+      );
+      return mapEnrollment(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async updateEnrollment(
+    tenantId: string,
+    id: string,
+    patch: Partial<SectionEnrollmentEntity>,
+  ) {
+    return withSchemaCheck(async () => {
+      const result = await this.pool.query(
+        `SELECT * FROM section_enrollments WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id],
+      );
+      const curRow = result.rows[0] as Record<string, unknown> | undefined;
+      if (!curRow) return null;
+      const cur = mapEnrollment(curRow);
+      const next = {
+        ...cur,
+        ...patch,
+        id: cur.id,
+        tenantId: cur.tenantId,
+        updatedAt: new Date().toISOString(),
+      };
+      const updated = await this.pool.query(
+        `UPDATE section_enrollments SET
+          status = $3,
+          withdrawn_at = $4::date,
+          updated_at = $5::timestamptz
+         WHERE tenant_id = $1 AND id = $2
+         RETURNING *`,
+        [tenantId, id, next.status, next.withdrawnAt, next.updatedAt],
+      );
+      return mapEnrollment(updated.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listAttendancePeriods(
+    tenantId: string,
+    filter: { institutionId: string; dayOfWeek?: number },
+  ): Promise<AttendancePeriodSlot[]> {
+    return withSchemaCheck(async () => {
+      const clauses = [
+        'sm.tenant_id = $1',
+        'sm.deleted_at IS NULL',
+        `s.status = 'PUBLISHED'`,
+        's.deleted_at IS NULL',
+        's.institution_id = $2',
+      ];
+      const params: unknown[] = [tenantId, filter.institutionId];
+      if (filter.dayOfWeek != null) {
+        params.push(filter.dayOfWeek);
+        clauses.push(`sm.day_of_week = $${params.length}`);
+      }
+      const result = await this.pool.query(
+        `SELECT
+           sm.id AS meeting_id,
+           s.id AS section_id,
+           s.code AS section_code,
+           s.name AS section_name,
+           sm.bell_period_id AS period_id,
+           COALESCE(bp.name, sm.bell_period_id::text) AS period_name,
+           bp.start_time,
+           bp.end_time,
+           sm.day_of_week,
+           sm.room_id,
+           sm.teacher_staff_id
+         FROM section_meetings sm
+         JOIN sections s ON s.id = sm.section_id
+         LEFT JOIN bell_periods bp ON bp.id = sm.bell_period_id AND bp.deleted_at IS NULL
+         WHERE ${clauses.join(' AND ')}
+         ORDER BY sm.day_of_week ASC, bp.start_time ASC NULLS LAST`,
+        params,
+      );
+      return result.rows.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          meetingId: String(r.meeting_id),
+          sectionId: String(r.section_id),
+          sectionCode: String(r.section_code),
+          sectionName: String(r.section_name),
+          periodId: String(r.period_id),
+          periodName: String(r.period_name),
+          startTime: timeText(r.start_time ?? ''),
+          endTime: timeText(r.end_time ?? ''),
+          dayOfWeek: Number(r.day_of_week),
+          roomId: r.room_id == null ? null : String(r.room_id),
+          teacherStaffId: r.teacher_staff_id == null ? null : String(r.teacher_staff_id),
+        };
+      });
     });
   }
 }
