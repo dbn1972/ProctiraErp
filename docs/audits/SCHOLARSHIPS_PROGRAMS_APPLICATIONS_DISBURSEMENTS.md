@@ -3,7 +3,7 @@
 Live verification for the Scholarships service screens listed in the redesign
 nav (`WEB APP — SERVICES`).
 
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `601f603` (+ pending touch-target follow-up)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `8cc09f3`  
 **Date (UTC):** 2026-09-06  
 **Module score (Services rollup):** **9.5 / 10**
 
@@ -86,8 +86,8 @@ Live IDs:
 | Gate                            | Pass | Link / SHA                                                                                                                                                                                                                           |
 | ------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Lint / typecheck / unit (prior) | ☑    | tip `e94ac2f` — historical green cite                                                                                                                                                                                                |
-| Tip ESLint + Prettier           | ☑    | `601f603` ESLint unblock + `601f603` Prettier tip fix — [DoD 34058187762](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187762) · [PR Check 34058187713](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187713) |
-| Full CI on tip                  | ☐→☑  | [CI 34058187739](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187739) in progress on `601f603`; refresh after green + touch-target tip                                                                                   |
+| Tip ESLint + Prettier           | ☑    | tip `8cc09f3` Lint ✅ on [CI 34058982602](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982602)                                                                                                                           |
+| Full CI on tip                  | ☑    | [CI 34058982602](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982602) ✅ · [DoD 34058982614](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982614) · [PR Check 34058982636](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982636) |
 
 ### CI residual / honesty
 

@@ -1,7 +1,7 @@
 # Enterprise module test — Health
 
 **Module:** Health  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `601f603` (+ pending touch-target follow-up)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `8cc09f3`  
 **Environment:** gateway unit/PG store + ungated Playwright smokes on cloud agent  
 **Date (UTC):** 2026-09-06  
 **Module score:** **9.5 / 10**
@@ -91,9 +91,9 @@ Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (**18 PNGs** · desk
 
 | Gate                  | Pass | Evidence                                                                                                                                                                     |
 | --------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tip Prettier / ESLint | ☑    | `601f603` — tip Prettier fix after `601f603` ESLint unblock (`useOptionalBrand`, MfaCodeInput)                                                                               |
-| DoD / PR Check        | ☑    | [DoD 34058187762](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187762) · [PR Check 34058187713](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187713) |
-| Full CI workflow      | ☐→☑  | Track [CI 34058187739](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187739) on `601f603`; re-cite after tip green                                                |
+| Tip Prettier / ESLint | ☑    | tip `8cc09f3` Lint ✅ on full CI                                                                                                                                    |
+| DoD / PR Check        | ☑    | [DoD 34058982614](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982614) · [PR Check 34058982636](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982636) |
+| Full CI workflow      | ☑    | tip `8cc09f3` — [CI 34058982602](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982602) (Lint/Type/Unit/Build/Integration/DoD/Tenant/Bundle/Lighthouse ✅)  |
 
 ---
 
