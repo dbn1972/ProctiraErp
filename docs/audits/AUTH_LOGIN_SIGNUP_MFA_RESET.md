@@ -1,10 +1,10 @@
 # Enterprise module test — Auth
 
 **Module:** Auth (public identity)  
-**Branch / tip:** `main` @ `9f778e3` (Auth #8–#11; captures on tip)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `e94ac2f`
 **Environment:** tip `main` carve-out (headless cloud agent)  
 **Date (UTC):** 2026-09-05  
-**Tip CI:** https://github.com/dbn1972/ProctiraErp/actions/runs/33968548810 — **success**
+**Tip CI:** https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801 — **success** (`e94ac2f`)
 
 Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 
@@ -116,12 +116,12 @@ Horizontal scroll / clipped CTA: none observed on Auth public forms in this pack
 
 ## 6. CI / production gates
 
-| Gate                      | Pass | Link / SHA                                                                                            |
-| ------------------------- | ---- | ----------------------------------------------------------------------------------------------------- |
-| Lint / typecheck / unit   | ☑    | tip `5fbebe3` — [CI run 33968548810](https://github.com/dbn1972/ProctiraErp/actions/runs/33968548810) |
-| Auth unit (`return-to`)   | ☑    | vitest 4/4                                                                                            |
-| DoD / Lighthouse `/login` | ☑    | same tip CI (DoD + Lighthouse Gate success)                                                           |
-| Deploy Build Images       | ☐    | Infra: empty `REGISTRY` / docker login — not Auth code (pre-existing)                                 |
+| Gate                      | Pass | Link / SHA                                                                                                                                                                                              |
+| ------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit   | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Auth unit (`return-to`)   | ☑    | vitest 4/4 (prior)                                                                                                                                                                                      |
+| DoD / Lighthouse `/login` | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
+| Deploy Build Images       | ☐    | Infra: empty `REGISTRY` / docker login — not Auth code (pre-existing)                                                                                                                                   |
 
 ---
 
@@ -141,7 +141,7 @@ Horizontal scroll / clipped CTA: none observed on Auth public forms in this pack
 ## Done criteria
 
 - [x] Pillars evidence **or** dated waivers above
-- [x] Tip CI green (Lint/typecheck/unit/DoD/Lighthouse/bundle/tenant) — run 33968548810
+- [x] Tip CI green (Lint/typecheck/unit/DoD/Lighthouse/bundle/tenant) — run 34010731801 (`e94ac2f`)
 - [x] Auth equivalent merged to main (PR #8 + tip fix #9)
 - [x] Walkthrough PNG pack — 21 PNGs under `/opt/cursor/artifacts/auth-audit/` (desktop/tablet/mobile)
 - [x] Session state set to `complete` via hooks helper (Auth + prior modules)

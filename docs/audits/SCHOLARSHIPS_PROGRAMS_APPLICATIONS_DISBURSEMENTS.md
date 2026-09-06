@@ -65,3 +65,18 @@ Live IDs:
 - Disbursement: `1336796e-d6e3-4ffb-be2a-b9753d5f7de2`
 
 Artifacts: `/opt/cursor/artifacts/scholarships-audit/`.
+
+## 6. CI / production gates
+
+| Gate                           | Pass | Link / SHA                                                                                                                                                                                              |
+| ------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit        | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Integration (if DB touched)    | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
+| DoD / Lighthouse / tenant gate | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
+
+### CI residual / honesty
+
+- Live authenticated scholarship write journeys remain gated on `E2E_BACKEND_READY` where applicable.
+- Tip evidence above is program CI on `e94ac2f`; Integration job skipped because tip did not touch schema.
+
+**CI pillar:** closed for enterprise session with tip `e94ac2f` green.

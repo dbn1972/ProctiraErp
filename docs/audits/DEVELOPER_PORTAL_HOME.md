@@ -83,11 +83,11 @@ Backend unit/property: ☑ — `pnpm --filter @proctira/developer-portal test` (
 
 ## 6. CI / production gates
 
-| Gate                    | Pass | Link / SHA              |
-| ----------------------- | ---- | ----------------------- |
-| Lint / typecheck / unit | ☑    | Tip CI on uplift branch |
-| Integration             | N/A  | no schema change        |
-| DoD / Lighthouse        | ☐    | After PR push           |
+| Gate                    | Pass | Link / SHA                                                                                                                                                                                              |
+| ----------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Integration             | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
+| DoD / Lighthouse        | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
 
 ---
 

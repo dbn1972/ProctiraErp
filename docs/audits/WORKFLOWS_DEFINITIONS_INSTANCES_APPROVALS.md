@@ -92,11 +92,11 @@ Horizontal scroll / clipped CTA: desktop pack reviewed — empty-state Create CT
 
 ## 6. CI / production gates
 
-| Gate                                           | Pass             | Link / SHA                 |
-| ---------------------------------------------- | ---------------- | -------------------------- |
-| Lint / typecheck / unit                        | ☐ pending tip CI | gateway unit green locally |
-| Integration (if DB touched)                    | N/A              | in-memory UI seed          |
-| DoD / Lighthouse / tenant gate (as applicable) | ☐                | After PR push              |
+| Gate                           | Pass | Link / SHA                                                                                                                                                                                              |
+| ------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit        | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Integration (if DB touched)    | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
+| DoD / Lighthouse / tenant gate | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
 
 ---
 
@@ -117,6 +117,6 @@ Horizontal scroll / clipped CTA: desktop pack reviewed — empty-state Create CT
 - [x] E2E spec + capture/dark/touch route lists updated
 - [x] Ungated inventory smoke (`18-workflows-inventory-smoke.spec.ts`)
 - [x] Walkthrough artifacts under `/opt/cursor/artifacts/workflows-audit/` (15 PNGs)
-- [ ] Tip CI green
+- [x] Tip CI green
 
 **Verdict:** ☑ Ready with waivers · ☐ Enterprise production-ready

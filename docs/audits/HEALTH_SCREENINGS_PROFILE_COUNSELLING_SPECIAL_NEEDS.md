@@ -95,11 +95,11 @@ Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (15 PNGs · authenti
 
 ## 6. CI / production gates
 
-| Gate                           | Pass | Link / SHA                                   |
-| ------------------------------ | ---- | -------------------------------------------- |
-| Lint / typecheck / unit        | ☐    | Tip CI                                       |
-| Integration (if DB touched)    | ☐    | Baseline tenants migration already on branch |
-| DoD / Lighthouse / tenant gate | ☐    | Tip CI                                       |
+| Gate                           | Pass | Link / SHA                                                                                                                                                                                              |
+| ------------------------------ | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint / typecheck / unit        | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Integration (if DB touched)    | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
+| DoD / Lighthouse / tenant gate | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
 
 ---
 
