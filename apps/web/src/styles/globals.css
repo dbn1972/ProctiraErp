@@ -27,7 +27,8 @@
 
     /* Muted */
     --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    /* 45% lightness — ≥4.5:1 on --background (#f8fafc); 47% was 4.48:1 (axe). */
+    --muted-foreground: 215 16% 45%;
 
     /* Accent — teal (data viz / highlights) */
     --accent: 173 80% 40%;

@@ -82,22 +82,28 @@ vi.mock('@/lib/utils', () => ({
 
 // Stub the shared UI primitives that MfaForm imports so we don't
 // drag in their internals (and their CSS modules / Tailwind classes).
-vi.mock('@proctira/ui/components', () => ({
-  Alert: ({ children }: { children: React.ReactNode }) => <div role="alert">{children}</div>,
-  AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Button: ({
-    children,
-    type = 'button',
-    disabled,
-    ...props
-  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button type={type} disabled={disabled} {...props}>
-      {children}
-    </button>
-  ),
-  Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
+// Keep the real `<MfaCodeInput>` so keyboard-contract tests exercise
+// production behaviour.
+vi.mock('@proctira/ui/components', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@proctira/ui/components')>();
+  return {
+    ...actual,
+    Alert: ({ children }: { children: React.ReactNode }) => <div role="alert">{children}</div>,
+    AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    Button: ({
+      children,
+      type = 'button',
+      disabled,
+      ...props
+    }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+      <button type={type} disabled={disabled} {...props}>
+        {children}
+      </button>
+    ),
+    Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    CardContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  };
+});
 
 // ─── Subject ─────────────────────────────────────────────────────────────────
 
@@ -211,22 +217,19 @@ describe('<MfaForm> code-input keyboard contract — Task 56.6 / Req 37 AC 6', (
     expect(document.activeElement).toBe(inputs[0]);
   });
 
-  it('Backspace on a slot containing a digit does NOT jump back (browser default clears the digit instead)', () => {
+  it('Backspace on a slot containing a digit clears the digit and keeps focus', () => {
     render(<MfaForm />);
     const inputs = getDigitInputs();
 
     act(() => {
       fireEvent.change(inputs[0]!, { target: { value: '5' } });
     });
-    // Auto-advance lands on slot 1; tab back to slot 0.
     act(() => inputs[0]!.focus());
 
     act(() => {
       fireEvent.keyDown(inputs[0]!, { key: 'Backspace', code: 'Backspace' });
     });
-    // The handler does NOT move focus when the current slot has a
-    // digit — the browser default clears the digit on the next
-    // keypress. We assert focus remained on slot 0.
+    expect(inputs[0]!.value).toBe('');
     expect(document.activeElement).toBe(inputs[0]);
   });
 

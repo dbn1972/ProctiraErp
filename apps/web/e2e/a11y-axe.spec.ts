@@ -44,7 +44,7 @@ test.describe('a11y — public surfaces (no backend required)', () => {
     // Wait for the form chrome to be rendered before scanning so axe
     // sees the same DOM a real user would interact with.
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /^password$/i })).toBeVisible();
 
     await runAxe(page, { checkpointLabel: '/login' });
   });

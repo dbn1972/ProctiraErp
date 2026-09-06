@@ -58,6 +58,10 @@ test.describe('Health counselling — write validation (ungated)', () => {
     await expect(
       page.getByRole('heading', { name: /schedule counselling session/i }),
     ).toBeVisible();
+    await expect(page.getByTestId('counselling-session-form')).toHaveAttribute(
+      'data-hydrated',
+      'true',
+    );
 
     await page.getByLabel(/student id/i).fill('not-a-uuid');
     await page.getByLabel(/counsellor id/i).fill('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1');
@@ -66,7 +70,9 @@ test.describe('Health counselling — write validation (ungated)', () => {
     await page.getByLabel(/case notes/i).fill('Initial notes');
     await page.getByRole('button', { name: /schedule session/i }).click();
 
-    await expect(page.getByRole('alert')).toContainText(/student id must be a valid uuid/i);
+    await expect(page.getByTestId('counselling-session-error')).toContainText(
+      /student id must be a valid uuid/i,
+    );
   });
 });
 

@@ -42,7 +42,7 @@ export function ForgotPasswordForm(): JSX.Element {
     <div className="w-full max-w-[400px]">
       <Link
         href="/login"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
+        className="mb-6 inline-flex min-h-12 items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-primary"
       >
         <ArrowLeft className="h-4 w-4 rtl:rotate-180" />
         {t('backToSignIn')}
@@ -79,6 +79,7 @@ export function ForgotPasswordForm(): JSX.Element {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={t('enterRegisteredEmail')}
+                className="h-12 min-h-12"
               />
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitting}>

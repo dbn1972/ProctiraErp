@@ -5,7 +5,7 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 
 import {
@@ -26,6 +26,11 @@ export function NewProgramForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,7 +47,7 @@ export function NewProgramForm() {
     const eligibilityNotes = String(fd.get('eligibility') ?? '').trim();
 
     if (!name) {
-      setError('Program name is required.');
+      setError('Name is required.');
       return;
     }
     if (!code) {
@@ -108,6 +113,7 @@ export function NewProgramForm() {
           onSubmit={onSubmit}
           aria-label="Create scholarship program"
           data-testid="scholarship-program-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
         >
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="program-name" label="Name" required>
@@ -115,19 +121,18 @@ export function NewProgramForm() {
                 id="program-name"
                 name="name"
                 placeholder="Academic Excellence Award"
-                required
               />
             </FormField>
             <FormField id="program-code" label="Code" required>
-              <Input id="program-code" name="code" placeholder="AEA-2025" required />
+              <Input id="program-code" name="code" placeholder="AEA-2025" />
             </FormField>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             <FormField id="program-slots" label="Total slots" required>
-              <Input id="program-slots" name="totalSlots" type="number" min="1" required />
+              <Input id="program-slots" name="totalSlots" type="number" min="1" />
             </FormField>
             <FormField id="program-amount" label="Award amount" required>
-              <Input id="program-amount" name="awardAmount" type="number" step="0.01" required />
+              <Input id="program-amount" name="awardAmount" type="number" step="0.01" />
             </FormField>
             <FormField id="program-currency" label="Currency" required>
               <Input
@@ -136,16 +141,15 @@ export function NewProgramForm() {
                 placeholder="INR"
                 maxLength={3}
                 defaultValue="INR"
-                required
               />
             </FormField>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="program-app-start" label="Application opens" required>
-              <Input id="program-app-start" name="applicationStartDate" type="date" required />
+              <Input id="program-app-start" name="applicationStartDate" type="date" />
             </FormField>
             <FormField id="program-app-end" label="Application closes" required>
-              <Input id="program-app-end" name="applicationEndDate" type="date" required />
+              <Input id="program-app-end" name="applicationEndDate" type="date" />
             </FormField>
           </div>
           <FormField id="program-eligibility" label="Eligibility criteria">

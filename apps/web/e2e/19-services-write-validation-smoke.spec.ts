@@ -84,6 +84,10 @@ test.describe('Services — scholarships/workflows write validation (ungated)', 
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByTestId('scholarship-program-form')).toBeVisible();
+    await expect(page.getByTestId('scholarship-program-form')).toHaveAttribute(
+      'data-hydrated',
+      'true',
+    );
 
     await page.getByRole('button', { name: /create program/i }).click();
     await expect(page.getByTestId('scholarship-program-error')).toContainText(/name is required/i);
@@ -95,6 +99,10 @@ test.describe('Services — scholarships/workflows write validation (ungated)', 
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByTestId('workflow-definition-form')).toBeVisible();
+    await expect(page.getByTestId('workflow-definition-form')).toHaveAttribute(
+      'data-hydrated',
+      'true',
+    );
 
     await page.getByRole('button', { name: /create definition/i }).click();
     await expect(page.getByTestId('workflow-definition-error')).toContainText(

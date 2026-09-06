@@ -6,7 +6,7 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 
 import {
@@ -33,6 +33,11 @@ export function CreateCounsellingSessionForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -120,6 +125,8 @@ export function CreateCounsellingSessionForm() {
           noValidate
           onSubmit={onSubmit}
           aria-label="Create counselling session"
+          data-testid="counselling-session-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
         >
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="counselling-student-id" label="Student ID" required>
@@ -187,8 +194,8 @@ export function CreateCounsellingSessionForm() {
             <Input
               id="counselling-reason"
               name="reason"
+              aria-label="Reason"
               placeholder="Exam anxiety / peer conflict / …"
-              required
             />
           </FormField>
 
@@ -228,7 +235,11 @@ export function CreateCounsellingSessionForm() {
           </div>
 
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p
+              className="text-sm text-destructive"
+              role="alert"
+              data-testid="counselling-session-error"
+            >
               {error}
             </p>
           ) : null}

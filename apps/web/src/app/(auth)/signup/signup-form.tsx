@@ -340,6 +340,7 @@ export function SignUpForm(): JSX.Element {
                 onChange={(e) => setFullName(e.target.value)}
                 aria-invalid={errors.fullName ? 'true' : undefined}
                 aria-describedby={errors.fullName ? `${fieldIds.fullName}-error` : undefined}
+                className="h-12 min-h-12"
               />
               {errors.fullName && (
                 <p
@@ -366,6 +367,7 @@ export function SignUpForm(): JSX.Element {
                 onChange={(e) => setEmail(e.target.value)}
                 aria-invalid={errors.email ? 'true' : undefined}
                 aria-describedby={errors.email ? `${fieldIds.email}-error` : undefined}
+                className="h-12 min-h-12"
               />
               {errors.email && (
                 <p
@@ -394,6 +396,7 @@ export function SignUpForm(): JSX.Element {
                 onChange={(e) => setInstitutionName(e.target.value)}
                 aria-invalid={errors.institution ? 'true' : undefined}
                 aria-describedby={errors.institution ? `${fieldIds.institution}-error` : undefined}
+                className="h-12 min-h-12"
               />
               {errors.institution && (
                 <p
@@ -424,6 +427,7 @@ export function SignUpForm(): JSX.Element {
                 ariaInvalid={Boolean(errors.role)}
                 ariaDescribedBy={errors.role ? `${fieldIds.role}-error` : undefined}
                 data-testid="signup-role-trigger"
+                className="h-12 min-h-12"
               />
               {errors.role && (
                 <p
@@ -454,12 +458,12 @@ export function SignUpForm(): JSX.Element {
                   aria-describedby={`${fieldIds.meter} ${
                     errors.password ? `${fieldIds.password}-error` : ''
                   }`.trim()}
-                  className="pe-10"
+                  className="h-12 min-h-12 pe-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                  className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                   aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                   tabIndex={-1}
                 >
@@ -497,12 +501,12 @@ export function SignUpForm(): JSX.Element {
                   aria-describedby={
                     errors.confirmPassword ? `${fieldIds.confirmPassword}-error` : undefined
                   }
-                  className="pe-10"
+                  className="h-12 min-h-12 pe-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((v) => !v)}
-                  className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                  className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                   aria-label={showConfirmPassword ? t('hidePassword') : t('showPassword')}
                   tabIndex={-1}
                 >
@@ -537,7 +541,7 @@ export function SignUpForm(): JSX.Element {
 
           <div className="space-y-2">
             <label
-              className="flex items-start gap-3 text-sm leading-relaxed"
+              className="flex min-h-12 items-start gap-3 text-sm leading-relaxed"
               htmlFor={fieldIds.terms}
             >
               <Checkbox
@@ -546,6 +550,7 @@ export function SignUpForm(): JSX.Element {
                 onCheckedChange={(value) => handleTermsToggle(value === true)}
                 aria-describedby={errors.terms ? `${fieldIds.terms}-error` : undefined}
                 data-testid="signup-terms"
+                className="mt-0 h-12 w-12 min-h-12 min-w-12"
               />
               <span className="text-foreground">
                 {t('agreeToTerms', { terms: '__TERMS__', privacy: '__PRIVACY__' })
@@ -556,7 +561,7 @@ export function SignUpForm(): JSX.Element {
                         <Link
                           key={`terms-${index}`}
                           href="/legal/terms"
-                          className="font-medium text-primary hover:underline"
+                          className="inline-flex min-h-12 items-center font-medium text-primary hover:underline"
                         >
                           {t('termsLinkLabel')}
                         </Link>
@@ -567,7 +572,7 @@ export function SignUpForm(): JSX.Element {
                         <Link
                           key={`privacy-${index}`}
                           href="/legal/privacy"
-                          className="font-medium text-primary hover:underline"
+                          className="inline-flex min-h-12 items-center font-medium text-primary hover:underline"
                         >
                           {t('privacyLinkLabel')}
                         </Link>

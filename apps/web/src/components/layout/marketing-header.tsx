@@ -92,7 +92,7 @@ export function MarketingHeader() {
       <Link
         href="/"
         aria-label={`${name} home`}
-        className="inline-flex items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2"
+        className="inline-flex min-h-12 items-center gap-3 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--ring))] focus-visible:ring-offset-2"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -103,11 +103,11 @@ export function MarketingHeader() {
           // budgets / CLS) and we mark it `data-hero` so the lint rule
           // recognises this is intentionally a priority asset (no
           // `loading="lazy"` here).
-          width={32}
-          height={32}
+          width={40}
+          height={40}
           data-hero=""
           fetchPriority="high"
-          className="h-8 w-auto"
+          className="h-10 w-auto"
           data-testid="marketing-header-brand-logo"
         />
         <span className="text-lg font-semibold tracking-tight text-[hsl(var(--foreground))]">

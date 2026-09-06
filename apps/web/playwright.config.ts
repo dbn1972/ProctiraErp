@@ -27,35 +27,49 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
-  projects: [
-    // Desktop browsers (Volume 12 §3.3 — Chrome, Edge, Safari, Firefox)
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
-    // Mobile devices (Volume 12 §3.2 — iPhone-size, Android phone)
-    {
-      name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'] },
-    },
-    {
-      name: 'mobile-safari',
-      use: { ...devices['iPhone 13'] },
-    },
-    // Tablet (Volume 12 §3.2 — iPad-size)
-    {
-      name: 'tablet',
-      use: { ...devices['iPad (gen 7)'] },
-    },
-  ],
+  // `pnpm test:e2e` only installs Chromium. Keep the full matrix available
+  // locally via PLAYWRIGHT_ALL_BROWSERS=1; CI stays Chromium-only so we
+  // don't fail hundreds of specs on missing Firefox/WebKit binaries.
+  projects: process.env.PLAYWRIGHT_ALL_BROWSERS
+    ? [
+        // Desktop browsers (Volume 12 §3.3 — Chrome, Edge, Safari, Firefox)
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+        {
+          name: 'firefox',
+          use: { ...devices['Desktop Firefox'] },
+        },
+        {
+          name: 'webkit',
+          use: { ...devices['Desktop Safari'] },
+        },
+        // Mobile devices (Volume 12 §3.2 — iPhone-size, Android phone)
+        {
+          name: 'mobile-chrome',
+          use: { ...devices['Pixel 5'] },
+        },
+        {
+          name: 'mobile-safari',
+          use: { ...devices['iPhone 13'] },
+        },
+        // Tablet (Volume 12 §3.2 — iPad-size)
+        {
+          name: 'tablet',
+          use: { ...devices['iPad (gen 7)'] },
+        },
+      ]
+    : [
+        {
+          name: 'chromium',
+          use: { ...devices['Desktop Chrome'] },
+        },
+        {
+          name: 'mobile-chrome',
+          use: { ...devices['Pixel 5'] },
+        },
+      ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {

@@ -142,6 +142,7 @@ export function ApplicationTracking({
                   validationError ? `${inputId}-error` : undefined
                 }
                 disabled={isLoading}
+                className="h-12 min-h-12"
               />
               {validationError !== null && (
                 <p

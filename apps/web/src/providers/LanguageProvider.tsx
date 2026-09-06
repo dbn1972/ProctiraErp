@@ -429,6 +429,7 @@ export function LanguageProvider({
         key={locale}
         locale={locale}
         messages={intlMessages as never}
+        timeZone="UTC"
       >
         {children}
       </NextIntlClientProvider>
