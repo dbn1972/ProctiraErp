@@ -1,10 +1,10 @@
 # Enterprise module test — Registration Portal
 
 **Module:** Registration Portal (`apps/registration-portal`)  
-**Branch / tip:** `cursor/registration-portal-enterprise-56c3`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3`  
 **Environment:** App Router + registration API (server / headless)  
 **Tester / agent:** Cursor cloud agent  
-**Date (UTC):** 2026-09-05  
+**Date (UTC):** 2026-09-06  
 **Enterprise session:** `.cursor/hooks/state/enterprise-test-session.json`
 
 Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
@@ -18,8 +18,8 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 | Home                  | `/`                         | public | Low     | Landing CTAs                           |
 | Find schools          | `/schools`                  | public | Low     | Map + Apply CTA sets `institutionId`   |
 | Apply · personal info | `/apply/[type]`             | public | High    | DOB validated client-side              |
-| Apply · documents     | `/apply/[type]/documents`   | public | High    | sessionStorage docs                    |
-| Apply · review        | `/apply/[type]/review`      | public | High    | Blocks submit without institution UUID |
+| Apply · documents     | `/apply/[type]/documents`   | public | High    | Metadata in sessionStorage; bytes in memory |
+| Apply · review        | `/apply/[type]/review`      | public | High    | Blocks submit without institution UUID; base64 at submit |
 | Apply · success       | `/apply/success`            | public | Medium  | Tracking number                        |
 | Track application     | `/track`, `/track/[n]?dob=` | public | High    | Backend DOB gate                       |
 
@@ -32,8 +32,9 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 | `/` `/schools` `/apply/*` `/track` | ☑       | ☑                   | Submit hardened            | Routes + Review guards |
 | School → apply handoff             | ☑       | N/A                 | Sets `institutionId` query | Institution map CTA    |
 | Track DOB gate                     | ☑       | ☑ not-found         | Status requires DOB        | Backend `checkStatus`  |
+| Document draft persistence         | ☑       | re-upload after refresh | Metadata only           | `stripDocumentContent` + Vitest |
 
-Backend unit/property: ☑ — registration-service checkStatus DOB match/mismatch tests.
+Backend unit/property: ☑ — registration-service checkStatus DOB match/mismatch tests + draft persistence Vitest.
 
 ---
 
@@ -73,7 +74,7 @@ Backend unit/property: ☑ — registration-service checkStatus DOB match/mismat
 | Institution UUID required on submit | ☑    | Review-step + `isValidInstitutionId`  |
 | Cross-tenant IDOR                   | ☐    | Relies on tracking+DOB secrecy        |
 | No secrets in git                   | ☑    |                                       |
-| sessionStorage docs residual        | ☐    | Waiver: base64 docs in sessionStorage |
+| sessionStorage docs (bytes)         | ☑    | Metadata only; File map in memory; base64 at submit |
 
 ---
 
@@ -81,7 +82,7 @@ Backend unit/property: ☑ — registration-service checkStatus DOB match/mismat
 
 | Gate                    | Pass | Link / SHA                                                                                                                                                                                              |
 | ----------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Lint / typecheck / unit | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅)                                                      |
+| Lint / typecheck / unit | ☑    | tip `e94ac2f` — [CI run 34010731801](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731801) (Lint/Typecheck/Unit/Build/Tenant/Bundle ✅); draft Vitest added this pass — tip CI after push |
 | Integration             | N/A  | N/A — Integration skipped (no schema change on tip)                                                                                                                                                     |
 | DoD / Lighthouse        | ☑    | same tip — [DoD 34010731900](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731900) + Lighthouse on CI run ✅; [PR Check](https://github.com/dbn1972/ProctiraErp/actions/runs/34010731742) ✅ |
 
@@ -90,12 +91,15 @@ Backend unit/property: ☑ — registration-service checkStatus DOB match/mismat
 ## 7. Residual risks / waivers
 
 1. Live IdP/backend Playwright inventory still gated.
-2. Document bytes still in `sessionStorage` (XSS/shared-device residual).
+2. Document bytes are in-memory only — after refresh, applicants must re-upload before submit (intentional).
 3. DOB remains in query string for track deep-links (prefer POST token later).
 4. No CSP headers added this pass.
 5. Deploy registry infra failures are not feature blockers.
+6. Multidevice tablet/mobile pack still thin; axe suite not wired for this app.
 
 **Verdict:** Ready with waivers above.
+
+**Score delta (2026-09-06):** Module **8.5 → 9.0**. Closed sessionStorage base64 residual. Remaining gap to 9.5: live apply E2E, axe, multidevice pack, DOB-in-query.
 
 ## Screenshot pack (2026-09-06)
 

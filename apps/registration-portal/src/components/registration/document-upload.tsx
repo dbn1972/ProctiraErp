@@ -23,9 +23,9 @@ interface DocumentUploadProps {
  * Single-document drag-and-drop upload widget.
  *
  * Validates file type and size in the browser (matching the backend's
- * ALLOWED_FILE_TYPES + MAX_FILE_SIZE_BYTES) and stores the file in the
- * registration draft as base64. The backend enforces the same rules on
- * submission.
+ * ALLOWED_FILE_TYPES + MAX_FILE_SIZE_BYTES) and stores **metadata** in the
+ * registration draft. File bytes stay in memory until submit (never
+ * sessionStorage). The backend enforces the same rules on submission.
  */
 export function DocumentUpload({ documentType, label, required }: DocumentUploadProps) {
   const t = useTranslations('documents');
@@ -54,15 +54,14 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
 
       setUploading(true);
       try {
-        const content = await fileToBase64(file);
         const meta: DocumentUploadMetadata = {
           fileName: file.name,
           fileType: file.type,
           fileSize: file.size,
           documentType,
-          content,
         };
-        addDocument(meta);
+        // Keep File in memory; metadata-only in draft / sessionStorage.
+        addDocument(meta, file);
       } catch {
         setError(t('uploadError'));
       } finally {
@@ -143,22 +142,4 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
       )}
     </div>
   );
-}
-
-/** Reads a `File` as a base64-encoded string (without the `data:` prefix). */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Unexpected reader result'));
-        return;
-      }
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('File read failed'));
-    reader.readAsDataURL(file);
-  });
 }

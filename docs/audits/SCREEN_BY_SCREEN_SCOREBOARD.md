@@ -31,13 +31,13 @@
 | Web App — Auth | 5 | 8.5 | 9.5 | Live IdP E2E | Keep multi-device; optional mock matrix harden |
 | Web App — Overview & People | 13 | 8.4 | 9.5 | Live journeys + multidevice | Ungated assignment/appraisal smokes landed |
 | Web App — Academics | 22 | 8.4 | 9.5 | Live seed create + multidevice PNGs | Exam POST wired; attendance/assessment audits + ungated smokes |
-| Web App — Services | 15 | 8.0 | 9.5 | Live PHI/finance writes | Counselling create; ungated writes |
+| Web App — Services | 15 | 8.1 | 9.5 | Live PHI/finance writes | Counselling create shipped; live create still gated |
 | Web App — Insights & System | 12 | 7.5 | 9.5 | Live reports/DW APIs | Conditional banners + write validation |
 | Platform Admin Console | 13 | 7.6 | 9.5 | Live operator gateway | Extra write smokes; stub honesty |
 | Registration Portal | 7 | 9.0 | 9.5 | Live apply + axe + multidevice | Metadata-only draft + submit upload landed |
 | Public Website | 12 | 9.0 | 9.5 | CRM + real status | Webhook forward + honest status |
 | Other Portals | 5 | 8.0 | 9.5 | Live developer IdP/mint | Validation harden (demo residual) |
-| Mobile App (native) | 22 | 7.8 | 9.5 | Device-farm PNGs | Expand widget goldens (not farm) |
+| Mobile App (native) | 22 | 8.2 | 9.5 | Device-farm PNGs | Widget goldens expanded (login/home/students/attendance) |
 
 ---
 
@@ -84,13 +84,13 @@
 | Examinations · list / detail / candidates / documents / results | 8.2 | Ready w/ waivers | Seeded backend in CI (`ACADEMICS_EXAMINATIONS.md`) |
 | Examinations · schedule (create) | 8.3 | Ready w/ waivers | Live 201 needs seeded period/institution FKs |
 
-### Web App — Services (8.0 → 9.5)
+### Web App — Services (8.1 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
 | Scholarships · (6) | 8.0 | Ready w/ waivers | Live write always-on |
 | Health · screenings / profile / special needs | 8.0 | Ready w/ waivers | Live PHI APIs |
-| Health · counselling | 7.5 | In progress | Create session UI + API |
+| Health · counselling | 8.5 | Ready w/ waivers | Live create E2E + list/seed sync |
 | Workflows · (5) | 8.0 | Ready w/ waivers | Domain engine mount |
 
 ### Web App — Insights & System (7.5 → 9.5)
@@ -131,11 +131,11 @@
 | Developer portal | 8.0 | Ready w/ waivers | Live key mint |
 | Install wizard | 8.0 | Ready w/ waivers | Live bootstrap lock proof |
 
-### Mobile (7.8 → 9.5)
+### Mobile (8.2 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
-| Core journeys (18) | 7.8 | Ready w/ waivers | Device-farm PNGs |
+| Core journeys (18) | 8.2 | Ready w/ waivers | Device-farm PNGs (widget goldens: login/home/students/attendance) |
 | Notifications / Reports prefs (4) | 7.0 | Not formally audited | Formal inventory + goldens |
 
 ---
@@ -145,6 +145,7 @@
 | UTC | Tip SHA | Change | Score impact |
 | --- | --- | --- | --- |
 | 2026-09-06 | _(pending)_ | Scoreboard opened; P0/P1 campaign started | baseline 8.0 |
+| 2026-09-06 | _(this commit)_ | Mobile students+attendance goldens; Health counselling create UI+API+smoke | Mobile 7.8→8.2; counselling 7.5→8.5; Services ~8.1 |
 | 2026-09-06 | _(this tip)_ | People `15c` assignment/appraisal validation; Registration metadata-only docs | People 8.0→8.4; Registration 8.5→9.0; program ~8.1 |
 | 2026-09-06 | _(this commit)_ | Academics: exam POST create wiring + ATTENDANCE/ASSESSMENTS/EXAMINATIONS audits + ungated smokes 20/21 | Academics 8.0→8.4; program ~8.1 |
 

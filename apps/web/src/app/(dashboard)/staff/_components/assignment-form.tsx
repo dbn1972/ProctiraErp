@@ -8,7 +8,7 @@
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import {
@@ -67,6 +67,11 @@ export function AssignmentForm({
   const [serverState, setServerState] =
     useState<ActionState<{ assignmentId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const form = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentFormSchema),
@@ -115,6 +120,8 @@ export function AssignmentForm({
 
   return (
     <form
+      data-testid="staff-assignment-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
       noValidate
       onSubmit={(event) => {
         void handleSubmit(onSubmit)(event);

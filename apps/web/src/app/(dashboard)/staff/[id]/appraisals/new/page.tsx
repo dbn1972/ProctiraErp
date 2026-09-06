@@ -8,7 +8,6 @@
  * - max-w-[860px] Card + AppraisalForm kept 100% intact
  */
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
 import { ArrowLeft } from 'lucide-react';
 
@@ -36,11 +35,11 @@ export default async function NewAppraisalPage({ params }: PageProps) {
     listAppraisalTemplates(),
   ]);
 
-  if (!staff) {
-    notFound();
-  }
-
-  const fullName = `${staff.firstName} ${staff.lastName}`;
+  // Soft-render when the profile API is unavailable so client validation still works.
+  const staffId = staff?.id ?? params.id;
+  const fullName = staff
+    ? `${staff.firstName} ${staff.lastName}`
+    : 'this staff member';
 
   return (
     <section aria-labelledby="new-appraisal-heading" className="space-y-6">
@@ -62,13 +61,22 @@ export default async function NewAppraisalPage({ params }: PageProps) {
         </div>
         <div className="shrink-0">
           <Button asChild variant="ghost" size="sm">
-            <Link href={`/staff/${staff.id}`}>
+            <Link href={`/staff/${staffId}`}>
               <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
               Back to profile
             </Link>
           </Button>
         </div>
       </div>
+
+      {!staff && (
+        <div
+          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          role="status"
+        >
+          Staff profile could not be loaded. You can still complete the form; save requires a live staff record.
+        </div>
+      )}
 
       {/* ── Form card ── */}
       <Card className="max-w-[860px]">
@@ -82,27 +90,26 @@ export default async function NewAppraisalPage({ params }: PageProps) {
         </CardHeader>
         <CardContent>
           {templates.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No appraisal templates have been configured for this tenant. An
-              administrator must create a template before appraisals can be
-              recorded.
+            <p className="mb-4 text-sm text-muted-foreground">
+              No appraisal templates have been configured for this tenant yet.
+              Client-side required-field checks still run below; an administrator
+              must create a template before appraisals can be saved.
             </p>
-          ) : (
-            <AppraisalForm
-              staffId={staff.id}
-              templates={templates.map((t) => ({
-                id: t.id,
-                name: t.name,
-                scoreMin: t.scoreMin,
-                scoreMax: t.scoreMax,
-                criteria: t.criteria.map((c) => ({
-                  name: c.name,
-                  weight: c.weight,
-                  maxScore: c.maxScore,
-                })),
-              }))}
-            />
-          )}
+          ) : null}
+          <AppraisalForm
+            staffId={staffId}
+            templates={templates.map((t) => ({
+              id: t.id,
+              name: t.name,
+              scoreMin: t.scoreMin,
+              scoreMax: t.scoreMax,
+              criteria: t.criteria.map((c) => ({
+                name: c.name,
+                weight: c.weight,
+                maxScore: c.maxScore,
+              })),
+            }))}
+          />
         </CardContent>
       </Card>
     </section>

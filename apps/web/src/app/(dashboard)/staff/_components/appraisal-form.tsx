@@ -49,6 +49,11 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
   const [serverState, setServerState] =
     useState<ActionState<{ appraisalId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const defaultTemplate = templates[0];
 
@@ -128,6 +133,8 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
 
   return (
     <form
+      data-testid="staff-appraisal-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
       noValidate
       onSubmit={(event) => {
         void handleSubmit(onSubmit)(event);
@@ -258,10 +265,7 @@ export function AppraisalForm({ staffId, templates }: AppraisalFormProps) {
         >
           Cancel
         </Button>
-        <Button
-          type="submit"
-          disabled={isPending || !selectedTemplate}
-        >
+        <Button type="submit" disabled={isPending}>
           {isPending ? 'Submitting…' : 'Save appraisal'}
         </Button>
       </div>

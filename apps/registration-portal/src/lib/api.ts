@@ -160,13 +160,17 @@ export interface RegistrationFieldValue {
   value: string | number | boolean | null;
 }
 
-/** Document metadata sent on submission (multipart upload uses a separate flow) */
+/**
+ * Document metadata for the registration draft / submit payload.
+ * Draft + sessionStorage keep metadata only; `content` is attached at submit
+ * from the in-memory File map (never persisted to sessionStorage).
+ */
 export interface DocumentUploadMetadata {
   fileName: string;
   fileType: string;
   fileSize: number;
   documentType: string;
-  /** Base64-encoded content; multipart upload should be preferred for large files */
+  /** Base64-encoded content attached at submit time only — never sessionStorage */
   content?: string;
 }
 

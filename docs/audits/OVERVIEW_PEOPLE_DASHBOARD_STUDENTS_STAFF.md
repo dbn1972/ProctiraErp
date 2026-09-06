@@ -49,7 +49,7 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 | `/staff/[id]/assignments/new` | ☑ live PNG        | workload empty               | Create assignment | `26-live-staff-assignment.png`                                 |
 | `/staff/[id]/appraisals/new`  | ☑ live + redesign | templates empty              | Create appraisal  | `27-live-staff-appraisal.png`                                  |
 
-Backend unit/property: ☐ partial — student/staff domain packages exist; **no dedicated staff write-path Playwright** beyond gated list/create journeys. Student create / import / transfer covered only when `E2E_BACKEND_READY=1`.
+Backend unit/property: ☐ partial — student/staff domain packages exist. Student create / import / transfer covered only when `E2E_BACKEND_READY=1`. **Ungated staff write validation:** `15b` (create) + `15c` (assignment/appraisal) with fake JWT; happy-path live writes remain gated.
 
 ---
 
@@ -64,7 +64,9 @@ Backend unit/property: ☐ partial — student/staff domain packages exist; **no
 | Tenant isolation (students)        | `07-tenant-isolation.spec.ts`                             | ☐ gated                      | ☐       | ☐      | Cross-tenant student deny                 |
 | Route permission coupling          | `09-route-permission-coupling.spec.ts`                    | ☐ gated                      | ☐       | ☐      | `/students`, `/staff` in matrix           |
 | Authenticated inventory (optional) | `15-…` second describe                                    | ☐ gated                      | ☐       | ☐      | Headings when backend ready               |
-| Staff write happy path             | —                                                         | ☐ **missing**                | —       | —      | Residual risk                             |
+| Staff create validation (ungated)  | `15b-staff-write-validation-smoke.spec.ts`                | N/A — always runs            | ☐ CI    | ☐      | Fake JWT; client zod on `/staff/new`      |
+| Staff assignment/appraisal (ungated) | `15c-staff-assignment-appraisal-validation-smoke.spec.ts` | N/A — always runs          | ☐ CI    | ☐      | Soft-render + client zod; not live write  |
+| Staff write happy path             | —                                                         | ☐ **missing (live)**         | —       | —      | Residual: live create/assign/appraise     |
 
 ---
 
@@ -121,7 +123,7 @@ Horizontal scroll / clipped CTA issues: not systematically verified on 834/390 f
 | Item                                                    | Risk                                                    | Owner      | Waiver date |
 | ------------------------------------------------------- | ------------------------------------------------------- | ---------- | ----------- |
 | Live student journeys gated on `E2E_BACKEND_READY`      | Default CI skips create/import/transfer                 | QA         | 2026-09-06  |
-| **No staff write-path E2E**                             | Assignment/appraisal/create not asserted in Playwright  | Product/QA | 2026-09-06  |
+| **No live staff write-path E2E**                        | Happy-path assign/appraise still need backend; `15b`/`15c` cover client validation only | Product/QA | 2026-09-06  |
 | Multidevice pack incomplete (tablet/mobile)             | Visual regressions on small viewports                   | Design     | 2026-09-06  |
 | Authenticated heading inventory only when backend ready | Ungated smoke proves auth gate, not rendered SIS chrome | Agent      | 2026-09-06  |
 | axe coverage incomplete for staff detail routes         | a11y debt on assignment/appraisal forms                 | A11y       | 2026-09-06  |
@@ -133,7 +135,10 @@ Horizontal scroll / clipped CTA issues: not systematically verified on 834/390 f
 - [x] Screen inventory complete for Dashboard + Students + Staff
 - [x] Honest evidence from existing gated e2e + `/opt/cursor/artifacts/overview-people-audit/`
 - [x] Ungated inventory smoke added (`15-overview-people-inventory-smoke.spec.ts`)
+- [x] Ungated staff write validation (`15b` create + `15c` assignment/appraisal)
 - [ ] Walkthrough artifacts attached to PR (existing pack cited; tablet/mobile still thin)
 - [ ] Session state `complete` after tip CI
 
 **Verdict:** ☐ Not ready · ☑ Ready with waivers · ☐ Enterprise production-ready
+
+**Score delta (2026-09-06):** Module **8.0 → 8.4**; Staff · new assignment / appraisal **7.5 → 8.3** (ungated client validation + hydrated testids). Live happy-path writes + multidevice pack remain residuals toward 9.5.
