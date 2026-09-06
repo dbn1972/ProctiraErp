@@ -141,6 +141,8 @@
 ---
 
 ## Evidence log (append-only)
+| 2026-09-06 | live-db | Raw SQL live Postgres onboard: 3 boards × 6 schools × 500 students (3000 enrollments), no Prisma | Data-plane cert PASS; program still ~8.3 |
+
 
 | UTC | Tip SHA | Change | Score impact |
 | --- | --- | --- | --- |

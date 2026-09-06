@@ -25,7 +25,42 @@ This skill is the **Definition of Done** for any redesign nav module (e.g. Schol
 
 ## When this skill applies
 
-Trigger on prompts containing: full test, E2E, production ready, enterprise, audit, redesign screens, Health, Scholarships, multidevice, UX, security test — or when `.cursor/hooks/state/enterprise-test-session.json` exists with `"active": true`.
+Trigger on prompts containing: full test, E2E, production ready, enterprise, audit, redesign screens, Health, Scholarships, multidevice, UX, security test, **onboard schools/boards**, **seed students**, **live database** — or when `.cursor/hooks/state/enterprise-test-session.json` exists with `"active": true`.
+
+## Multi-board / multi-school live data certification (mandatory for program “production ready”)
+
+Do **not** claim program production-ready without a **live Postgres** onboarding proof. Prefer **raw SQL + `psql`/`pg`** for this pillar — **do not use Prisma** for apply/seed/verify.
+
+### Default certification profile
+
+| Dimension | Default |
+| --- | --- |
+| Boards | 3 (e.g. CBSE NATIONAL, MH-STATE STATE, ICSE PRIVATE) |
+| Schools per board | 2 (6 institutions total) |
+| Students per school | **500** (3,000 enrollments) |
+| Staff per school | 25 (150 staff) |
+
+### Agent procedure
+
+1. Ensure live Postgres is reachable (`pg_isready`, `DATABASE_URL`).
+2. Apply schema: `psql "$DATABASE_URL" -f db/sql/001_core_onboarding_schema.sql`
+3. Seed: `psql "$DATABASE_URL" -f db/seeds/002_multi_board_schools_500.sql`  
+   Or one-shot: `bash tools/scripts/setup-live-db-and-onboard.sh`
+4. Verify counts: **3 boards · 6 institutions · 3000 students · 3000 enrollments · 150 staff** under tenant slug `proctira-multiboard-cert`.
+5. Write evidence under `/opt/cursor/artifacts/multi-board-onboard/` (`summary.json`, `verify-counts.txt`).
+6. Record audit: `docs/audits/MULTI_BOARD_SCHOOL_ONBOARDING.md`.
+
+### Pass / fail
+
+| Check | Pass criteria |
+| --- | --- |
+| Live DB | `DATABASE_URL` connects; no in-memory-only substitute for this pillar |
+| Schema | Raw SQL applied (no `prisma migrate` for this certification path) |
+| Volume | Every school has exactly `studentsPerSchool` enrollments |
+| Tenancy | All rows share one certification tenant; board↔institution FKs valid |
+| Evidence | Artifact JSON + SQL verify output committed or stored in artifacts |
+
+Residual still required for full program 9.5+: live IdP E2E, device-farm mobile PNGs, live reports/admin gateway APIs — this pillar covers **data-plane onboarding volume** only.
 
 ## Required workflow (do not skip pillars)
 
