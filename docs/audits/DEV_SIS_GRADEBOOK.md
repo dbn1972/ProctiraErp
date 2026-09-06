@@ -1,7 +1,7 @@
 # DEV — SIS Gradebook / GPA / transcripts / report cards (WS3)
 
 **Capability / module:** Gradebook · Credits · GPA · Report cards · Official transcripts  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` (see tip SHA in evidence)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `268118806cdefb2a45cf0d9d94fae1965c1bc938`  
 **Owner / agent:** cloud SERVER agent  
 **Date (UTC):** 2026-09-06  
 **Peer parity target:** Teacher enters section grades; registrar computes GPA + issues versioned immutable transcripts; term report-card jobs return status + artifact metadata (PowerSchool / IC-class gradebook slice)  
