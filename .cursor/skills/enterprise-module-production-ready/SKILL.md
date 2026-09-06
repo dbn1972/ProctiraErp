@@ -148,6 +148,25 @@ Registration skill notes: wire school → apply `institutionId`; require DOB on 
 
 Public Website skill notes: keep Login CTA on `NEXT_PUBLIC_WEB_APP_URL/login` (fallback `/contact` — never a dead in-app `/login`). Prefer shared Vitest contact validation + honeypot/rate-limit on `POST /api/contact`. Smoke: `e2e/01-public-website-smoke.spec.ts` (gate live contact on `E2E_BACKEND_READY`). Avoid lucide `Github` under Next `optimizePackageImports` (use `Code2` or a direct icon import). Audit: `docs/audits/PUBLIC_WEBSITE_HOME_PRODUCT_LEGAL_CONTACT.md`.
 
+**Other Portals — Developer Portal** (`apps/developer-portal`) — minimum screens:
+
+| Nav label          | Primary route(s)                                      |
+| ------------------ | ----------------------------------------------------- |
+| Developer portal   | `/`                                                   |
+| Docs / Dashboard / Marketplace (linked) | `/docs`, `/dashboard`, `/marketplace` (coming-soon OK; **no 404**) |
+| Health             | `/api/health`                                         |
+
+Developer Portal skill notes: align `dev`/`start` port with Docker `PORT=3005`. Ensure `public/` exists for Dockerfile `COPY`. Prefer `e2e/01-developer-portal-smoke.spec.ts` (gate live API keys on `E2E_BACKEND_READY`). Do not invent fake login. Audit: `docs/audits/DEVELOPER_PORTAL_HOME.md`.
+
+**Other Portals — Install Wizard** (`apps/install-wizard`) — minimum screens:
+
+| Nav label        | Primary route(s) / steps                                                                 |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| Install wizard   | `/` multi-step: Database → Storage → Cache → Queue → CDN → Admin → Complete              |
+| Health           | `/api/health`                                                                            |
+
+Install Wizard skill notes: first-run secret UI — never claim enterprise without bootstrap lock + smoke. Prefer shared Vitest `admin-validation` + hardened `api-client` (`!ok` → failed result). Footer/complete CTA must not use dead `#docs` / in-wizard `/login`. Smoke: `e2e/01-install-wizard-smoke.spec.ts` (gate live install API on `E2E_BACKEND_READY`). Audit: `docs/audits/INSTALL_WIZARD_SETUP.md`.
+
 ### Execution environment (cloud agents)
 
 - Run **all** verification on the cloud agent / CI host in **headless** mode.
@@ -253,7 +272,7 @@ Default API base: `--dart-define=API_BASE_URL=...` (see `kDefaultApiBaseUrl` in 
 
 ## Multi-app surfaces (beyond `apps/web`)
 
-Enterprise claims for **Platform Admin**, **Registration Portal**, and **Public Website** use the same pillars, but scope routes under `apps/admin-console`, `apps/registration-portal`, and `apps/public-website` respectively. Prefer each app’s Playwright/Vitest layout when present; do not invent web-dashboard routes for those products.
+Enterprise claims for **Platform Admin**, **Registration Portal**, **Public Website**, **Developer Portal**, and **Install Wizard** use the same pillars, but scope routes under `apps/admin-console`, `apps/registration-portal`, `apps/public-website`, `apps/developer-portal`, and `apps/install-wizard` respectively. Prefer each app’s Playwright/Vitest layout when present; do not invent web-dashboard routes for those products.
 
 ## Related paths
 
@@ -270,4 +289,6 @@ Enterprise claims for **Platform Admin**, **Registration Portal**, and **Public 
 - Platform Admin audit: `docs/audits/ADMIN_CONSOLE_PLATFORM.md`
 - Registration Portal audit: `docs/audits/REGISTRATION_PORTAL_HOME_SCHOOLS_APPLY_TRACK.md`
 - Public Website audit: `docs/audits/PUBLIC_WEBSITE_HOME_PRODUCT_LEGAL_CONTACT.md`
+- Developer Portal audit: `docs/audits/DEVELOPER_PORTAL_HOME.md`
+- Install Wizard audit: `docs/audits/INSTALL_WIZARD_SETUP.md`
 - Workflows audit: `docs/audits/WORKFLOWS_DEFINITIONS_INSTANCES_APPROVALS.md`

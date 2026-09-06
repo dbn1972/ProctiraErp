@@ -160,4 +160,37 @@ describe('InstallApiClient', () => {
 
     await expect(apiClient.getStatus()).rejects.toThrow('Failed to get status');
   });
+
+  it('returns a failed ValidationResult when configure* gets a non-OK response', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Bad Gateway',
+      status: 502,
+      json: () => Promise.resolve({ error: 'upstream down' }),
+    });
+
+    const result = await apiClient.configureDatabase({
+      provider: 'postgresql',
+      host: 'localhost',
+      port: 5432,
+      database: 'proctira',
+      username: 'admin',
+      password: 'secret',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/upstream down|Bad Gateway/i);
+  });
+
+  it('returns a failed BootstrapResult when finalize gets a non-OK response', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      statusText: 'Conflict',
+      status: 409,
+      json: () => Promise.resolve({ error: 'already finalized' }),
+    });
+
+    const result = await apiClient.finalize();
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/already finalized|Conflict/i);
+  });
 });

@@ -122,7 +122,7 @@ class InstallApiClient {
     if (!response.ok) {
       throw new Error(`Failed to get status: ${response.statusText}`);
     }
-    return response.json();
+    return (await response.json()) as BootstrapStatus;
   }
 
   async configureDatabase(config: DatabaseConfig): Promise<ValidationResult> {
@@ -150,7 +150,17 @@ class InstallApiClient {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
-    return response.json();
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      return {
+        success: false,
+        runId: '',
+        completedAt: '',
+        adapters: {},
+        error: data.error ?? `Finalize failed: ${response.statusText || response.status}`,
+      };
+    }
+    return response.json() as Promise<BootstrapResult>;
   }
 
   async createAdminAccount(config: AdminAccountConfig): Promise<{ success: boolean; error?: string }> {
@@ -162,7 +172,7 @@ class InstallApiClient {
       body: JSON.stringify(config),
     });
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
       return { success: false, error: data.error ?? response.statusText };
     }
     return { success: true };
@@ -174,7 +184,20 @@ class InstallApiClient {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
     });
-    return response.json();
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as {
+        step?: string;
+        message?: string;
+        error?: string;
+      };
+      return {
+        success: false,
+        step: data.step ?? path,
+        message: data.message ?? data.error ?? `Request failed: ${response.statusText || response.status}`,
+        error: data.error ?? response.statusText,
+      };
+    }
+    return response.json() as Promise<ValidationResult>;
   }
 }
 
