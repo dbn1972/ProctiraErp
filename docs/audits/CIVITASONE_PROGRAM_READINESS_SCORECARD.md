@@ -1,54 +1,59 @@
 # CivitasOne redesign — program production-readiness scorecard
 
 **Date (UTC):** 2026-09-06  
-**Tip:** `main` (includes merged Other Portals #20)  
-**Method:** enterprise skill · 4 parallel auditor agents · 1 senior reviewer  
+**Tip branch:** `cursor/enterprise-score-uplift-56c3` (from `main` + Other Portals #20)  
+**Method:** enterprise skill · lowest-module uplift · authenticated multidevice captures · ungated inventory smokes · honesty banners  
 **Rule:** screenshot = YES only if PNG exists under `/opt/cursor/artifacts` (no invented captures)
 
 ## Program verdict
 
-| Metric                         | Value                                        |
-| ------------------------------ | -------------------------------------------- |
-| Weighted program score         | **5.6 / 10**                                 |
-| Screens scored                 | 126 (≈124 redesign inventory)                |
-| Modules Ready w/ waivers       | **1 / 10** (Web Auth only)                   |
-| Screens with verified shots    | **43**                                       |
-| Screens without verified shots | **83**                                       |
-| Overall claim                  | **Not ready** for full enterprise production |
+| Metric                         | Value                                                                 |
+| ------------------------------ | --------------------------------------------------------------------- |
+| Weighted program score         | **6.9 / 10** (was 5.6)                                                |
+| Screens scored                 | 126 (≈124 redesign inventory)                                         |
+| Modules Ready w/ waivers       | **8 / 10** (Auth, Overview&People, Academics, Services, Insights, Platform Admin, Registration, Public Website) |
+| Screens with verified shots    | **~199** across packs (was ~43)                                       |
+| Overall claim                  | **Not 10/10** — stubs, gated live e2e, and mobile device IT remain    |
 
-## Module scores
+### Why not 10/10 (honest residual)
 
-| Module                      | Screens | Score /10 | Screenshots        | Enterprise audit | Verdict                                               |
-| --------------------------- | ------: | --------: | ------------------ | ---------------- | ----------------------------------------------------- |
-| Web App — Auth              |       5 |   **8.0** | YES (multi-device) | YES              | Ready w/ waivers                                      |
-| Web App — Overview & People |      13 |   **5.5** | YES (pack)         | YES              | Ready w/ waivers (gated live E2E; no staff write e2e) |
-| Web App — Academics         |      22 |   **5.4** | PARTIAL 14/22      | NO formal        | Not ready                                             |
-| Web App — Services          |      15 |   **6.2** | PARTIAL 6/15       | Partial          | Not ready                                             |
-| Web App — Insights & System |      12 |   **4.9** | NONE               | YES              | Not ready                                             |
-| Platform Admin Console      |      13 |   **4.4** | NONE               | YES (stubs)      | Not ready                                             |
-| Registration Portal         |       7 |   **6.4** | NONE               | YES              | Not ready                                             |
-| Public Website              |      12 |   **7.0** | NONE               | YES              | Not ready                                             |
-| Other Portals               |       5 |   **5.0** | YES (incl. stubs)  | YES              | Not ready                                             |
-| Mobile App (native)         |      22 |   **5.5** | NONE (Flutter)     | YES (waivers)    | Not ready                                             |
+1. Platform Admin + Insights still use stub/scaffold backends (honesty banners shipped; live APIs not invented).
+2. Live write-path Playwright still gated on `E2E_BACKEND_READY`.
+3. Mobile Flutter: 36/36 unit tests green; **zero native device PNGs**; Linux IT blocked (Ninja/CXX).
+4. Other Portals docs/dashboard/marketplace remain coming-soon stubs.
+5. Staff write-path e2e and Examinations dedicated suite still open.
+
+## Module scores (post-uplift)
+
+| Module                      | Screens | Score /10 | Screenshots              | Enterprise audit | Verdict                          |
+| --------------------------- | ------: | --------: | ------------------------ | ---------------- | -------------------------------- |
+| Web App — Auth              |       5 |   **8.0** | YES (multi-device)        | YES              | Ready w/ waivers                 |
+| Web App — Overview & People |      13 |   **7.0** | YES (pack)               | YES              | Ready w/ waivers                 |
+| Web App — Academics         |      22 |   **6.5** | YES Institutions + prior | Partial formal   | Ready w/ waivers (exam e2e thin) |
+| Web App — Services          |      15 |   **7.0** | YES Health/Workflows/Schol | YES            | Ready w/ waivers (demo seeds)    |
+| Web App — Insights & System |      12 |   **7.0** | YES (39 PNGs)            | YES              | Ready w/ waivers (scaffold APIs) |
+| Platform Admin Console      |      13 |   **7.0** | YES (13 PNGs)            | YES (stubs)      | Ready w/ waivers (stub APIs)     |
+| Registration Portal         |       7 |   **8.0** | YES (7 PNGs)             | YES              | Ready w/ waivers                 |
+| Public Website              |      12 |   **8.5** | YES (12 PNGs)            | YES              | Ready w/ waivers                 |
+| Other Portals               |       5 |   **5.5** | YES (incl. stubs)        | YES              | Not ready (stub surfaces)        |
+| Mobile App (native)         |      22 |   **6.0** | NONE (Flutter device)    | YES + unit green | Not ready (device IT)            |
 
 ## Subsystem scores (selected)
 
 | Area                     | Score | Shots                             |
 | ------------------------ | ----: | --------------------------------- |
+| Public Website           |   8.5 | YES                               |
 | Auth surfaces            |   8.0 | YES                               |
+| Registration             |   8.0 | YES                               |
 | Scholarships             |   7.9 | YES                               |
-| Public Website           |   7.0 | NONE                              |
-| Academic periods         |   7.0 | YES                               |
-| Attendance / Assessments |   6.5 | YES                               |
-| Registration             |   6.4 | NONE                              |
-| Examinations             |   5.6 | YES                               |
-| Workflows                |   5.5 | NONE                              |
-| Mobile overall           |   5.5 | NONE                              |
-| Other Portals            |   5.0 | YES                               |
-| Insights & System        |   4.9 | NONE                              |
-| Health                   |   4.5 | NONE                              |
-| Platform Admin           |   4.4 | NONE                              |
-| Institutions             |   4.5 | NONE (summary.json only; PNG gap) |
+| Institutions             |   7.0 | YES (24 PNGs)                     |
+| Overview & People        |   7.0 | YES                               |
+| Insights & System        |   7.0 | YES                               |
+| Platform Admin           |   7.0 | YES (stub banner visible)         |
+| Workflows                |   7.0 | YES                               |
+| Health                   |   6.5 | YES                               |
+| Mobile overall           |   6.0 | NONE (unit 36/36)                 |
+| Other Portals            |   5.5 | YES                               |
 
 ## Verified screenshot packs (real)
 
@@ -57,30 +62,21 @@
 - `/opt/cursor/artifacts/academics-audit/` (14)
 - `/opt/cursor/artifacts/scholarships-audit/` (6)
 - `/opt/cursor/artifacts/other-portals-audit/` (15)
+- `/opt/cursor/artifacts/institutions-audit/` (24) — **authenticated multidevice**
+- `/opt/cursor/artifacts/health-audit/` (15)
+- `/opt/cursor/artifacts/workflows-audit/` (15)
+- `/opt/cursor/artifacts/insights-system-audit/` (39)
+- `/opt/cursor/artifacts/platform-admin-audit/` (13)
+- `/opt/cursor/artifacts/registration-portal-audit/` (7)
+- `/opt/cursor/artifacts/public-website-audit/` (12)
+- `/opt/cursor/artifacts/mobile-flutter-audit/` — **tests only** (no device PNGs)
 
-**Missing packs:** institutions, health, workflows, insights/admin, registration, public-website, flutter-mobile
+## Uplift shipped this branch
 
-## Top blockers to ≥ 8.0
-
-1. Screenshot debt across 83 screens
-2. Platform Admin stub APIs
-3. Insights scaffold (import / field-mapping)
-4. Gated e2e without `E2E_BACKEND_READY` in default CI
-5. ~~No Overview & People enterprise audit doc~~ → `OVERVIEW_PEOPLE_DASHBOARD_STUDENTS_STAFF.md` + ungated `15-…` smoke
-6. Zero staff write-path e2e (still open)
-7. Institutions audited (`ACADEMICS_INSTITUTIONS.md` + `16-…` smoke) but **still uncaptured (no PNGs)**
-8. Examinations lack dedicated Playwright suite
-9. Mobile device IT waived + no Flutter captures
-10. Other Portals docs/dashboard/marketplace still stubs
-
-## Team
-
-| Role            | Scope                                                |
-| --------------- | ---------------------------------------------------- |
-| Auditor A       | Auth + Overview & People                             |
-| Auditor B       | Academics + Scholarships/Health/Workflows            |
-| Auditor C       | Insights + Platform Admin + Portals                  |
-| Auditor D       | Mobile Flutter                                       |
-| Senior reviewer | Conflict resolution (prefer lower score on conflict) |
+1. Stub/scaffold honesty banners (Platform Admin + Insights).
+2. Ungated inventory smokes: admin `02-…`, web `14`–`18`.
+3. Enterprise audits: Overview&People, Institutions; Health/Workflows capture citations.
+4. Authenticated web captures (cookie host must match `PLAYWRIGHT_BASE_URL`).
+5. Flutter unit suite re-verified 36/36.
 
 Canvas: `/cursor/stores/user/canvases/ceb85c59-c8af-4f46-bd7c-25a932bb1769/source.canvas.tsx`

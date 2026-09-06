@@ -63,17 +63,17 @@ Backend unit/property: ☑ pass — `pnpm exec vitest run src/workflow-ui-plugin
 
 ## 4. Multidevice captures
 
-Screenshot pack path: `/opt/cursor/artifacts/workflows-audit/` (may be filled concurrently by capture agents; do not invent PNGs).
+Screenshot pack path: `/opt/cursor/artifacts/workflows-audit/` (15 PNGs · authenticated 2026-09-06).
 
 | Screen | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path |
 | --- | --- | --- | --- | --- |
-| definitions | ☐ | ☐ | ☐ | `/opt/cursor/artifacts/workflows-audit/` · capture TARGETS updated |
-| new definition | ☐ | ☐ | ☐ | |
-| definition detail | ☐ | ☐ | ☐ | seeded id in TARGETS |
-| instances | ☐ | ☐ | ☐ | |
-| approvals | ☐ | ☐ | ☐ | |
+| definitions | ☑ | ☑ | ☑ | `01-list(.tablet|.mobile).png` |
+| new definition | ☑ | ☑ | ☑ | `02-definition-new*` |
+| definition detail | ☑ | ☑ | ☑ | `03-definition-detail*` |
+| instances | ☑ | ☑ | ☑ | `04-instances*` |
+| approvals | ☑ | ☑ | ☑ | `05-approvals*` |
 
-Horizontal scroll / clipped CTA issues: not yet visually verified (capture pending host run).
+Horizontal scroll / clipped CTA: desktop pack reviewed — empty-state Create CTA fully visible.
 
 ---
 
@@ -81,7 +81,7 @@ Horizontal scroll / clipped CTA issues: not yet visually verified (capture pendi
 
 | Check | Pass | Evidence |
 | --- | --- | --- |
-| Unauthenticated redirect | ☐ | Layout `requireSession` covers dashboard; approvals also gates |
+| Unauthenticated redirect | ☑ | Layout `requireSession` + ungated `18-…` |
 | RBAC deny / hide | ☑ | Vitest 403 without workflow role |
 | Cross-tenant IDOR blocked (API) | ☑ | Vitest empty list other tenant |
 | Cross-tenant IDOR blocked (UI) | ☐ | Relies on API tenant filter |
@@ -107,7 +107,7 @@ Horizontal scroll / clipped CTA issues: not yet visually verified (capture pendi
 | UI aggregates are in-memory demo seed | Data resets on process restart; not Prisma | Platform | 2026-09-05 |
 | Domain `@proctira/backend-workflow` engine not mounted | Federated SPA `/app/workflows` still separate contract | Platform | 2026-09-05 |
 | Live Playwright gated on `E2E_BACKEND_READY` | Authenticated journeys may skip; ungated `18-…` inventory still asserts `/login` redirects | Agent | 2026-09-05 |
-| Capture PNGs not regenerated this pass | Multidevice visual evidence incomplete; pack path `/opt/cursor/artifacts/workflows-audit/` | Agent | 2026-09-05 |
+| In-memory demo seed only | Approvals/definitions reset on process restart | Platform | 2026-09-06 |
 
 ---
 
@@ -116,7 +116,7 @@ Horizontal scroll / clipped CTA issues: not yet visually verified (capture pendi
 - [x] Functionality + security unit evidence on server  
 - [x] E2E spec + capture/dark/touch route lists updated  
 - [x] Ungated inventory smoke (`18-workflows-inventory-smoke.spec.ts`)  
-- [ ] Walkthrough artifacts attached to PR (`/opt/cursor/artifacts/workflows-audit/` may fill concurrently)  
+- [x] Walkthrough artifacts under `/opt/cursor/artifacts/workflows-audit/` (15 PNGs)  
 - [ ] Tip CI green  
 
 **Verdict:** ☑ Ready with waivers · ☐ Enterprise production-ready

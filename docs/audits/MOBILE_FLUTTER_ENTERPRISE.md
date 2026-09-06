@@ -78,3 +78,11 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` and adap
 - [x] Dated waivers for emulator live E2E
 
 **Verdict:** ☐ Not ready · ☑ Ready with waivers · ☐ Enterprise production-ready
+
+
+## 2026-09-06 uplift note
+
+- `flutter test`: **36/36 passed**
+- Integration tests on Linux: **blocked** (Ninja/CXX missing)
+- Device PNGs: **none invented** — pack `/opt/cursor/artifacts/mobile-flutter-audit/` documents tests-only evidence
+- Score residual: device visual IT still required for 10/10 mobile claim

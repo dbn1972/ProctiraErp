@@ -73,10 +73,12 @@ Backend unit/property: ☐ cite institutions package tests when re-run; UI wired
 
 | Screen                                                                          | Desktop 1440    | Tablet 834 | Mobile 390 | Artifact path                                                                                                                       |
 | ------------------------------------------------------------------------------- | --------------- | ---------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| list / profile / overview / register / edit / classes / grades / infrastructure | ☐               | ☐          | ☐          | **Screenshot gap:** `/opt/cursor/artifacts/institutions-audit/` contains **only** `summary.json` (HTML probe). **No PNG captures.** |
-| Hub TARGETS in capture script                                                   | list + new only | —          | —          | `apps/web/scripts/capture-screens.mjs` `institutions` keys                                                                          |
+| list | ☑ | ☑ | ☑ | `/opt/cursor/artifacts/institutions-audit/01-list(.tablet|.mobile).png` |
+| new / register | ☑ | ☑ | ☑ | `02-new*` |
+| profile / overview | ☑ | ☑ | ☑ | `03-profile*` · `04-overview*` |
+| edit / classes / grades / infrastructure | ☑ | ☑ | ☑ | `05`–`08-*` (authenticated cookie capture 2026-09-06) |
 
-Horizontal scroll / clipped CTA issues: **unverified** — no visual pack.
+Horizontal scroll / clipped CTA: visually reviewed on desktop pack — no blocking clip found on list/new.
 
 ---
 
@@ -88,7 +90,7 @@ Horizontal scroll / clipped CTA issues: **unverified** — no visual pack.
 | RBAC deny / hide                       | ☐ gated | `09-route-permission-coupling`                      |
 | Cross-tenant IDOR blocked (API)        | ☐       | Institutions domain tenant scoping — cite when live |
 | Cross-tenant IDOR blocked (UI)         | ☐       | Relies on API                                       |
-| No secrets/PHI leaked in git artifacts | ☑       | summary.json only; no PHI PNGs                      |
+| No secrets/PHI leaked in git artifacts | ☑       | Demo institution names only in PNG pack             |
 | Tenant isolation suite cited/run       | ☐       | Not re-run this pass                                |
 
 ---
@@ -107,20 +109,18 @@ Horizontal scroll / clipped CTA issues: **unverified** — no visual pack.
 
 | Item                                          | Risk                                                      | Owner     | Waiver date |
 | --------------------------------------------- | --------------------------------------------------------- | --------- | ----------- |
-| **No PNG screenshot pack** for Institutions   | Cannot claim visual enterprise evidence                   | Design/QA | 2026-09-06  |
-| Live institution write journeys missing       | Register/edit/classes/grades/infra untested in Playwright | QA        | 2026-09-06  |
-| `summary.json` is HTML probe, not multidevice | Desktop-only status codes/h1 strings                      | Agent     | 2026-09-06  |
-| Capture TARGETS omit detail tabs              | Auto capture won't cover overview/classes/grades/infra    | Agent     | 2026-09-06  |
-| Gated e2e default-skip in CI                  | Inventory ungated only proves auth redirect               | QA        | 2026-09-06  |
+| Live institution write journeys missing | Register/edit/classes/grades/infra untested in Playwright | QA    | 2026-09-06 |
+| Gated e2e default-skip in CI            | Inventory ungated only proves auth redirect               | QA    | 2026-09-06 |
+| KPI cards show connect-API placeholders | Enrollment/reporting metrics not live without gateway     | Platform | 2026-09-06 |
 
 ---
 
 ## Done criteria
 
 - [x] Full institutions screen inventory
-- [x] Honest note of screenshot gap (`summary.json` only)
+- [x] Honest note of prior screenshot gap (closed 2026-09-06)
 - [x] Ungated inventory smoke (`16-institutions-inventory-smoke.spec.ts`)
-- [ ] Multidevice PNGs captured under `institutions-audit/`
-- [ ] Session state `complete` after tip CI + captures
+- [x] Multidevice PNGs under `institutions-audit/` (24)
+- [ ] Session state `complete` after tip CI
 
-**Verdict:** ☐ Not ready · ☑ Ready with waivers (audit + ungated smoke; **screenshots still missing**) · ☐ Enterprise production-ready
+**Verdict:** ☐ Not ready · ☑ Ready with waivers (audit + ungated smoke + authenticated multidevice pack; live write e2e still gated) · ☐ Enterprise production-ready

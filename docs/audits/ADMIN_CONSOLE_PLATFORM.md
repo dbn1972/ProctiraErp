@@ -72,7 +72,7 @@ Backend unit/property: ☑ pass — `pnpm --filter @proctira/admin-console test`
 
 | Screen                  | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path        |
 | ----------------------- | ------------ | ---------- | ---------- | -------------------- |
-| login / forbidden / hub | ☐            | ☐          | ☐          | Pending host capture |
+| login / tenants / plans / health / audit / … | ☑ desktop pack | ☐          | ☐          | `/opt/cursor/artifacts/platform-admin-audit/` (13 PNGs; stub banner visible) |
 
 Horizontal scroll / clipped CTA: not visually verified this pass.
 
@@ -106,8 +106,8 @@ Horizontal scroll / clipped CTA: not visually verified this pass.
 1. **Live operator IdP / auth-service E2E** — live write journeys still gated on `E2E_BACKEND_READY`; ungated inventory smoke (`02-…`) covers 200+h1 with stub JWT.
 2. **API stubs (residual)** — tenants/plans/plugins/themes/break-glass/support/health/audit clients still fall back to deterministic fixtures when the gateway is unreachable. UI now shows a clear **Stub / demo mode** banner (`data-testid="stub-data-banner"`). Do not treat stub KPIs as production metrics.
 3. **Write paths offline** — tenant provision, plugin/theme decisions, and break-glass create/approve can succeed against stubs without creating live schema, marketplace, or elevated sessions.
-4. **Dark / axe / mobile capture packs** — not wired for admin-console this pass (no invented screenshots).
+4. **Tablet/mobile + axe packs** — desktop pack filled; tablet/mobile/axe still thin.
 5. **JWT signature** — middleware/session decode structure + expiry only; signature verified upstream.
 6. **Deploy registry** — infra Build Images failures are not feature blockers.
 
-**Verdict:** Honesty banners + ungated inventory smoke improve readiness; **live gateway wiring still required** before production claim.
+**Verdict:** Ready with waivers — honesty banners + ungated inventory smoke + desktop shot pack; **live gateway wiring still required** before production claim.

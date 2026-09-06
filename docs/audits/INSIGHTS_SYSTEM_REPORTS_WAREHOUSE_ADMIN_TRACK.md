@@ -74,9 +74,9 @@ Backend unit/property: ☑ pass — `packages/backend/data-warehouse` vitest (lo
 
 | Screen                       | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path                         |
 | ---------------------------- | ------------ | ---------- | ---------- | ------------------------------------- |
-| reports / DW / admin / track | ☐            | ☐          | ☐          | `capture-screens.mjs` TARGETS updated |
+| reports / DW / admin / track | ☑            | ☑          | ☑          | `/opt/cursor/artifacts/insights-system-audit/` (39 PNGs) |
 
-Horizontal scroll / clipped CTA issues: not yet visually verified (capture pending host run).
+Horizontal scroll / clipped CTA: desktop pack reviewed — scaffold banners and primary CTAs visible.
 
 ---
 
@@ -111,6 +111,6 @@ Horizontal scroll / clipped CTA issues: not yet visually verified (capture pendi
 4. **Report results without template** — missing template ids render a stable h1 + error state (HTTP 200) instead of a hard 404 so inventory smoke stays honest.
 5. **Permission matrix mutations** — read/inspect UI only this pass.
 6. **Deploy registry** — infra failure when Build Images runs; not a feature blocker.
-7. **Multidevice PNG pack** — TARGETS ready; capture when web+auth token host available (no invented screenshots).
+7. **Multidevice PNG pack** — filled 2026-09-06 under `/opt/cursor/artifacts/insights-system-audit/` (39 PNGs; scaffold banners visible).
 
-**Verdict:** Honesty banners + usable demo forms + ungated inventory smoke raise readiness; **live warehouse/reports/admin APIs still required** before production claim.
+**Verdict:** Ready with waivers — honesty banners + ungated inventory smoke + multidevice pack; **live warehouse/reports/admin APIs still required** before production claim.

@@ -68,15 +68,15 @@ Backend unit/property: existing `packages/backend/health` tests (unchanged packa
 
 ## 4. Multidevice captures
 
-Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (may be filled concurrently by capture agents; do not invent PNGs).
+Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (15 PNGs · authenticated 2026-09-06).
 
 | Screen | Desktop | Tablet | Mobile | Artifact path |
 | --- | --- | --- | --- | --- |
-| list | ☐ | ☐ | ☐ | `/opt/cursor/artifacts/health-audit/` · `capture-screens.mjs` health.list |
-| screenings | ☐ | ☐ | ☐ | health.screenings |
-| student-profile | ☐ | ☐ | ☐ | health.student-profile |
-| counselling | ☐ | ☐ | ☐ | health.counselling |
-| special-needs | ☐ | ☐ | ☐ | health.special-needs |
+| list | ☑ | ☑ | ☑ | `01-list(.tablet|.mobile).png` |
+| counselling | ☑ | ☑ | ☑ | `02-counselling*` |
+| special-needs | ☑ | ☑ | ☑ | `03-special-needs*` |
+| screenings | ☑ | ☑ | ☑ | `04-screenings*` |
+| student-profile | ☑ | ☑ | ☑ | `05-student-profile*` |
 
 ---
 
@@ -84,10 +84,10 @@ Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (may be filled concu
 
 | Check | Pass | Evidence |
 | --- | --- | --- |
-| Unauthenticated redirect | ☐ | Dashboard `requireSession` |
+| Unauthenticated redirect | ☑ | Dashboard `requireSession` + ungated `17-…` |
 | RBAC deny / hide | ☐ | `canAccessHealthRecords` + 403 aggregates |
 | Cross-tenant IDOR blocked (API) | ☐ | Domain tenantId scoping; UI seed is demo-tenant |
-| No secrets/PHI leaked in git artifacts | ☐ | Synthetic demo names only |
+| No secrets/PHI leaked in git artifacts | ☑ | Synthetic demo names only in PNG pack |
 | Tenant isolation suite cited/run | ☐ | Platform gate unchanged |
 
 ---
@@ -116,7 +116,7 @@ Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (may be filled concu
 
 - [x] Pillars addressed with shipped wiring + checklist evidence paths  
 - [x] Ungated inventory smoke (`17-health-inventory-smoke.spec.ts`)  
-- [ ] Walkthrough artifacts attached to PR (`/opt/cursor/artifacts/health-audit/` may fill concurrently)  
+- [x] Walkthrough artifacts under `/opt/cursor/artifacts/health-audit/` (15 PNGs)  
 - [ ] Session state set to `complete` after CI green  
 
-**Verdict:** Ready with waivers (demo seed / read-only UI / gated live E2E; ungated inventory smoke always runs)
+**Verdict:** Ready with waivers (demo seed / read-only UI / gated live E2E; ungated inventory smoke + multidevice pack)
