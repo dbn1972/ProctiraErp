@@ -41,8 +41,10 @@ Backend unit/property: ☑ pass — `pnpm exec vitest run src/workflow-ui-plugin
 
 | Journey | Spec file | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| Smoke routes | `apps/web/e2e/12-workflows.spec.ts` | ☐ gated | ☐ | ☐ | Spec added; run when gateway+web up on same host |
-| Happy path create | same (form fields) | ☐ | ☐ | ☐ | Form wired |
+| Inventory smoke (ungated) | `apps/web/e2e/18-workflows-inventory-smoke.spec.ts` | N/A — always runs | ☐ CI | ☐ | Unauthenticated → `/login` + body/heading |
+| Smoke routes (authenticated) | `apps/web/e2e/12-workflows.spec.ts` | ☐ gated | ☐ | ☐ | Spec added; run when gateway+web up on same host |
+| Authenticated inventory (optional) | `18-…` second describe | ☐ gated | ☐ | ☐ | Headings when backend ready |
+| Happy path create | `12-…` (form fields) | ☐ | ☐ | ☐ | Form wired |
 | Negative / forbidden | gateway Vitest 403/400 | ☑ | n/a | n/a | Unit inject tests |
 
 ---
@@ -61,9 +63,11 @@ Backend unit/property: ☑ pass — `pnpm exec vitest run src/workflow-ui-plugin
 
 ## 4. Multidevice captures
 
+Screenshot pack path: `/opt/cursor/artifacts/workflows-audit/` (may be filled concurrently by capture agents; do not invent PNGs).
+
 | Screen | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path |
 | --- | --- | --- | --- | --- |
-| definitions | ☐ | ☐ | ☐ | capture TARGETS updated |
+| definitions | ☐ | ☐ | ☐ | `/opt/cursor/artifacts/workflows-audit/` · capture TARGETS updated |
 | new definition | ☐ | ☐ | ☐ | |
 | definition detail | ☐ | ☐ | ☐ | seeded id in TARGETS |
 | instances | ☐ | ☐ | ☐ | |
@@ -102,8 +106,8 @@ Horizontal scroll / clipped CTA issues: not yet visually verified (capture pendi
 | --- | --- | --- | --- |
 | UI aggregates are in-memory demo seed | Data resets on process restart; not Prisma | Platform | 2026-09-05 |
 | Domain `@proctira/backend-workflow` engine not mounted | Federated SPA `/app/workflows` still separate contract | Platform | 2026-09-05 |
-| Live Playwright gated on `E2E_BACKEND_READY` | CI may skip journey until stack is up on agent | Agent | 2026-09-05 |
-| Capture PNGs not regenerated this pass | Multidevice visual evidence incomplete | Agent | 2026-09-05 |
+| Live Playwright gated on `E2E_BACKEND_READY` | Authenticated journeys may skip; ungated `18-…` inventory still asserts `/login` redirects | Agent | 2026-09-05 |
+| Capture PNGs not regenerated this pass | Multidevice visual evidence incomplete; pack path `/opt/cursor/artifacts/workflows-audit/` | Agent | 2026-09-05 |
 
 ---
 
@@ -111,7 +115,8 @@ Horizontal scroll / clipped CTA issues: not yet visually verified (capture pendi
 
 - [x] Functionality + security unit evidence on server  
 - [x] E2E spec + capture/dark/touch route lists updated  
-- [ ] Walkthrough artifacts attached to PR (captures pending)  
+- [x] Ungated inventory smoke (`18-workflows-inventory-smoke.spec.ts`)  
+- [ ] Walkthrough artifacts attached to PR (`/opt/cursor/artifacts/workflows-audit/` may fill concurrently)  
 - [ ] Tip CI green  
 
 **Verdict:** ☑ Ready with waivers · ☐ Enterprise production-ready

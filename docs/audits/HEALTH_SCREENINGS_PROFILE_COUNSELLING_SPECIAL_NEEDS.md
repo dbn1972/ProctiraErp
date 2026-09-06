@@ -47,7 +47,9 @@ Backend unit/property: existing `packages/backend/health` tests (unchanged packa
 
 | Journey | Spec file | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| Smoke routes | `apps/web/e2e/11-health.spec.ts` | ☐ | ☐ | ☐ | Added |
+| Inventory smoke (ungated) | `apps/web/e2e/17-health-inventory-smoke.spec.ts` | N/A — always runs | ☐ CI | ☐ | Unauthenticated → `/login` + body/heading |
+| Smoke routes (authenticated) | `apps/web/e2e/11-health.spec.ts` | ☐ gated | ☐ | ☐ | Skips without backend |
+| Authenticated inventory (optional) | `17-…` second describe | ☐ gated | ☐ | ☐ | Headings when backend ready |
 | Dark mode | `dark-mode-parity.spec.ts` | ☐ | ☐ | — | Routes extended |
 | Touch targets | `touch-target-minimum.spec.ts` | ☐ | ☐ | ☐ | Routes extended |
 
@@ -66,9 +68,11 @@ Backend unit/property: existing `packages/backend/health` tests (unchanged packa
 
 ## 4. Multidevice captures
 
+Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (may be filled concurrently by capture agents; do not invent PNGs).
+
 | Screen | Desktop | Tablet | Mobile | Artifact path |
 | --- | --- | --- | --- | --- |
-| list | ☐ | ☐ | ☐ | `capture-screens.mjs` health.list |
+| list | ☐ | ☐ | ☐ | `/opt/cursor/artifacts/health-audit/` · `capture-screens.mjs` health.list |
 | screenings | ☐ | ☐ | ☐ | health.screenings |
 | student-profile | ☐ | ☐ | ☐ | health.student-profile |
 | counselling | ☐ | ☐ | ☐ | health.counselling |
@@ -104,14 +108,15 @@ Backend unit/property: existing `packages/backend/health` tests (unchanged packa
 | --- | --- | --- | --- |
 | Health UI aggregates are in-memory demo, not Prisma | Demo data only in gateway until Prisma health models | Platform | 2026-09-05 |
 | Write paths (create screening / session) not in redesign UI yet | Incomplete clinical workflow | Product | 2026-09-05 |
-| Live E2E requires `E2E_BACKEND_READY=1` | CI may skip live browser journeys | QA | 2026-09-05 |
+| Live E2E requires `E2E_BACKEND_READY=1` | Authenticated journeys may skip; ungated `17-…` inventory still asserts `/login` redirects | QA | 2026-09-05 |
 
 ---
 
 ## Done criteria
 
 - [x] Pillars addressed with shipped wiring + checklist evidence paths  
-- [ ] Walkthrough artifacts attached to PR (capture after stack up)  
+- [x] Ungated inventory smoke (`17-health-inventory-smoke.spec.ts`)  
+- [ ] Walkthrough artifacts attached to PR (`/opt/cursor/artifacts/health-audit/` may fill concurrently)  
 - [ ] Session state set to `complete` after CI green  
 
-**Verdict:** Ready with waivers (demo seed / read-only UI / gated live E2E)
+**Verdict:** Ready with waivers (demo seed / read-only UI / gated live E2E; ungated inventory smoke always runs)
