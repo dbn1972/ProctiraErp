@@ -97,7 +97,6 @@ Backend unit/property: ☑ — registration-service checkStatus DOB match/mismat
 
 **Verdict:** Ready with waivers above.
 
-
 ## Screenshot pack (2026-09-06)
 
 Filled `/opt/cursor/artifacts/registration-portal-audit/` (7 PNGs). Multidevice tablet/mobile still thin for this portal.

@@ -47,12 +47,12 @@ Backend unit/property: ☑ pass — `pnpm --filter @proctira/admin-console test`
 
 ## 2. E2E (Playwright)
 
-| Journey                             | Spec file                                                          | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                      |
-| ----------------------------------- | ------------------------------------------------------------------ | ---------------------------- | ------- | ------ | --------------------------------------------- |
-| Public login / forbidden / redirect | `apps/admin-console/e2e/01-platform-admin-smoke.spec.ts`           | N/A public                   | ☐       | ☐      | Spec added                                    |
-| Inventory 200 + h1 (stub JWT)       | `apps/admin-console/e2e/02-platform-admin-inventory-smoke.spec.ts` | N/A ungated                  | ☐       | ☐      | Always runs; fake `platform_admin` cookie     |
-| Authenticated live inventory        | `01-platform-admin-smoke.spec.ts`                                  | ☐ gated                      | ☐       | ☐      | Needs seeded operator + live gateway          |
-| Negative / open-redirect            | unit + public e2e                                                  | ☑ unit                       | n/a     | n/a    | `return-to.test.ts`                           |
+| Journey                             | Spec file                                                          | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                  |
+| ----------------------------------- | ------------------------------------------------------------------ | ---------------------------- | ------- | ------ | ----------------------------------------- |
+| Public login / forbidden / redirect | `apps/admin-console/e2e/01-platform-admin-smoke.spec.ts`           | N/A public                   | ☐       | ☐      | Spec added                                |
+| Inventory 200 + h1 (stub JWT)       | `apps/admin-console/e2e/02-platform-admin-inventory-smoke.spec.ts` | N/A ungated                  | ☐       | ☐      | Always runs; fake `platform_admin` cookie |
+| Authenticated live inventory        | `01-platform-admin-smoke.spec.ts`                                  | ☐ gated                      | ☐       | ☐      | Needs seeded operator + live gateway      |
+| Negative / open-redirect            | unit + public e2e                                                  | ☑ unit                       | n/a     | n/a    | `return-to.test.ts`                       |
 
 ---
 
@@ -70,8 +70,8 @@ Backend unit/property: ☑ pass — `pnpm --filter @proctira/admin-console test`
 
 ## 4. Multidevice captures
 
-| Screen                  | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path        |
-| ----------------------- | ------------ | ---------- | ---------- | -------------------- |
+| Screen                                       | Desktop 1440   | Tablet 834 | Mobile 390 | Artifact path                                                                |
+| -------------------------------------------- | -------------- | ---------- | ---------- | ---------------------------------------------------------------------------- |
 | login / tenants / plans / health / audit / … | ☑ desktop pack | ☐          | ☐          | `/opt/cursor/artifacts/platform-admin-audit/` (13 PNGs; stub banner visible) |
 
 Horizontal scroll / clipped CTA: not visually verified this pass.

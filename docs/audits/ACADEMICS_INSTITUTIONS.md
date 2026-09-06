@@ -71,12 +71,12 @@ Backend unit/property: ☐ cite institutions package tests when re-run; UI wired
 
 ## 4. Multidevice captures
 
-| Screen                                                                          | Desktop 1440    | Tablet 834 | Mobile 390 | Artifact path                                                                                                                       |
-| ------------------------------------------------------------------------------- | --------------- | ---------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| list | ☑ | ☑ | ☑ | `/opt/cursor/artifacts/institutions-audit/01-list(.tablet|.mobile).png` |
-| new / register | ☑ | ☑ | ☑ | `02-new*` |
-| profile / overview | ☑ | ☑ | ☑ | `03-profile*` · `04-overview*` |
-| edit / classes / grades / infrastructure | ☑ | ☑ | ☑ | `05`–`08-*` (authenticated cookie capture 2026-09-06) |
+| Screen                                   | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path                                             |
+| ---------------------------------------- | ------------ | ---------- | ---------- | --------------------------------------------------------- | ------------- |
+| list                                     | ☑            | ☑          | ☑          | `/opt/cursor/artifacts/institutions-audit/01-list(.tablet | .mobile).png` |
+| new / register                           | ☑            | ☑          | ☑          | `02-new*`                                                 |
+| profile / overview                       | ☑            | ☑          | ☑          | `03-profile*` · `04-overview*`                            |
+| edit / classes / grades / infrastructure | ☑            | ☑          | ☑          | `05`–`08-*` (authenticated cookie capture 2026-09-06)     |
 
 Horizontal scroll / clipped CTA: visually reviewed on desktop pack — no blocking clip found on list/new.
 
@@ -107,11 +107,11 @@ Horizontal scroll / clipped CTA: visually reviewed on desktop pack — no blocki
 
 ## 7. Residual risks / waivers
 
-| Item                                          | Risk                                                      | Owner     | Waiver date |
-| --------------------------------------------- | --------------------------------------------------------- | --------- | ----------- |
-| Live institution write journeys missing | Register/edit/classes/grades/infra untested in Playwright | QA    | 2026-09-06 |
-| Gated e2e default-skip in CI            | Inventory ungated only proves auth redirect               | QA    | 2026-09-06 |
-| KPI cards show connect-API placeholders | Enrollment/reporting metrics not live without gateway     | Platform | 2026-09-06 |
+| Item                                    | Risk                                                      | Owner    | Waiver date |
+| --------------------------------------- | --------------------------------------------------------- | -------- | ----------- |
+| Live institution write journeys missing | Register/edit/classes/grades/infra untested in Playwright | QA       | 2026-09-06  |
+| Gated e2e default-skip in CI            | Inventory ungated only proves auth redirect               | QA       | 2026-09-06  |
+| KPI cards show connect-API placeholders | Enrollment/reporting metrics not live without gateway     | Platform | 2026-09-06  |
 
 ---
 

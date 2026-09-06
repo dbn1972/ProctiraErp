@@ -79,7 +79,6 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` and adap
 
 **Verdict:** ☐ Not ready · ☑ Ready with waivers · ☐ Enterprise production-ready
 
-
 ## 2026-09-06 uplift note
 
 - `flutter test`: **36/36 passed**

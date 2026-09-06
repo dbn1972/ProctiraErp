@@ -49,12 +49,12 @@ Backend unit/property: ☑ pass — `packages/backend/data-warehouse` vitest (lo
 
 ## 2. E2E (Playwright)
 
-| Journey                    | Spec file                                                  | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                      |
-| -------------------------- | ---------------------------------------------------------- | ---------------------------- | ------- | ------ | --------------------------------------------- |
-| Live smoke routes          | `apps/web/e2e/13-insights-system.spec.ts`                  | ☐ gated                      | ☐       | ☐      | Spec added                                    |
-| Inventory 200 + h1 + forms | `apps/web/e2e/14-insights-system-inventory-smoke.spec.ts`  | N/A ungated                  | ☐       | ☐      | Always runs; fake tenant JWT + scaffold UI    |
-| Public track               | `13` + `14`                                                | N/A                          | ☐       | ☐      | Always runnable                               |
-| Negative / forbidden       | deferred                                                   | ☐                            | n/a     | n/a    | Waiver: permission matrix write UI            |
+| Journey                    | Spec file                                                 | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                   |
+| -------------------------- | --------------------------------------------------------- | ---------------------------- | ------- | ------ | ------------------------------------------ |
+| Live smoke routes          | `apps/web/e2e/13-insights-system.spec.ts`                 | ☐ gated                      | ☐       | ☐      | Spec added                                 |
+| Inventory 200 + h1 + forms | `apps/web/e2e/14-insights-system-inventory-smoke.spec.ts` | N/A ungated                  | ☐       | ☐      | Always runs; fake tenant JWT + scaffold UI |
+| Public track               | `13` + `14`                                               | N/A                          | ☐       | ☐      | Always runnable                            |
+| Negative / forbidden       | deferred                                                  | ☐                            | n/a     | n/a    | Waiver: permission matrix write UI         |
 
 ---
 
@@ -72,8 +72,8 @@ Backend unit/property: ☑ pass — `packages/backend/data-warehouse` vitest (lo
 
 ## 4. Multidevice captures
 
-| Screen                       | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path                         |
-| ---------------------------- | ------------ | ---------- | ---------- | ------------------------------------- |
+| Screen                       | Desktop 1440 | Tablet 834 | Mobile 390 | Artifact path                                            |
+| ---------------------------- | ------------ | ---------- | ---------- | -------------------------------------------------------- |
 | reports / DW / admin / track | ☑            | ☑          | ☑          | `/opt/cursor/artifacts/insights-system-audit/` (39 PNGs) |
 
 Horizontal scroll / clipped CTA: desktop pack reviewed — scaffold banners and primary CTAs visible.

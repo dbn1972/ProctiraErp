@@ -105,7 +105,6 @@ Backend unit/property: ☑ — `pnpm --filter @proctira/public-website test`
 
 **Verdict:** Ready with waivers above.
 
-
 ## Screenshot pack (2026-09-06)
 
 Filled `/opt/cursor/artifacts/public-website-audit/` (12 PNGs). Multidevice tablet/mobile still thin for this portal.

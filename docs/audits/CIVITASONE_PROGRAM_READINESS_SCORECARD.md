@@ -7,13 +7,13 @@
 
 ## Program verdict
 
-| Metric                         | Value                                                                 |
-| ------------------------------ | --------------------------------------------------------------------- |
-| Weighted program score         | **6.9 / 10** (was 5.6)                                                |
-| Screens scored                 | 126 (≈124 redesign inventory)                                         |
-| Modules Ready w/ waivers       | **8 / 10** (Auth, Overview&People, Academics, Services, Insights, Platform Admin, Registration, Public Website) |
-| Screens with verified shots    | **~199** across packs (was ~43)                                       |
-| Overall claim                  | **Not 10/10** — stubs, gated live e2e, and mobile device IT remain    |
+| Metric                      | Value                                                                                                           |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Weighted program score      | **6.9 / 10** (was 5.6)                                                                                          |
+| Screens scored              | 126 (≈124 redesign inventory)                                                                                   |
+| Modules Ready w/ waivers    | **8 / 10** (Auth, Overview&People, Academics, Services, Insights, Platform Admin, Registration, Public Website) |
+| Screens with verified shots | **~199** across packs (was ~43)                                                                                 |
+| Overall claim               | **Not 10/10** — stubs, gated live e2e, and mobile device IT remain                                              |
 
 ### Why not 10/10 (honest residual)
 
@@ -25,35 +25,35 @@
 
 ## Module scores (post-uplift)
 
-| Module                      | Screens | Score /10 | Screenshots              | Enterprise audit | Verdict                          |
-| --------------------------- | ------: | --------: | ------------------------ | ---------------- | -------------------------------- |
-| Web App — Auth              |       5 |   **8.0** | YES (multi-device)        | YES              | Ready w/ waivers                 |
-| Web App — Overview & People |      13 |   **7.0** | YES (pack)               | YES              | Ready w/ waivers                 |
-| Web App — Academics         |      22 |   **6.5** | YES Institutions + prior | Partial formal   | Ready w/ waivers (exam e2e thin) |
-| Web App — Services          |      15 |   **7.0** | YES Health/Workflows/Schol | YES            | Ready w/ waivers (demo seeds)    |
-| Web App — Insights & System |      12 |   **7.0** | YES (39 PNGs)            | YES              | Ready w/ waivers (scaffold APIs) |
-| Platform Admin Console      |      13 |   **7.0** | YES (13 PNGs)            | YES (stubs)      | Ready w/ waivers (stub APIs)     |
-| Registration Portal         |       7 |   **8.0** | YES (7 PNGs)             | YES              | Ready w/ waivers                 |
-| Public Website              |      12 |   **8.5** | YES (12 PNGs)            | YES              | Ready w/ waivers                 |
-| Other Portals               |       5 |   **5.5** | YES (incl. stubs)        | YES              | Not ready (stub surfaces)        |
-| Mobile App (native)         |      22 |   **6.0** | NONE (Flutter device)    | YES + unit green | Not ready (device IT)            |
+| Module                      | Screens | Score /10 | Screenshots                | Enterprise audit | Verdict                          |
+| --------------------------- | ------: | --------: | -------------------------- | ---------------- | -------------------------------- |
+| Web App — Auth              |       5 |   **8.0** | YES (multi-device)         | YES              | Ready w/ waivers                 |
+| Web App — Overview & People |      13 |   **7.0** | YES (pack)                 | YES              | Ready w/ waivers                 |
+| Web App — Academics         |      22 |   **6.5** | YES Institutions + prior   | Partial formal   | Ready w/ waivers (exam e2e thin) |
+| Web App — Services          |      15 |   **7.0** | YES Health/Workflows/Schol | YES              | Ready w/ waivers (demo seeds)    |
+| Web App — Insights & System |      12 |   **7.0** | YES (39 PNGs)              | YES              | Ready w/ waivers (scaffold APIs) |
+| Platform Admin Console      |      13 |   **7.0** | YES (13 PNGs)              | YES (stubs)      | Ready w/ waivers (stub APIs)     |
+| Registration Portal         |       7 |   **8.0** | YES (7 PNGs)               | YES              | Ready w/ waivers                 |
+| Public Website              |      12 |   **8.5** | YES (12 PNGs)              | YES              | Ready w/ waivers                 |
+| Other Portals               |       5 |   **5.5** | YES (incl. stubs)          | YES              | Not ready (stub surfaces)        |
+| Mobile App (native)         |      22 |   **6.0** | NONE (Flutter device)      | YES + unit green | Not ready (device IT)            |
 
 ## Subsystem scores (selected)
 
-| Area                     | Score | Shots                             |
-| ------------------------ | ----: | --------------------------------- |
-| Public Website           |   8.5 | YES                               |
-| Auth surfaces            |   8.0 | YES                               |
-| Registration             |   8.0 | YES                               |
-| Scholarships             |   7.9 | YES                               |
-| Institutions             |   7.0 | YES (24 PNGs)                     |
-| Overview & People        |   7.0 | YES                               |
-| Insights & System        |   7.0 | YES                               |
-| Platform Admin           |   7.0 | YES (stub banner visible)         |
-| Workflows                |   7.0 | YES                               |
-| Health                   |   6.5 | YES                               |
-| Mobile overall           |   6.0 | NONE (unit 36/36)                 |
-| Other Portals            |   5.5 | YES                               |
+| Area              | Score | Shots                     |
+| ----------------- | ----: | ------------------------- |
+| Public Website    |   8.5 | YES                       |
+| Auth surfaces     |   8.0 | YES                       |
+| Registration      |   8.0 | YES                       |
+| Scholarships      |   7.9 | YES                       |
+| Institutions      |   7.0 | YES (24 PNGs)             |
+| Overview & People |   7.0 | YES                       |
+| Insights & System |   7.0 | YES                       |
+| Platform Admin    |   7.0 | YES (stub banner visible) |
+| Workflows         |   7.0 | YES                       |
+| Health            |   6.5 | YES                       |
+| Mobile overall    |   6.0 | NONE (unit 36/36)         |
+| Other Portals     |   5.5 | YES                       |
 
 ## Verified screenshot packs (real)
 
