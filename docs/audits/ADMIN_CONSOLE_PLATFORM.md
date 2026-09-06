@@ -103,7 +103,7 @@ Horizontal scroll / clipped CTA: not visually verified this pass.
 
 ## 7. Residual risks / waivers
 
-1. **Live operator IdP / auth-service E2E** — live write journeys still gated on `E2E_BACKEND_READY`; ungated inventory smoke (`02-…`) covers 200+h1 with stub JWT.
+1. **Live operator IdP / auth-service E2E** — live write journeys still gated on `E2E_BACKEND_READY`; ungated inventory smoke (`02-…`) covers 200+h1 with stub JWT; ungated tenant provision validation (`03-…`) covers zod field errors without claiming live provision.
 2. **API stubs (residual)** — tenants/plans/plugins/themes/break-glass/support/health/audit clients still fall back to deterministic fixtures when the gateway is unreachable. UI now shows a clear **Stub / demo mode** banner (`data-testid="stub-data-banner"`). Do not treat stub KPIs as production metrics.
 3. **Write paths offline** — tenant provision, plugin/theme decisions, and break-glass create/approve can succeed against stubs without creating live schema, marketplace, or elevated sessions.
 4. **Tablet/mobile + axe packs** — desktop pack filled; tablet/mobile/axe still thin.

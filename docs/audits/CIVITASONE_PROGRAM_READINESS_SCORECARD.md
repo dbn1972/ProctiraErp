@@ -32,13 +32,13 @@
 | Web App — Academics         |      22 |   **8.0** | YES + exams inventory       | Partial formal    | Ready w/ waivers                  |
 | Web App — Services          |      15 |   **8.0** | YES Health/Workflows/Schol  | YES               | Ready w/ waivers                  |
 | Web App — Insights & System |      12 |   **7.5** | YES (scaffold banners)      | YES               | Ready w/ waivers (scaffold APIs)  |
-| Platform Admin Console      |      13 |   **7.5** | YES (stub banners)          | YES (stubs)       | Ready w/ waivers (stub APIs)      |
+| Platform Admin Console      |      13 |   **7.6** | YES (stub banners)          | YES (stubs)       | Ready w/ waivers (stub APIs)      |
 | Registration Portal         |       7 |   **8.5** | YES                         | YES               | Ready w/ waivers                  |
 | Public Website              |      12 |   **9.0** | YES                         | YES               | Ready w/ waivers                  |
 | Other Portals               |       5 |   **8.0** | YES (real docs/dash/market) | YES               | Ready w/ waivers (demo key/mint)  |
 | Mobile App (native)         |      22 |   **7.8** | YES widget goldens          | YES + unit/golden | Ready w/ waivers (no device farm) |
 
-Weighted check: Σ(score×screens)/126 ≈ **8.01**.
+Weighted check: Σ(score×screens)/126 ≈ **8.02** (Admin write-validation smoke +0.1).
 
 ## Uplift shipped this pass (6.9 → 8.0)
 
@@ -47,6 +47,7 @@ Weighted check: Σ(score×screens)/126 ≈ **8.01**.
 3. Examinations inventory + client create validation (`19-…`) with hydration-safe submit.
 4. Flutter widget goldens under `/opt/cursor/artifacts/mobile-flutter-audit/` (login + home shell).
 5. Other Portals capture pack under `/opt/cursor/artifacts/other-portals-audit/`.
+6. Platform Admin ungated tenant provision validation smoke (`03-…`) — zod field errors; not live provision.
 
 ## Verified screenshot packs (real)
 

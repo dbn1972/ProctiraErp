@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 
 const SCOPES = ['students:read', 'attendance:write', 'webhooks:manage'] as const;
 
