@@ -1,5 +1,5 @@
 /**
- * @proctira/backend-gradebook — WS3 gradebook, GPA, report cards, transcripts.
+ * @proctira/backend-gradebook — WS3 gradebook + WS4 board export packs.
  *
  * Schema: db/sql/003_sis_timetable_schedule_schema.sql (+ 004 indexes)
  * Persistence: raw `pg` when DATABASE_URL is set; else in-memory.
@@ -17,6 +17,31 @@ export {
   type GpaPolicy,
   type GpaSnapshotResult,
 } from './gpa-engine.js';
+
+export {
+  BOARD_PACKS,
+  getBoardPack,
+  isBoardPackCode,
+  listBoardPacks,
+  type BoardPackCode,
+  type BoardPackDefinition,
+  type BoardPackField,
+} from './board-pack-registry.js';
+
+export {
+  assertBoardExportCompleteness,
+  validateBoardExportCompleteness,
+  type IncompleteGradeDetail,
+} from './board-export-validation.js';
+
+export {
+  buildExamResultsJson,
+  buildMarksheetCsv,
+  buildPdfLiteHtml,
+  writeBoardExportArtifacts,
+  type BoardExportArtifacts,
+  type BoardExportContext,
+} from './board-export-generator.js';
 
 export {
   GradeLockedError,
@@ -50,6 +75,10 @@ export type {
   TranscriptIssuanceEntity,
   ExportJobEntity,
   SectionSummary,
+  BoardSummary,
+  InstitutionSummary,
+  BoardCodeEntity,
+  BoardExportCandidate,
 } from './gradebook-repository.js';
 
 export {
@@ -58,4 +87,5 @@ export {
   CreateReportCardJobSchema,
   IssueTranscriptSchema,
   CreateCreditRuleSchema,
+  CreateBoardExportJobSchema,
 } from './schemas.js';

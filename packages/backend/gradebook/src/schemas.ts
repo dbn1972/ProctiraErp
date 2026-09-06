@@ -45,3 +45,13 @@ export const CreateCreditRuleSchema = Type.Object({
   metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });
 export type CreateCreditRuleInput = Static<typeof CreateCreditRuleSchema>;
+
+export const CreateBoardExportJobSchema = Type.Object({
+  boardId: Type.Optional(Type.String({ minLength: 1 })),
+  boardCode: Type.Optional(Type.String({ minLength: 1, maxLength: 32 })),
+  institutionId: Type.String({ minLength: 1 }),
+  studentIds: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 500 })),
+  limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })),
+  metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+});
+export type CreateBoardExportJobInput = Static<typeof CreateBoardExportJobSchema>;

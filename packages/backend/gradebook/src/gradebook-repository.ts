@@ -110,6 +110,59 @@ export type ListSectionsFilter = {
   academicPeriodId?: string;
 };
 
+export type BoardSummary = {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+};
+
+export type InstitutionSummary = {
+  id: string;
+  tenantId: string;
+  boardId: string;
+  code: string;
+  name: string;
+};
+
+export type BoardCodeEntity = {
+  id: string;
+  tenantId: string;
+  boardId: string;
+  institutionId: string;
+  codeType: string;
+  codeValue: string;
+  label: string | null;
+};
+
+export type BoardExportCandidateGrade = {
+  assessmentCode: string | null;
+  numericScore: number | null;
+  letterGrade: string | null;
+};
+
+export type BoardExportCandidate = {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  nationalId: string | null;
+  institutionId: string;
+  grades: BoardExportCandidateGrade[];
+  latestTranscript: {
+    version: number;
+    checksumSha256: string | null;
+    issuedAt: string | null;
+  } | null;
+};
+
+export type ListBoardExportCandidatesFilter = {
+  institutionId: string;
+  boardId?: string;
+  studentIds?: string[];
+  /** Cap cohort size for pack generation (default applied in service). */
+  limit?: number;
+};
+
 export interface GradebookRepository {
   listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter): Promise<GradeEntryEntity[]>;
   findGradeEntry(
@@ -152,4 +205,18 @@ export interface GradebookRepository {
 
   listSections(tenantId: string, filter?: ListSectionsFilter): Promise<SectionSummary[]>;
   getSection(tenantId: string, id: string): Promise<SectionSummary | null>;
+
+  getBoard(tenantId: string, id: string): Promise<BoardSummary | null>;
+  getBoardByCode(tenantId: string, code: string): Promise<BoardSummary | null>;
+  listBoards(tenantId: string): Promise<BoardSummary[]>;
+  getInstitution(tenantId: string, id: string): Promise<InstitutionSummary | null>;
+  listInstitutionsByBoard(tenantId: string, boardId: string): Promise<InstitutionSummary[]>;
+  listBoardCodes(
+    tenantId: string,
+    filter: { institutionId: string; boardId?: string },
+  ): Promise<BoardCodeEntity[]>;
+  listBoardExportCandidates(
+    tenantId: string,
+    filter: ListBoardExportCandidatesFilter,
+  ): Promise<BoardExportCandidate[]>;
 }

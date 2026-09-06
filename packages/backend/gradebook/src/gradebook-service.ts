@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
-import { NotFoundError, ValidationError } from '@proctira/common';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 
+import { writeBoardExportArtifacts } from './board-export-generator.js';
+import { assertBoardExportCompleteness, validateBoardExportCompleteness } from './board-export-validation.js';
+import { getBoardPack, listBoardPacks, type BoardPackCode } from './board-pack-registry.js';
 import { computeGpaSnapshot, type CourseGradeInput, type GpaPolicy } from './gpa-engine.js';
 import { GradeLockedError } from './gradebook-errors.js';
 import type {
@@ -17,6 +21,7 @@ import type {
 } from './gradebook-repository.js';
 import type {
   ComputeGpaInput,
+  CreateBoardExportJobInput,
   CreateCreditRuleInput,
   CreateReportCardJobInput,
   IssueTranscriptInput,
@@ -30,6 +35,8 @@ function nowIso(): string {
 function actorId(requestUser?: { id?: string; sub?: string }): string | null {
   return requestUser?.id ?? requestUser?.sub ?? null;
 }
+
+const BOARD_EXPORT_JOB_TYPE = 'MARKSHEET_PACK';
 
 export class GradebookService {
   constructor(private readonly repo: GradebookRepository) {}
@@ -68,6 +75,26 @@ export class GradebookService {
 
   getTranscript(tenantId: string, id: string) {
     return this.repo.getTranscript(tenantId, id);
+  }
+
+  listBoardPackRegistry() {
+    return listBoardPacks();
+  }
+
+  listBoards(tenantId: string) {
+    return this.repo.listBoards(tenantId);
+  }
+
+  listInstitutionsByBoard(tenantId: string, boardId: string) {
+    return this.repo.listInstitutionsByBoard(tenantId, boardId);
+  }
+
+  listBoardExportJobs(tenantId: string) {
+    return this.repo.listExportJobs(tenantId, BOARD_EXPORT_JOB_TYPE);
+  }
+
+  getBoardExportJob(tenantId: string, id: string) {
+    return this.repo.getExportJob(tenantId, id);
   }
 
   async createCreditRule(tenantId: string, input: CreateCreditRuleInput) {
@@ -259,7 +286,6 @@ export class GradebookService {
       updatedAt: now,
     });
 
-    // Synchronously materialize HTML artifact metadata (job status pipeline).
     const started = nowIso();
     job =
       (await this.repo.updateExportJob(tenantId, job.id, {
@@ -367,5 +393,220 @@ export class GradebookService {
       createdAt: now,
       updatedAt: now,
     });
+  }
+
+  async createBoardExportJob(
+    tenantId: string,
+    input: CreateBoardExportJobInput,
+    user?: { id?: string; sub?: string },
+  ): Promise<ExportJobEntity> {
+    if (!input.boardId && !input.boardCode) {
+      throw new ValidationError('boardId or boardCode is required');
+    }
+
+    const institution = await this.repo.getInstitution(tenantId, input.institutionId);
+    if (!institution) {
+      throw new NotFoundError(`Institution ${input.institutionId} not found`);
+    }
+
+    let board = input.boardId ? await this.repo.getBoard(tenantId, input.boardId) : null;
+    if (!board && input.boardCode) {
+      board = await this.repo.getBoardByCode(tenantId, input.boardCode.toUpperCase());
+    }
+    if (!board) {
+      throw new NotFoundError('Board not found for export pack');
+    }
+    if (institution.boardId !== board.id) {
+      throw new BusinessRuleError(
+        `Institution ${institution.code} is affiliated to a different board than ${board.code}`,
+      );
+    }
+
+    const pack = getBoardPack(board.code);
+    if (!pack) {
+      throw new BusinessRuleError(
+        `No compliance pack registered for board ${board.code}. Supported: CBSE, ICSE, MH-STATE`,
+      );
+    }
+
+    const candidates = await this.repo.listBoardExportCandidates(tenantId, {
+      institutionId: input.institutionId,
+      boardId: board.id,
+      studentIds: input.studentIds,
+      limit: input.limit ?? (input.studentIds?.length ? input.studentIds.length : 100),
+    });
+
+    // Explicit studentIds → strict gate (any incomplete → 422).
+    // Default cohort → export only complete candidates; 422 if none are ready.
+    let exportCohort = candidates;
+    if (!input.studentIds || input.studentIds.length === 0) {
+      const complete = candidates.filter((c) => validateBoardExportCompleteness(pack, [c]).ok);
+      if (complete.length === 0) {
+        assertBoardExportCompleteness(pack, candidates);
+      }
+      exportCohort = complete;
+    } else {
+      assertBoardExportCompleteness(pack, candidates);
+    }
+
+    const boardCodes = await this.repo.listBoardCodes(tenantId, {
+      institutionId: input.institutionId,
+      boardId: board.id,
+    });
+    const affiliationCode =
+      boardCodes.find((c) => c.codeType === 'AFFILIATION')?.codeValue ??
+      `${board.code}-AFF-${institution.code}`;
+    const centreCode =
+      boardCodes.find((c) => c.codeType === 'CENTRE')?.codeValue ??
+      `${board.code}-CTR-${institution.code}`;
+
+    const now = nowIso();
+    let job = await this.repo.createExportJob({
+      id: randomUUID(),
+      tenantId,
+      boardId: board.id,
+      institutionId: input.institutionId,
+      jobType: BOARD_EXPORT_JOB_TYPE,
+      status: 'QUEUED',
+      requestedBy: actorId(user),
+      startedAt: null,
+      finishedAt: null,
+      artifactUri: null,
+      errorMessage: null,
+      metadata: {
+        boardCode: board.code as BoardPackCode,
+        packVersion: pack.version,
+        securityMark: pack.securityMark,
+        studentIds: exportCohort.map((c) => c.studentId),
+        ...((input.metadata as Record<string, unknown>) ?? {}),
+      },
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const started = nowIso();
+    job =
+      (await this.repo.updateExportJob(tenantId, job.id, {
+        status: 'RUNNING',
+        startedAt: started,
+        updatedAt: started,
+      })) ?? job;
+
+    try {
+      const artifacts = writeBoardExportArtifacts({
+        jobId: job.id,
+        tenantId,
+        boardId: board.id,
+        institutionId: institution.id,
+        institutionCode: institution.code,
+        institutionName: institution.name,
+        affiliationCode,
+        centreCode,
+        pack,
+        candidates: exportCohort,
+      });
+      const finished = nowIso();
+      job =
+        (await this.repo.updateExportJob(tenantId, job.id, {
+          status: 'SUCCEEDED',
+          finishedAt: finished,
+          artifactUri: artifacts.packJsonPath,
+          metadata: {
+            ...job.metadata,
+            checksumSha256: artifacts.checksumSha256,
+            artifactDir: artifacts.artifactDir,
+            marksheetCsvPath: artifacts.marksheetCsvPath,
+            examResultsJsonPath: artifacts.examResultsJsonPath,
+            pdfLitePath: artifacts.pdfLitePath,
+            candidateCount: artifacts.candidateCount,
+            packVersion: pack.version,
+            boardCode: pack.code,
+            securityMark: pack.securityMark,
+          },
+          updatedAt: finished,
+        })) ?? job;
+      return job;
+    } catch (error) {
+      const finished = nowIso();
+      const message = error instanceof Error ? error.message : 'Board export failed';
+      await this.repo.updateExportJob(tenantId, job.id, {
+        status: 'FAILED',
+        finishedAt: finished,
+        errorMessage: message,
+        updatedAt: finished,
+      });
+      throw error;
+    }
+  }
+
+  async downloadBoardExport(
+    tenantId: string,
+    jobId: string,
+    format: 'pack' | 'csv' | 'json' | 'html' = 'pack',
+  ): Promise<{
+    job: ExportJobEntity;
+    filename: string;
+    contentType: string;
+    body: Buffer;
+  }> {
+    const job = await this.repo.getExportJob(tenantId, jobId);
+    if (!job) {
+      throw new NotFoundError(`Board export job ${jobId} not found`);
+    }
+    if (job.jobType !== BOARD_EXPORT_JOB_TYPE) {
+      throw new NotFoundError(`Job ${jobId} is not a board marksheet pack`);
+    }
+    if (job.status !== 'SUCCEEDED') {
+      throw new BusinessRuleError(
+        `Export job is ${job.status}; download available only when SUCCEEDED`,
+      );
+    }
+
+    const meta = job.metadata ?? {};
+    const pathForFormat = (): { path: string; filename: string; contentType: string } => {
+      if (format === 'csv') {
+        const p = typeof meta.marksheetCsvPath === 'string' ? meta.marksheetCsvPath : null;
+        if (!p) throw new NotFoundError('Marksheet CSV artifact missing');
+        return { path: p, filename: `marksheet-${jobId}.csv`, contentType: 'text/csv; charset=utf-8' };
+      }
+      if (format === 'json') {
+        const p =
+          typeof meta.examResultsJsonPath === 'string' ? meta.examResultsJsonPath : null;
+        if (!p) throw new NotFoundError('Exam results JSON artifact missing');
+        return {
+          path: p,
+          filename: `exam-results-${jobId}.json`,
+          contentType: 'application/json; charset=utf-8',
+        };
+      }
+      if (format === 'html') {
+        const p = typeof meta.pdfLitePath === 'string' ? meta.pdfLitePath : null;
+        if (!p) throw new NotFoundError('PDF-lite HTML artifact missing');
+        return {
+          path: p,
+          filename: `marksheet-${jobId}.html`,
+          contentType: 'text/html; charset=utf-8',
+        };
+      }
+      const p = job.artifactUri;
+      if (!p) throw new NotFoundError('Pack artifact missing');
+      return {
+        path: p,
+        filename: `board-pack-${jobId}.json`,
+        contentType: 'application/json; charset=utf-8',
+      };
+    };
+
+    const resolved = pathForFormat();
+    if (!resolved.path.includes('sis-board-exports') && !resolved.path.startsWith('/tmp/')) {
+      throw new BusinessRuleError('Artifact path rejected');
+    }
+    const body = readFileSync(resolved.path);
+    return {
+      job,
+      filename: resolved.filename,
+      contentType: resolved.contentType,
+      body,
+    };
   }
 }

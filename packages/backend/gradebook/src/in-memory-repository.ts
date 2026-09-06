@@ -1,10 +1,15 @@
 import type {
+  BoardCodeEntity,
+  BoardExportCandidate,
+  BoardSummary,
   CreditRuleEntity,
   ExportJobEntity,
   GpaSnapshotEntity,
   GradeEntryEntity,
   GradebookRepository,
   GradingScaleEntity,
+  InstitutionSummary,
+  ListBoardExportCandidatesFilter,
   ListGradeEntriesFilter,
   ListSectionsFilter,
   ListTranscriptsFilter,
@@ -20,6 +25,10 @@ export class InMemoryGradebookRepository implements GradebookRepository {
   private readonly transcripts = new Map<string, TranscriptIssuanceEntity>();
   private readonly jobs = new Map<string, ExportJobEntity>();
   private readonly sections = new Map<string, SectionSummary>();
+  private readonly boards = new Map<string, BoardSummary>();
+  private readonly institutions = new Map<string, InstitutionSummary>();
+  private readonly boardCodes = new Map<string, BoardCodeEntity>();
+  private readonly candidates = new Map<string, BoardExportCandidate>();
 
   seedSection(section: SectionSummary) {
     this.sections.set(section.id, section);
@@ -27,6 +36,22 @@ export class InMemoryGradebookRepository implements GradebookRepository {
 
   seedScale(scale: GradingScaleEntity) {
     this.scales.set(scale.id, scale);
+  }
+
+  seedBoard(board: BoardSummary) {
+    this.boards.set(board.id, board);
+  }
+
+  seedInstitution(institution: InstitutionSummary) {
+    this.institutions.set(institution.id, institution);
+  }
+
+  seedBoardCode(code: BoardCodeEntity) {
+    this.boardCodes.set(code.id, code);
+  }
+
+  seedExportCandidate(candidate: BoardExportCandidate) {
+    this.candidates.set(candidate.studentId, candidate);
   }
 
   async listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter) {
@@ -210,5 +235,103 @@ export class InMemoryGradebookRepository implements GradebookRepository {
   async getSection(tenantId: string, id: string) {
     const row = this.sections.get(id);
     return row?.tenantId === tenantId ? row : null;
+  }
+
+  async getBoard(tenantId: string, id: string) {
+    const row = this.boards.get(id);
+    return row?.tenantId === tenantId ? row : null;
+  }
+
+  async getBoardByCode(tenantId: string, code: string) {
+    return (
+      [...this.boards.values()].find(
+        (b) => b.tenantId === tenantId && b.code.toUpperCase() === code.toUpperCase(),
+      ) ?? null
+    );
+  }
+
+  async listBoards(tenantId: string) {
+    return [...this.boards.values()]
+      .filter((b) => b.tenantId === tenantId)
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }
+
+  async getInstitution(tenantId: string, id: string) {
+    const row = this.institutions.get(id);
+    return row?.tenantId === tenantId ? row : null;
+  }
+
+  async listInstitutionsByBoard(tenantId: string, boardId: string) {
+    return [...this.institutions.values()]
+      .filter((i) => i.tenantId === tenantId && i.boardId === boardId)
+      .sort((a, b) => a.code.localeCompare(b.code));
+  }
+
+  async listBoardCodes(
+    tenantId: string,
+    filter: { institutionId: string; boardId?: string },
+  ) {
+    return [...this.boardCodes.values()].filter((c) => {
+      if (c.tenantId !== tenantId) return false;
+      if (c.institutionId !== filter.institutionId) return false;
+      if (filter.boardId && c.boardId !== filter.boardId) return false;
+      return true;
+    });
+  }
+
+  async listBoardExportCandidates(
+    tenantId: string,
+    filter: ListBoardExportCandidatesFilter,
+  ) {
+    const limit = Math.min(Math.max(filter.limit ?? 50, 1), 500);
+    // Prefer explicit seed candidates; fall back to synthesizing from grade entries.
+    let rows = [...this.candidates.values()].filter((c) => {
+      if (c.institutionId !== filter.institutionId) return false;
+      if (filter.studentIds && !filter.studentIds.includes(c.studentId)) return false;
+      return true;
+    });
+
+    if (rows.length === 0) {
+      const byStudent = new Map<string, BoardExportCandidate>();
+      for (const entry of this.entries.values()) {
+        if (entry.tenantId !== tenantId) continue;
+        if (filter.studentIds && !filter.studentIds.includes(entry.studentId)) continue;
+        const section = entry.sectionId ? this.sections.get(entry.sectionId) : null;
+        if (section && section.institutionId !== filter.institutionId) continue;
+        if (!section && filter.institutionId) {
+          // Allow entries without section only when candidate seed not used
+        }
+        const existing = byStudent.get(entry.studentId) ?? {
+          studentId: entry.studentId,
+          firstName: 'Student',
+          lastName: entry.studentId.slice(0, 8),
+          nationalId: entry.studentId,
+          institutionId: section?.institutionId ?? filter.institutionId,
+          grades: [],
+          latestTranscript: null,
+        };
+        if (existing.institutionId !== filter.institutionId) continue;
+        existing.grades.push({
+          assessmentCode: entry.assessmentCode,
+          numericScore: entry.numericScore,
+          letterGrade: entry.letterGrade,
+        });
+        byStudent.set(entry.studentId, existing);
+      }
+      rows = [...byStudent.values()];
+      for (const row of rows) {
+        const transcripts = await this.listTranscripts(tenantId, { studentId: row.studentId });
+        const latest = transcripts[0];
+        if (latest) {
+          row.latestTranscript = {
+            version: latest.version,
+            checksumSha256: latest.checksumSha256,
+            issuedAt: latest.issuedAt,
+          };
+        }
+      }
+    }
+
+    return rows.slice(0, limit);
   }
 }

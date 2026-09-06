@@ -30,10 +30,11 @@ Each slice must pass **both** the development checklist and the production-ready
 
 | Capability | Today | Gap to peer 10/10 |
 | --- | --- | --- |
-| Multi-board data plane | Seed **3×6×500** proven (raw SQL) | Board **export packs** / marksheets |
-| SIS core | Institutions, periods, attendance, assessments, exams | Master schedule, section rostering, room conflicts |
-| Gradebook & transcripts | Assessments + exams UI | Official transcripts, GPA engine, report-card pipeline |
-| Timetable / calendar | Academic periods | Bell schedule, substitute teacher, calendar federation |
+| Multi-board data plane | Seed **3×6×500** proven (raw SQL) | Remaining boards beyond CBSE/ICSE/MH-STATE templates |
+| SIS core | Institutions, periods, attendance, assessments, exams, master schedule | Room conflict edge cases / calendar IdP |
+| Gradebook & transcripts | Live GPA + transcripts + report-card jobs | Sealed PDF / parent portal |
+| Timetable / calendar | Bell schedules + substitutions | External calendar federation |
+| Board export packs | CBSE / ICSE / MH-STATE live packs (WS4) | Additional state boards; sealed PDF; exam-module merge |
 
 External caps that still apply program-wide (dated waivers unless closed): **live IdP**, **Android device-farm**.
 

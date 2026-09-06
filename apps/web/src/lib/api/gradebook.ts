@@ -304,3 +304,92 @@ export async function listGradingScales(
     return { ok: false, ...mapError(error) };
   }
 }
+
+export interface BoardPackSummary {
+  code: string;
+  name: string;
+  version: string;
+  requiredSubjects: string[];
+  optionalSubjects: string[];
+  terminology: Record<string, string>;
+  securityMark: string;
+}
+
+export interface BoardSummary {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+}
+
+export type BoardExportJob = ReportCardJob;
+
+export async function listBoardPacks(): Promise<GradebookLoadResult<BoardPackSummary[]>> {
+  try {
+    const result = await gatewayFetch<{ data: BoardPackSummary[] }>('/gradebook/board-packs', {
+      next: { revalidate: 0 },
+    });
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function listGradebookBoards(): Promise<GradebookLoadResult<BoardSummary[]>> {
+  try {
+    const result = await gatewayFetch<{ data: BoardSummary[] }>('/gradebook/boards', {
+      next: { revalidate: 0 },
+    });
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function listBoardExportJobs(): Promise<GradebookLoadResult<BoardExportJob[]>> {
+  try {
+    const result = await gatewayFetch<{ data: BoardExportJob[] }>('/gradebook/board-exports', {
+      next: { revalidate: 0 },
+    });
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function createBoardExportJob(input: {
+  boardId?: string;
+  boardCode?: string;
+  institutionId: string;
+  studentIds?: string[];
+  limit?: number;
+}): Promise<BoardExportJob> {
+  const result = await gatewayFetch<BoardExportJob>('/gradebook/board-exports', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from board export create',
+    });
+  }
+  return result.data;
+}
+
+export async function getBoardExportJob(
+  id: string,
+): Promise<GradebookLoadResult<BoardExportJob>> {
+  try {
+    const result = await gatewayFetch<BoardExportJob>(`/gradebook/board-exports/${id}`, {
+      next: { revalidate: 0 },
+    });
+    if (!result.data) {
+      return { ok: false, error: 'Board export job not found', status: 404 };
+    }
+    return { ok: true, data: result.data };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}

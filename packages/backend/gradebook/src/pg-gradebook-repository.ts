@@ -7,12 +7,17 @@ import pg from 'pg';
 import type { GradeBand } from './gpa-engine.js';
 import { GradebookSchemaMissingError } from './gradebook-errors.js';
 import type {
+  BoardCodeEntity,
+  BoardExportCandidate,
+  BoardSummary,
   CreditRuleEntity,
   ExportJobEntity,
   GpaSnapshotEntity,
   GradeEntryEntity,
   GradebookRepository,
   GradingScaleEntity,
+  InstitutionSummary,
+  ListBoardExportCandidatesFilter,
   ListGradeEntriesFilter,
   ListSectionsFilter,
   ListTranscriptsFilter,
@@ -189,6 +194,37 @@ function mapSection(row: Record<string, unknown>): SectionSummary {
     code: String(row.code),
     name: String(row.name),
     status: String(row.status),
+  };
+}
+
+function mapBoard(row: Record<string, unknown>): BoardSummary {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    code: String(row.code),
+    name: String(row.name),
+  };
+}
+
+function mapInstitution(row: Record<string, unknown>): InstitutionSummary {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    boardId: String(row.board_id),
+    code: String(row.code),
+    name: String(row.name),
+  };
+}
+
+function mapBoardCode(row: Record<string, unknown>): BoardCodeEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    boardId: String(row.board_id),
+    institutionId: String(row.institution_id),
+    codeType: String(row.code_type),
+    codeValue: String(row.code_value),
+    label: row.label == null ? null : String(row.label),
   };
 }
 
@@ -657,6 +693,163 @@ export class PgGradebookRepository implements GradebookRepository {
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
       return row ? mapSection(row) : null;
+    });
+  }
+
+  getBoard(tenantId: string, id: string) {
+    return withSchemaCheck(async () => {
+      const res = await this.pool.query(
+        `SELECT id, tenant_id, code, name FROM boards
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+        [tenantId, id],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapBoard(row) : null;
+    });
+  }
+
+  getBoardByCode(tenantId: string, code: string) {
+    return withSchemaCheck(async () => {
+      const res = await this.pool.query(
+        `SELECT id, tenant_id, code, name FROM boards
+         WHERE tenant_id = $1 AND UPPER(code) = UPPER($2) AND deleted_at IS NULL`,
+        [tenantId, code],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapBoard(row) : null;
+    });
+  }
+
+  listBoards(tenantId: string) {
+    return withSchemaCheck(async () => {
+      const res = await this.pool.query(
+        `SELECT id, tenant_id, code, name FROM boards
+         WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY code`,
+        [tenantId],
+      );
+      return (res.rows as Record<string, unknown>[]).map(mapBoard);
+    });
+  }
+
+  getInstitution(tenantId: string, id: string) {
+    return withSchemaCheck(async () => {
+      const res = await this.pool.query(
+        `SELECT id, tenant_id, board_id, code, name FROM institutions
+         WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+        [tenantId, id],
+      );
+      const row = res.rows[0] as Record<string, unknown> | undefined;
+      return row ? mapInstitution(row) : null;
+    });
+  }
+
+  listInstitutionsByBoard(tenantId: string, boardId: string) {
+    return withSchemaCheck(async () => {
+      const res = await this.pool.query(
+        `SELECT id, tenant_id, board_id, code, name FROM institutions
+         WHERE tenant_id = $1 AND board_id = $2 AND deleted_at IS NULL
+         ORDER BY code`,
+        [tenantId, boardId],
+      );
+      return (res.rows as Record<string, unknown>[]).map(mapInstitution);
+    });
+  }
+
+  listBoardCodes(
+    tenantId: string,
+    filter: { institutionId: string; boardId?: string },
+  ) {
+    return withSchemaCheck(async () => {
+      const params: unknown[] = [tenantId, filter.institutionId];
+      let sql = `SELECT id, tenant_id, board_id, institution_id, code_type, code_value, label
+                 FROM board_codes
+                 WHERE tenant_id = $1 AND institution_id = $2`;
+      if (filter.boardId) {
+        params.push(filter.boardId);
+        sql += ` AND board_id = $${params.length}`;
+      }
+      sql += ` ORDER BY code_type`;
+      const res = await this.pool.query(sql, params);
+      return (res.rows as Record<string, unknown>[]).map(mapBoardCode);
+    });
+  }
+
+  listBoardExportCandidates(tenantId: string, filter: ListBoardExportCandidatesFilter) {
+    return withSchemaCheck(async () => {
+      const limit = Math.min(Math.max(filter.limit ?? 50, 1), 500);
+      const params: unknown[] = [tenantId, filter.institutionId];
+      let sql = `
+        SELECT s.id AS student_id, s.first_name, s.last_name, s.national_id,
+               e.institution_id
+        FROM enrollments e
+        JOIN students s ON s.id = e.student_id AND s.tenant_id = e.tenant_id
+        WHERE e.tenant_id = $1
+          AND e.institution_id = $2
+          AND e.status = 'ENROLLED'
+          AND s.deleted_at IS NULL`;
+      if (filter.studentIds && filter.studentIds.length > 0) {
+        params.push(filter.studentIds);
+        sql += ` AND s.id = ANY($${params.length}::uuid[])`;
+      }
+      sql += ` ORDER BY s.national_id NULLS LAST, s.last_name, s.first_name LIMIT $${params.length + 1}`;
+      params.push(limit);
+
+      const studentsRes = await this.pool.query(sql, params);
+      const students = studentsRes.rows as Record<string, unknown>[];
+      if (students.length === 0) return [];
+
+      const studentIds = students.map((r) => String(r.student_id));
+      const gradesRes = await this.pool.query(
+        `SELECT student_id, assessment_code, numeric_score, letter_grade
+         FROM grade_entries
+         WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
+        [tenantId, studentIds],
+      );
+      const transcriptsRes = await this.pool.query(
+        `SELECT DISTINCT ON (student_id)
+           student_id, version, checksum_sha256, issued_at
+         FROM transcript_issuances
+         WHERE tenant_id = $1 AND student_id = ANY($2::uuid[]) AND status = 'ISSUED'
+         ORDER BY student_id, version DESC`,
+        [tenantId, studentIds],
+      );
+
+      const gradesByStudent = new Map<string, BoardExportCandidate['grades']>();
+      for (const row of gradesRes.rows as Record<string, unknown>[]) {
+        const sid = String(row.student_id);
+        const list = gradesByStudent.get(sid) ?? [];
+        list.push({
+          assessmentCode: row.assessment_code == null ? null : String(row.assessment_code),
+          numericScore: num(row.numeric_score),
+          letterGrade: row.letter_grade == null ? null : String(row.letter_grade),
+        });
+        gradesByStudent.set(sid, list);
+      }
+
+      const transcriptByStudent = new Map<
+        string,
+        NonNullable<BoardExportCandidate['latestTranscript']>
+      >();
+      for (const row of transcriptsRes.rows as Record<string, unknown>[]) {
+        transcriptByStudent.set(String(row.student_id), {
+          version: Number(row.version),
+          checksumSha256: row.checksum_sha256 == null ? null : String(row.checksum_sha256),
+          issuedAt: row.issued_at == null ? null : iso(row.issued_at),
+        });
+      }
+
+      return students.map((row) => {
+        const sid = String(row.student_id);
+        return {
+          studentId: sid,
+          firstName: String(row.first_name),
+          lastName: String(row.last_name),
+          nationalId: row.national_id == null ? null : String(row.national_id),
+          institutionId: String(row.institution_id),
+          grades: gradesByStudent.get(sid) ?? [],
+          latestTranscript: transcriptByStudent.get(sid) ?? null,
+        };
+      });
     });
   }
 }

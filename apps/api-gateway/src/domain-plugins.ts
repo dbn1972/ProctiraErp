@@ -16,11 +16,11 @@
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
- *  - gradebook (entries / GPA / report cards / transcripts): raw SQL + `pg`
- *    when DATABASE_URL is set (003 + 004 indexes); else in-memory.
+ *  - gradebook (entries / GPA / report cards / transcripts / board exports):
+ *    raw SQL + `pg` when DATABASE_URL is set (003 + 004 indexes); else in-memory.
  *  - insights / platform-admin: in-process UI aggregates with write endpoints.
  *  - assessment report-card repositories are not wired yet; report-card routes
- *    stay disabled (WS3 uses /gradebook/report-cards instead).
+ *    stay disabled (WS3 uses /gradebook/report-cards; WS4 uses /gradebook/board-exports).
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */

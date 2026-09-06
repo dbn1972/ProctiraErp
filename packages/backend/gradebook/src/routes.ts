@@ -19,6 +19,7 @@ import {
 import type { GradebookService } from './gradebook-service.js';
 import {
   ComputeGpaSchema,
+  CreateBoardExportJobSchema,
   CreateCreditRuleSchema,
   CreateReportCardJobSchema,
   IssueTranscriptSchema,
@@ -316,6 +317,97 @@ export async function registerGradebookRoutes(
         requestUser(request),
       );
       return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/board-packs`, async (_request, reply) => {
+    return reply.send({ data: service.listBoardPackRegistry() });
+  });
+
+  fastify.get(`${prefix}/boards`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const rows = await service.listBoards(tenantId);
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/board-exports`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const rows = await service.listBoardExportJobs(tenantId);
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/board-exports`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    const validated = validate(CreateBoardExportJobSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const job = await service.createBoardExportJob(
+        tenantId,
+        validated.data,
+        requestUser(request),
+      );
+      return reply.status(201).send(job);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/board-exports/:id`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const job = await service.getBoardExportJob(tenantId, id);
+      if (!job) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Board export job not found',
+          statusCode: 404,
+        });
+      }
+      return reply.send(job);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/board-exports/:id/download`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const query = request.query as { format?: string };
+      const formatRaw = (query.format ?? 'pack').toLowerCase();
+      const format =
+        formatRaw === 'csv' || formatRaw === 'json' || formatRaw === 'html' || formatRaw === 'pack'
+          ? formatRaw
+          : 'pack';
+      const file = await service.downloadBoardExport(tenantId, id, format);
+      return reply
+        .header('Content-Type', file.contentType)
+        .header('Content-Disposition', `attachment; filename="${file.filename}"`)
+        .header('X-Checksum-SHA256', String(file.job.metadata.checksumSha256 ?? ''))
+        .send(file.body);
     } catch (error) {
       return sendDomainError(reply, error);
     }

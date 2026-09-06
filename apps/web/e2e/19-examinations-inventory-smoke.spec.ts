@@ -10,6 +10,7 @@ const INSTITUTION_ID = '33333333-3333-4333-8333-333333333333';
 const UNGATED_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
   { path: '/examinations', heading: /examination/i },
   { path: '/examinations/new', heading: /schedule examination/i },
+  { path: '/examinations/board-exports', heading: /board export/i },
 ];
 
 /**

@@ -66,6 +66,9 @@ export default async function ExaminationsPage() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/examinations/board-exports">Board export packs</Link>
+          </Button>
           <Button asChild size="sm">
             <Link href="/examinations/new">
               <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
