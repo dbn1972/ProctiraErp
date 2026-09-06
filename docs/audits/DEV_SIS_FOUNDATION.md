@@ -1,7 +1,7 @@
 # Enterprise module development checklist
 
 **Capability / module:** SIS Foundation (WS0) + Timetable schema (WS1 data plane)  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `b0a275f8eca7b5ed92fb1002c7cc0f08dee84c13`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `8cc5d9b60ff2be4e872de3020c782d7b7d8b29e3`  
 **Owner / agent:** Cloud server agent (SIS foundation)  
 **Date (UTC):** 2026-09-06  
 **Peer parity target:** Shared SIS primitives (rooms, bell/periods, sections/meetings, substitutions, grading scales, export jobs) so timetable / master schedule / gradebook streams can land without schema churn  
