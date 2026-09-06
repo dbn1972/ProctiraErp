@@ -78,20 +78,15 @@ describe('gatewayFetch', () => {
     );
 
     const { gatewayFetch, GatewayError } = await import('./gateway');
-    await expect(gatewayFetch('/students/missing-id')).rejects.toBeInstanceOf(
-      GatewayError,
-    );
+    await expect(gatewayFetch('/students/missing-id')).rejects.toBeInstanceOf(GatewayError);
   });
 
   it('returns structured error payload when throwOnError is false', async () => {
     fetchMock.mockResolvedValue(
-      new Response(
-        JSON.stringify({ code: 'VALIDATION_ERROR', message: 'Bad input' }),
-        {
-          status: 400,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+      new Response(JSON.stringify({ code: 'VALIDATION_ERROR', message: 'Bad input' }), {
+        status: 400,
+        headers: { 'content-type': 'application/json' },
+      }),
     );
 
     const { gatewayFetch } = await import('./gateway');

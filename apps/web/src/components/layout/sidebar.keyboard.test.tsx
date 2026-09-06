@@ -55,7 +55,11 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   // Stub <Link> with a real <a> so href/click semantics are preserved.
-  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+  default: ({
+    href,
+    children,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
     <a href={href} {...props}>
       {children}
     </a>
