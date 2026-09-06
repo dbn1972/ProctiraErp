@@ -33,7 +33,7 @@ import React, {
   useState,
 } from 'react';
 import { NextIntlClientProvider } from 'next-intl';
-import { useBrand } from './BrandConfigProvider';
+import { useOptionalBrand } from './BrandConfigProvider';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -255,21 +255,19 @@ async function loadMessagesFromDisk(
 /**
  * Resolve the localStorage key to use:
  *   1. Explicit `storageKey` prop wins.
- *   2. Otherwise `${brand.shortName ?? brand.slug}-language` from `useBrand()`.
+ *   2. Otherwise `${brand.shortName ?? brand.slug}-language` from brand.
  *   3. Otherwise the `proctira-language` fallback.
  *
- * `useBrand()` is consumed defensively so the provider stays mountable
- * outside a `<BrandConfigProvider>` (Storybook, isolated unit tests).
+ * Uses `useOptionalBrand()` so the provider stays mountable outside a
+ * `<BrandConfigProvider>` (Storybook, isolated unit tests) without
+ * calling hooks conditionally.
  */
 function useResolvedStorageKey(override?: string): string {
-  let brandShortName: string | undefined;
-  try {
-    const { brand } = useBrand();
-    brandShortName =
-      (brand as { shortName?: string }).shortName ?? brand.slug ?? undefined;
-  } catch {
-    brandShortName = undefined;
-  }
+  const brandCtx = useOptionalBrand();
+  const brandShortName =
+    (brandCtx?.brand as { shortName?: string } | undefined)?.shortName ??
+    brandCtx?.brand?.slug ??
+    undefined;
 
   return useMemo(() => {
     if (override) return override;

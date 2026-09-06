@@ -123,9 +123,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       if (autoFocus && inputsRef.current[0]) {
         inputsRef.current[0].focus();
       }
-      // Run once on mount; intentionally omit deps.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [autoFocus]);
 
     function focusInput(index: number): void {
       const target = inputsRef.current[index];

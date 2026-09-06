@@ -128,6 +128,15 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/data-warehouse/field-mapping',
     '/data-warehouse/map',
     '/admin',
+    '/health',
+    '/health/screenings',
+    '/health/counselling',
+    '/health/counselling/new',
+    '/health/special-needs',
+    '/scholarships',
+    '/scholarships/programs/new',
+    '/scholarships/applications',
+    '/scholarships/disbursements',
   ] as const) {
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
       await loginAsTenantAdmin(page);

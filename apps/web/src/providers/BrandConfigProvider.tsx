@@ -622,3 +622,12 @@ export function useBrand(): BrandConfigContextValue {
   }
   return context;
 }
+
+/**
+ * Optional brand access for providers that must stay mountable outside
+ * `<BrandConfigProvider>` (Storybook, isolated unit tests). Always calls
+ * `useContext` unconditionally so hooks rules stay satisfied.
+ */
+export function useOptionalBrand(): BrandConfigContextValue | undefined {
+  return useContext(BrandConfigContext);
+}

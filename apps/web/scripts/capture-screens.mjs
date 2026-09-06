@@ -193,6 +193,7 @@ const SCREENS = {
       `/health/${process.env.HEALTH_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'}`,
     ],
     ['counselling', '/health/counselling'],
+    ['counselling-new', '/health/counselling/new'],
     ['special-needs', '/health/special-needs'],
   ],
   'data-warehouse': [
