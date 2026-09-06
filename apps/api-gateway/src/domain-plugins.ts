@@ -16,9 +16,11 @@
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
+ *  - gradebook (entries / GPA / report cards / transcripts): raw SQL + `pg`
+ *    when DATABASE_URL is set (003 + 004 indexes); else in-memory.
  *  - insights / platform-admin: in-process UI aggregates with write endpoints.
  *  - assessment report-card repositories are not wired yet; report-card routes
- *    stay disabled.
+ *    stay disabled (WS3 uses /gradebook/report-cards instead).
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -45,6 +47,10 @@ import {
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import {
+  createGradebookRepository,
+  gradebookPlugin,
+} from '@proctira/backend-gradebook';
 import {
   createTimetableRepository,
   timetablePlugin,
@@ -159,6 +165,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(timetablePlugin, {
         repository: createTimetableRepository(),
         prefix: '/timetable',
+      });
+    },
+  },
+  {
+    name: 'gradebook',
+    proxyPrefixes: ['/gradebook'],
+    register: async (scope) => {
+      // Raw pg against 003/004 gradebook tables when DATABASE_URL is set;
+      // in-memory otherwise. No Prisma on this path.
+      await scope.register(gradebookPlugin, {
+        repository: createGradebookRepository(),
+        prefix: '/gradebook',
       });
     },
   },
