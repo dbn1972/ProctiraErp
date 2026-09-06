@@ -93,22 +93,22 @@
 | Health · counselling | 8.5 | Ready w/ waivers | Live create E2E + list/seed sync |
 | Workflows · (5) | 8.0 | Ready w/ waivers | Domain engine mount |
 
-### Web App — Insights & System (8.1 → 9.5)
+### Web App — Insights & System (8.2 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
-| Reports · catalog / builder / result | 8.1 | Ready w/ waivers | Live generate APIs; conditional scaffold |
-| Data warehouse · overview / import / mapping | 7.8 | Ready w/ waivers | Live import jobs; client validation smoke |
+| Reports · catalog / builder / result | 8.2 | Ready w/ waivers | Live generate APIs; conditional scaffold |
+| Data warehouse · overview / import / mapping | 8.0 | Ready w/ waivers | Live import jobs; client validation smoke |
 | Admin · (5 nest screens) | 8.0 | Ready w/ waivers | Live admin APIs |
 | Public · track application | 8.5 | Ready w/ waivers | DOB-in-query residual |
 
-### Platform Admin (8.1 → 9.5)
+### Platform Admin (8.2 → 9.5)
 
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
 | Operator login / 403 | 8.5 | Ready w/ waivers | Live operator IdP |
-| Overview / Tenants / Provision / Plans / Plugins / Themes | 7.8 | Stub | Live gateway; ungated write validation |
-| Break-glass / requests / Support / Health / Audit | 7.8 | Stub | Live ops APIs; `04` validation smoke |
+| Overview / Tenants / Provision / Plans / Plugins / Themes | 8.0 | Stub | Live gateway; ungated write validation |
+| Break-glass / requests / Support / Health / Audit | 8.0 | Stub | Live ops APIs; `04` validation smoke |
 
 ### Registration Portal (9.0 → 9.5)
 
@@ -121,8 +121,8 @@
 | Screen | Score | Status | Gap to 9.5 |
 | --- | ---: | --- | --- |
 | Marketing / legal (10) | 9.0 | Ready w/ waivers | In-app axe |
-| Status | 9.2 | Ready w/ waivers | External status provider |
-| Contact | 9.2 | Ready w/ waivers | Always-on CRM webhook in prod |
+| Status | 9.3 | Ready w/ waivers | External status provider |
+| Contact | 9.3 | Ready w/ waivers | Always-on CRM webhook in prod |
 
 ### Other Portals (8.0 → 9.5)
 
