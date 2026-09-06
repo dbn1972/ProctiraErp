@@ -64,7 +64,7 @@ export function BellScheduleCreateForm(props: {
           required
         />
         <span id="day-pattern-help" className="text-xs text-muted-foreground">
-          Comma-separated weekdays (0=Sun … 6=Sat)
+          Comma-separated weekdays (1=Mon … 7=Sun)
         </span>
       </label>
       <Button type="submit" size="sm" disabled={pending}>
