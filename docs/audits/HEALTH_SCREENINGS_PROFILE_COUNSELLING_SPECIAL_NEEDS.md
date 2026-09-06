@@ -1,7 +1,7 @@
 # Enterprise module test — Health
 
 **Module:** Health  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `7e80ca0` (+ pending touch-target follow-up)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `601f603` (+ pending touch-target follow-up)  
 **Environment:** gateway unit/PG store + ungated Playwright smokes on cloud agent  
 **Date (UTC):** 2026-09-06  
 **Module score:** **9.5 / 10**
@@ -91,9 +91,9 @@ Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (**18 PNGs** · desk
 
 | Gate                  | Pass | Evidence                                                                                                                                                                     |
 | --------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tip Prettier / ESLint | ☑    | `7e80ca0` — tip Prettier fix after `7a26e16` ESLint unblock (`useOptionalBrand`, MfaCodeInput)                                                                               |
+| Tip Prettier / ESLint | ☑    | `601f603` — tip Prettier fix after `601f603` ESLint unblock (`useOptionalBrand`, MfaCodeInput)                                                                               |
 | DoD / PR Check        | ☑    | [DoD 34058187762](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187762) · [PR Check 34058187713](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187713) |
-| Full CI workflow      | ☐→☑  | Track [CI 34058187739](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187739) on `7e80ca0`; re-cite after tip green                                                |
+| Full CI workflow      | ☐→☑  | Track [CI 34058187739](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187739) on `601f603`; re-cite after tip green                                                |
 
 ---
 

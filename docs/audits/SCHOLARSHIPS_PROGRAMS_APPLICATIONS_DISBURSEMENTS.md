@@ -3,7 +3,7 @@
 Live verification for the Scholarships service screens listed in the redesign
 nav (`WEB APP — SERVICES`).
 
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `7e80ca0` (+ pending touch-target follow-up)  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `601f603` (+ pending touch-target follow-up)  
 **Date (UTC):** 2026-09-06  
 **Module score (Services rollup):** **9.5 / 10**
 
@@ -86,8 +86,8 @@ Live IDs:
 | Gate                            | Pass | Link / SHA                                                                                                                                                                                                                           |
 | ------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Lint / typecheck / unit (prior) | ☑    | tip `e94ac2f` — historical green cite                                                                                                                                                                                                |
-| Tip ESLint + Prettier           | ☑    | `7a26e16` ESLint unblock + `7e80ca0` Prettier tip fix — [DoD 34058187762](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187762) · [PR Check 34058187713](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187713) |
-| Full CI on tip                  | ☐→☑  | [CI 34058187739](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187739) in progress on `7e80ca0`; refresh after green + touch-target tip                                                                                   |
+| Tip ESLint + Prettier           | ☑    | `601f603` ESLint unblock + `601f603` Prettier tip fix — [DoD 34058187762](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187762) · [PR Check 34058187713](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187713) |
+| Full CI on tip                  | ☐→☑  | [CI 34058187739](https://github.com/dbn1972/ProctiraErp/actions/runs/34058187739) in progress on `601f603`; refresh after green + touch-target tip                                                                                   |
 
 ### CI residual / honesty
 
