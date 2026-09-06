@@ -3,16 +3,16 @@
 **Started (UTC):** 2026-09-06  
 **Target:** every module **9.5 / 10**  
 **Baseline:** program **8.3 / 10** (tip `30fd77f`)  
-**Live data plane:** PASS — 3 boards × 6 schools × 500 students  
+**Live data plane:** PASS — 3 boards × 6 schools × 500 students
 
 ## Parallel tracks
 
-| Track | Modules | Agent focus | Status |
-| --- | --- | --- | --- |
-| A | Auth · Public · Registration | axe, smokes, residual close | in progress |
-| B | People · Academics | live-DB write E2E + captures | in progress |
-| C | Services · Insights · Admin | live paths, reduce stubs | in progress |
-| D | Other Portals · Mobile | portal smokes + Flutter goldens | in progress |
+| Track | Modules                      | Agent focus                     | Status      |
+| ----- | ---------------------------- | ------------------------------- | ----------- |
+| A     | Auth · Public · Registration | axe, smokes, residual close     | in progress |
+| B     | People · Academics           | live-DB write E2E + captures    | in progress |
+| C     | Services · Insights · Admin  | live paths, reduce stubs        | in progress |
+| D     | Other Portals · Mobile       | portal smokes + Flutter goldens | in progress |
 
 ## Honest blockers (cannot fake)
 
