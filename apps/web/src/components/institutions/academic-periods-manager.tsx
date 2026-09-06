@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Archive, CalendarClock, CalendarDays, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, Bell, CalendarClock, CalendarDays, Pencil, Plus, Trash2 } from 'lucide-react';
 
 import {
   Button,
@@ -185,6 +186,14 @@ export function AcademicPeriodsManager({
                     </TableCell>
                     <TableCell className="text-end">
                       <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
+                        <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
+                          <Link
+                            href={`/academic-periods/${period.id}/bell-schedules`}
+                            aria-label={`Bell schedules for ${period.name}`}
+                          >
+                            <Bell className="h-4 w-4" aria-hidden="true" />
+                          </Link>
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"

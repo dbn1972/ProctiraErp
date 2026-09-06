@@ -29,6 +29,7 @@
     "@proctira/backend-scholarship": "workspace:*",
     "@proctira/backend-staff": "workspace:*",
     "@proctira/backend-student": "workspace:*",
+    "@proctira/backend-timetable": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/logging": "workspace:*",
     "@proctira/observability": "workspace:*",

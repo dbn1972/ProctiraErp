@@ -5,7 +5,10 @@ export interface BellScheduleEntity {
   tenantId: string;
   institutionId: string;
   academicPeriodId: string;
+  /** Unique per institution + academic period (schema UNIQUE). */
+  code: string;
   name: string;
+  /** Comma-separated ISO weekdays 1–7, or JSON array string. */
   dayPattern: string;
   status: string;
   createdAt: string;

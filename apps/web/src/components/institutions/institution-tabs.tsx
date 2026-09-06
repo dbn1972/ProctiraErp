@@ -9,6 +9,7 @@ const TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'classes', label: 'Classes' },
   { key: 'grades', label: 'Grades' },
+  { key: 'timetable', label: 'Timetable' },
   { key: 'infrastructure', label: 'Infrastructure' },
 ] as const;
 

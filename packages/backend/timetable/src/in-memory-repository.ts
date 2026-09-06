@@ -32,8 +32,11 @@ export class InMemoryTimetableRepository implements TimetableRepository {
   }
 
   async createBellSchedule(row: BellScheduleEntity) {
-    this.bellSchedules.set(row.id, row);
-    return row;
+    this.bellSchedules.set(row.id, {
+      ...row,
+      code: row.code || row.name.slice(0, 32).toUpperCase().replace(/\s+/g, '_'),
+    });
+    return this.bellSchedules.get(row.id)!;
   }
 
   async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleEntity>) {

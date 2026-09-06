@@ -27,7 +27,7 @@ export function timeToMinutes(value: string): number {
   if (parts.length < 2 || parts.some((n) => Number.isNaN(n))) {
     throw new Error(`Invalid time: ${value}`);
   }
-  const [h, m, s = 0] = parts;
+  const [h = 0, m = 0, s = 0] = parts;
   return h * 60 + m + s / 60;
 }
 

@@ -13,6 +13,9 @@
  *    create*Repository factories when DATABASE_URL is set, else in-memory.
  *  - health counselling: raw SQL + `pg` when DATABASE_URL is set (no Prisma);
  *    other health entities + scholarships + workflows seed in-memory.
+ *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
+ *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
+ *    else in-memory.
  *  - insights / platform-admin: in-process UI aggregates with write endpoints.
  *  - assessment report-card repositories are not wired yet; report-card routes
  *    stay disabled.
@@ -42,6 +45,10 @@ import {
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import {
+  createTimetableRepository,
+  timetablePlugin,
+} from '@proctira/backend-timetable';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -140,6 +147,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         assessmentItemRepository: createAssessmentItemRepository(),
         outcomeRepository: createOutcomeRepository(),
         resultRepository: createAssessmentResultRepository(),
+      });
+    },
+  },
+  {
+    name: 'timetable',
+    proxyPrefixes: ['/timetable'],
+    register: async (scope) => {
+      // Raw pg against 003_sis_timetable_schedule_schema.sql when DATABASE_URL
+      // is set; in-memory otherwise. No Prisma on this path.
+      await scope.register(timetablePlugin, {
+        repository: createTimetableRepository(),
+        prefix: '/timetable',
       });
     },
   },

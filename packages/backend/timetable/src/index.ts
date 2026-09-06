@@ -1,9 +1,8 @@
 /**
- * @proctira/backend-timetable — WS1 clash domain + foundation exports.
+ * @proctira/backend-timetable — WS1 bell schedules, period grid, substitutions.
  *
- * Schema: db/sql/003_sis_timetable_schedule_schema.sql (UUID FKs, bell_periods).
- * Note: pg repository / Fastify routes that still target the TEXT/`periods`
- * stub shape are residual WS1 API work — see docs/audits/DEV_SIS_FOUNDATION.md.
+ * Schema: db/sql/003_sis_timetable_schedule_schema.sql
+ * Persistence: raw `pg` when DATABASE_URL is set; else in-memory.
  */
 
 export {
@@ -19,10 +18,12 @@ export {
 export {
   detectMeetingClashes,
   detectSubstituteClashes,
-  type ClashConflict,
-  type ClashReason,
-  type MeetingSlotLike,
-  type SubstitutionSlotLike,
+} from './clash-helper.js';
+export type {
+  ClashConflict,
+  ClashReason,
+  MeetingSlotLike,
+  SubstitutionSlotLike,
 } from './clash-helper.js';
 
 export {
@@ -32,6 +33,20 @@ export {
   isTimetableSchemaMissingError,
 } from './timetable-errors.js';
 
+export { TimetableService } from './timetable-service.js';
+export { timetablePlugin } from './timetable-plugin.js';
+export type { TimetablePluginOptions } from './timetable-plugin.js';
+export { registerTimetableRoutes } from './routes.js';
+export type { TimetableRoutesOptions } from './routes.js';
+export { createTimetableRepository } from './repository-factory.js';
+export { InMemoryTimetableRepository } from './in-memory-repository.js';
+export {
+  PgTimetableRepository,
+  createPgTimetableRepository,
+  ensureTimetableSchema,
+  isPgTimetableEnabled,
+} from './pg-timetable-repository.js';
+
 export type {
   TimetableRepository,
   BellScheduleEntity,
@@ -39,3 +54,13 @@ export type {
   SectionMeetingEntity,
   SubstitutionEntity,
 } from './timetable-repository.js';
+
+export {
+  CreateBellScheduleSchema,
+  UpdateBellScheduleSchema,
+  CreatePeriodSchema,
+  UpdatePeriodSchema,
+  CreateMeetingSchema,
+  UpdateMeetingSchema,
+  CreateSubstitutionSchema,
+} from './schemas.js';

@@ -7,7 +7,8 @@
  *
  * Validates: Requirement 5.5 — academic period CRUD with status lifecycle.
  */
-import { Download, Info } from 'lucide-react';
+import Link from 'next/link';
+import { Bell, Download, Info } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
 import { AcademicPeriodsManager } from '@/components/institutions/academic-periods-manager';
@@ -45,7 +46,15 @@ export default async function AcademicPeriodsPage() {
             and promotions across all institutions.
           </p>
         </div>
-        <div className="shrink-0">
+        <div className="flex shrink-0 flex-wrap gap-2">
+          {active && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/academic-periods/${active.id}/bell-schedules`}>
+                <Bell className="me-1.5 h-4 w-4" aria-hidden="true" />
+                Bell schedules
+              </Link>
+            </Button>
+          )}
           <Button variant="outline" size="sm" disabled>
             <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
             Export calendar
