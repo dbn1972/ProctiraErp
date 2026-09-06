@@ -148,20 +148,13 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       const currentValue = valueRef.current;
       const shouldAppend =
         index >= currentValue.length ||
-        (index === currentValue.length - 1 &&
-          cells[index] !== '' &&
-          currentValue.length < length);
-      const nextValue = shouldAppend
-        ? currentValue + digit
-        : currentValue.slice(0, index) + digit;
+        (index === currentValue.length - 1 && cells[index] !== '' && currentValue.length < length);
+      const nextValue = shouldAppend ? currentValue + digit : currentValue.slice(0, index) + digit;
       emit(nextValue);
       focusInput(Math.min(nextValue.length, length - 1));
     }
 
-    function handleChange(
-      event: React.ChangeEvent<HTMLInputElement>,
-      index: number,
-    ): void {
+    function handleChange(event: React.ChangeEvent<HTMLInputElement>, index: number): void {
       const raw = event.target.value;
       const currentValue = valueRef.current;
       // The browser may deliver multiple characters at once (autofill,
@@ -188,10 +181,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       focusInput(nextFocus);
     }
 
-    function handleKeyDown(
-      event: React.KeyboardEvent<HTMLInputElement>,
-      index: number,
-    ): void {
+    function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>, index: number): void {
       if (/^\d$/.test(event.key)) {
         event.preventDefault();
         insertDigit(event.key, index);
@@ -247,10 +237,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       }
     }
 
-    function handlePaste(
-      event: React.ClipboardEvent<HTMLInputElement>,
-      _index: number,
-    ): void {
+    function handlePaste(event: React.ClipboardEvent<HTMLInputElement>, _index: number): void {
       const raw = event.clipboardData.getData('text');
       const digits = sanitizeOtp(raw, length);
       if (digits.length === 0) return;
@@ -278,11 +265,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
         id={id}
         role="group"
         aria-label={ariaLabel}
-        className={cn(
-          'inline-flex items-center gap-2',
-          disabled && 'opacity-60',
-          className,
-        )}
+        className={cn('inline-flex items-center gap-2', disabled && 'opacity-60', className)}
         data-testid={testId}
       >
         {cells.map((cell, index) => (

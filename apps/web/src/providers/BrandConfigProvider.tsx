@@ -319,11 +319,7 @@ function tokensToBrand(tokens: Record<string, string>): Brand | null {
  */
 function unquoteCssString(value: string): string {
   const trimmed = value.trim();
-  if (
-    trimmed.length >= 2 &&
-    trimmed.startsWith("'") &&
-    trimmed.endsWith("'")
-  ) {
+  if (trimmed.length >= 2 && trimmed.startsWith("'") && trimmed.endsWith("'")) {
     return trimmed.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, '\\');
   }
   return trimmed;
@@ -351,36 +347,35 @@ export function normalizeBrandResponse(payload: unknown): Brand {
   if (!payload || typeof payload !== 'object') return DEFAULT_BRAND;
   const p = payload as Record<string, unknown>;
 
-  const name = pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']) ??
-    DEFAULT_BRAND.name;
-  const shortName = pickString(p, ['shortName', 'short_name']) ??
+  const name =
+    pickString(p, ['name', 'organizationName', 'brand_name', 'brandName']) ?? DEFAULT_BRAND.name;
+  const shortName =
+    pickString(p, ['shortName', 'short_name']) ??
     pickString(p, ['slug']) ??
     name.toLowerCase().replace(/\s+/g, '-');
   const slug = pickString(p, ['slug']) ?? shortName;
-  const logoUrl = pickString(p, ['logoUrl', 'logo_url']) ??
+  const logoUrl =
+    pickString(p, ['logoUrl', 'logo_url']) ??
     (typeof p['logo'] === 'object' && p['logo'] !== null
       ? pickString(p['logo'] as Record<string, unknown>, ['url'])
       : undefined) ??
     DEFAULT_BRAND.logo.url;
-  const logoAlt = (typeof p['logo'] === 'object' && p['logo'] !== null
-    ? pickString(p['logo'] as Record<string, unknown>, ['alt'])
-    : undefined) ?? name;
-  const favicon = pickString(p, ['favicon', 'faviconUrl', 'favicon_url']) ??
-    DEFAULT_BRAND.favicon;
-  const primary_color = pickString(p, ['primary_color', 'primaryColor', 'primary']) ??
-    DEFAULT_BRAND.primary_color;
-  const accent_color = pickString(p, ['accent_color', 'accentColor', 'accent', 'secondaryColor']) ??
+  const logoAlt =
+    (typeof p['logo'] === 'object' && p['logo'] !== null
+      ? pickString(p['logo'] as Record<string, unknown>, ['alt'])
+      : undefined) ?? name;
+  const favicon = pickString(p, ['favicon', 'faviconUrl', 'favicon_url']) ?? DEFAULT_BRAND.favicon;
+  const primary_color =
+    pickString(p, ['primary_color', 'primaryColor', 'primary']) ?? DEFAULT_BRAND.primary_color;
+  const accent_color =
+    pickString(p, ['accent_color', 'accentColor', 'accent', 'secondaryColor']) ??
     DEFAULT_BRAND.accent_color;
-  const login_background = pickString(p, [
-    'login_background',
-    'loginBackground',
-    'loginBg',
-    'login_bg',
-  ]) ?? DEFAULT_BRAND.login_background;
-  const document_title_template = pickString(p, [
-    'document_title_template',
-    'documentTitleTemplate',
-  ]) ?? DEFAULT_BRAND.document_title_template;
+  const login_background =
+    pickString(p, ['login_background', 'loginBackground', 'loginBg', 'login_bg']) ??
+    DEFAULT_BRAND.login_background;
+  const document_title_template =
+    pickString(p, ['document_title_template', 'documentTitleTemplate']) ??
+    DEFAULT_BRAND.document_title_template;
 
   return {
     name,
@@ -482,11 +477,7 @@ export interface BrandConfigProviderProps {
   fetcher?: BrandFetcher;
 }
 
-export function BrandConfigProvider({
-  children,
-  initialBrand,
-  fetcher,
-}: BrandConfigProviderProps) {
+export function BrandConfigProvider({ children, initialBrand, fetcher }: BrandConfigProviderProps) {
   // ─── Initial brand resolution (Task 58.1) ───────────────────────────────
   //
   // Priority for the FIRST client render:
@@ -587,11 +578,7 @@ export function BrandConfigProvider({
     [brand, loading, error, refresh],
   );
 
-  return (
-    <BrandConfigContext.Provider value={value}>
-      {children}
-    </BrandConfigContext.Provider>
-  );
+  return <BrandConfigContext.Provider value={value}>{children}</BrandConfigContext.Provider>;
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────

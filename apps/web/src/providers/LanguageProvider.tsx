@@ -222,10 +222,7 @@ function resolveKey(map: TranslationMap | undefined, key: string): string | unde
  * existing `en.json` strings (e.g., `"Welcome back, {name}"`) work in both
  * `useTranslations()` and our `t()` without re-templating.
  */
-function interpolate(
-  template: string,
-  params?: Record<string, string | number>,
-): string {
+function interpolate(template: string, params?: Record<string, string | number>): string {
   if (!params) return template;
   return template.replace(/\{(\w+)\}/g, (match, name: string) => {
     return params[name] !== undefined ? String(params[name]) : match;
@@ -236,9 +233,7 @@ function interpolate(
  * Dynamically imports the message catalog for a locale. Returns `null`
  * when the JSON file is missing (e.g. stub locales not yet shipped).
  */
-async function loadMessagesFromDisk(
-  locale: string,
-): Promise<TranslationMap | null> {
+async function loadMessagesFromDisk(locale: string): Promise<TranslationMap | null> {
   try {
     // Vite/webpack rewrites the template-literal dynamic import at build
     // time to a chunk per locale. Vitest resolves it through the same
