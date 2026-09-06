@@ -13,22 +13,22 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` and adap
 
 ## 0. Screen inventory (mobile routes)
 
-| Area          | Route / screen              | Roles         | PII/PHI       | Notes                    |
-| ------------- | --------------------------- | ------------- | ------------- | ------------------------ |
-| Auth          | `/login`                    | anonymous     | PII           | Real `AuthApi.login`     |
-| Tenant        | `/tenant`                   | anonymous     | —             | Tenant shell golden      |
-| Home          | `/`                         | authenticated | —             | Logout clears tokens     |
-| Students      | `/students`                 | staff         | PII           | Cache-first repo         |
-| Student profile | `/students/:id`           | staff         | PII           | Profile shell golden     |
-| Attendance    | `/attendance`               | staff         | PII           | Offline sync + geofence  |
-| Institutions  | `/institutions`             | staff         | —             |                          |
-| Scholarships  | `/scholarships*`            | staff/student | financial PII | Needs RepositoryProvider |
-| Health        | `/health`                   | staff         | PHI           | Needs RepositoryProvider |
-| Examinations  | `/examinations*`            | staff/student | PII           | Needs RepositoryProvider |
-| Assessments   | `/assessments`              | staff/student | PII           | Assessments shell golden |
-| Reports       | `/reports`, `/reports/:id`  | authenticated | —             | Prefs/reports goldens    |
-| Profile       | `/profile`                  | authenticated | PII           |                          |
-| Notifications | `/notifications*`           | authenticated | —             | Inbox + preferences      |
+| Area            | Route / screen             | Roles         | PII/PHI       | Notes                    |
+| --------------- | -------------------------- | ------------- | ------------- | ------------------------ |
+| Auth            | `/login`                   | anonymous     | PII           | Real `AuthApi.login`     |
+| Tenant          | `/tenant`                  | anonymous     | —             | Tenant shell golden      |
+| Home            | `/`                        | authenticated | —             | Logout clears tokens     |
+| Students        | `/students`                | staff         | PII           | Cache-first repo         |
+| Student profile | `/students/:id`            | staff         | PII           | Profile shell golden     |
+| Attendance      | `/attendance`              | staff         | PII           | Offline sync + geofence  |
+| Institutions    | `/institutions`            | staff         | —             |                          |
+| Scholarships    | `/scholarships*`           | staff/student | financial PII | Needs RepositoryProvider |
+| Health          | `/health`                  | staff         | PHI           | Needs RepositoryProvider |
+| Examinations    | `/examinations*`           | staff/student | PII           | Needs RepositoryProvider |
+| Assessments     | `/assessments`             | staff/student | PII           | Assessments shell golden |
+| Reports         | `/reports`, `/reports/:id` | authenticated | —             | Prefs/reports goldens    |
+| Profile         | `/profile`                 | authenticated | PII           |                          |
+| Notifications   | `/notifications*`          | authenticated | —             | Inbox + preferences      |
 
 ---
 
@@ -55,52 +55,52 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` and adap
 
 ## 2. Security
 
-| Check                                            | Pass | Evidence                      |
-| ------------------------------------------------ | ---- | ----------------------------- |
-| No hardcoded access tokens after login           | ☑    | login path uses `AuthApi`     |
-| `X-Tenant-ID` on requests                        | ☑    | Dio interceptor               |
-| Bearer on non-public auth paths                  | ☑    | Dio interceptor               |
-| Logout clears secure storage (+ best-effort API) | ☑    | `AuthBloc` + `AuthApi.logout` |
-| Refresh-on-401 best effort                       | ☑    | interceptor                   |
+| Check                                            | Pass | Evidence                                 |
+| ------------------------------------------------ | ---- | ---------------------------------------- |
+| No hardcoded access tokens after login           | ☑    | login path uses `AuthApi`                |
+| `X-Tenant-ID` on requests                        | ☑    | Dio interceptor                          |
+| Bearer on non-public auth paths                  | ☑    | Dio interceptor                          |
+| Logout clears secure storage (+ best-effort API) | ☑    | `AuthBloc` + `AuthApi.logout`            |
+| Refresh-on-401 best effort                       | ☑    | interceptor                              |
 | Tenant switch isolates cached student rows       | ☑    | Linux IT `journey_tenant_isolation_test` |
 
 ---
 
 ## 3. Visual / multidevice evidence (honest)
 
-| Item | Pass | Evidence |
-| ---- | ---- | -------- |
-| Widget golden — login chrome | ☑ | `/opt/cursor/artifacts/mobile-flutter-audit/login_chrome.png` |
-| Widget golden — home shell | ☑ | `…/home_shell.png` |
-| Widget golden — students shell | ☑ | `…/students_shell.png` |
-| Widget golden — attendance shell | ☑ | `…/attendance_shell.png` |
-| Widget golden — institutions shell | ☑ | `…/institutions_shell.png` |
-| Widget golden — scholarships shell | ☑ | `…/scholarships_shell.png` |
-| Widget golden — health shell | ☑ | `…/health_shell.png` |
-| Widget golden — examinations shell | ☑ | `…/examinations_shell.png` |
-| Widget golden — profile shell | ☑ | `…/profile_shell.png` |
-| Widget golden — notifications shell | ☑ | `…/notifications_shell.png` |
-| Widget golden — notification preferences | ☑ | `…/notification_preferences_shell.png` (added 2026-09-06) |
-| Widget golden — reports | ☑ | `…/reports_shell.png` |
-| Widget golden — report detail | ☑ | `…/report_detail_shell.png` |
-| Widget golden — assessments | ☑ | `…/assessments_shell.png` |
-| Widget golden — tenant | ☑ | `…/tenant_shell.png` |
-| Widget golden — student profile | ☑ | `…/student_profile_shell.png` |
-| Linux embedder PNGs (xvfb) | ☑ | `linux_login_chrome.png`, `linux_notification_preferences.png`, `linux_reports.png`, `linux_home_shell.png` — **real** Linux Flutter captures, not invented |
-| Android device-farm / emulator PNGs | ☐ waived | **NONE invented** — Android SDK platforms empty; no emulator |
-| Pack summary | ☑ | `/opt/cursor/artifacts/mobile-flutter-audit/summary.json` |
+| Item                                     | Pass     | Evidence                                                                                                                                                    |
+| ---------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Widget golden — login chrome             | ☑        | `/opt/cursor/artifacts/mobile-flutter-audit/login_chrome.png`                                                                                               |
+| Widget golden — home shell               | ☑        | `…/home_shell.png`                                                                                                                                          |
+| Widget golden — students shell           | ☑        | `…/students_shell.png`                                                                                                                                      |
+| Widget golden — attendance shell         | ☑        | `…/attendance_shell.png`                                                                                                                                    |
+| Widget golden — institutions shell       | ☑        | `…/institutions_shell.png`                                                                                                                                  |
+| Widget golden — scholarships shell       | ☑        | `…/scholarships_shell.png`                                                                                                                                  |
+| Widget golden — health shell             | ☑        | `…/health_shell.png`                                                                                                                                        |
+| Widget golden — examinations shell       | ☑        | `…/examinations_shell.png`                                                                                                                                  |
+| Widget golden — profile shell            | ☑        | `…/profile_shell.png`                                                                                                                                       |
+| Widget golden — notifications shell      | ☑        | `…/notifications_shell.png`                                                                                                                                 |
+| Widget golden — notification preferences | ☑        | `…/notification_preferences_shell.png` (added 2026-09-06)                                                                                                   |
+| Widget golden — reports                  | ☑        | `…/reports_shell.png`                                                                                                                                       |
+| Widget golden — report detail            | ☑        | `…/report_detail_shell.png`                                                                                                                                 |
+| Widget golden — assessments              | ☑        | `…/assessments_shell.png`                                                                                                                                   |
+| Widget golden — tenant                   | ☑        | `…/tenant_shell.png`                                                                                                                                        |
+| Widget golden — student profile          | ☑        | `…/student_profile_shell.png`                                                                                                                               |
+| Linux embedder PNGs (xvfb)               | ☑        | `linux_login_chrome.png`, `linux_notification_preferences.png`, `linux_reports.png`, `linux_home_shell.png` — **real** Linux Flutter captures, not invented |
+| Android device-farm / emulator PNGs      | ☐ waived | **NONE invented** — Android SDK platforms empty; no emulator                                                                                                |
+| Pack summary                             | ☑        | `/opt/cursor/artifacts/mobile-flutter-audit/summary.json`                                                                                                   |
 
 ---
 
 ## 4. Residual risks / waivers
 
-| Item                                         | Risk                                   | Owner       | Waiver date  |
-| -------------------------------------------- | -------------------------------------- | ----------- | ------------ |
-| Live login against auth-service in agent     | Medium — unit parse + wiring covered   | cloud-agent | 2026-09-05   |
-| Android device-farm / emulator PNGs          | Blocks 10/10 — **device-farm residual** | mobile | 2026-09-06 |
-| Android applicationId still `org.openemis.*` | Low — branding leftover                | mobile      | 2026-09-05   |
-| Deploy registry / image push                 | Infra — unrelated to mobile            | platform    | pre-existing |
-| Notification `context.push` vs LiveTest URI  | Low — mark-read + destination UI proven on Linux | mobile | 2026-09-06 |
+| Item                                         | Risk                                             | Owner       | Waiver date  |
+| -------------------------------------------- | ------------------------------------------------ | ----------- | ------------ |
+| Live login against auth-service in agent     | Medium — unit parse + wiring covered             | cloud-agent | 2026-09-05   |
+| Android device-farm / emulator PNGs          | Blocks 10/10 — **device-farm residual**          | mobile      | 2026-09-06   |
+| Android applicationId still `org.openemis.*` | Low — branding leftover                          | mobile      | 2026-09-05   |
+| Deploy registry / image push                 | Infra — unrelated to mobile                      | platform    | pre-existing |
+| Notification `context.push` vs LiveTest URI  | Low — mark-read + destination UI proven on Linux | mobile      | 2026-09-06   |
 
 ---
 

@@ -7,11 +7,11 @@
 
 ## Program rollup
 
-| Metric                                   | Value                                                                                                                                                         |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Metric                                   | Value                                                                                                                                                                     |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Weighted program score                   | **9.4 / 10** (Auth / Public / Registration / People / Academics / Services / Insights / Admin / Portals at 9.5; Mobile **9.3**; Android device-farm + live IdP still cap) |
-| Honest ceiling without IdP / device-farm | ~**9.4**                                                                                                                                                      |
-| Claim when user asks                     | Always cite this file + tip SHA                                                                                                                               |
+| Honest ceiling without IdP / device-farm | ~**9.4**                                                                                                                                                                  |
+| Claim when user asks                     | Always cite this file + tip SHA                                                                                                                                           |
 
 ### Status legend
 
@@ -157,7 +157,7 @@ Evidence: `ACADEMICS_*.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PN
 | 2026-09-06 | `f201bf8`    | Other Portals axe/smokes + Mobile goldens 10 shells                                                                                                                             | Portals **9.2**; Mobile **9.1**; program ~**9.0**   |
 | 2026-09-06 | _(this tip)_ | People+Academics: `15d`/`20b`/`21b` write smokes; fake-session cookie host; HybridHealthRepository boot fix; 90 viewport captures → 39+26 md PNGs; Playwright 40 pass / 32 skip | People **9.5**; Academics **9.5**; program ~**9.1** |
 | 2026-09-06 | _(this tip)_ | Auth ungated matrix (chromium+mobile); Public axe+contact always-on+multidevice; Registration axe+multidevice; contrast a11y fixes                                              | Auth/Public/Registration **9.5**; program ~**9.3**  |
-| 2026-09-06 | _(this tip)_ | Mobile: goldens 10→16; Linux xvfb IT (login/tenant/students/attendance/notif); real `linux_*.png`; Inter fonts bundled; Android device-farm residual only                         | Mobile **9.3**; program ~**9.4**                    |
+| 2026-09-06 | _(this tip)_ | Mobile: goldens 10→16; Linux xvfb IT (login/tenant/students/attendance/notif); real `linux_*.png`; Inter fonts bundled; Android device-farm residual only                       | Mobile **9.3**; program ~**9.4**                    |
 | 2026-09-06 | _(this tip)_ | Other Portals: install CSRF/token BFF + bootstrap lock ungated smoke; backend 409 lock; API-key reserved-name harden; Playwright 15+7 pass                                      | Portals **9.5**; program ~**9.4**                   |
 
 ## How to read when you ask “updated score?”
