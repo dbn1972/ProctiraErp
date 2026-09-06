@@ -91,9 +91,9 @@ Screenshot pack path: `/opt/cursor/artifacts/health-audit/` (**18 PNGs** · desk
 
 | Gate                  | Pass | Evidence                                                                                                                                                                     |
 | --------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tip Prettier / ESLint | ☑    | tip `8cc09f3` Lint ✅ on full CI                                                                                                                                    |
+| Tip Prettier / ESLint | ☑    | tip `8cc09f3` Lint ✅ on full CI                                                                                                                                             |
 | DoD / PR Check        | ☑    | [DoD 34058982614](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982614) · [PR Check 34058982636](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982636) |
-| Full CI workflow      | ☑    | tip `8cc09f3` — [CI 34058982602](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982602) (Lint/Type/Unit/Build/Integration/DoD/Tenant/Bundle/Lighthouse ✅)  |
+| Full CI workflow      | ☑    | tip `8cc09f3` — [CI 34058982602](https://github.com/dbn1972/ProctiraErp/actions/runs/34058982602) (Lint/Type/Unit/Build/Integration/DoD/Tenant/Bundle/Lighthouse ✅)         |
 
 ---
 
