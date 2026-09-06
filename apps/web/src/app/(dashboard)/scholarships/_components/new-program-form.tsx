@@ -121,18 +121,36 @@ export function NewProgramForm() {
                 id="program-name"
                 name="name"
                 placeholder="Academic Excellence Award"
+                className="h-11 min-h-11"
               />
             </FormField>
             <FormField id="program-code" label="Code" required>
-              <Input id="program-code" name="code" placeholder="AEA-2025" />
+              <Input
+                id="program-code"
+                name="code"
+                placeholder="AEA-2025"
+                className="h-11 min-h-11"
+              />
             </FormField>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             <FormField id="program-slots" label="Total slots" required>
-              <Input id="program-slots" name="totalSlots" type="number" min="1" />
+              <Input
+                id="program-slots"
+                name="totalSlots"
+                type="number"
+                min="1"
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="program-amount" label="Award amount" required>
-              <Input id="program-amount" name="awardAmount" type="number" step="0.01" />
+              <Input
+                id="program-amount"
+                name="awardAmount"
+                type="number"
+                step="0.01"
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="program-currency" label="Currency" required>
               <Input
@@ -141,15 +159,26 @@ export function NewProgramForm() {
                 placeholder="INR"
                 maxLength={3}
                 defaultValue="INR"
+                className="h-11 min-h-11"
               />
             </FormField>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="program-app-start" label="Application opens" required>
-              <Input id="program-app-start" name="applicationStartDate" type="date" />
+              <Input
+                id="program-app-start"
+                name="applicationStartDate"
+                type="date"
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="program-app-end" label="Application closes" required>
-              <Input id="program-app-end" name="applicationEndDate" type="date" />
+              <Input
+                id="program-app-end"
+                name="applicationEndDate"
+                type="date"
+                className="h-11 min-h-11"
+              />
             </FormField>
           </div>
           <FormField id="program-eligibility" label="Eligibility criteria">
@@ -158,11 +187,16 @@ export function NewProgramForm() {
               name="eligibility"
               rows={4}
               placeholder="Describe academic, demographic, or financial criteria…"
+              className="min-h-24"
             />
           </FormField>
 
           {error ? (
-            <p className="text-sm text-destructive" role="alert" data-testid="scholarship-program-error">
+            <p
+              className="text-sm text-destructive"
+              role="alert"
+              data-testid="scholarship-program-error"
+            >
               {error}
             </p>
           ) : null}

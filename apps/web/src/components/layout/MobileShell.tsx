@@ -151,10 +151,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
   const resolvedTitle = pageTitle ?? activeTab?.label ?? name;
 
   return (
-    <div
-      className="flex min-h-screen flex-col bg-background text-foreground"
-      data-shell="mobile"
-    >
+    <div className="flex min-h-screen flex-col bg-background text-foreground" data-shell="mobile">
       {/* ─── Sticky header (Design §H — brand mark + page title + actions). */}
       <header
         className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-background px-4"
@@ -165,7 +162,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
             correct organization. */}
         <Link
           href="/app/dashboard"
-          className="flex shrink-0 items-center"
+          className="inline-flex min-h-12 min-w-12 shrink-0 items-center justify-center"
           aria-label={`${name} home`}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -216,11 +213,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
             </button>
           </SheetTrigger>
 
-          <SheetContent
-            side="right"
-            className="w-72 p-0"
-            data-testid="mobile-shell-drawer"
-          >
+          <SheetContent side="right" className="w-72 p-0" data-testid="mobile-shell-drawer">
             <SheetHeader className="border-b border-border p-4">
               <SheetTitle>Menu</SheetTitle>
               <SheetDescription className="sr-only">

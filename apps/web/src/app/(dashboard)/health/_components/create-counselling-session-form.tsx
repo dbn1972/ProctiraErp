@@ -26,8 +26,7 @@ import { createCounsellingSessionAction } from '../actions';
 const SESSION_TYPES = ['individual', 'group', 'family', 'crisis'] as const;
 const SESSION_STATUSES = ['scheduled', 'completed', 'cancelled', 'no-show'] as const;
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function CreateCounsellingSessionForm() {
   const router = useRouter();
@@ -115,8 +114,7 @@ export function CreateCounsellingSessionForm() {
       <CardHeader>
         <CardTitle className="text-base">Session details</CardTitle>
         <CardDescription>
-          Schedule a confidential counselling session. Notes stay sealed to authorized
-          health roles.
+          Schedule a confidential counselling session. Notes stay sealed to authorized health roles.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -136,6 +134,7 @@ export function CreateCounsellingSessionForm() {
                 placeholder="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1"
                 required
                 autoComplete="off"
+                className="h-11 min-h-11"
               />
             </FormField>
             <FormField id="counselling-counsellor-id" label="Counsellor ID" required>
@@ -145,6 +144,7 @@ export function CreateCounsellingSessionForm() {
                 placeholder="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1"
                 required
                 autoComplete="off"
+                className="h-11 min-h-11"
               />
             </FormField>
           </div>
@@ -156,6 +156,7 @@ export function CreateCounsellingSessionForm() {
                 name="sessionDate"
                 type="date"
                 required
+                className="h-11 min-h-11"
               />
             </FormField>
             <FormField id="counselling-session-type" label="Session type" required>
@@ -164,7 +165,7 @@ export function CreateCounsellingSessionForm() {
                 name="sessionType"
                 required
                 defaultValue="individual"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 {SESSION_TYPES.map((type) => (
                   <option key={type} value={type}>
@@ -179,7 +180,7 @@ export function CreateCounsellingSessionForm() {
                 name="status"
                 required
                 defaultValue="scheduled"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 {SESSION_STATUSES.map((value) => (
                   <option key={value} value={value}>
@@ -196,6 +197,7 @@ export function CreateCounsellingSessionForm() {
               name="reason"
               aria-label="Reason"
               placeholder="Exam anxiety / peer conflict / …"
+              className="h-11 min-h-11"
             />
           </FormField>
 
@@ -206,6 +208,7 @@ export function CreateCounsellingSessionForm() {
               rows={4}
               placeholder="Document discussion points (sealed)."
               required
+              className="min-h-24"
             />
           </FormField>
 
@@ -214,23 +217,30 @@ export function CreateCounsellingSessionForm() {
               id="counselling-outcome"
               name="outcome"
               placeholder="Optional outcome summary"
+              className="h-11 min-h-11"
             />
           </FormField>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex items-center gap-2 pt-6">
+            <label
+              htmlFor="counselling-follow-up"
+              className="flex min-h-11 items-center gap-3 pt-6 text-sm font-medium"
+            >
               <input
                 id="counselling-follow-up"
                 name="followUpRequired"
                 type="checkbox"
-                className="h-4 w-4 rounded border-input"
+                className="h-5 w-5 rounded border-input"
               />
-              <label htmlFor="counselling-follow-up" className="text-sm font-medium">
-                Follow-up required
-              </label>
-            </div>
+              Follow-up required
+            </label>
             <FormField id="counselling-follow-up-date" label="Follow-up date">
-              <Input id="counselling-follow-up-date" name="followUpDate" type="date" />
+              <Input
+                id="counselling-follow-up-date"
+                name="followUpDate"
+                type="date"
+                className="h-11 min-h-11"
+              />
             </FormField>
           </div>
 
