@@ -127,9 +127,11 @@ export default async function CounsellingPage() {
               : 'Schedule and document student counselling sessions confidentially.'}
           </p>
         </div>
-        <Button size="sm">
-          <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-          Schedule session
+        <Button asChild size="sm">
+          <Link href="/health/counselling/new">
+            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Schedule session
+          </Link>
         </Button>
       </div>
 

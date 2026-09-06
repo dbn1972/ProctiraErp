@@ -23,6 +23,11 @@ const HEALTH_ROUTES: { id: string; path: string; heading?: RegExp }[] = [
   { id: 'records-hub', path: '/health', heading: /health/i },
   { id: 'screenings', path: '/health/screenings', heading: /screenings/i },
   { id: 'counselling', path: '/health/counselling', heading: /counselling|counseling/i },
+  {
+    id: 'counselling-create',
+    path: '/health/counselling/new',
+    heading: /schedule counselling|counselling session/i,
+  },
   { id: 'special-needs', path: '/health/special-needs', heading: /special needs/i },
   {
     id: 'student-profile',
@@ -66,4 +71,17 @@ test.describe('Health — authenticated inventory (E2E_BACKEND_READY)', () => {
       }
     });
   }
+
+  test('counselling create form exposes schedule fields when signed in', async ({ page }) => {
+    await page.goto('/health/counselling/new', { waitUntil: 'domcontentloaded' });
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(
+      page.getByRole('heading', { name: /schedule counselling session/i }),
+    ).toBeVisible();
+    await expect(page.getByRole('form', { name: /create counselling session/i })).toBeVisible();
+    await expect(page.getByLabel(/student id/i)).toBeVisible();
+    await expect(page.getByLabel(/counsellor id/i)).toBeVisible();
+    await expect(page.getByLabel(/session date/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /schedule session/i })).toBeVisible();
+  });
 });
