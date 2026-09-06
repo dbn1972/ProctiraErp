@@ -1,12 +1,6 @@
-/**
- * Examinations — ungated inventory + create validation smoke.
- *
- * Always-on: unauthenticated protected routes → /login.
- * Fake-session suite: list/new shell + client validation against
- * CreateExaminationSchema-aligned form (no invented create success).
- * Detail tabs remain gated on E2E_BACKEND_READY.
- */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+
+import { setupFakeTenantSession } from './fixtures/fake-session';
 
 const EXAM_ID = '11111111-1111-4111-8111-111111111111';
 const PERIOD_ID = '22222222-2222-4222-8222-222222222222';
@@ -29,46 +23,6 @@ const SEEDED_DETAIL_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
   { path: `/examinations/${EXAM_ID}/documents`, heading: /.+/ },
 ];
 
-function createFakeJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  return `${header}.${body}.sig`;
-}
-
-async function setupTenantSession(page: Page): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const token = createFakeJwt({
-    sub: 'exam-e2e-user',
-    email: 'admin@tenant-a.test',
-    displayName: 'Exam E2E Admin',
-    tenantId: '00000000-0000-4000-8000-0000000000aa',
-    roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
-    iat: now,
-    exp: now + 60 * 60 * 8,
-  });
-
-  await page.context().addCookies([
-    {
-      name: 'access_token',
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-    {
-      name: 'refresh_token',
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-  ]);
-}
-
 test.describe('Examinations — unauthenticated inventory (ungated)', () => {
   for (const route of UNGATED_ROUTES) {
     test(`${route.path} unauthenticated → /login with body + heading`, async ({
@@ -84,7 +38,10 @@ test.describe('Examinations — unauthenticated inventory (ungated)', () => {
 
 test.describe('Examinations — inventory smoke (session cookie)', () => {
   test.beforeEach(async ({ page }) => {
-    await setupTenantSession(page);
+    await setupFakeTenantSession(page, {
+      sub: 'exam-e2e-user',
+      displayName: 'Exam E2E Admin',
+    });
   });
 
   for (const route of UNGATED_ROUTES) {
@@ -120,7 +77,6 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
       'true',
     );
 
-    // Clear date defaults so required-date messages appear.
     await page.getByTestId('examination-start-date').fill('');
     await page.getByTestId('examination-end-date').fill('');
     await page.getByTestId('examination-create-submit').click();
@@ -153,11 +109,9 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
     if (tag === 'input') {
       await institutionControl.fill(INSTITUTION_ID);
     }
-    // Select path: default first institution may already be set from server props.
 
     await page.getByTestId('examination-create-submit').click();
 
-    // Live gateway may return 201; offline/network may error. Never invent demo-ack.
     await Promise.race([
       page.waitForURL(/\/examinations\/[0-9a-f-]{36}/i, { timeout: 20_000 }),
       page

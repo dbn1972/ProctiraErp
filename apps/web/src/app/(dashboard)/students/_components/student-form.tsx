@@ -84,6 +84,11 @@ export function StudentForm({
   const router = useRouter();
   const [serverState, setServerState] = useState<ActionState<{ studentId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   // Draft autosave (Task 60.5 / Requirement 38.8).
   //
@@ -182,6 +187,8 @@ export function StudentForm({
 
   return (
     <form
+      data-testid="student-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
       noValidate
       onSubmit={(event) => {
         void handleSubmit(onSubmit)(event);

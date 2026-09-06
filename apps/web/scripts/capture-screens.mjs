@@ -38,6 +38,12 @@ const VIEWPORTS = {
 const requested = process.argv.slice(2).filter((a) => VIEWPORTS[a]);
 const ACTIVE = requested.length > 0 ? requested : Object.keys(VIEWPORTS);
 
+// Optional module filter: CAPTURE_MODULES=students,staff,attendance
+const MODULE_FILTER = (process.env.CAPTURE_MODULES ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 // A far-future, unsigned JWT (alg=none). The middleware/requireSession only
 // base64-decode the payload to read `exp`/`tenantId`; they never verify it.
 function mintToken() {
@@ -71,10 +77,38 @@ const SCREENS = {
     ['list', '/students'],
     ['new', '/students/new'],
     ['import', '/students/import'],
+    [
+      'profile',
+      `/students/${process.env.STUDENT_ID ?? process.env.E2E_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'}`,
+    ],
+    [
+      'edit',
+      `/students/${process.env.STUDENT_ID ?? process.env.E2E_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'}/edit`,
+    ],
+    [
+      'transfer',
+      `/students/${process.env.STUDENT_ID ?? process.env.E2E_STUDENT_ID ?? 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'}/transfer`,
+    ],
   ],
   staff: [
     ['list', '/staff'],
     ['new', '/staff/new'],
+    [
+      'profile',
+      `/staff/${process.env.STAFF_ID ?? process.env.E2E_STAFF_ID ?? 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'}`,
+    ],
+    [
+      'edit',
+      `/staff/${process.env.STAFF_ID ?? process.env.E2E_STAFF_ID ?? 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'}/edit`,
+    ],
+    [
+      'assignment-new',
+      `/staff/${process.env.STAFF_ID ?? process.env.E2E_STAFF_ID ?? 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'}/assignments/new`,
+    ],
+    [
+      'appraisal-new',
+      `/staff/${process.env.STAFF_ID ?? process.env.E2E_STAFF_ID ?? 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'}/appraisals/new`,
+    ],
   ],
   institutions: [
     ['list', '/institutions'],
@@ -200,6 +234,7 @@ async function main() {
     let pOk = 0;
     let pFail = 0;
     for (const [module, screens] of Object.entries(SCREENS)) {
+      if (MODULE_FILTER.length > 0 && !MODULE_FILTER.includes(module)) continue;
       const dir = path.join(OUT_ROOT, module);
       await mkdir(dir, { recursive: true });
       for (const [name, route] of screens) {
