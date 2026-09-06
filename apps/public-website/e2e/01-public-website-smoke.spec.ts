@@ -46,6 +46,16 @@ test.describe('Public Website — public surfaces', () => {
     expect(href).toBeTruthy();
     expect(href).not.toBe('/login');
   });
+
+  test('status page is honest when probes are not configured', async ({ page }) => {
+    await page.goto('/status');
+    const overall = page.getByTestId('status-overall');
+    await expect(overall).toBeVisible();
+    await expect(overall).toHaveAttribute('data-mode', 'prelaunch');
+    await expect(overall).toContainText(/not instrumented|partial instrumentation/i);
+    await expect(page.getByText(/not monitored/i).first()).toBeVisible();
+    await expect(page.getByText(/^operational$/i)).toHaveCount(0);
+  });
 });
 
 test.describe('Public Website — live contact API', () => {

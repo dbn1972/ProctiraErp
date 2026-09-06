@@ -163,6 +163,19 @@ export default async function NewAssignmentPage({ params, searchParams }: PagePr
     ? `${staff.firstName} ${staff.lastName}`
     : 'this staff member';
 
+  // listSubjects / listClasses may return `{ data: [] }` from some gateways — normalize.
+  const subjectRows = Array.isArray(subjects)
+    ? subjects
+    : Array.isArray((subjects as { data?: SubjectSummary[] } | null)?.data)
+      ? ((subjects as { data: SubjectSummary[] }).data)
+      : [];
+  const classRows = Array.isArray(classes)
+    ? classes
+    : Array.isArray((classes as { data?: ClassSection[] } | null)?.data)
+      ? ((classes as { data: ClassSection[] }).data)
+      : [];
+  const institutionRows = Array.isArray(institutions) ? institutions : [];
+
   return (
     <section aria-labelledby="new-assignment-heading" className="space-y-6">
 
@@ -214,9 +227,9 @@ export default async function NewAssignmentPage({ params, searchParams }: PagePr
           <CardContent>
             <AssignmentForm
               staffId={staffId}
-              institutions={institutions.map((i) => ({ id: i.id, name: i.name }))}
-              subjects={subjects.map((s) => ({ id: s.id, name: s.name, code: s.code }))}
-              classes={classes.map((c) => ({ id: c.id, name: c.name }))}
+              institutions={institutionRows.map((i) => ({ id: i.id, name: i.name }))}
+              subjects={subjectRows.map((s) => ({ id: s.id, name: s.name, code: s.code }))}
+              classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
               defaultInstitutionId={institutionId}
             />
           </CardContent>

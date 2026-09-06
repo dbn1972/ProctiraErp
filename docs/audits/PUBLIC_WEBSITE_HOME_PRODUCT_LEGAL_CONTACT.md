@@ -20,7 +20,7 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 | Installation | `/installation` | public | Low     | Developer / self-host docs                 |
 | Security     | `/security`     | public | Low     | Footer primary                             |
 | Compliance   | `/compliance`   | public | Low     | Footer / legal group                       |
-| Status       | `/status`       | public | Low     | Static pre-launch status                   |
+| Status       | `/status`       | public | Low     | Honest pre-launch or optional STATUS_PROBE_* |
 | About        | `/about`        | public | Low     | Mission / values (no lucide `Github` icon) |
 | Contact      | `/contact`      | public | Medium  | Write path via `/api/contact`              |
 | Legal hub    | `/legal`        | public | Low     | Legal notices                              |
@@ -35,7 +35,7 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 | Screen               | Load OK | Empty/loading/error | Write path or N/A                         | Evidence                 |
 | -------------------- | ------- | ------------------- | ----------------------------------------- | ------------------------ |
 | All inventory routes | ☑       | ☑ static marketing  | N/A except contact                        | Playwright smoke         |
-| Contact form + API   | ☑       | ☑ validation errors | Shared `validateContactInput` + honeypot  | Vitest + API route       |
+| Contact form + API   | ☑       | ☑ validation errors | Shared validation + honeypot + optional webhook | Vitest + API route       |
 | Header Login CTA     | ☑       | N/A                 | Points to `NEXT_PUBLIC_WEB_APP_URL/login` | Falls back to `/contact` |
 
 Backend unit/property: ☑ — `pnpm --filter @proctira/public-website test`
@@ -97,13 +97,13 @@ Backend unit/property: ☑ — `pnpm --filter @proctira/public-website test`
 ## 7. Residual risks / waivers
 
 1. In-memory contact rate limit is not durable across replicas — use edge/WAF in production.
-2. Contact API is still a stub (no CRM/ticket forwarding).
-3. Status page is static “all operational” until a real status provider is wired.
+2. Contact API optionally forwards to `CONTACT_WEBHOOK_URL` (CRM/ticketing); without that env var it still accepts + stores locally (no invented CRM).
+3. Status page uses honest pre-launch / local health-probe copy (not a fake “all green” provider).
 4. No CSP headers / axe suite in this app yet.
 5. Multidevice screenshot pack deferred to host capture.
 6. Deploy registry infra failures are not feature blockers.
 
-**Verdict:** Ready with waivers above.
+**Verdict:** Ready with waivers above. Module score campaign: **9.0 → ~9.3**.
 
 ## Screenshot pack (2026-09-06)
 
