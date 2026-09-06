@@ -13,7 +13,7 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => {
     const labels: Record<string, string> = {
       welcomeBack: 'Welcome back',
-      signInToWorkspace: 'Sign in to your ProctiraERP workspace.',
+      signInSubtitle: 'Sign in to your ProctiraERP workspace.',
       emailAddress: 'Email address',
       password: 'Password',
       forgotPassword: 'Forgot password?',
@@ -27,8 +27,7 @@ vi.mock('next-intl', () => ({
       sessionExpired: 'Session expired',
       oauthFailed: 'OAuth failed',
       orContinueWith: 'or continue with',
-      noAccount: "Don't have an account?",
-      contactAdministrator: 'Contact your administrator',
+      continueWith: 'Continue with {provider}',
     };
     return labels[key] ?? key;
   },
@@ -52,9 +51,12 @@ vi.mock('next/link', () => ({
 }));
 
 vi.mock('@/components/auth/oauth-icon', () => ({ OAuthIcon: () => <span>icon</span> }));
-vi.mock('@/lib/auth/oauth', () => ({ buildOAuthHref: () => '#' }));
 vi.mock('@/lib/auth', () => ({
   signIn: vi.fn(),
+  sanitizeReturnTo: (value: string | null | undefined, fallback = '/') =>
+    value && value.startsWith('/') && !value.startsWith('//') ? value : fallback,
+  OAUTH_PROVIDERS: [],
+  getOAuthAuthorizeUrl: () => '#',
 }));
 
 vi.mock('@/components/LanguageSelector', () => ({

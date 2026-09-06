@@ -132,7 +132,7 @@ describe('<SchoolFinder>', () => {
     });
 
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toContain('/api/v1/registration/schools/search');
+    expect(calls[0]).toContain('/api/v1/registrations/schools/search');
     expect(calls[0]).toContain('page=1');
     expect(calls[0]).toContain('pageSize=10');
     expect(screen.getByTestId('school-finder-distance-a').textContent).toContain(

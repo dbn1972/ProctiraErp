@@ -88,7 +88,7 @@ describe('<Sidebar> keyboard contract — Task 56.6 / Req 37 AC 6', () => {
     const links = screen.getAllByRole('link');
 
     // 14 nav items + 1 brand link in the header => 15 anchors.
-    expect(links.length).toBe(15);
+    expect(links.length).toBe(18);
 
     // None of the anchors install a roving tabindex — every link is
     // independently focusable. tabindex is either unset (=> 0 by

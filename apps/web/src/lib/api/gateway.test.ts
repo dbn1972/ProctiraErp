@@ -12,6 +12,8 @@ const mockAccessToken = 'eyJ.access.token';
 const mockGet = vi.fn<[string], { value: string } | undefined>();
 const mockHeaderGet = vi.fn<[string], string | null>();
 
+vi.mock('server-only', () => ({}));
+
 vi.mock('next/headers', () => ({
   cookies: () => ({ get: mockGet }),
   headers: () => ({ get: mockHeaderGet }),
