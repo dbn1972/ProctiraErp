@@ -25,9 +25,7 @@ describe('validateDatabaseConfig', () => {
 
   it('rejects invalid port and pool size', () => {
     expect(validateDatabaseConfig({ ...valid, port: 0 })?.port).toMatch(/1 and 65535/i);
-    expect(validateDatabaseConfig({ ...valid, poolSize: 101 })?.poolSize).toMatch(
-      /1 and 100/i,
-    );
+    expect(validateDatabaseConfig({ ...valid, poolSize: 101 })?.poolSize).toMatch(/1 and 100/i);
   });
 
   it('rejects unknown providers and bad database names', () => {
