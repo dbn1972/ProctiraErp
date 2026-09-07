@@ -241,11 +241,20 @@ services:
       context: .
       dockerfile: apps/public-website/Dockerfile
     restart: unless-stopped
+    depends_on:
+      api-gateway:
+        condition: service_started
+      web:
+        condition: service_started
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: 3003
       HOSTNAME: 0.0.0.0
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      # Peer-gap #10 — probe-backed /status (omit any var to keep that row unmonitored)
+      STATUS_PROBE_WEB_URL: ${STATUS_PROBE_WEB_URL:-http://web:3001/api/health}
+      STATUS_PROBE_API_URL: ${STATUS_PROBE_API_URL:-http://api-gateway:3000/health}
+      STATUS_PROBE_AUTH_URL: ${STATUS_PROBE_AUTH_URL:-http://api-gateway:3000/health/live}
     ports:
       - "${PUBLIC_WEBSITE_PORT:-3003}:3003"
     networks:

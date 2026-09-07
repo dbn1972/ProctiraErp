@@ -21,7 +21,7 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 | Installation | `/installation` | public | Low     | Developer / self-host docs                    |
 | Security     | `/security`     | public | Low     | Footer primary                                |
 | Compliance   | `/compliance`   | public | Low     | Footer / legal group                          |
-| Status       | `/status`       | public | Low     | Honest pre-launch or optional STATUS*PROBE*\* |
+| Status       | `/status`       | public | Low     | Probe-backed when `STATUS_PROBE_*` set; else prelaunch |
 | About        | `/about`        | public | Low     | Mission / values (no lucide `Github` icon)    |
 | Contact      | `/contact`      | public | Medium  | Write path via `/api/contact`                 |
 | Legal hub    | `/legal`        | public | Low     | Legal notices                                 |

@@ -53,13 +53,21 @@ test.describe('Public Website — public surfaces', () => {
   });
 
   test('status page is honest when probes are not configured', async ({ page }) => {
+    // Default CI leaves STATUS_PROBE_* unset → prelaunch. When compose wires
+    // probes, run with STATUS_E2E_EXPECT_PROBED=1 to assert data-mode=probed.
+    const expectProbed = process.env.STATUS_E2E_EXPECT_PROBED === '1';
     await page.goto('/status');
     const overall = page.getByTestId('status-overall');
     await expect(overall).toBeVisible();
-    await expect(overall).toHaveAttribute('data-mode', 'prelaunch');
-    await expect(overall).toContainText(/not instrumented|partial instrumentation/i);
-    await expect(page.getByText(/not monitored/i).first()).toBeVisible();
-    await expect(page.getByText(/^operational$/i)).toHaveCount(0);
+    if (expectProbed) {
+      await expect(overall).toHaveAttribute('data-mode', 'probed');
+      await expect(page.getByText(/^operational$/i)).toHaveCount(0);
+    } else {
+      await expect(overall).toHaveAttribute('data-mode', 'prelaunch');
+      await expect(overall).toContainText(/not instrumented|partial instrumentation/i);
+      await expect(page.getByText(/not monitored/i).first()).toBeVisible();
+      await expect(page.getByText(/^operational$/i)).toHaveCount(0);
+    }
   });
 });
 
