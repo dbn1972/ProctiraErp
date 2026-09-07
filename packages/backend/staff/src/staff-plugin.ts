@@ -7,12 +7,16 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { StaffRepository } from './staff-repository.js';
 import type { StaffAssignmentRepository } from './assignment-repository.js';
-import { StaffService } from './staff-service.js';
-import { StaffAssignmentService } from './assignment-service.js';
-import { registerStaffRoutes } from './routes.js';
 import { registerAssignmentRoutes } from './assignment-routes.js';
+import { StaffAssignmentService } from './assignment-service.js';
+import type { StaffLeaveRepository } from './leave-repository.js';
+import { registerStaffLeaveRoutes } from './leave-routes.js';
+import { StaffLeaveService } from './leave-service.js';
+import { createStaffLeaveRepository } from './pg-leave-repository.js';
+import { registerStaffRoutes } from './routes.js';
+import type { StaffRepository } from './staff-repository.js';
+import { StaffService } from './staff-service.js';
 
 /**
  * Options for the staff plugin.
@@ -22,6 +26,8 @@ export interface StaffPluginOptions {
   repository: StaffRepository;
   /** Staff assignment repository implementation (optional — if not provided, assignment routes are not registered) */
   assignmentRepository?: StaffAssignmentRepository;
+  /** Staff leave repository (optional — defaults to PG when DATABASE_URL else in-memory) */
+  leaveRepository?: StaffLeaveRepository;
   /** Route prefix for staff (default: '/staff') */
   prefix?: string;
 }
@@ -31,6 +37,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     staffService: StaffService;
     staffAssignmentService?: StaffAssignmentService;
+    staffLeaveService?: StaffLeaveService;
   }
 }
 
@@ -38,11 +45,9 @@ declare module 'fastify' {
  * Fastify plugin that registers the staff service and routes.
  */
 export const staffPlugin = fp(
-  async function staffPluginImpl(
-    fastify: FastifyInstance,
-    options: StaffPluginOptions,
-  ) {
+  async function staffPluginImpl(fastify: FastifyInstance, options: StaffPluginOptions) {
     const { repository, assignmentRepository, prefix = '/staff' } = options;
+    const leaveRepository = options.leaveRepository ?? createStaffLeaveRepository();
 
     // Create staff service instance
     const staffService = new StaffService(repository);
@@ -66,6 +71,13 @@ export const staffPlugin = fp(
         prefix: `${prefix}/assignments`,
       });
     }
+
+    const leaveService = new StaffLeaveService(leaveRepository);
+    fastify.decorate('staffLeaveService', leaveService);
+    await registerStaffLeaveRoutes(fastify, {
+      leaveService,
+      prefix,
+    });
   },
   {
     name: '@proctira/backend-staff',
