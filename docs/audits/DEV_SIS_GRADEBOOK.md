@@ -17,7 +17,7 @@
 | Capability statement   | A teacher/registrar can **upsert grades** for a section, **compute weighted/unweighted GPA** using board grading-scale bands + credit rules, **queue a report-card job** with SUCCEEDED/FAILED status + artifact URI, and **issue official transcripts** where each issue increments version and prior checksums remain immutable. |
 | In scope (peer parity) | Grade entry upsert; GPA engine + snapshots; credit rules; report-card job metadata; versioned transcript issue; redesign UI for institution gradebook + student records; honesty banners on schema/API miss                                                                                                                        |
 | Explicit non-goals     | Full PDF print shop / signed sealed PDFs; parent portal grade view; LMS grade sync; device-farm captures; live IdP E2E; Prisma models for this path                                                                                                                                                                                |
-| Roles (RBAC)           | Teacher grade entry; Registrar transcript issue — **gateway tenant middleware only in this slice**; role deny matrix residual                                                                                                                                                                                                      |
+| Roles (RBAC)           | Teacher grade entry; Registrar transcript issue — enforced on write routes (`gradebook-access`)                                                                                                                                                                                                                                    |
 | Boards impacted        | CBSE ☑ ICSE ☑ State (MH) ☑ via seeded scales + credit rules                                                                                                                                                                                                                                                                        |
 
 Screen / API inventory:
@@ -51,10 +51,10 @@ Screen / API inventory:
 | ---------------------------------- | ---- | ------------------------------------------------------ |
 | Tenant middleware on all routes    | ☑    | `tenantIdOf` in `routes.ts`                            |
 | Validation + typed errors          | ☑    | TypeBox schemas in `schemas.ts`                        |
-| RBAC enforced                      | ☐    | Residual — tenant-only                                 |
+| RBAC enforced                      | ☑    | `gradebook-access.ts` + route `requireAction`          |
 | Conflict / rule failures → 409/422 | ☑    | `GRADE_LOCKED` 409; schema missing 503; validation 400 |
 | Idempotent writes where needed     | ☑    | Grade by (tenant, student, section, assessment)        |
-| Cross-tenant deny test             | ☐    | Residual for test skill                                |
+| Cross-tenant deny test             | ☑    | `gradebook-service.test.ts` isolation case             |
 
 Package: `@proctira/backend-gradebook` registered in `apps/api-gateway/src/domain-plugins.ts`.
 
