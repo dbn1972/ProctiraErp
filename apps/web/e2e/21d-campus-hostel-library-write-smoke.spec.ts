@@ -148,6 +148,35 @@ test.describe('Hostel / Library — live writes (E2E_BACKEND_READY)', () => {
     });
     expect(cross.status()).toBe(404);
   });
+
+  test('hostel: assign bed then 409 on double-book', async ({ request }) => {
+    const bedId = 'b1000000-0000-4000-8000-000000000032';
+    const first = await request.post(`${GATEWAY_URL}/api/v1/hostel/assignments`, {
+      headers: gatewayAuthHeaders('warden-a'),
+      data: {
+        studentId: STUDENT_ID,
+        bedId,
+        startDate: '2026-09-08',
+      },
+    });
+    const assignment = await first.json();
+    // Bed may already be occupied from a prior run — accept 201 or 409.
+    if (first.status() === 201) {
+      expect(assignment.bedId).toBe(bedId);
+    } else {
+      expect(first.status(), JSON.stringify(assignment)).toBe(409);
+    }
+
+    const conflict = await request.post(`${GATEWAY_URL}/api/v1/hostel/assignments`, {
+      headers: gatewayAuthHeaders('warden-a'),
+      data: {
+        studentId: '00000000-0000-4000-8000-000000000098',
+        bedId,
+        startDate: '2026-09-09',
+      },
+    });
+    expect(conflict.status()).toBe(409);
+  });
 });
 
 test.describe('Transport — live writes (E2E_BACKEND_READY)', () => {

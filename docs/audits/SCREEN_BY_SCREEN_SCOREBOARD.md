@@ -2,16 +2,17 @@
 
 **Campaign:** headless enterprise uplift toward **9.5 / 10** per screen  
 **Branch tip:** `cursor/enterprise-score-uplift-56c3`  
-**Updated (UTC):** 2026-09-06  
+**Updated (UTC):** 2026-09-07  
 **Method:** enterprise skill · parallel module teams · headless Playwright/Vitest · honesty on externals
 
 ## Program rollup
 
-| Metric                                   | Value                                                                                                                                                                     |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Weighted program score                   | **9.4 / 10** (Auth / Public / Registration / People / Academics / Services / Insights / Admin / Portals at 9.5; Mobile **9.3**; Android device-farm + live IdP still cap) |
-| Honest ceiling without IdP / device-farm | ~**9.4**                                                                                                                                                                  |
-| Claim when user asks                     | Always cite this file + tip SHA                                                                                                                                           |
+| Metric                                           | Value                                                                                                                                                                     |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Weighted program score                           | **9.4 / 10** (Auth / Public / Registration / People / Academics / Services / Insights / Admin / Portals at 9.5; Mobile **9.3**; Android device-farm + live IdP still cap) |
+| Honest ceiling without IdP / device-farm         | ~**9.4**                                                                                                                                                                  |
+| Campus services (comms/transport/hostel/library) | **9.5** w/ waivers (tip CI billing-blocked; live Twilio/FCM/SMTP external)                                                                                                |
+| Claim when user asks                             | Always cite this file + tip SHA                                                                                                                                           |
 
 ### Status legend
 
@@ -97,6 +98,11 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | Health · screenings / profile / special needs |   9.3 | Ready w/ waivers | Non-counselling PHI still in-memory        |
 | Health · counselling                          |   9.5 | Ready w/ waivers | PG-backed create + list sync; IdP residual |
 | Workflows · (5)                               |   9.5 | Ready w/ waivers | Domain engine mount residual               |
+| Notifications · inbox / prefs / devices       |   9.5 | Ready w/ waivers | Tip CI billing; live SMTP/FCM/Twilio       |
+| Communication · campaigns / emergency         |   9.5 | Ready w/ waivers | Tip CI billing; live provider adapters     |
+| Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | Tip CI billing; GPS non-goal               |
+| Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Tip CI billing; mess fees non-goal         |
+| Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | Tip CI billing; OPAC non-goal              |
 
 ### Web App — Insights & System (**9.5**)
 
@@ -161,6 +167,7 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | 2026-09-06 | _(this tip)_ | Mobile: goldens 10→16; Linux xvfb IT (login/tenant/students/attendance/notif); real `linux_*.png`; Inter fonts bundled; Android device-farm residual only                       | Mobile **9.3**; program ~**9.4**                                              |
 | 2026-09-06 | _(this tip)_ | Other Portals: install CSRF/token BFF + bootstrap lock ungated smoke; backend 409 lock; API-key reserved-name harden; Playwright 15+7 pass                                      | Portals **9.5**; program ~**9.4**                                             |
 | 2026-09-06 | `a3c456b`    | SIS epic WS0–WS4 on **server** live Postgres: timetable, master schedule+conflicts, gradebook/GPA/transcripts, CBSE/ICSE/MH-STATE export packs (raw SQL, no Prisma)             | Academics product parity uplift; program still **~9.4** (IdP/device-farm cap) |
+| 2026-09-07 | `eb4a536`+   | Campus WS1–WS5: Pg stores, dual-confirm emergency, sandbox email/push/SMS, gated write smokes (`20c`/`21c`/`21d`), cross-tenant denies; tip CI **billing-blocked**              | Services campus screens **9.5** w/ waivers; program still **~9.4**            |
 
 ## How to read when you ask “updated score?”
 
