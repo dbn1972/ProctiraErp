@@ -162,7 +162,13 @@ const steps = [
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-      <SiteHeader />
+      <SiteHeader
+        brand={
+          <span className="text-base font-bold tracking-tight">
+            Proctira<span className="text-primary-600">ERP</span>
+          </span>
+        }
+      />
 
       <main className="flex-1">
         {/* Hero */}

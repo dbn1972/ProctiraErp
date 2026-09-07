@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 
 const PRIMARY_LINKS: ReadonlyArray<{ href: string; label: string }> = [
@@ -46,7 +46,7 @@ const CloseIcon = ({ className }: { className?: string }) => (
  * Marketing header with desktop nav plus a disclosure menu on small viewports.
  * Pixel-width Playwright projects hide `md:flex` links otherwise.
  */
-export function SiteHeader() {
+export function SiteHeader({ brand }: { brand: ReactNode }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -56,9 +56,7 @@ export function SiteHeader() {
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 text-base font-extrabold text-white shadow-inner">
             P
           </span>
-          <span className="text-base font-bold tracking-tight">
-            Proctira<span className="text-primary-600">ERP</span>
-          </span>
+          {brand}
           <span className="ml-0.5 rounded-md border border-gray-200 bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-700">
             Developers
           </span>
