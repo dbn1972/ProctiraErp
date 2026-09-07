@@ -13,11 +13,23 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { listUserNotifications } from '@/lib/api/notifications-inbox';
 
 export const dynamic = 'force-dynamic';
 
+function titleFor(n: { templateId: string; variables: Record<string, string> }): string {
+  return (
+    n.variables['title'] ??
+    n.variables['subject'] ??
+    n.variables['message'] ??
+    n.templateId ??
+    'Notification'
+  );
+}
+
 export default async function NotificationsInboxPage() {
-  await requireSession();
+  const session = await requireSession();
+  const items = await listUserNotifications(session.user.sub);
 
   return (
     <div className="space-y-6 p-6">
@@ -49,15 +61,38 @@ export default async function NotificationsInboxPage() {
             Inbox
           </CardTitle>
           <CardDescription>
-            Authenticated clients load `GET /notifications/user/:userId`. Empty state is intentional
-            until the live gateway returns rows for your session.
+            Loaded from GET /notifications/user/:userId for your signed-in account.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground" role="status">
-            No notifications yet. Preferences and device registration are live via
-            `/notifications/preferences` and `/notifications/devices`.
-          </p>
+          {items.length === 0 ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              No notifications yet. Preferences and device registration are live via
+              `/notifications/preferences` and `/notifications/devices`.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border" role="list">
+              {items.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0"
+                  data-testid="notification-inbox-row"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{titleFor(item)}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {item.channel} · {item.status}
+                      {item.priority ? ` · ${item.priority}` : ''}
+                      {item.readAt ? ' · read' : ' · unread'}
+                    </p>
+                  </div>
+                  <time className="text-xs text-muted-foreground" dateTime={item.createdAt}>
+                    {item.createdAt.slice(0, 16).replace('T', ' ')}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          )}
         </CardContent>
       </Card>
     </div>

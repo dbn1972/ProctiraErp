@@ -31,8 +31,9 @@
 | SMS in DeliveryChannelSchema              | ☑    | schemas + web CHANNELS                  |
 | Gateway mount                             | ☑    | `domain-plugins` notification registrar |
 | Web shells + sidebar                      | ☑    | App Router + `nav.notifications`        |
+| Live inbox from `GET /user/:userId`       | ☑    | `notifications-inbox.ts` + inbox page   |
 
 ## Residual
 
 - Pg-backed notification _delivery_ rows still follow-up (prefs/devices PG when DATABASE_URL).
-- Interactive rules editor + live inbox list wiring.
+- Interactive rules editor UI.

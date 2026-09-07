@@ -18,6 +18,9 @@ const navItems = [
   { key: 'health', href: '/health', icon: 'HeartIcon' },
   { key: 'notifications', href: '/notifications', icon: 'BellIcon' },
   { key: 'transport', href: '/transport', icon: 'BusIcon' },
+  { key: 'communication', href: '/communication', icon: 'MegaphoneIcon' },
+  { key: 'hostel', href: '/hostel', icon: 'BedIcon' },
+  { key: 'library', href: '/library', icon: 'BookOpenIcon' },
   { key: 'workflows', href: '/workflows', icon: 'ArrowPathIcon' },
   { key: 'dataWarehouse', href: '/data-warehouse', icon: 'DatabaseIcon' },
   { key: 'reports', href: '/reports', icon: 'ChartBarIcon' },
@@ -103,6 +106,10 @@ const ICON_PATHS: Record<IconName, string> = {
   BellIcon: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.94 1.94 0 0 0 3.4 0',
   BusIcon:
     'M8 6v6 M16 6v6 M2 12h20v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z M4 18v2 M20 18v2 M6 6h12a2 2 0 0 1 2 2v4H4V8a2 2 0 0 1 2-2z',
+  MegaphoneIcon: 'm3 11 18-5v12L3 14v-3z M11.6 16.8a3 3 0 1 1-5.8-1.6',
+  BedIcon: 'M2 4v16 M2 8h20v8 M6 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2 M6 12h4',
+  BookOpenIcon:
+    'M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z',
   ArrowPathIcon:
     'M6 3v12 M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M18 9a9 9 0 0 1-9 9',
   DatabaseIcon:

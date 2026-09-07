@@ -8,12 +8,12 @@
 
 ## 0. Product contract
 
-| Item                 | Content                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| Capability statement | Transport officers maintain routes/stops/vehicles and assignments.                   |
-| In scope             | SQL schema, gateway mount (in-memory repo), App Router hubs, sidebar, ungated smokes |
-| Explicit non-goals   | GPS live tracking; full create forms wired in this tip                               |
-| Roles                | Transport officer / tenant admin                                                     |
+| Item                 | Content                                                                          |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Capability statement | Transport officers maintain routes/stops/vehicles and assignments.               |
+| In scope             | SQL schema, Pg/in-memory repo, gateway mount, App Router list + create form, nav |
+| Explicit non-goals   | GPS live tracking; full vehicle/assignment write UIs in this tip                 |
+| Roles                | Transport officer / tenant admin                                                 |
 
 | Nav         | Route                       | API                   | Tables                                |
 | ----------- | --------------------------- | --------------------- | ------------------------------------- |
@@ -24,14 +24,15 @@
 
 ## Build status
 
-| Check                                     | Done | Evidence       |
-| ----------------------------------------- | ---- | -------------- |
-| SQL `db/sql/006_transport_schema.sql`     | ☑    |                |
-| Gateway mount InMemoryTransportRepository | ☑    | domain-plugins |
-| Web shells + sidebar                      | ☑    |                |
-| PgTransportStore                          | ☐    | follow-up      |
-| Live create form                          | ☐    | follow-up      |
+| Check                                       | Done | Evidence                                         |
+| ------------------------------------------- | ---- | ------------------------------------------------ |
+| SQL `db/sql/006_transport_schema.sql`       | ☑    |                                                  |
+| Gateway mount `createTransportRepository()` | ☑    | Pg when `DATABASE_URL`; else in-memory           |
+| `PgTransportRepository` + factory           | ☑    | `pg-transport-repository.ts`                     |
+| Web shells + sidebar                        | ☑    |                                                  |
+| Live create form + list from API            | ☑    | `transport.ts`, `NewRouteForm`, routes list page |
+| Vehicle / assignment write UIs              | ☐    | follow-up                                        |
 
 ## Residual
 
-Wire create forms + Pg store; seed demo routes per cert school.
+Seed demo routes per cert school; vehicle/assignment forms; WS6 enterprise test pack.

@@ -15,8 +15,10 @@
  *    other health entities + scholarships + workflows seed in-memory.
  *  - notifications: in-memory delivery records; prefs/devices use raw SQL +
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
- *  - transport: in-memory routes/vehicles/assignments (SQL schema ready in
- *    db/sql/006_transport_schema.sql; Pg store follow-up).
+ *  - transport: raw SQL + `pg` when DATABASE_URL is set
+ *    (db/sql/006_transport_schema.sql); else in-memory.
+ *  - communication / hostel / library: in-memory v1 (SQL in 007–009 for cert
+ *    path apply later); gateway mounts InMemory* repositories.
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
@@ -54,7 +56,13 @@ import {
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
-import { InMemoryTransportRepository, transportPlugin } from '@proctira/backend-transport';
+import {
+  communicationPlugin,
+  InMemoryCommunicationRepository,
+} from '@proctira/backend-communication';
+import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
+import { hostelPlugin, InMemoryHostelRepository } from '@proctira/backend-hostel';
+import { libraryPlugin, InMemoryLibraryRepository } from '@proctira/backend-library';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -268,11 +276,41 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'transport',
     proxyPrefixes: ['/transport'],
     register: async (scope) => {
-      // In-memory until PgTransportStore lands on db/sql/006_transport_schema.sql.
-      const repository = new InMemoryTransportRepository();
+      // Pg when DATABASE_URL (db/sql/006_transport_schema.sql); else in-memory.
+      const repository = createTransportRepository();
       await scope.register(transportPlugin, {
         repository,
         prefix: '/transport',
+      });
+    },
+  },
+  {
+    name: 'communication',
+    proxyPrefixes: ['/communication'],
+    register: async (scope) => {
+      await scope.register(communicationPlugin, {
+        repository: new InMemoryCommunicationRepository(),
+        prefix: '/communication',
+      });
+    },
+  },
+  {
+    name: 'hostel',
+    proxyPrefixes: ['/hostel'],
+    register: async (scope) => {
+      await scope.register(hostelPlugin, {
+        repository: new InMemoryHostelRepository(),
+        prefix: '/hostel',
+      });
+    },
+  },
+  {
+    name: 'library',
+    proxyPrefixes: ['/library'],
+    register: async (scope) => {
+      await scope.register(libraryPlugin, {
+        repository: new InMemoryLibraryRepository(),
+        prefix: '/library',
       });
     },
   },
