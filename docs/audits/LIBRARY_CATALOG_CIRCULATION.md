@@ -7,15 +7,16 @@
 
 ## Evidence (in progress)
 
-| Pillar             | Status | Evidence                                                     |
-| ------------------ | ------ | ------------------------------------------------------------ |
-| Inventory smoke    | ☑      | `e2e/21-campus-comms-hostel-library-inventory-smoke.spec.ts` |
-| UX route lists     | ☑      | dark/touch/a11y/capture                                      |
-| Backend unit       | ☑      | `@proctira/backend-library` 5 tests (incl. clearance)        |
-| Transfer clearance | ☑      | `GET /library/patrons/:studentId/clearance` + catalog UI     |
-| Multidevice PNGs   | ☑      | `/opt/cursor/artifacts/campus-audit/library/`                |
-| Auth write E2E     | ☑      | `e2e/21d-…` renew + checkout/return (gated)                  |
-| Tip CI             | ☐      | billing block                                                |
+| Pillar               | Status | Evidence                                                     |
+| -------------------- | ------ | ------------------------------------------------------------ |
+| Inventory smoke      | ☑      | `e2e/21-campus-comms-hostel-library-inventory-smoke.spec.ts` |
+| UX route lists       | ☑      | dark/touch/a11y/capture                                      |
+| Backend unit         | ☑      | `@proctira/backend-library` 5 tests (incl. clearance)        |
+| Transfer clearance   | ☑      | `GET /library/patrons/:studentId/clearance` + catalog UI     |
+| Clearance clear path | ☑      | checkout → blocked → return → clear:true (gated API e2e)     |
+| Multidevice PNGs     | ☑      | `/opt/cursor/artifacts/campus-audit/library/`                |
+| Auth write E2E       | ☑      | `e2e/21d-…` renew + checkout/return (gated)                  |
+| Tip CI               | ☐      | billing block                                                |
 
 ## Waivers
 

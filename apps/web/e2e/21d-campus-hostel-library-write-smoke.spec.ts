@@ -128,6 +128,39 @@ test.describe('Hostel / Library — live writes (E2E_BACKEND_READY)', () => {
     expect(returned.status).toBe('returned');
   });
 
+  test('library: clearance flips clear after returning all loans', async ({ request }) => {
+    const studentId = '00000000-0000-4000-8000-000000000094';
+    const checkout = await request.post(`${GATEWAY_URL}/api/v1/library/circulation/checkout`, {
+      headers: gatewayAuthHeaders('librarian-a'),
+      data: { itemId: AVAILABLE_ITEM_ID, studentId },
+    });
+    const loan = await checkout.json();
+    expect(checkout.status(), JSON.stringify(loan)).toBe(201);
+
+    const blocked = await request.get(
+      `${GATEWAY_URL}/api/v1/library/patrons/${studentId}/clearance`,
+      { headers: gatewayAuthHeaders('librarian-a') },
+    );
+    const blockedBody = await blocked.json();
+    expect(blocked.status(), JSON.stringify(blockedBody)).toBe(200);
+    expect(blockedBody.clear).toBe(false);
+
+    const ret = await request.post(`${GATEWAY_URL}/api/v1/library/circulation/return`, {
+      headers: gatewayAuthHeaders('librarian-a'),
+      data: { loanId: loan.id },
+    });
+    expect(ret.status()).toBe(200);
+
+    const cleared = await request.get(
+      `${GATEWAY_URL}/api/v1/library/patrons/${studentId}/clearance`,
+      { headers: gatewayAuthHeaders('librarian-a') },
+    );
+    const clearedBody = await cleared.json();
+    expect(cleared.status(), JSON.stringify(clearedBody)).toBe(200);
+    expect(clearedBody.clear).toBe(true);
+    expect(clearedBody.openLoanCount).toBe(0);
+  });
+
   test('cross-tenant deny: tenant B cannot decide tenant A leave', async ({ request }) => {
     const create = await request.post(`${GATEWAY_URL}/api/v1/hostel/leaves`, {
       headers: gatewayAuthHeaders('warden-a', TENANT_A),

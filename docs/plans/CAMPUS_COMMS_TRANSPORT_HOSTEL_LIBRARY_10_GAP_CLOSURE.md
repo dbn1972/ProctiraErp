@@ -387,6 +387,19 @@ Prefer **B→C** and **D** in parallel after WS0; **E** after B; **F/G** paralle
 | Nav inventory churn vs redesign gallery          | Single source: update `redesign/index.html` + Next sidebar in same PR                |
 | Scope creep (GPS, mess fees, OPAC)               | Enforced non-goals above                                                             |
 
+## Honest 10/10 residual blockers (external — not local code)
+
+As of tip `ca9eba8`+, WS1–WS5 product + gated write/security smokes are landed locally. Claiming **program 10/10** still requires:
+
+| Blocker                                 | Owner action            | Notes                                                    |
+| --------------------------------------- | ----------------------- | -------------------------------------------------------- |
+| GitHub Actions billing / spending limit | Org billing admin       | Tip CI jobs never start; every tip stays red until fixed |
+| Live Twilio / FCM / SMTP credentials    | Secrets in env          | Sandbox adapters + honesty banners already wired         |
+| Live IdP E2E                            | Auth service + test IdP | Program-wide waiver today                                |
+| Android device-farm PNGs                | Emulator / farm         | Program-wide waiver today                                |
+
+Do **not** chase tip CI reds as code regressions while billing annotations persist.
+
 ---
 
 ## Related paths
