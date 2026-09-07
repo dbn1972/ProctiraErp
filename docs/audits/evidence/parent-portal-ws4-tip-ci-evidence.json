@@ -1,0 +1,21 @@
+{
+  "closedAt": "2026-09-07T12:47:00Z",
+  "branch": "cursor/parent-student-portal-56c3",
+  "pr": 25,
+  "tipCi": {
+    "sha": "7656860999f960329b023264b646c541275c2fc2",
+    "ciRun": "https://github.com/dbn1972/ProctiraErp/actions/runs/34121340677",
+    "conclusion": "success",
+    "checks": 13
+  },
+  "smokes": {
+    "inventory": "e2e/22-parent-portal-smoke.spec.ts",
+    "backendUnit": "@proctira/backend-parent-portal (10 tests)"
+  },
+  "waivers": [
+    "live UPI/card PSP (sandbox honesty)",
+    "full Flutter API-backed message/fee clients",
+    "live IdP E2E",
+    "Android device-farm PNGs / parent multidevice pack"
+  ]
+}

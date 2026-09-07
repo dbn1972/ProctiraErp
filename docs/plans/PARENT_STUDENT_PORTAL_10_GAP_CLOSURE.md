@@ -1,8 +1,9 @@
 # Parent / student portal — gap closure plan
 
-**Status:** WS0–WS3 landed; WS4 tip CI pending  
+**Status:** WS0–WS4 **Done\*** (PR tip CI green; externals waived)  
 **Updated (UTC):** 2026-09-07  
 **Branch:** `cursor/parent-student-portal-56c3`  
+**PR:** #25  
 **Skills:** enterprise-module-development + enterprise-module-production-ready
 
 ## Capability statement
@@ -44,8 +45,17 @@ WS4  Enterprise test packs + tip CI
 
 | WS  | Status                                            |
 | --- | ------------------------------------------------- |
-| WS0 | **Done**                                          |
-| WS1 | **Done**                                          |
-| WS2 | **Done**                                          |
-| WS3 | **Done**                                          |
-| WS4 | **In progress** (smokes + audits; tip CI pending) |
+| WS0 | **Done**                                                                 |
+| WS1 | **Done**                                                                 |
+| WS2 | **Done**                                                                 |
+| WS3 | **Done**                                                                 |
+| WS4 | **Done\*** — tip CI ☑ on `7656860` / PR #25 (13/13); evidence JSON below |
+
+## Evidence
+
+- Tip CI: `docs/audits/evidence/parent-portal-ws4-tip-ci-evidence.json`
+- CI run: https://github.com/dbn1972/ProctiraErp/actions/runs/34121340677
+
+## Residual (not blocking WS4)
+
+- Live PSP · Flutter API-thick clients · IdP / device-farm · merge to `main` |

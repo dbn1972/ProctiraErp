@@ -4,7 +4,7 @@
 **Branch / tip:** `cursor/parent-student-portal-56c3`  
 **Date (UTC):** 2026-09-07  
 **Paired build audit:** `docs/audits/DEV_PARENT_PORTAL_MESSAGING_CONSENT_FEES.md`  
-**Status:** in progress (WS4)
+**Status:** Ready w/ waivers (WS4 tip CI ☑)
 
 ## Scope
 
@@ -25,7 +25,7 @@
 | Gated writes        | ☑      | link/message/consent/pay + cross-tenant empty list                  |
 | Dedicated shell     | ☑      | `ParentPortalShell` (`data-shell="parent"`) — not staff MobileShell |
 | Flutter parent mode | ☑      | `/parent` routes; staff shells unchanged                            |
-| Tip CI              | ☐      | pending this PR                                                     |
+| Tip CI              | ☑      | PR #25 @ `7656860` — 13/13 SUCCESS ([CI](https://github.com/dbn1972/ProctiraErp/actions/runs/34121340677)); `docs/audits/evidence/parent-portal-ws4-tip-ci-evidence.json` |
 
 ## Waivers
 

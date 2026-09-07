@@ -103,7 +103,7 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | GPS non-goal                               |
 | Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Mess fees non-goal                         |
 | Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | OPAC non-goal                              |
-| Parent portal · messages / consents / fees    |   8.5 | In progress      | Tip CI; live PSP; Flutter API clients thin |
+| Parent portal · messages / consents / fees    |   8.5 | Ready w/ waivers | Live PSP; Flutter API clients thin; multidevice |
 
 ### Web App — Insights & System (**9.5**)
 
@@ -171,6 +171,7 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | 2026-09-07 | `eb4a536`+    | Campus WS1–WS5: Pg stores, dual-confirm emergency, sandbox email/push/SMS, gated write smokes (`20c`/`21c`/`21d`), cross-tenant denies; tip CI **billing-blocked**              | Services campus screens **9.5** w/ waivers; program still **~9.4**            |
 | 2026-09-07 | `083f56c`+    | WS6 close: tip CI green (PR #23); five campus test audits Tip CI ☑; local replay 39/39; billing residual removed                                                                | Campus WS0–WS6 **Done\***; program still **~9.4** (IdP/device-farm/providers) |
 | 2026-09-07 | parent-portal | Parent portal v1: SQL 010, backend package, `/parent` shell, Flutter `/parent` mode, messaging/consent/fee sandbox; staff shells preserved                                      | Parent portal **8.5** in progress; tip CI pending                             |
+| 2026-09-07 | `7656860`     | Parent portal WS4: tip CI 13/13 green on PR #25; Tip CI ☑; plan WS0–WS4 Done\*                                                                                                  | Parent portal **8.5** Ready w/ waivers                                        |
 
 ## How to read when you ask “updated score?”
 
