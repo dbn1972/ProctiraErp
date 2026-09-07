@@ -30,8 +30,8 @@ export default async function FeesOverviewPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fees</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Fee plans, student invoices, sandbox payments, and receipts. Live PSP is waived —
-          parents pay via sandbox in the family portal.
+          Fee plans, student invoices, sandbox payments, and receipts. Live PSP is waived — parents
+          pay via sandbox in the family portal.
         </p>
       </div>
 

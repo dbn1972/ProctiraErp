@@ -1,13 +1,7 @@
 /**
  * Parent fees (Server Component).
  */
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listInvoices, listReceipts } from '@/lib/api/parent-portal';
 import { formatAmount, PayInvoiceButton } from './_components/pay-invoice-button';
