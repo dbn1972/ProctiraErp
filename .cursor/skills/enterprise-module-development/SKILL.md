@@ -19,9 +19,9 @@ Trigger on: implement, build, develop, close gap, feature, SIS, schedule, gradeb
 
 ## Honest product vs test distinction
 
-| Claim | Requires |
-| --- | --- |
-| **Screen audited 9.5** | Production-ready **test** skill evidence |
+| Claim                         | Requires                                                                                                         |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Screen audited 9.5**        | Production-ready **test** skill evidence                                                                         |
 | **World-class product 10/10** | Full **domain capability** (this skill) **plus** test skill, with live IdP / device-farm only as dated externals |
 
 Peers (PowerSchool / Infinite Campus / Ellucian-class) treat schedule, gradebook, transcripts, and board packs as **core SIS**, not optional extras.
@@ -72,14 +72,14 @@ Prefer **raw SQL** under `db/sql/` for certification-grade schema (same rule as 
 
 ### 4. Cross-module integration
 
-| Capability | Must integrate with |
-| --- | --- |
+| Capability                 | Must integrate with                                      |
+| -------------------------- | -------------------------------------------------------- |
 | Master schedule / sections | Institutions, academic periods, staff assignments, rooms |
-| Attendance | Sections / periods from timetable |
-| Gradebook | Assessments, enrollments, credit rules |
-| Transcripts / report cards | Gradebook finals, board templates |
-| Board exports | Transcripts + exam results + school codes |
-| Substitutions | Timetable slots + staff |
+| Attendance                 | Sections / periods from timetable                        |
+| Gradebook                  | Assessments, enrollments, credit rules                   |
+| Transcripts / report cards | Gradebook finals, board templates                        |
+| Board exports              | Transcripts + exam results + school codes                |
+| Substitutions              | Timetable slots + staff                                  |
 
 ### 5. Observability & operability
 
@@ -106,17 +106,17 @@ Before claiming merge-ready / 10/10:
 
 ## Exit criteria — capability 10/10
 
-| Gate | Pass |
-| --- | --- |
+| Gate             | Pass                                                                              |
+| ---------------- | --------------------------------------------------------------------------------- |
 | Product contract | Peer parity items for this slice implemented or explicitly waived with owner/date |
-| Schema | SQL applied on live Postgres; seeds for multi-board |
-| API | Live write/read E2E against seeded tenant |
-| UI | All inventory screens load + critical writes work |
-| Rules engine | Automated tests for clashes / GPA / board validation |
-| Exports | At least one real file artifact per supported board (CBSE, ICSE, one state) |
-| Security | Tenant deny + RBAC deny evidence |
-| Test skill | Production-ready checklist complete |
-| CI | Tip green |
+| Schema           | SQL applied on live Postgres; seeds for multi-board                               |
+| API              | Live write/read E2E against seeded tenant                                         |
+| UI               | All inventory screens load + critical writes work                                 |
+| Rules engine     | Automated tests for clashes / GPA / board validation                              |
+| Exports          | At least one real file artifact per supported board (CBSE, ICSE, one state)       |
+| Security         | Tenant deny + RBAC deny evidence                                                  |
+| Test skill       | Production-ready checklist complete                                               |
+| CI               | Tip green                                                                         |
 
 ## Anti-patterns (fail the build bar)
 
@@ -131,20 +131,22 @@ Before claiming merge-ready / 10/10:
 
 When closing core SIS gaps vs world-class peers, implement in this order (dependencies flow downward):
 
-1. **Timetable / calendar** — bell schedules, period grid, calendar sync hooks, substitution assignments  
-2. **Master schedule / rostering** — sections, room assignment, conflict engine  
-3. **Gradebook & transcripts** — standards/marks entry, credit rules, GPA, report cards, official transcripts  
-4. **Multi-board compliance packs** — CBSE / ICSE / state marksheet + exam export formats  
+1. **Timetable / calendar** — bell schedules, period grid, calendar sync hooks, substitution assignments
+2. **Master schedule / rostering** — sections, room assignment, conflict engine
+3. **Gradebook & transcripts** — standards/marks entry, credit rules, GPA, report cards, official transcripts
+4. **Multi-board compliance packs** — CBSE / ICSE / state marksheet + exam export formats
 
 Plan of record: `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`.
 
 ## Reference paths
 
-| Asset | Path |
-| --- | --- |
-| Dev checklist template | `docs/audits/templates/ENTERPRISE_MODULE_DEV_CHECKLIST.md` |
-| Test skill | `.cursor/skills/enterprise-module-production-ready/SKILL.md` |
-| Test checklist | `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` |
-| Core onboarding SQL | `db/sql/001_core_onboarding_schema.sql` |
-| Scoreboard | `docs/audits/SCREEN_BY_SCREEN_SCOREBOARD.md` |
-| Gap closure plan | `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md` |
+| Asset                                          | Path                                                         |
+| ---------------------------------------------- | ------------------------------------------------------------ |
+| Dev checklist template                         | `docs/audits/templates/ENTERPRISE_MODULE_DEV_CHECKLIST.md`   |
+| Product / IA skill                             | `.cursor/skills/enterprise-product-ia/SKILL.md`              |
+| Test skill                                     | `.cursor/skills/enterprise-module-production-ready/SKILL.md` |
+| UX / a11y / security / mobile / data / release | see `docs/plans/ENTERPRISE_SKILLS_MAP.md`                    |
+| Test checklist                                 | `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`  |
+| Core onboarding SQL                            | `db/sql/001_core_onboarding_schema.sql`                      |
+| Scoreboard                                     | `docs/audits/SCREEN_BY_SCREEN_SCOREBOARD.md`                 |
+| Gap closure plan                               | `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`               |
