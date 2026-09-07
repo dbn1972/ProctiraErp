@@ -21,6 +21,8 @@
 | Live emergency draft  | ☑      | local chromium dual-confirm draft smoke                                |
 | Dual-confirm 2-actor  | ☑      | API e2e: create → confirm A → confirm B → sandbox dispatch             |
 | Empty JSON body POST  | ☑      | gateway parser treats `Content-Type: application/json` + empty as `{}` |
+| Live campaign send    | ☑      | `POST /campaigns/:id/send` sandbox honesty (gated API e2e)             |
+| Cross-tenant deny     | ☑      | tenant B cannot send/confirm tenant A campaign/emergency (404)         |
 | Tip CI                | ☐      | billing block (jobs never start)                                       |
 
 ## Waivers

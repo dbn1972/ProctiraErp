@@ -10,20 +10,22 @@ import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-sess
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
-const TENANT_ID = '00000000-0000-4000-8000-000000000001';
+const TENANT_A = '00000000-0000-4000-8000-000000000001';
+const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
+const TENANT_ID = TENANT_A;
 
-function gatewayAuthHeaders(sub: string): Record<string, string> {
+function gatewayAuthHeaders(sub: string, tenantId: string = TENANT_A): Record<string, string> {
   const token = createSignedJwt({
     sub,
     email: `${sub}@tenant-a.test`,
     displayName: sub,
-    tenantId: TENANT_ID,
+    tenantId,
     roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
   });
   return {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
-    'X-Tenant-ID': TENANT_ID,
+    'X-Tenant-ID': tenantId,
   };
 }
 
@@ -131,5 +133,81 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
     expect(dispatch.status(), JSON.stringify(dispatchBody)).toBe(200);
     expect(dispatchBody.status).toBe('sent');
     expect(dispatchBody.delivery.mode).toBe('sandbox');
+  });
+});
+
+test.describe('Communication — campaign send + isolation (E2E_BACKEND_READY)', () => {
+  test.skip(
+    !BACKEND_READY,
+    'Requires E2E_BACKEND_READY=1 and live gateway (JWT uses JWT_SECRET or gateway default)',
+  );
+
+  test('sandbox-sends a draft campaign via gateway API', async ({ request }) => {
+    const create = await request.post(`${GATEWAY_URL}/api/v1/communication/campaigns`, {
+      headers: gatewayAuthHeaders('comms-a'),
+      data: {
+        name: `API send ${Date.now()}`,
+        body: 'Sandbox send smoke',
+        channels: ['email', 'sms'],
+        audienceJson: { scope: 'all' },
+        createdBy: 'comms-a',
+      },
+    });
+    const campaign = await create.json();
+    expect(create.status(), JSON.stringify(campaign)).toBe(201);
+    expect(campaign.status).toBe('draft');
+
+    const send = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/campaigns/${campaign.id}/send`,
+      { headers: gatewayAuthHeaders('comms-a') },
+    );
+    const body = await send.json();
+    expect(send.status(), JSON.stringify(body)).toBe(200);
+    expect(body.status).toBe('sent');
+    expect(body.delivery.mode).toBe('sandbox');
+    expect(String(body.delivery.honestyNote)).toMatch(/sandbox/i);
+  });
+
+  test('cross-tenant deny: tenant B cannot send tenant A campaign', async ({ request }) => {
+    const create = await request.post(`${GATEWAY_URL}/api/v1/communication/campaigns`, {
+      headers: gatewayAuthHeaders('comms-a', TENANT_A),
+      data: {
+        name: `Isolation ${Date.now()}`,
+        body: 'Cross-tenant deny',
+        channels: ['in_app'],
+        audienceJson: { scope: 'all' },
+        createdBy: 'comms-a',
+      },
+    });
+    expect(create.status()).toBe(201);
+    const campaign = await create.json();
+
+    const cross = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/campaigns/${campaign.id}/send`,
+      { headers: gatewayAuthHeaders('comms-b', TENANT_B) },
+    );
+    expect(cross.status()).toBe(404);
+  });
+
+  test('cross-tenant deny: tenant B cannot confirm tenant A emergency', async ({ request }) => {
+    const create = await request.post(`${GATEWAY_URL}/api/v1/communication/emergency`, {
+      headers: gatewayAuthHeaders('officer-a', TENANT_A),
+      data: {
+        reason: `Isolation emergency ${Date.now()}`,
+        channels: ['sms'],
+        createdBy: 'officer-a',
+      },
+    });
+    expect(create.status()).toBe(201);
+    const blast = await create.json();
+
+    const cross = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/confirm`,
+      {
+        headers: gatewayAuthHeaders('officer-b', TENANT_B),
+        data: { actorId: 'officer-b' },
+      },
+    );
+    expect(cross.status()).toBe(404);
   });
 });
