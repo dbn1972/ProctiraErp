@@ -16,6 +16,17 @@ export type {
 export { InMemoryCommunicationRepository } from './in-memory-repository.js';
 
 export {
+  createCommunicationRepository,
+  isPgCommunicationEnabled,
+} from './create-communication-repository.js';
+export {
+  PgCommunicationRepository,
+  createPgCommunicationRepository,
+  getSharedCommunicationPool,
+  ensureCommunicationSchema,
+} from './pg-communication-repository.js';
+
+export {
   CreateCampaignSchema,
   CreateEmergencyBlastSchema,
   ConfirmEmergencySchema,

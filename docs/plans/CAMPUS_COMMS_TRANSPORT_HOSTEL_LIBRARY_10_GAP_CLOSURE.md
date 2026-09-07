@@ -1,6 +1,6 @@
 # Campus services & communication — world-class 10/10 gap closure plan
 
-**Status:** implementation in progress (WS1–WS5 foundations landed; WS6 enterprise packs pending)  
+**Status:** implementation in progress (WS1–WS5 Pg+UI landed; WS6 enterprise packs + live send/segments pending)  
 **Updated (UTC):** 2026-09-07  
 **Branch context:** `cursor/enterprise-score-uplift-56c3` (or successor `cursor/*-56c3` feature branches)  
 **Skills (mandatory pairing):**

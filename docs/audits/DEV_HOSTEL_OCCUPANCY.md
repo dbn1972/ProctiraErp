@@ -8,12 +8,12 @@
 
 ## 0. Product contract
 
-| Item                 | Content                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------ |
-| Capability statement | Wardens manage hostel inventory, assignments, leaves, and visitors.                  |
-| In scope             | SQL schema, gateway mount (in-memory repo), App Router hubs, sidebar, ungated smokes |
-| Explicit non-goals   | Overlap enforcement in this tip                                                      |
-| Roles                | Hostel warden / tenant admin                                                         |
+| Item                 | Content                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| Capability statement | Wardens manage hostel inventory, assignments, leaves, and visitors.                    |
+| In scope             | SQL schema, Pg/in-memory repo, gateway mount, App Router hubs, sidebar, ungated smokes |
+| Explicit non-goals   | Overlap enforcement in this tip                                                        |
+| Roles                | Hostel warden / tenant admin                                                           |
 
 | Nav         | Route                 | API                                               | Tables                                         |
 | ----------- | --------------------- | ------------------------------------------------- | ---------------------------------------------- |
@@ -25,18 +25,18 @@
 
 ## Build status
 
-| Check                                  | Done | Evidence                           |
-| -------------------------------------- | ---- | ---------------------------------- |
-| SQL `db/sql/008_hostel_schema.sql`     | ☑    |                                    |
-| Gateway mount InMemoryHostelRepository | ☑    | domain-plugins                     |
-| Web shells + sidebar                   | ☑    |                                    |
-| Live hostel create + list              | ☑    | `NewHostelForm` + `/hostel`        |
-| Assignments list from API              | ☑    | `/hostel/assignments`              |
-| Assignment create form                 | ☑    | `NewHostelAssignmentForm`          |
-| Leaves + visitors create/list          | ☑    | `NewLeaveForm` / `NewVisitorForm`  |
-| PgHostelStore                          | ☐    | follow-up                          |
-| Block/room/bed admin UI                | ☑    | `/hostel/structure` + create forms |
+| Check                                    | Done | Evidence                            |
+| ---------------------------------------- | ---- | ----------------------------------- |
+| SQL `db/sql/008_hostel_schema.sql`       | ☑    |                                     |
+| Gateway mount `createHostelRepository()` | ☑    | Pg when `DATABASE_URL`; else memory |
+| Web shells + sidebar                     | ☑    |                                     |
+| Live hostel create + list                | ☑    | `NewHostelForm` + `/hostel`         |
+| Assignments list from API                | ☑    | `/hostel/assignments`               |
+| Assignment create form                   | ☑    | `NewHostelAssignmentForm`           |
+| Leaves + visitors create/list            | ☑    | `NewLeaveForm` / `NewVisitorForm`   |
+| PgHostelStore                            | ☑    | `pg-hostel-repository.ts`           |
+| Block/room/bed admin UI                  | ☑    | `/hostel/structure` + create forms  |
 
 ## Residual
 
-Wire Pg store; seed demo occupancy per cert school.
+Seed demo occupancy per cert school; WS6 enterprise pack. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).

@@ -15,6 +15,14 @@ export type {
 
 export { InMemoryLibraryRepository } from './in-memory-repository.js';
 
+export { createLibraryRepository, isPgLibraryEnabled } from './create-library-repository.js';
+export {
+  PgLibraryRepository,
+  createPgLibraryRepository,
+  getSharedLibraryPool,
+  ensureLibrarySchema,
+} from './pg-library-repository.js';
+
 export { CreateLibraryItemSchema, CheckoutSchema, ReturnSchema } from './schemas.js';
 export type { CreateLibraryItemInput, CheckoutInput, ReturnInput } from './schemas.js';
 

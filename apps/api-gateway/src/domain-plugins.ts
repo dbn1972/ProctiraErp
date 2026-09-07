@@ -17,8 +17,8 @@
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
  *  - transport: raw SQL + `pg` when DATABASE_URL is set
  *    (db/sql/006_transport_schema.sql); else in-memory.
- *  - communication / hostel / library: in-memory v1 (SQL in 007–009 for cert
- *    path apply later); gateway mounts InMemory* repositories.
+ *  - communication / hostel / library: raw SQL + `pg` when DATABASE_URL is set
+ *    (db/sql/007–009_*.sql); else in-memory.
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
@@ -58,11 +58,11 @@ import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gr
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import {
   communicationPlugin,
-  InMemoryCommunicationRepository,
+  createCommunicationRepository,
 } from '@proctira/backend-communication';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
-import { hostelPlugin, InMemoryHostelRepository } from '@proctira/backend-hostel';
-import { libraryPlugin, InMemoryLibraryRepository } from '@proctira/backend-library';
+import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
+import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -288,8 +288,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'communication',
     proxyPrefixes: ['/communication'],
     register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/007_communication_schema.sql); else in-memory.
+      const repository = createCommunicationRepository();
       await scope.register(communicationPlugin, {
-        repository: new InMemoryCommunicationRepository(),
+        repository,
         prefix: '/communication',
       });
     },
@@ -298,8 +300,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'hostel',
     proxyPrefixes: ['/hostel'],
     register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/008_hostel_schema.sql); else in-memory.
+      const repository = createHostelRepository();
       await scope.register(hostelPlugin, {
-        repository: new InMemoryHostelRepository(),
+        repository,
         prefix: '/hostel',
       });
     },
@@ -308,8 +312,10 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'library',
     proxyPrefixes: ['/library'],
     register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/009_library_schema.sql); else in-memory.
+      const repository = createLibraryRepository();
       await scope.register(libraryPlugin, {
-        repository: new InMemoryLibraryRepository(),
+        repository,
         prefix: '/library',
       });
     },

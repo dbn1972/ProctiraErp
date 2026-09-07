@@ -20,6 +20,14 @@ export type {
 
 export { InMemoryHostelRepository } from './in-memory-repository.js';
 
+export { createHostelRepository, isPgHostelEnabled } from './create-hostel-repository.js';
+export {
+  PgHostelRepository,
+  createPgHostelRepository,
+  getSharedHostelPool,
+  ensureHostelSchema,
+} from './pg-hostel-repository.js';
+
 export {
   CreateHostelSchema,
   CreateAssignmentSchema,
