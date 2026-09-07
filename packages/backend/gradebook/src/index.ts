@@ -53,6 +53,18 @@ export {
 } from './gradebook-errors.js';
 
 export { GradebookService } from './gradebook-service.js';
+export type { GradebookAuditEntry } from './gradebook-service.js';
+export {
+  assertGradebookAccess,
+  hasGradebookAccess,
+  normalizeRoles,
+  type GradebookAction,
+} from './gradebook-access.js';
+export {
+  buildTranscriptPdfLiteHtml,
+  writeTranscriptPdfLite,
+  transcriptArtifactRoot,
+} from './transcript-artifact.js';
 export { gradebookPlugin } from './gradebook-plugin.js';
 export type { GradebookPluginOptions } from './gradebook-plugin.js';
 export { registerGradebookRoutes } from './routes.js';

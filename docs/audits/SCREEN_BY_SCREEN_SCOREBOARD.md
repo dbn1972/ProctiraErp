@@ -78,15 +78,16 @@ Evidence: `OVERVIEW_PEOPLE_DASHBOARD_STUDENTS_STAFF.md` · `/opt/cursor/artifact
 
 ### Web App — Academics (**9.5**)
 
-| Screen                                                          | Score | Status           | Gap / residual beyond 9.5                   |
-| --------------------------------------------------------------- | ----: | ---------------- | ------------------------------------------- |
-| Institutions · (8 screens)                                      |   9.5 | Ready w/ waivers | Live write E2E                              |
-| Academic periods                                                |   9.5 | Ready w/ waivers | Formal deep audit residual                  |
-| Attendance · mark / reports                                     |   9.5 | Ready w/ waivers | Live mark needs classes table (`20b` ☑)     |
-| Assessments · (5 screens)                                       |   9.5 | Ready w/ waivers | Live scheme POST (`21b` ☑)                  |
-| Examinations · list / detail / candidates / documents / results |   9.5 | Ready w/ waivers | Seeded exam detail gated                    |
-| Examinations · schedule (create)                                |   9.5 | Ready w/ waivers | Live 201 needs examinations table           |
-| Examinations · board export packs (CBSE/ICSE/MH)                |   9.4 | Ready w/ waivers | Live packs ☑; IdP/RBAC/device-farm residual |
+| Screen                                                          | Score | Status           | Gap / residual beyond 9.5                             |
+| --------------------------------------------------------------- | ----: | ---------------- | ----------------------------------------------------- |
+| Institutions · (8 screens)                                      |   9.5 | Ready w/ waivers | Live write E2E                                        |
+| Academic periods                                                |   9.5 | Ready w/ waivers | Formal deep audit residual                            |
+| Attendance · mark / reports                                     |   9.5 | Ready w/ waivers | Live mark needs classes table (`20b` ☑)               |
+| Assessments · (5 screens)                                       |   9.5 | Ready w/ waivers | Live scheme POST (`21b` ☑)                            |
+| Examinations · list / detail / candidates / documents / results |   9.5 | Ready w/ waivers | Seeded exam detail gated                              |
+| Examinations · schedule (create)                                |   9.5 | Ready w/ waivers | Live 201 needs examinations table                     |
+| Examinations · board export packs (CBSE/ICSE/MH)                |   9.4 | Ready w/ waivers | Live packs ☑; IdP/RBAC/device-farm residual           |
+| Gradebook / transcripts (SIS)                                   |   9.3 | Ready w/ waivers | Live IdP; sealed PDF non-goal; Playwright write gated |
 
 Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PNGs) · `/opt/cursor/artifacts/sis-board-exports/`.
 
