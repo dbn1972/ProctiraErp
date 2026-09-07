@@ -1,11 +1,12 @@
 # SIS Timetable — enterprise test checklist notes (WS1)
 
 **Module:** Academics · Timetable / Bell / Substitutions  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `c42a4a992a46e2b284410444124357fa50f070e5`  
+**Branch / tip:** `cursor/sis-timetable-harden-56c3`  
 **Environment:** cloud agent / local gateway  
 **Tester / agent:** cloud SERVER agent  
-**Date (UTC):** 2026-09-06  
-**Paired DEV audit:** `docs/audits/DEV_SIS_TIMETABLE.md`
+**Date (UTC):** 2026-09-07  
+**Paired DEV audit:** `docs/audits/DEV_SIS_TIMETABLE.md`  
+**Harden:** `PRODUCT_SIS_TIMETABLE_HARDEN.md` · `SEC_SIS_TIMETABLE.md`
 
 Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md` — started for WS1 smoke hand-off. Full 9.5 screen audit remains open until live write + multidevice evidence land.
 
@@ -70,11 +71,11 @@ Horizontal scroll / clipped CTA issues: TBD after capture run.
 | Check | Pass | Evidence |
 | --- | --- | --- |
 | Unauthenticated redirect | ☑ ungated smoke | `22-timetable-inventory-smoke.spec.ts` |
-| RBAC deny / hide | ☐ | Residual |
-| Cross-tenant IDOR blocked (API) | ☐ | Residual |
-| Cross-tenant IDOR blocked (UI) | ☐ | Residual |
+| RBAC deny / hide | ☑ unit | `timetable-access` tests; live IdP residual |
+| Cross-tenant IDOR blocked (API) | ☑ unit | bells/subs isolation service test |
+| Cross-tenant IDOR blocked (UI) | ☐ | Residual (live) |
 | No secrets/PHI leaked in git artifacts | ☑ | Staff IDs only in UI |
-| Tenant isolation suite cited/run | ☐ | Residual |
+| Tenant isolation suite cited/run | ☑ unit | `timetable-service.test.ts` |
 
 ---
 
@@ -90,7 +91,6 @@ Horizontal scroll / clipped CTA issues: TBD after capture run.
 
 ## Residuals
 
-- Authenticated inventory + live write E2E.  
-- Multidevice PNG pack (blocked if web cannot start headless — document in artifact `BLOCKED.md`).  
+- Authenticated inventory + live write E2E (unit covers clash/RBAC/isolation/audit).  
 - Axe/dark/touch route inclusion.  
-- Cross-tenant + RBAC deny evidence.
+- **Waived:** iCal federation · live IdP.

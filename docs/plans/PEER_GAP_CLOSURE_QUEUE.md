@@ -11,6 +11,8 @@
 | Parent portal v1                                            | **PR #25 merged** — Family portal, messages, consents, sandbox fees |
 | Campus comms / notifications / transport / hostel / library | Campus WS0–WS6 on main                                              |
 | SIS timetable / master schedule / gradebook / board packs   | On main (residuals remain — see queue)                              |
+| #1 SIS gradebook harden                                     | **PR #27 merged**                                                   |
+| #2 SIS master-schedule harden                               | **PR #28 merged**                                                   |
 
 ## Closure queue (one-by-one)
 
@@ -29,12 +31,13 @@
 
 ## Active slice
 
-**#2 SIS master-schedule harden** — branch `cursor/sis-master-schedule-harden-56c3` · [PR #28](https://github.com/dbn1972/ProctiraErp/pull/28)
+**#3 SIS timetable harden** — branch `cursor/sis-timetable-harden-56c3`
 
 | Prior               | Status                        |
 | ------------------- | ----------------------------- |
 | Parent portal v1    | **Merged** PR #25             |
-| #1 Gradebook harden | **Merged** PR #27 @ `d349e42` |
+| #1 Gradebook harden | **Merged** PR #27             |
+| #2 Master-schedule  | **Merged** PR #28 @ `d7b57b1` |
 
 ## Honesty
 

@@ -1,9 +1,10 @@
 # DEV — SIS Timetable / bell / substitutions (WS1)
 
 **Capability / module:** Timetable · Bell schedules · Substitutions  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `c42a4a992a46e2b284410444124357fa50f070e5`  
+**Branch / tip:** `cursor/sis-timetable-harden-56c3`  
 **Owner / agent:** cloud SERVER agent  
-**Date (UTC):** 2026-09-06  
+**Date (UTC):** 2026-09-07  
+**Harden audits:** `PRODUCT_SIS_TIMETABLE_HARDEN.md` · `SEC_SIS_TIMETABLE.md`  
 **Peer parity target:** Registrar can define bell schedules + periods, view/edit institution period grid, assign substitute teachers with teacher double-book → 409 (PowerSchool / IC-class timetable slice)  
 **Dev session:** WS1 server slice  
 **Paired test audit:** `docs/audits/SIS_TIMETABLE_TEST_NOTES.md`
@@ -17,7 +18,7 @@
 | Capability statement | A registrar can CRUD **bell schedules** and **periods** for an academic period, maintain an **institution timetable grid** of section meetings, and **list/create substitutions** (absent teacher → substitute). Simple teacher double-book on meetings or substitute overlap returns **HTTP 409**. |
 | In scope (peer parity) | Bell schedule CRUD; period start/end; institution grid read + basic create; substitutions list/create; clash helper + 409; raw SQL tables; redesign UI empty/error honesty |
 | Explicit non-goals | Full master schedule publish workflow (WS2); room booking UI; iCal/external calendar federation live sync; Prisma models; mobile native |
-| Roles (RBAC) | Scheduler / Registrar write; Teacher read; Principal read — **gateway tenant middleware only in this slice**; role matrix residual for live deny tests |
+| Roles (RBAC) | `schedule.write` / `schedule.publish` via `timetable-access.ts` (registrar/scheduler/timetable_officer + admins); teacher denied writes — live IdP E2E residual |
 | Boards impacted | CBSE ☐ ICSE ☐ State ☐ Other: board-agnostic timetable primitives |
 
 Screen / API inventory:
@@ -51,10 +52,10 @@ Screen / API inventory:
 | --- | --- | --- |
 | Tenant middleware on all routes | ☑ | `tenantIdOf` requires JWT/`x-tenant-id`; gateway `/api/v1` scope |
 | Validation + typed errors | ☑ | TypeBox schemas in `schemas.ts` |
-| RBAC enforced | ☐ | Residual — tenant-only in this slice |
+| RBAC enforced | ☑ | Route `requireAction` + unit access tests (master-schedule + timetable harden) |
 | Conflict / rule failures → 409/422 | ☑ | `TimetableClashError` → 409; schema missing → 503 |
 | Idempotent writes where needed | ☐ | N/A for create-new UUID paths |
-| Cross-tenant deny test | ☐ | Residual for test skill |
+| Cross-tenant deny test | ☑ | Unit: bells/periods/meetings/subs isolated; live IdP residual |
 
 Package: `@proctira/backend-timetable` registered in `apps/api-gateway/src/domain-plugins.ts`.
 
@@ -78,8 +79,8 @@ Institution tabs include **Timetable**. Academic periods page links to bell sche
 | --- | --- | --- |
 | Institutions / periods | ☑ | Filters by institutionId / academicPeriodId |
 | Staff / students / enrollments | Partial | Staff IDs as opaque refs; section IDs opaque until WS2 |
-| Attendance / assessments / exams | ☐ | Residual — attendance wire after publish (WS2) |
-| Exports / jobs | ☐ | iCal stub non-goal this slice |
+| Attendance / assessments / exams | ☑ | `GET /timetable/attendance-periods` + redesign `/attendance` consumes published meetings |
+| Exports / jobs | ☐ | iCal / calendar federation **waived** (external) |
 
 ---
 
@@ -88,7 +89,7 @@ Institution tabs include **Timetable**. Academic periods page links to bell sche
 | Check | Done | Evidence |
 | --- | --- | --- |
 | Structured logs on writes | ☐ | Residual — rely on gateway request logs |
-| Audit trail for sensitive mutations | ☐ | Residual |
+| Audit trail for sensitive mutations | ☑ | `bell_schedule.*` · `period.*` · `meeting.*` · `substitution.create` · `section.publish` / `unpublish` |
 | Async job status (if exports) | N/A | |
 
 ---
@@ -97,8 +98,8 @@ Institution tabs include **Timetable**. Academic periods page links to bell sche
 
 | Check | Done | Evidence |
 | --- | --- | --- |
-| Tenant isolation | Partial | All queries filter `tenant_id`; live IDOR tests residual |
-| RBAC matrix documented | Partial | See §0; deny tests residual |
+| Tenant isolation | ☑ | Queries filter `tenant_id`; unit isolation; live IdP residual |
+| RBAC matrix documented | ☑ | `timetable-access.ts` + SEC audit |
 | Export download auth | N/A | |
 | Issued records immutable / versioned | N/A | |
 
@@ -117,9 +118,9 @@ Institution tabs include **Timetable**. Academic periods page links to bell sche
 
 ## Residuals (honest)
 
-1. Role-based deny matrix + cross-tenant IDOR E2E.  
+1. Live IdP role-deny + cross-tenant IDOR E2E (unit covered).  
 2. Multi-board seed fixtures for bell patterns.  
 3. Live authenticated write E2E (create schedule → substitution → 409).  
 4. Axe / dark / touch coverage for new routes.  
-5. Calendar federation (iCal) honesty stub.  
+5. **Waived:** calendar federation (iCal).  
 6. WS2 sections entity replaces opaque `section_id` strings.
