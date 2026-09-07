@@ -1,0 +1,35 @@
+{
+  "closedAt": "2026-09-07T11:12:00Z",
+  "branch": "cursor/campus-ws6-close-56c3",
+  "mainTipCi": {
+    "sha": "083f56c",
+    "pr": 23,
+    "ciRun": "https://github.com/dbn1972/ProctiraErp/actions/runs/34099917112",
+    "conclusion": "success",
+    "checks": 24
+  },
+  "localReplay": {
+    "inventory": {
+      "specs": [
+        "e2e/20-notifications-transport-inventory-smoke.spec.ts",
+        "e2e/21-campus-comms-hostel-library-inventory-smoke.spec.ts"
+      ],
+      "result": "19 passed"
+    },
+    "gatedWrites": {
+      "specs": [
+        "e2e/20c-notifications-prefs-write-smoke.spec.ts",
+        "e2e/21c-campus-comms-write-smoke.spec.ts",
+        "e2e/21d-campus-hostel-library-write-smoke.spec.ts"
+      ],
+      "env": "E2E_BACKEND_READY=1 E2E_GATEWAY_URL=http://127.0.0.1:3000",
+      "result": "20 passed"
+    }
+  },
+  "multidevicePngs": 54,
+  "waivers": [
+    "live Twilio/FCM/SMTP (sandbox honesty)",
+    "live IdP E2E",
+    "Android device-farm PNGs"
+  ]
+}

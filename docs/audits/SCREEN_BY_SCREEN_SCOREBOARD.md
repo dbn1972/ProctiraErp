@@ -98,11 +98,11 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | Health · screenings / profile / special needs |   9.3 | Ready w/ waivers | Non-counselling PHI still in-memory        |
 | Health · counselling                          |   9.5 | Ready w/ waivers | PG-backed create + list sync; IdP residual |
 | Workflows · (5)                               |   9.5 | Ready w/ waivers | Domain engine mount residual               |
-| Notifications · inbox / prefs / devices       |   9.5 | Ready w/ waivers | Tip CI billing; live SMTP/FCM/Twilio       |
-| Communication · campaigns / emergency         |   9.5 | Ready w/ waivers | Tip CI billing; live provider adapters     |
-| Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | Tip CI billing; GPS non-goal               |
-| Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Tip CI billing; mess fees non-goal         |
-| Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | Tip CI billing; OPAC non-goal              |
+| Notifications · inbox / prefs / devices       |   9.5 | Ready w/ waivers | Live SMTP/FCM/Twilio (sandbox)             |
+| Communication · campaigns / emergency         |   9.5 | Ready w/ waivers | Live provider adapters (sandbox)           |
+| Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | GPS non-goal                               |
+| Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Mess fees non-goal                         |
+| Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | OPAC non-goal                              |
 
 ### Web App — Insights & System (**9.5**)
 
@@ -168,6 +168,7 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | 2026-09-06 | _(this tip)_ | Other Portals: install CSRF/token BFF + bootstrap lock ungated smoke; backend 409 lock; API-key reserved-name harden; Playwright 15+7 pass                                      | Portals **9.5**; program ~**9.4**                                             |
 | 2026-09-06 | `a3c456b`    | SIS epic WS0–WS4 on **server** live Postgres: timetable, master schedule+conflicts, gradebook/GPA/transcripts, CBSE/ICSE/MH-STATE export packs (raw SQL, no Prisma)             | Academics product parity uplift; program still **~9.4** (IdP/device-farm cap) |
 | 2026-09-07 | `eb4a536`+   | Campus WS1–WS5: Pg stores, dual-confirm emergency, sandbox email/push/SMS, gated write smokes (`20c`/`21c`/`21d`), cross-tenant denies; tip CI **billing-blocked**              | Services campus screens **9.5** w/ waivers; program still **~9.4**            |
+| 2026-09-07 | `083f56c`+   | WS6 close: tip CI green (PR #23); five campus test audits Tip CI ☑; local replay 39/39; billing residual removed                                                                | Campus WS0–WS6 **Done\***; program still **~9.4** (IdP/device-farm/providers) |
 
 ## How to read when you ask “updated score?”
 

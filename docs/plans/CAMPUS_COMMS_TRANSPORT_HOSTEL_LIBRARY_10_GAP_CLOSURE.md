@@ -1,8 +1,8 @@
 # Campus services & communication — world-class 10/10 gap closure plan
 
-**Status:** implementation in progress (WS1–WS5 Pg+UI landed; WS6 enterprise packs + live send/segments pending)  
+**Status:** **WS0–WS6 complete** (product + enterprise packs; live Twilio/FCM/SMTP + IdP + device-farm remain program-wide waivers)  
 **Updated (UTC):** 2026-09-07  
-**Branch context:** `cursor/enterprise-score-uplift-56c3` (or successor `cursor/*-56c3` feature branches)  
+**Branch context:** `cursor/campus-ws6-close-56c3` (successor to `cursor/enterprise-score-uplift-56c3`)  
 **Skills (mandatory pairing):**
 
 - **Build** → `.cursor/skills/enterprise-module-development/SKILL.md`
@@ -48,7 +48,7 @@ External caps that still apply program-wide unless closed: **live IdP E2E**, **A
 | **Hostel**                    | Package + Pg repo; bed lock on assign                            | `createHostelRepository()`        | Hostels, structure, assignments, leaves, visitors                     | Shells        | In gallery        | None                        | Overlap polish; tip CI                                |
 | **Library**                   | Package + Pg repo; clearance hook                                | `createLibraryRepository()`       | Catalog, circulation, overdues, transfer clearance                    | Shells        | In gallery        | None                        | Fines/OPAC optional; tip CI                           |
 
-External caps that still apply program-wide unless closed: **live IdP E2E**, **Android device-farm PNGs**, provider sandbox credentials (Twilio/FCM/SMTP) beyond honesty banners, **GitHub Actions billing** (tip CI jobs currently never start).
+External caps that still apply program-wide unless closed: **live IdP E2E**, **Android device-farm PNGs**, provider sandbox credentials (Twilio/FCM/SMTP) beyond honesty banners. Tip CI billing is **unblocked** (`main` green after PR #23).
 
 ---
 
@@ -363,17 +363,17 @@ Prefer **B→C** and **D** in parallel after WS0; **E** after B; **F/G** paralle
 
 ## Status tracker
 
-| WS                        | Status          | Tip / audit                                                           |
-| ------------------------- | --------------- | --------------------------------------------------------------------- |
-| WS0 Inventory & contracts | **Done**        | Nav + DEV audits                                                      |
-| WS1 Notifications         | **Done\***      | SQL + prefs/devices + sandbox email/push/SMS + live prefs write smoke |
-| WS2 Communication         | **Done\***      | Pg + audience + dual-confirm dispatch + write smoke                   |
-| WS3 Transport             | **Done\***      | SQL + gateway + write smoke + cross-tenant deny                       |
-| WS4 Hostel                | **Done\***      | Pg + leave/visitor writes + bed lock + write smoke                    |
-| WS5 Library               | **Done\***      | Pg + renew/clearance + write smoke                                    |
-| WS6 Enterprise test packs | **In progress** | inventory + gated writes; tip CI billing-blocked; live providers open |
+| WS                        | Status     | Tip / audit                                                                            |
+| ------------------------- | ---------- | -------------------------------------------------------------------------------------- |
+| WS0 Inventory & contracts | **Done**   | Nav + DEV audits                                                                       |
+| WS1 Notifications         | **Done\*** | SQL + prefs/devices + sandbox email/push/SMS + live prefs write smoke                  |
+| WS2 Communication         | **Done\*** | Pg + audience + dual-confirm dispatch + write smoke                                    |
+| WS3 Transport             | **Done\*** | SQL + gateway + write smoke + cross-tenant deny                                        |
+| WS4 Hostel                | **Done\*** | Pg + leave/visitor writes + bed lock + write smoke                                     |
+| WS5 Library               | **Done\*** | Pg + renew/clearance + write smoke                                                     |
+| WS6 Enterprise test packs | **Done\*** | 5 module audits closed; tip CI green (`083f56c`); local replay 39/39; providers waived |
 
-\*Product slice ready with waivers: tip CI (billing), live IdP, device-farm, live Twilio/FCM/SMTP.
+\*Ready with waivers: live IdP, device-farm, live Twilio/FCM/SMTP (sandbox honesty).
 
 ---
 
@@ -389,16 +389,15 @@ Prefer **B→C** and **D** in parallel after WS0; **E** after B; **F/G** paralle
 
 ## Honest 10/10 residual blockers (external — not local code)
 
-As of tip `ca9eba8`+, WS1–WS5 product + gated write/security smokes are landed locally. Claiming **program 10/10** still requires:
+As of WS6 close (`cursor/campus-ws6-close-56c3`), WS0–WS6 product + enterprise packs are closed with sandbox waivers. Claiming **true program 10/10** (no waivers) still requires:
 
-| Blocker                                 | Owner action            | Notes                                                    |
-| --------------------------------------- | ----------------------- | -------------------------------------------------------- |
-| GitHub Actions billing / spending limit | Org billing admin       | Tip CI jobs never start; every tip stays red until fixed |
-| Live Twilio / FCM / SMTP credentials    | Secrets in env          | Sandbox adapters + honesty banners already wired         |
-| Live IdP E2E                            | Auth service + test IdP | Program-wide waiver today                                |
-| Android device-farm PNGs                | Emulator / farm         | Program-wide waiver today                                |
+| Blocker                              | Owner action            | Notes                                            |
+| ------------------------------------ | ----------------------- | ------------------------------------------------ |
+| Live Twilio / FCM / SMTP credentials | Secrets in env          | Sandbox adapters + honesty banners already wired |
+| Live IdP E2E                         | Auth service + test IdP | Program-wide waiver today                        |
+| Android device-farm PNGs             | Emulator / farm         | Program-wide waiver today                        |
 
-Do **not** chase tip CI reds as code regressions while billing annotations persist.
+Tip CI billing was fixed on `main` via PR #23 (`083f56c`, 24/24 checks).
 
 ---
 
@@ -417,3 +416,4 @@ Do **not** chase tip CI reds as code regressions while billing annotations persi
 | `834090d` / later | WS1–WS5 foundations: gateway mounts, SQL 005–009, live create/list UIs for notifications inbox, transport routes/vehicles, communication campaigns/emergency, hostel, library catalog/circulation. Local ungated Playwright inventory smokes **18/18** (`e2e/20-*`, `e2e/21-*`). Tip GitHub Actions jobs fail to start (account spending limit). WS6 full enterprise packs still open. |
 | `dead05a`+        | Multidevice capture pack (54 PNGs) under `/opt/cursor/artifacts/campus-audit/`. Tip CI still **billing-blocked** (Detect Affected Modules / Charter never start). Hostel leaves/visitors create APIs + UI added.                                                                                                                                                                       |
 | `cac0614`+        | Opaque JWT `sub` on notification prefs; gated write smokes for hostel/library/transport/comms/prefs; emergency empty-JSON dispatch fix; sandbox email/push adapters + delivery-capabilities honesty. Tip CI still billing-blocked.                                                                                                                                                     |
+| `083f56c` + WS6   | Tip CI unblocked (PR #23, 24/24). WS6 closed: five module test audits Tip CI ☑; local replay inventory **19/19** + gated writes **20/20**; evidence `/opt/cursor/artifacts/campus-audit/ws6-close-evidence.json`. Residuals: live Twilio/FCM/SMTP, IdP, device-farm only.                                                                                                              |
