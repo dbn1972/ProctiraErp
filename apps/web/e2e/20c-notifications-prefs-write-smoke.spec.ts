@@ -41,7 +41,11 @@ test.describe('Notifications — live prefs (E2E_BACKEND_READY)', () => {
     const capsBody = await caps.json();
     expect(caps.status(), JSON.stringify(capsBody)).toBe(200);
     expect(capsBody.sms.mode).toBe('sandbox');
+    expect(capsBody.email.mode).toBe('sandbox');
+    expect(capsBody.push.mode).toBe('sandbox');
     expect(String(capsBody.sms.honestyNote)).toMatch(/sandbox/i);
+    expect(String(capsBody.email.honestyNote)).toMatch(/sandbox/i);
+    expect(String(capsBody.push.honestyNote)).toMatch(/sandbox/i);
 
     const patch = await request.patch(`${GATEWAY_URL}/api/v1/notifications/preferences`, {
       headers: gatewayAuthHeaders(USER_SUB, TENANT_A),

@@ -6,7 +6,7 @@
  *     notification category (academic, attendance, examination, workflow, system)
  *   • Digest frequency configuration (immediate, daily, weekly)
  *   • Quiet hours configuration (time range + day selection)
- *   • SMS sandbox honesty banner until a live carrier adapter is wired
+ *   • Channel delivery sandbox honesty banner until live SMTP/FCM/Twilio adapters are wired
  *
  * Wires to the Notification Service from task 18 via:
  *   GET  /api/v1/notifications/preferences

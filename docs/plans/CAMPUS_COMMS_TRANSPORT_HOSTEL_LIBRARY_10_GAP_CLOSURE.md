@@ -363,15 +363,17 @@ Prefer **B→C** and **D** in parallel after WS0; **E** after B; **F/G** paralle
 
 ## Status tracker
 
-| WS                        | Status          | Tip / audit                            |
-| ------------------------- | --------------- | -------------------------------------- |
-| WS0 Inventory & contracts | **In progress** | Nav + DEV audits on tip                |
-| WS1 Notifications         | **In progress** | SQL + prefs/devices + gateway + shells |
-| WS2 Communication         | **Planned**     | —                                      |
-| WS3 Transport             | **In progress** | SQL + gateway + shells                 |
-| WS4 Hostel                | **Planned**     | —                                      |
-| WS5 Library               | **Planned**     | —                                      |
-| WS6 Enterprise test packs | **Planned**     | ungated smoke `20-…-inventory-smoke`   |
+| WS                        | Status          | Tip / audit                                                           |
+| ------------------------- | --------------- | --------------------------------------------------------------------- |
+| WS0 Inventory & contracts | **Done**        | Nav + DEV audits                                                      |
+| WS1 Notifications         | **Done\***      | SQL + prefs/devices + sandbox email/push/SMS + live prefs write smoke |
+| WS2 Communication         | **Done\***      | Pg + audience + dual-confirm dispatch + write smoke                   |
+| WS3 Transport             | **Done\***      | SQL + gateway + write smoke + cross-tenant deny                       |
+| WS4 Hostel                | **Done\***      | Pg + leave/visitor writes + bed lock + write smoke                    |
+| WS5 Library               | **Done\***      | Pg + renew/clearance + write smoke                                    |
+| WS6 Enterprise test packs | **In progress** | inventory + gated writes; tip CI billing-blocked; live providers open |
+
+\*Product slice ready with waivers: tip CI (billing), live IdP, device-farm, live Twilio/FCM/SMTP.
 
 ---
 
@@ -401,3 +403,4 @@ Prefer **B→C** and **D** in parallel after WS0; **E** after B; **F/G** paralle
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `834090d` / later | WS1–WS5 foundations: gateway mounts, SQL 005–009, live create/list UIs for notifications inbox, transport routes/vehicles, communication campaigns/emergency, hostel, library catalog/circulation. Local ungated Playwright inventory smokes **18/18** (`e2e/20-*`, `e2e/21-*`). Tip GitHub Actions jobs fail to start (account spending limit). WS6 full enterprise packs still open. |
 | `dead05a`+        | Multidevice capture pack (54 PNGs) under `/opt/cursor/artifacts/campus-audit/`. Tip CI still **billing-blocked** (Detect Affected Modules / Charter never start). Hostel leaves/visitors create APIs + UI added.                                                                                                                                                                       |
+| `cac0614`+        | Opaque JWT `sub` on notification prefs; gated write smokes for hostel/library/transport/comms/prefs; emergency empty-JSON dispatch fix; sandbox email/push adapters + delivery-capabilities honesty. Tip CI still billing-blocked.                                                                                                                                                     |

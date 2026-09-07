@@ -24,20 +24,21 @@
 
 ## 1–3 Build status
 
-| Check                                      | Done | Evidence                                          |
-| ------------------------------------------ | ---- | ------------------------------------------------- |
-| SQL `db/sql/005_notifications_schema.sql`  | ☑    | prefs + devices + TEXT user ids for JWT `sub`     |
-| Prefs/devices store + unit tests           | ☑    | `prefs-store.ts`, `prefs-store.test.ts`           |
-| SMS in DeliveryChannelSchema               | ☑    | schemas + web CHANNELS                            |
-| Gateway mount                              | ☑    | `domain-plugins` notification registrar           |
-| Web shells + sidebar                       | ☑    | App Router + `nav.notifications`                  |
-| Live inbox from `GET /user/:userId`        | ☑    | `notifications-inbox.ts` + inbox page             |
-| SMS sandbox sender + honesty banner        | ☑    | `sandbox-sms-sender.ts` + prefs Alert             |
-| `GET /notifications/delivery-capabilities` | ☑    | SMS mode + honesty note                           |
-| Live prefs write smoke                     | ☑    | `e2e/20c-notifications-prefs-write-smoke.spec.ts` |
+| Check                                      | Done | Evidence                                            |
+| ------------------------------------------ | ---- | --------------------------------------------------- |
+| SQL `db/sql/005_notifications_schema.sql`  | ☑    | prefs + devices + TEXT user ids for JWT `sub`       |
+| Prefs/devices store + unit tests           | ☑    | `prefs-store.ts`, `prefs-store.test.ts`             |
+| SMS in DeliveryChannelSchema               | ☑    | schemas + web CHANNELS                              |
+| Gateway mount                              | ☑    | `domain-plugins` notification registrar             |
+| Web shells + sidebar                       | ☑    | App Router + `nav.notifications`                    |
+| Live inbox from `GET /user/:userId`        | ☑    | `notifications-inbox.ts` + inbox page               |
+| SMS sandbox sender + honesty banner        | ☑    | `sandbox-sms-sender.ts` + prefs Alert               |
+| Email/push sandbox senders                 | ☑    | `sandbox-email-sender.ts`, `sandbox-push-sender.ts` |
+| `GET /notifications/delivery-capabilities` | ☑    | email + push + SMS mode + honesty notes             |
+| Live prefs write smoke                     | ☑    | `e2e/20c-notifications-prefs-write-smoke.spec.ts`   |
 
 ## Residual
 
 - Pg-backed notification _delivery_ rows still follow-up (prefs/devices PG when DATABASE_URL).
 - Interactive rules editor UI.
-- Live Twilio (or equivalent) adapter.
+- Live Twilio / FCM / SMTP adapters (sandbox honesty until secrets).

@@ -23,20 +23,20 @@
 
 ## Build status
 
-| Check                                           | Done | Evidence                                      |
-| ----------------------------------------------- | ---- | --------------------------------------------- |
-| SQL `db/sql/007_communication_schema.sql`       | ☑    | TEXT actors for opaque JWT `sub`              |
-| Gateway mount `createCommunicationRepository()` | ☑    | Pg when `DATABASE_URL`; else in-memory        |
-| Web shells + sidebar                            | ☑    |                                               |
-| Live campaign create + list                     | ☑    | `NewCampaignForm` + campaigns API             |
-| Dual-confirm emergency UI                       | ☑    | `EmergencyBlastPanel`                         |
-| Audience preview API + UI                       | ☑    | `POST /communication/audience/preview` + form |
-| PgCommunicationStore                            | ☑    | `pg-communication-repository.ts`              |
-| Demo SQL seed                                   | ☑    | `db/sql/007b_communication_seed.sql`          |
-| Sandbox campaign send                           | ☑    | `POST /campaigns/:id/send` + list UI button   |
-| Sandbox emergency dispatch                      | ☑    | `POST /emergency/:id/dispatch` after confirm  |
-| Live hostel/route audience counts               | ☑    | `live-audience.ts` when `DATABASE_URL`        |
-| Provider adapters (Twilio/FCM/SMTP)             | ☐    | honesty notes on sandbox send/dispatch        |
+| Check                                           | Done | Evidence                                                  |
+| ----------------------------------------------- | ---- | --------------------------------------------------------- |
+| SQL `db/sql/007_communication_schema.sql`       | ☑    | TEXT actors for opaque JWT `sub`                          |
+| Gateway mount `createCommunicationRepository()` | ☑    | Pg when `DATABASE_URL`; else in-memory                    |
+| Web shells + sidebar                            | ☑    |                                                           |
+| Live campaign create + list                     | ☑    | `NewCampaignForm` + campaigns API                         |
+| Dual-confirm emergency UI                       | ☑    | `EmergencyBlastPanel`                                     |
+| Audience preview API + UI                       | ☑    | `POST /communication/audience/preview` + form             |
+| PgCommunicationStore                            | ☑    | `pg-communication-repository.ts`                          |
+| Demo SQL seed                                   | ☑    | `db/sql/007b_communication_seed.sql`                      |
+| Sandbox campaign send                           | ☑    | `POST /campaigns/:id/send` + list UI button               |
+| Sandbox emergency dispatch                      | ☑    | `POST /emergency/:id/dispatch` after confirm              |
+| Live hostel/route audience counts               | ☑    | `live-audience.ts` when `DATABASE_URL`                    |
+| Provider adapters (Twilio/FCM/SMTP)             | ☐    | notification sandboxes wired; live secrets still external |
 
 ## Residual
 

@@ -27,6 +27,8 @@ import {
 } from './notification-service.js';
 import type { NotificationPrefsStore } from './prefs-store.js';
 import { registerNotificationRoutes } from './routes.js';
+import { createSandboxEmailSender } from './sandbox-email-sender.js';
+import { createSandboxPushSender } from './sandbox-push-sender.js';
 import { createSandboxSmsSender } from './sandbox-sms-sender.js';
 
 /**
@@ -71,8 +73,8 @@ export const notificationPlugin = fp(
     const {
       repository,
       prefsStore,
-      emailSender,
-      pushSender,
+      emailSender = createSandboxEmailSender(),
+      pushSender = createSandboxPushSender(),
       webhookSender,
       smsSender = createSandboxSmsSender(),
       queuePublisher,

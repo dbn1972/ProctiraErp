@@ -41,12 +41,13 @@ import type {
  * Interface for sending email notifications.
  */
 export interface EmailSender {
-  send(params: {
-    to: string;
-    subject: string;
-    body: string;
-    tenantId: string;
-  }): Promise<{ success: boolean; messageId?: string; error?: string }>;
+  send(params: { to: string; subject: string; body: string; tenantId: string }): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    mode?: 'sandbox' | 'live';
+    honestyNote?: string;
+  }>;
 }
 
 /**
@@ -59,7 +60,13 @@ export interface PushSender {
     body: string;
     data?: Record<string, string>;
     tenantId: string;
-  }): Promise<{ success: boolean; messageId?: string; error?: string }>;
+  }): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    mode?: 'sandbox' | 'live';
+    honestyNote?: string;
+  }>;
 }
 
 /**
@@ -698,11 +705,22 @@ export class NotificationService {
 
   /**
    * Honesty metadata for channel delivery modes (prefs UI / ops banners).
+   * Defaults report sandbox until live SMTP/FCM/Twilio adapters replace the stubs.
    */
   getDeliveryCapabilities() {
     return {
+      email: {
+        mode: 'sandbox' as const,
+        honestyNote:
+          'Sandbox email — preference toggles and sends are accepted without calling SMTP. Wire SMTP/SendGrid (or equivalent) credentials for production delivery.',
+      },
+      push: {
+        mode: 'sandbox' as const,
+        honestyNote:
+          'Sandbox push — device registration and sends are accepted without calling FCM/APNs. Wire FCM credentials for production delivery.',
+      },
       sms: {
-        mode: this.smsSender ? ('sandbox' as const) : ('sandbox' as const),
+        mode: 'sandbox' as const,
         honestyNote:
           'Sandbox SMS — preference toggles and sends are accepted without calling a carrier. Wire Twilio (or equivalent) credentials for production delivery.',
       },
