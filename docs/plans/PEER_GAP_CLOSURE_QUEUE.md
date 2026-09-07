@@ -29,11 +29,12 @@
 
 ## Active slice
 
-**#1 SIS gradebook harden** — branch `cursor/sis-gradebook-harden-56c3` — **in PR** (RBAC + cross-tenant + audit + transcript PDF-lite)
+**#2 SIS master-schedule harden** — branch `cursor/sis-master-schedule-harden-56c3` · [PR #28](https://github.com/dbn1972/ProctiraErp/pull/28)
 
-| Prior            | Status                        |
-| ---------------- | ----------------------------- |
-| Parent portal v1 | **Merged** PR #25 @ `3794674` |
+| Prior               | Status                        |
+| ------------------- | ----------------------------- |
+| Parent portal v1    | **Merged** PR #25             |
+| #1 Gradebook harden | **Merged** PR #27 @ `d349e42` |
 
 ## Honesty
 

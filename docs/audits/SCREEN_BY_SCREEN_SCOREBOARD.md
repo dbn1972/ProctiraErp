@@ -88,6 +88,7 @@ Evidence: `OVERVIEW_PEOPLE_DASHBOARD_STUDENTS_STAFF.md` · `/opt/cursor/artifact
 | Examinations · schedule (create)                                |   9.5 | Ready w/ waivers | Live 201 needs examinations table                     |
 | Examinations · board export packs (CBSE/ICSE/MH)                |   9.4 | Ready w/ waivers | Live packs ☑; IdP/RBAC/device-farm residual           |
 | Gradebook / transcripts (SIS)                                   |   9.3 | Ready w/ waivers | Live IdP; sealed PDF non-goal; Playwright write gated |
+| Master schedule / sections (SIS)                                |   9.3 | Ready w/ waivers | Live IdP; Playwright gated write residual             |
 
 Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifacts/academics-audit/` (26 md PNGs) · `/opt/cursor/artifacts/sis-board-exports/`.
 
