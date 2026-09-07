@@ -132,6 +132,12 @@
     "**/*.spec.ts",
     "**/*.spec.tsx",
     "**/__tests__/**",
-    "**/*.property.test.ts"
+    "**/*.property.test.ts",
+    "**/*.tsbuildinfo",
+    "**/screens/**",
+    "playwright-report",
+    "test-results",
+    "**/.dart_tool/**",
+    "redesign/**"
   ]
 }

@@ -16,7 +16,9 @@ build/
 .env.*.local
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
@@ -42,3 +44,9 @@ tools/scripts/.lighthouseci/
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# Local package / test / Flutter artifacts
+.pnpm-store/
+.dart_tool/
+playwright-report/
+test-results/

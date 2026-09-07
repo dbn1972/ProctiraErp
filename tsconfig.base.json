@@ -37,5 +37,15 @@
       "@proctira/ui/*": ["./packages/ui/*/src"]
     }
   },
-  "exclude": ["node_modules", "dist", ".next", "coverage"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".next",
+    "coverage",
+    "build",
+    ".turbo",
+    "test-results",
+    "playwright-report",
+    "**/*.tsbuildinfo"
+  ]
 }

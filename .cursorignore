@@ -1,0 +1,56 @@
+# Keep Cursor AI + codebase indexing off generated and vendor trees.
+# Language-server / file-watcher load is handled in .vscode/settings.json.
+
+# Dependencies and package stores
+node_modules/
+.pnpm-store/
+.pnpm/
+**/.pnpm/
+
+# Build, cache, coverage
+dist/
+build/
+out/
+.next/
+.turbo/
+.cache/
+.parcel-cache/
+.eslintcache
+coverage/
+*.tsbuildinfo
+*.generated.ts
+prisma/generated/
+
+# Test / audit artifacts
+test-results/
+playwright-report/
+.lighthouseci/
+tools/scripts/.lighthouseci/
+tools/dod-checks/reports/
+
+# Flutter / Dart generated trees (source under apps/mobile/lib stays visible)
+**/.dart_tool/
+**/.pub-cache/
+**/.pub/
+apps/mobile/build/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/android/.gradle/
+apps/mobile/ios/Pods/
+apps/mobile/ios/.symlinks/
+apps/mobile/windows/flutter/ephemeral/
+apps/mobile/linux/flutter/ephemeral/
+apps/mobile/macos/Flutter/ephemeral/
+
+# Logs and OS junk
+logs/
+*.log
+.DS_Store
+
+# Committed screenshot evidence — binaries, not source
+apps/**/screens/
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+**/*.gif

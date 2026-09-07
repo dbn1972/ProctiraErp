@@ -1,0 +1,27 @@
+# Indexed embeddings only — files remain @-mentionable unless also in .cursorignore.
+# Cut the continuous re-index loop on large non-source trees.
+
+redesign/
+docs/audits/evidence/
+apps/**/screens/
+**/*.tsbuildinfo
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.webp
+**/*.gif
+pnpm-lock.yaml
+tools/dod-checks/reports/
+infrastructure/helm/**/charts/
+**/.next/
+**/dist/
+**/coverage/
+**/playwright-report/
+**/test-results/
+**/.turbo/
+**/.dart_tool/
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/linux/
+apps/mobile/macos/
+apps/mobile/windows/
