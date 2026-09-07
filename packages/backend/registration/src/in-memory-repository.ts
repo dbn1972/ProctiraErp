@@ -4,7 +4,7 @@
  * Used for unit testing without database dependencies.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
-import type { FormConfiguration, InstitutionLocation } from './schemas.js';
+
 import type {
   RegistrationEntity,
   RegistrationRepository,
@@ -13,6 +13,7 @@ import type {
   SchoolFinderFilter,
   SchoolFinderResultRow,
 } from './registration-repository.js';
+import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 
 /**
  * In-memory institution record for testing.

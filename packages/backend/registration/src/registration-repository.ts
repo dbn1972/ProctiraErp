@@ -5,6 +5,7 @@
  * Implementations can be in-memory (testing) or database-backed (production).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+
 import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 
 /**
