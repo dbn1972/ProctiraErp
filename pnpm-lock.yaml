@@ -194,6 +194,9 @@ importers:
       '@proctira/backend-parent-portal':
         specifier: workspace:*
         version: link:../../packages/backend/parent-portal
+      '@proctira/backend-registration':
+        specifier: workspace:*
+        version: link:../../packages/backend/registration
       '@proctira/backend-scholarship':
         specifier: workspace:*
         version: link:../../packages/backend/scholarship

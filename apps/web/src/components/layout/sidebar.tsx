@@ -10,6 +10,7 @@ export const navItems = [
   { key: 'institutions', href: '/institutions', icon: 'BuildingIcon' },
   { key: 'academicPeriods', href: '/academic-periods', icon: 'CalendarIcon' },
   { key: 'students', href: '/students', icon: 'UsersIcon' },
+  { key: 'admissions', href: '/admissions', icon: 'ClipboardIcon' },
   { key: 'staff', href: '/staff', icon: 'BriefcaseIcon' },
   { key: 'assessments', href: '/assessments', icon: 'ClipboardIcon' },
   { key: 'attendance', href: '/attendance', icon: 'CheckCircleIcon' },

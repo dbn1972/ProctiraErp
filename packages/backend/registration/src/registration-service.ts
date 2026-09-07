@@ -15,11 +15,13 @@ import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/com
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { InMemoryAdmissionsCrmStore } from './admissions-crm-store.js';
 import type {
   RegistrationRepository,
   InstitutionLocationFilter,
   SchoolFinderFilter,
   SchoolFinderResultRow,
+  RegistrationStatus,
 } from './registration-repository.js';
 import type {
   SubmitRegistrationInput,
@@ -180,7 +182,14 @@ export function validateCustomFields(
  * Registration service handling public registration portal operations.
  */
 export class RegistrationService {
-  constructor(private readonly repository: RegistrationRepository) {}
+  private readonly crm: InMemoryAdmissionsCrmStore;
+
+  constructor(
+    private readonly repository: RegistrationRepository,
+    crmStore?: InMemoryAdmissionsCrmStore,
+  ) {
+    this.crm = crmStore ?? new InMemoryAdmissionsCrmStore();
+  }
 
   /**
    * Submit a new registration application.
@@ -305,6 +314,18 @@ export class RegistrationService {
       submittedAt: registration.submittedAt.toISOString(),
       updatedAt: registration.updatedAt.toISOString(),
       remarks: registration.remarks ?? undefined,
+      waitlistPosition:
+        this.crm
+          .listWaitlist(registration.tenantId, registration.institutionId)
+          .find((row) => row.applicationId === registration.id)?.position ?? undefined,
+      interviewBookings: this.crm
+        .listBookingsForApplication(registration.tenantId, registration.id)
+        .filter((row) => row.status === 'booked')
+        .map((row) => ({
+          id: row.id,
+          slotId: row.slotId,
+          status: row.status,
+        })),
     };
   }
 
@@ -401,5 +422,97 @@ export class RegistrationService {
         ...(filter.origin ? { origin: filter.origin } : {}),
       },
     };
+  }
+
+  /** Staff CRM: list applications for a tenant. */
+  async listApplications(tenantId: string) {
+    return this.repository.listByTenant(tenantId);
+  }
+
+  /**
+   * Staff CRM: update application status. Setting `waitlisted` also enqueues
+   * a waitlist entry for the application's institution.
+   */
+  async updateApplicationStatus(
+    tenantId: string,
+    applicationId: string,
+    status: RegistrationStatus,
+    remarks?: string,
+  ) {
+    const application = await this.repository.findById(applicationId);
+    if (!application || application.tenantId !== tenantId) {
+      throw new NotFoundError(`Application with id '${applicationId}' not found`);
+    }
+
+    const updated = await this.repository.updateStatus(applicationId, status, remarks);
+    if (!updated) {
+      throw new NotFoundError(`Application with id '${applicationId}' not found`);
+    }
+
+    let waitlistEntry = null;
+    if (status === 'waitlisted') {
+      waitlistEntry = this.crm.enqueueWaitlist({
+        tenantId,
+        applicationId,
+        institutionId: application.institutionId,
+        notes: remarks ?? null,
+      });
+    }
+
+    return { application: updated, waitlistEntry };
+  }
+
+  async listWaitlist(tenantId: string, institutionId?: string) {
+    return this.crm.listWaitlist(tenantId, institutionId);
+  }
+
+  async createInterviewSlot(
+    tenantId: string,
+    input: {
+      institutionId: string;
+      startsAt: string;
+      endsAt: string;
+      capacity?: number;
+      location?: string | null;
+    },
+  ) {
+    if (new Date(input.endsAt) <= new Date(input.startsAt)) {
+      throw new BusinessRuleError('Interview slot end must be after start');
+    }
+    return this.crm.createSlot({ tenantId, ...input });
+  }
+
+  async listInterviewSlots(tenantId: string, institutionId?: string) {
+    return this.crm.listSlots(tenantId, institutionId);
+  }
+
+  async bookInterview(tenantId: string, input: { slotId: string; applicationId: string }) {
+    const application = await this.repository.findById(input.applicationId);
+    if (!application || application.tenantId !== tenantId) {
+      throw new NotFoundError(`Application with id '${input.applicationId}' not found`);
+    }
+
+    const slot = this.crm.findSlot(input.slotId, tenantId);
+    if (!slot || slot.status !== 'open') {
+      throw new NotFoundError(`Interview slot with id '${input.slotId}' not found`);
+    }
+
+    const booked = this.crm.listBookingsForSlot(tenantId, slot.id);
+    if (booked.length >= slot.capacity) {
+      throw new BusinessRuleError('Interview slot is at capacity');
+    }
+
+    const existing = this.crm
+      .listBookingsForApplication(tenantId, input.applicationId)
+      .find((row) => row.slotId === slot.id && row.status === 'booked');
+    if (existing) {
+      return existing;
+    }
+
+    return this.crm.bookSlot({
+      tenantId,
+      slotId: slot.id,
+      applicationId: input.applicationId,
+    });
   }
 }

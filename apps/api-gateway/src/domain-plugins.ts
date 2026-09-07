@@ -55,6 +55,7 @@ import { createInstitutionRepository, institutionPlugin } from '@proctira/backen
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
+import { InMemoryRegistrationRepository, registrationPlugin } from '@proctira/backend-registration';
 import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -330,6 +331,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(parentPortalPlugin, {
         repository,
         prefix: '/parent-portal',
+      });
+    },
+  },
+  {
+    name: 'registration',
+    proxyPrefixes: ['/registrations'],
+    register: async (scope) => {
+      // Admissions CRM (waitlist + interviews) on in-memory registration store.
+      // SQL 014 documents PG shape; live apply/OCR waived.
+      const repository = new InMemoryRegistrationRepository();
+      await scope.register(registrationPlugin, {
+        repository,
+        prefix: '/registrations',
       });
     },
   },
