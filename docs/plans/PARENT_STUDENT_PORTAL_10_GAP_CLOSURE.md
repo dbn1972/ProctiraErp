@@ -1,6 +1,6 @@
 # Parent / student portal — gap closure plan
 
-**Status:** implementation in progress (WS1 foundation)  
+**Status:** WS0–WS3 landed; WS4 tip CI pending  
 **Updated (UTC):** 2026-09-07  
 **Branch:** `cursor/parent-student-portal-56c3`  
 **Skills:** enterprise-module-development + enterprise-module-production-ready
@@ -13,14 +13,14 @@ Staff keep existing **staff-leaning mobile shells**; parent IA is a separate she
 
 ## In scope (v1)
 
-| Slice | Deliverable |
-| --- | --- |
-| Child links | Parent↔student linkage API + UI child switcher |
-| Messaging | Threads + replies (parent ↔ staff) |
-| Consent | Typed consent ledger (approve/deny) |
-| Fee pay | Invoices + sandbox pay (no live PSP required) |
-| Web portal | `/parent/*` shell (not staff sidebar) |
-| Mobile | Flutter `/parent/*` routes; staff shells unchanged |
+| Slice       | Deliverable                                            |
+| ----------- | ------------------------------------------------------ |
+| Child links | Parent↔student linkage API + UI child switcher         |
+| Messaging   | Threads + replies (parent ↔ staff)                     |
+| Consent     | Typed consent ledger (approve/deny)                    |
+| Fee pay     | Invoices + sandbox pay (no live PSP required)          |
+| Web portal  | `/parent/*` shell (not staff sidebar)                  |
+| Mobile      | Flutter `/parent/*` routes; staff shells unchanged     |
 | Integration | Gateway mount `/api/v1/parent-portal`, raw SQL `010_*` |
 
 ## Explicit non-goals (v1)
@@ -42,10 +42,10 @@ WS4  Enterprise test packs + tip CI
 
 ## Status
 
-| WS | Status |
-| --- | --- |
-| WS0 | In progress |
-| WS1 | In progress |
-| WS2 | Pending |
-| WS3 | Pending |
-| WS4 | Pending |
+| WS  | Status                                            |
+| --- | ------------------------------------------------- |
+| WS0 | **Done**                                          |
+| WS1 | **Done**                                          |
+| WS2 | **Done**                                          |
+| WS3 | **Done**                                          |
+| WS4 | **In progress** (smokes + audits; tip CI pending) |

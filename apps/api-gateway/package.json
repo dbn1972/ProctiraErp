@@ -31,6 +31,7 @@
     "@proctira/backend-library": "workspace:*",
     "@proctira/backend-institution": "workspace:*",
     "@proctira/backend-notification": "workspace:*",
+    "@proctira/backend-parent-portal": "workspace:*",
     "@proctira/backend-scholarship": "workspace:*",
     "@proctira/backend-staff": "workspace:*",
     "@proctira/backend-student": "workspace:*",

@@ -69,9 +69,9 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               _QuickAction(
-                icon: Icons.bar_chart_outlined,
-                label: 'Reports',
-                onTap: () => context.push('/reports'),
+                icon: Icons.family_restroom,
+                label: 'Parent',
+                onTap: () => context.push('/parent'),
               ),
             ],
           ),

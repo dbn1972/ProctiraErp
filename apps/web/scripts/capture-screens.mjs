@@ -225,6 +225,12 @@ const SCREENS = {
     ['circulation', '/library/circulation'],
     ['overdues', '/library/overdues'],
   ],
+  parent: [
+    ['home', '/parent'],
+    ['messages', '/parent/messages'],
+    ['consents', '/parent/consents'],
+    ['fees', '/parent/fees'],
+  ],
   'data-warehouse': [
     ['overview', '/data-warehouse'],
     ['import', '/data-warehouse/import'],

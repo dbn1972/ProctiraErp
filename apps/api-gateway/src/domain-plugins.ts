@@ -17,8 +17,8 @@
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
  *  - transport: raw SQL + `pg` when DATABASE_URL is set
  *    (db/sql/006_transport_schema.sql); else in-memory.
- *  - communication / hostel / library: raw SQL + `pg` when DATABASE_URL is set
- *    (db/sql/007–009_*.sql); else in-memory.
+ *  - communication / hostel / library / parent-portal: raw SQL + `pg` when DATABASE_URL is set
+ *    (db/sql/007–010_*.sql); else in-memory.
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
@@ -54,6 +54,7 @@ import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
+import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -317,6 +318,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(libraryPlugin, {
         repository,
         prefix: '/library',
+      });
+    },
+  },
+  {
+    name: 'parent-portal',
+    proxyPrefixes: ['/parent-portal'],
+    register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/010_parent_portal_schema.sql); else in-memory.
+      const repository = createParentPortalRepository();
+      await scope.register(parentPortalPlugin, {
+        repository,
+        prefix: '/parent-portal',
       });
     },
   },
