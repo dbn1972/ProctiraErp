@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { SiteHeader } from '@/components/layout/site-header';
+
 /**
  * Developer Portal landing/home page (v2.0 redesign).
  *
@@ -41,7 +43,15 @@ const features: Feature[] = [
     linkLabel: 'API reference',
     href: '/docs',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <polyline points="16 18 22 12 16 6" />
         <polyline points="8 6 2 12 8 18" />
       </svg>
@@ -54,7 +64,15 @@ const features: Feature[] = [
     linkLabel: 'SDK guide',
     href: '/docs',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <path d="M12 2 2 7l10 5 10-5-10-5Z" />
         <path d="m2 17 10 5 10-5" />
         <path d="m2 12 10 5 10-5" />
@@ -68,7 +86,15 @@ const features: Feature[] = [
     linkLabel: 'Event catalog',
     href: '/docs',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
       </svg>
     ),
@@ -80,7 +106,15 @@ const features: Feature[] = [
     linkLabel: 'Create sandbox',
     href: '/dashboard',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <rect x="2" y="3" width="20" height="14" rx="2" />
         <line x1="8" y1="21" x2="16" y2="21" />
         <line x1="12" y1="17" x2="12" y2="21" />
@@ -94,7 +128,15 @@ const features: Feature[] = [
     linkLabel: 'Theme docs',
     href: '/docs',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <circle cx="13.5" cy="6.5" r="2.5" />
         <circle cx="19" cy="13" r="2.5" />
         <circle cx="6" cy="12" r="2.5" />
@@ -110,7 +152,15 @@ const features: Feature[] = [
     linkLabel: 'Auth guide',
     href: '/docs',
     icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <rect x="3" y="11" width="18" height="11" rx="2" />
         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
       </svg>
@@ -160,41 +210,13 @@ const steps = [
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-6">
-          <Link href="/" className="flex items-center gap-2.5 text-gray-900">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 text-base font-extrabold text-white shadow-inner">
-              P
-            </span>
-            <span className="text-base font-bold tracking-tight">
-              Proctira<span className="text-primary-600">ERP</span>
-            </span>
-            <span className="ml-0.5 rounded-md border border-gray-200 bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-700">
-              Developers
-            </span>
-          </Link>
-          <nav className="hidden gap-1 md:flex" aria-label="Main">
-            <Link href="/docs" className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900">
-              Docs
-            </Link>
-            <Link href="/docs" className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900">
-              API Reference
-            </Link>
-            <Link href="/marketplace" className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900">
-              Plugins
-            </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-2.5">
-            <Link
-              href="/dashboard"
-              className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
-            >
-              Get API key
-            </Link>
-          </div>
-        </div>
-      </header>
+      <SiteHeader
+        brand={
+          <span className="text-base font-bold tracking-tight">
+            Proctira<span className="text-primary-600">ERP</span>
+          </span>
+        }
+      />
 
       <main className="flex-1">
         {/* Hero */}
@@ -212,9 +234,9 @@ export default function HomePage() {
                 </span>
               </h1>
               <p className="mb-7 max-w-xl text-lg leading-relaxed text-gray-600">
-                One REST API across enrollment, attendance, assessments, and
-                scholarships. Ship a plugin once and it runs in every
-                ProctiraERP school — from a single classroom to an entire state.
+                One REST API across enrollment, attendance, assessments, and scholarships. Ship a
+                plugin once and it runs in every ProctiraERP school — from a single classroom to an
+                entire state.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link
@@ -240,10 +262,16 @@ export default function HomePage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-[#FBBF24]" aria-hidden="true" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#34D399]" aria-hidden="true" />
                 <span className="ml-2 font-mono text-[11px] text-gray-400">quickstart.sh</span>
-                <span className="ml-auto text-[11px] font-bold uppercase tracking-wider text-gray-400">curl</span>
+                <span className="ml-auto text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                  curl
+                </span>
               </div>
-              <pre className="overflow-x-auto px-5 py-4 font-mono text-xs leading-relaxed text-[#C6D0E8]" aria-label="Example API request">
-{`# List students enrolled this week in your sandbox tenant
+              <pre
+                tabIndex={0}
+                className="overflow-x-auto px-5 py-4 font-mono text-xs leading-relaxed text-[#C6D0E8]"
+                aria-label="Example API request"
+              >
+                {`# List students enrolled this week in your sandbox tenant
 curl "https://api.proctira.dev/v3/students" \\
   -H "Authorization: Bearer $PROCTIRA_API_KEY" \\
   -H "X-Tenant: sandbox-demo" \\
@@ -270,8 +298,8 @@ curl "https://api.proctira.dev/v3/students" \\
               Everything you need to ship
             </h2>
             <p className="text-gray-600">
-              The same primitives our own apps are built on — no private APIs,
-              no second-class access.
+              The same primitives our own apps are built on — no private APIs, no second-class
+              access.
             </p>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -305,8 +333,8 @@ curl "https://api.proctira.dev/v3/students" \\
                 From zero to first call in 5 minutes
               </h2>
               <p className="text-gray-600">
-                No sales call, no approval queue. Production access is reviewed
-                only when you’re ready to publish.
+                No sales call, no approval queue. Production access is reviewed only when you’re
+                ready to publish.
               </p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
@@ -337,8 +365,7 @@ curl "https://api.proctira.dev/v3/students" \\
               </span>
             </Link>
             <p className="mt-2.5 max-w-[36ch] text-sm leading-relaxed text-gray-500">
-              The developer platform for India’s school ERP. Build once, run in
-              every school.
+              The developer platform for India’s school ERP. Build once, run in every school.
             </p>
           </div>
           <div>
@@ -346,10 +373,18 @@ curl "https://api.proctira.dev/v3/students" \\
               Documentation
             </h4>
             <div className="flex flex-col gap-2.5 text-sm">
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">Quickstart</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">API Reference</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">Webhooks</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">Plugin SDK</Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Quickstart
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                API Reference
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Webhooks
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Plugin SDK
+              </Link>
             </div>
           </div>
           <div>
@@ -357,10 +392,18 @@ curl "https://api.proctira.dev/v3/students" \\
               Platform
             </h4>
             <div className="flex flex-col gap-2.5 text-sm">
-              <Link href="/marketplace" className="text-gray-600 hover:text-gray-900">Plugin marketplace</Link>
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">Sandbox tenants</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">Changelog</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">Rate limits</Link>
+              <Link href="/marketplace" className="text-gray-600 hover:text-gray-900">
+                Plugin marketplace
+              </Link>
+              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+                Sandbox tenants
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Changelog
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Rate limits
+              </Link>
             </div>
           </div>
           <div>
@@ -368,10 +411,18 @@ curl "https://api.proctira.dev/v3/students" \\
               Support
             </h4>
             <div className="flex flex-col gap-2.5 text-sm">
-              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">System status</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">Developer forum</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">Report a vulnerability</Link>
-              <Link href="/docs" className="text-gray-600 hover:text-gray-900">API terms</Link>
+              <Link href="/dashboard" className="text-gray-600 hover:text-gray-900">
+                System status
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Developer forum
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                Report a vulnerability
+              </Link>
+              <Link href="/docs" className="text-gray-600 hover:text-gray-900">
+                API terms
+              </Link>
             </div>
           </div>
         </div>

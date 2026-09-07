@@ -25,8 +25,12 @@ test.describe('Developer Portal — public surfaces', () => {
     });
   }
 
-  test('primary nav links are wired (no 404 stubs)', async ({ page }) => {
+  test('primary nav links are wired (no 404 stubs)', async ({ page, isMobile }) => {
     await page.goto('/');
+    if (isMobile) {
+      await page.getByRole('button', { name: /open menu/i }).click();
+      await expect(page.getByRole('button', { name: /close menu/i })).toBeVisible();
+    }
     const expected: ReadonlyArray<{ name: RegExp; href: RegExp }> = [
       { name: /^Docs$/i, href: /\/docs/ },
       { name: /^API Reference$/i, href: /\/docs/ },
@@ -79,9 +83,7 @@ test.describe('Developer Portal — public surfaces', () => {
     await page.goto('/marketplace');
     await expect(page.getByTestId('marketplace-honesty-banner')).toBeVisible();
     await expect(page.getByTestId('marketplace-plugin-attendance-sms-bridge')).toBeVisible();
-    await expect(
-      page.getByTestId('marketplace-install-attendance-sms-bridge'),
-    ).toBeDisabled();
+    await expect(page.getByTestId('marketplace-install-attendance-sms-bridge')).toBeDisabled();
     await page.getByTestId('marketplace-search').fill('OIDC');
     await expect(page.getByTestId('marketplace-plugin-oidc-school-sso')).toBeVisible();
     await expect(page.getByTestId('marketplace-plugin-attendance-sms-bridge')).toHaveCount(0);

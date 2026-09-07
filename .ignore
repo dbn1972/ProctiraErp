@@ -1,0 +1,21 @@
+# Ripgrep / search scans that do not always honor .cursorignore
+node_modules/
+.pnpm-store/
+dist/
+build/
+out/
+.next/
+.turbo/
+.cache/
+coverage/
+test-results/
+playwright-report/
+.lighthouseci/
+.dart_tool/
+*.tsbuildinfo
+apps/**/screens/
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/linux/
+apps/mobile/macos/
+apps/mobile/windows/
