@@ -131,9 +131,7 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
                 <li key={doc.documentType}>
                   {doc.documentType}: {doc.fileName} ({(doc.fileSize / 1024).toFixed(1)} KB)
                   {!getDocumentFile(doc.documentType) ? (
-                    <span className="ms-2 text-amber-700">
-                      ({t('documents.reuploadHint')})
-                    </span>
+                    <span className="ms-2 text-amber-700">({t('documents.reuploadHint')})</span>
                   ) : null}
                 </li>
               ))}
@@ -155,7 +153,14 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
         <button type="button" onClick={handleBack} className="btn-secondary" disabled={submitting}>
           {t('common.back')}
         </button>
-        <button type="button" onClick={handleSubmit} className="btn-primary" disabled={submitting}>
+        <button
+          type="button"
+          onClick={() => {
+            void handleSubmit();
+          }}
+          className="btn-primary"
+          disabled={submitting}
+        >
           {submitting ? t('common.loading') : t('common.submit')}
         </button>
       </div>

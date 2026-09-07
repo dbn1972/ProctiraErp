@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 import { getBootstrapStatus, getInstallSession } from '@/lib/bootstrap-lock';
 import { INSTALL_TOKEN_COOKIE, INSTALL_TOKEN_HEADER, readHeader } from '@/lib/install-security';

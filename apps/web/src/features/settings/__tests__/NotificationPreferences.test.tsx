@@ -33,16 +33,14 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 }
 const proto = Element.prototype as unknown as Record<string, unknown>;
 if (!('hasPointerCapture' in proto)) proto['hasPointerCapture'] = () => false;
-if (!('releasePointerCapture' in proto))
-  proto['releasePointerCapture'] = () => undefined;
+if (!('releasePointerCapture' in proto)) proto['releasePointerCapture'] = () => undefined;
 if (!('scrollIntoView' in proto)) proto['scrollIntoView'] = () => undefined;
 
 // ─── Mocks ───────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/api/notifications', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/api/notifications')>(
-    '@/lib/api/notifications',
-  );
+  const actual =
+    await vi.importActual<typeof import('@/lib/api/notifications')>('@/lib/api/notifications');
   return {
     ...actual,
     getNotificationPreferences: vi.fn(),
@@ -127,11 +125,26 @@ const messages = {
 
 const SAMPLE_PREFERENCES: NotificationPreferencesData = {
   categories: [
-    { category: 'academic', channels: { email: true, in_app: true, push: true, webhook: false } },
-    { category: 'attendance', channels: { email: true, in_app: true, push: false, webhook: false } },
-    { category: 'examination', channels: { email: true, in_app: true, push: true, webhook: false } },
-    { category: 'workflow', channels: { email: true, in_app: true, push: false, webhook: true } },
-    { category: 'system', channels: { email: true, in_app: true, push: true, webhook: false } },
+    {
+      category: 'academic',
+      channels: { email: true, in_app: true, push: true, webhook: false, sms: false },
+    },
+    {
+      category: 'attendance',
+      channels: { email: true, in_app: true, push: false, webhook: false, sms: false },
+    },
+    {
+      category: 'examination',
+      channels: { email: true, in_app: true, push: true, webhook: false, sms: false },
+    },
+    {
+      category: 'workflow',
+      channels: { email: true, in_app: true, push: false, webhook: true, sms: false },
+    },
+    {
+      category: 'system',
+      channels: { email: true, in_app: true, push: true, webhook: false, sms: false },
+    },
   ],
   digestFrequency: 'immediate',
   quietHours: {
@@ -146,10 +159,7 @@ const SAMPLE_PREFERENCES: NotificationPreferencesData = {
 
 function renderPage() {
   return render(
-    <LanguageProvider
-      defaultLocale="en"
-      messagesByLocale={{ en: messages }}
-    >
+    <LanguageProvider defaultLocale="en" messagesByLocale={{ en: messages }}>
       <NotificationPreferences />
     </LanguageProvider>,
   );
@@ -162,7 +172,7 @@ beforeEach(() => {
     ...SAMPLE_PREFERENCES,
   });
   vi.mocked(notificationsApi.updateNotificationPreferences).mockImplementation(
-    async (patch) => ({ ...SAMPLE_PREFERENCES, ...patch } as NotificationPreferencesData),
+    async (patch) => ({ ...SAMPLE_PREFERENCES, ...patch }) as NotificationPreferencesData,
   );
 });
 
@@ -191,9 +201,9 @@ describe('<NotificationPreferences>', () => {
     expect(screen.getByTestId('category-row-system')).toBeTruthy();
 
     // Save button is disabled until the form is dirty.
-    expect(
-      (screen.getByTestId('notification-prefs-submit') as HTMLButtonElement).disabled,
-    ).toBe(true);
+    expect((screen.getByTestId('notification-prefs-submit') as HTMLButtonElement).disabled).toBe(
+      true,
+    );
   });
 
   it('enables the save button when a channel toggle is changed', async () => {
@@ -208,9 +218,9 @@ describe('<NotificationPreferences>', () => {
       fireEvent.click(toggle);
     });
 
-    expect(
-      (screen.getByTestId('notification-prefs-submit') as HTMLButtonElement).disabled,
-    ).toBe(false);
+    expect((screen.getByTestId('notification-prefs-submit') as HTMLButtonElement).disabled).toBe(
+      false,
+    );
   });
 
   it('submits a PATCH with the full preferences payload', async () => {

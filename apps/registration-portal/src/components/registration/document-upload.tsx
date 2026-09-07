@@ -37,7 +37,7 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
   const maxSizeMB = Math.round(DEFAULT_MAX_FILE_SIZE / (1024 * 1024));
 
   const onDrop = useCallback(
-    async (acceptedFiles: File[]) => {
+    (acceptedFiles: File[]) => {
       const file = acceptedFiles[0];
       if (!file) return;
       setError(null);

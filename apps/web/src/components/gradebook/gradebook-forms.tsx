@@ -135,7 +135,7 @@ export function ComputeGpaForm({
             return;
           }
           setMessage(
-            `GPA snapshot ${result.id}: weighted=${result.extra?.weightedGpa ?? 'n/a'} unweighted=${result.extra?.unweightedGpa ?? 'n/a'} credits=${result.extra?.creditsEarned ?? 'n/a'}`,
+            `GPA snapshot ${result.id}: weighted=${String(result.extra?.weightedGpa ?? 'n/a')} unweighted=${String(result.extra?.unweightedGpa ?? 'n/a')} credits=${String(result.extra?.creditsEarned ?? 'n/a')}`,
           );
         });
       }}

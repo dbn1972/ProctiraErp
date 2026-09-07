@@ -18,7 +18,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Plus, Trash2, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { useFieldArray, useForm, type Control, type FieldErrors, type UseFormRegister } from 'react-hook-form';
+import {
+  useFieldArray,
+  useForm,
+  type Control,
+  type FieldErrors,
+  type UseFormRegister,
+} from 'react-hook-form';
 
 import {
   Button,
@@ -38,15 +44,8 @@ import {
 } from '@proctira/ui/components';
 import type { CustomFieldDefinition } from '@/lib/api/students';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
-import {
-  studentFormSchema,
-  type StudentFormValues,
-} from '@/lib/validation/student-schema';
-import {
-  createStudentAction,
-  updateStudentAction,
-  type ActionState,
-} from '../actions';
+import { studentFormSchema, type StudentFormValues } from '@/lib/validation/student-schema';
+import { createStudentAction, updateStudentAction, type ActionState } from '../actions';
 
 interface StudentFormProps {
   mode: 'create' | 'edit';
@@ -75,12 +74,7 @@ const DOCUMENT_TYPES = [
   { value: 'other', label: 'Other' },
 ];
 
-export function StudentForm({
-  mode,
-  studentId,
-  initialValues,
-  customFields,
-}: StudentFormProps) {
+export function StudentForm({ mode, studentId, initialValues, customFields }: StudentFormProps) {
   const router = useRouter();
   const [serverState, setServerState] = useState<ActionState<{ studentId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -100,8 +94,7 @@ export function StudentForm({
   // (when present) to seed react-hook-form's `defaultValues`. Saves
   // are debounced inside the hook to 30 s, flushed on submit, and
   // cleared on a successful response so the next visit starts clean.
-  const draftFormId =
-    mode === 'create' ? 'student-create' : `student-edit-${studentId ?? ''}`;
+  const draftFormId = mode === 'create' ? 'student-create' : `student-edit-${studentId ?? ''}`;
   const draft = useDraftAutosave<StudentFormValues>(draftFormId);
 
   const form = useForm<StudentFormValues>({
@@ -209,8 +202,8 @@ export function StudentForm({
         <CardHeader className="pb-4">
           <CardTitle>Personal details</CardTitle>
           <CardDescription>
-            Name and date of birth are required. National ID is used for
-            duplicate detection across all institutions.
+            Name and date of birth are required. National ID is used for duplicate detection across
+            all institutions.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -225,8 +218,8 @@ export function StudentForm({
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Drop a passport-size photo here, or browse</p>
               <p className="text-xs text-muted-foreground">
-                JPG or PNG, up to 2 MB · plain background preferred ·
-                photo is saved after the student record is created
+                JPG or PNG, up to 2 MB · plain background preferred · photo is saved after the
+                student record is created
               </p>
             </div>
             <Button type="button" variant="outline" size="sm" disabled>
@@ -279,12 +272,7 @@ export function StudentForm({
               />
             </FormField>
 
-            <FormField
-              id="gender"
-              label="Gender"
-              required
-              error={errors.gender?.message ?? null}
-            >
+            <FormField id="gender" label="Gender" required error={errors.gender?.message ?? null}>
               <Select
                 value={watch('gender') || ''}
                 onValueChange={(value) => setValue('gender', value, { shouldValidate: true })}
@@ -332,9 +320,7 @@ export function StudentForm({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() =>
-              contacts.append({ type: 'phone', value: '', isPrimary: false })
-            }
+            onClick={() => contacts.append({ type: 'phone', value: '', isPrimary: false })}
           >
             <Plus className="me-2 h-4 w-4" aria-hidden="true" />
             Add contact
@@ -342,9 +328,7 @@ export function StudentForm({
         </CardHeader>
         <CardContent className="space-y-4">
           {contacts.fields.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              No contacts on file.
-            </p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">No contacts on file.</p>
           ) : (
             contacts.fields.map((field, index) => (
               <ContactRow
@@ -364,8 +348,8 @@ export function StudentForm({
           <div>
             <CardTitle>Guardian</CardTitle>
             <CardDescription>
-              Parents or other guardians. Attendance and fee alerts are sent to
-              the primary guardian's phone.
+              Parents or other guardians. Attendance and fee alerts are sent to the primary
+              guardian&apos;s phone.
             </CardDescription>
           </div>
           <Button
@@ -388,9 +372,7 @@ export function StudentForm({
         </CardHeader>
         <CardContent className="space-y-4">
           {guardians.fields.length === 0 ? (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              No guardians on file.
-            </p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">No guardians on file.</p>
           ) : (
             guardians.fields.map((field, index) => (
               <GuardianRow
@@ -409,7 +391,9 @@ export function StudentForm({
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>Identity documents</CardTitle>
-            <CardDescription>Passport, birth certificate, or other official documents.</CardDescription>
+            <CardDescription>
+              Passport, birth certificate, or other official documents.
+            </CardDescription>
           </div>
           <Button
             type="button"
@@ -481,7 +465,9 @@ export function StudentForm({
         <div className="flex flex-wrap items-center gap-2 px-5 py-3">
           <p className="me-auto text-xs text-muted-foreground">
             Fields marked{' '}
-            <span className="text-destructive" aria-hidden="true">*</span>{' '}
+            <span className="text-destructive" aria-hidden="true">
+              *
+            </span>{' '}
             are required · all changes are recorded in the audit trail
           </p>
           <Button
@@ -508,7 +494,11 @@ export function StudentForm({
           )}
           <Button type="submit" size="sm" disabled={isPending}>
             {isPending ? (
-              mode === 'create' ? 'Creating…' : 'Saving…'
+              mode === 'create' ? (
+                'Creating…'
+              ) : (
+                'Saving…'
+              )
             ) : (
               <>
                 <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -561,15 +551,9 @@ function ContactRow({ index, register, errors, onRemove }: ContactRowProps) {
         required
         error={rowErrors?.value?.message ?? null}
       >
-        <Input
-          id={`contacts.${index}.value`}
-          {...register(`contacts.${index}.value` as const)}
-        />
+        <Input id={`contacts.${index}.value`} {...register(`contacts.${index}.value` as const)} />
       </FormField>
-      <FormField
-        id={`contacts.${index}.isPrimary`}
-        label="Primary"
-      >
+      <FormField id={`contacts.${index}.isPrimary`} label="Primary">
         <label className="flex h-10 items-center gap-2 text-sm">
           <input
             id={`contacts.${index}.isPrimary`}
