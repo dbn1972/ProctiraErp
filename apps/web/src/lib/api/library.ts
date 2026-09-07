@@ -66,3 +66,38 @@ export async function listLibraryOverdues(): Promise<LibraryLoan[]> {
   });
   return result.data?.data ?? [];
 }
+
+export async function checkoutLibraryItem(input: {
+  itemId: string;
+  patronUserId?: string;
+  studentId?: string;
+  dueAt?: string;
+}): Promise<LibraryLoan> {
+  const result = await gatewayFetch<LibraryLoan>('/library/circulation/checkout', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CHECKOUT_FAILED',
+      message: result.error?.message ?? 'Failed to checkout item',
+    });
+  }
+  return result.data;
+}
+
+export async function returnLibraryLoan(loanId: string): Promise<LibraryLoan> {
+  const result = await gatewayFetch<LibraryLoan>('/library/circulation/return', {
+    method: 'POST',
+    json: { loanId },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'RETURN_FAILED',
+      message: result.error?.message ?? 'Failed to return loan',
+    });
+  }
+  return result.data;
+}

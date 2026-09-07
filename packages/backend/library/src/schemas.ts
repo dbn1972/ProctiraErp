@@ -16,8 +16,8 @@ export type CreateLibraryItemInput = Static<typeof CreateLibraryItemSchema>;
 
 export const CheckoutSchema = Type.Object({
   itemId: Type.String({ pattern: UUID_PATTERN }),
-  patronUserId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-  studentId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  patronUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+  studentId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   dueAt: Type.Optional(Type.String()),
 });
 

@@ -1,15 +1,15 @@
-/**
- * Library circulation (Server Component shell).
- */
 import Link from 'next/link';
 
 import { Button } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { listLibraryItems } from '@/lib/api/library';
+import { CirculationDesk } from '../_components/circulation-desk';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LibraryCirculationPage() {
-  await requireSession();
+  const session = await requireSession();
+  const items = await listLibraryItems();
 
   return (
     <div className="space-y-6 p-6">
@@ -24,6 +24,7 @@ export default async function LibraryCirculationPage() {
           <Link href="/library">Back to library</Link>
         </Button>
       </div>
+      <CirculationDesk items={items} patronUserId={session.user.sub} />
     </div>
   );
 }

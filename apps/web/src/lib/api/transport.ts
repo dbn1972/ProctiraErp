@@ -99,3 +99,64 @@ export async function createTransportRoute(
   }
   return mapRoute(result.data);
 }
+
+export interface TransportVehicle {
+  id: string;
+  tenantId: string;
+  registrationNumber: string;
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  capacity: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTransportVehicleInput {
+  registrationNumber: string;
+  make?: string;
+  model?: string;
+  year?: number;
+  capacity: number;
+}
+
+function mapVehicle(raw: Record<string, unknown>): TransportVehicle {
+  return {
+    id: String(raw['id'] ?? ''),
+    tenantId: String(raw['tenantId'] ?? ''),
+    registrationNumber: String(raw['registrationNumber'] ?? ''),
+    make: (raw['make'] as string | null | undefined) ?? null,
+    model: (raw['model'] as string | null | undefined) ?? null,
+    year: (raw['year'] as number | null | undefined) ?? null,
+    capacity: Number(raw['capacity'] ?? 0),
+    status: String(raw['status'] ?? 'active'),
+    createdAt: String(raw['createdAt'] ?? ''),
+    updatedAt: String(raw['updatedAt'] ?? ''),
+  };
+}
+
+export async function listTransportVehicles(): Promise<TransportVehicle[]> {
+  const result = await gatewayFetch<{ data: Record<string, unknown>[] }>('/transport/vehicles', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return (result.data?.data ?? []).map(mapVehicle);
+}
+
+export async function createTransportVehicle(
+  input: CreateTransportVehicleInput,
+): Promise<TransportVehicle> {
+  const result = await gatewayFetch<Record<string, unknown>>('/transport/vehicles', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create vehicle',
+    });
+  }
+  return mapVehicle(result.data);
+}

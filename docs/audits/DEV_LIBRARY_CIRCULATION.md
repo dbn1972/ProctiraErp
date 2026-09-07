@@ -23,15 +23,15 @@
 
 ## Build status
 
-| Check                                   | Done | Evidence                          |
-| --------------------------------------- | ---- | --------------------------------- |
-| SQL `db/sql/009_library_schema.sql`     | ☑    |                                   |
-| Gateway mount InMemoryLibraryRepository | ☑    | domain-plugins                    |
-| Web shells + sidebar                    | ☑    |                                   |
-| Live catalog create + list              | ☑    | `NewLibraryItemForm` + items API  |
-| Overdues list from API                  | ☑    | `/library/overdues`               |
-| PgLibraryStore                          | ☐    | follow-up                         |
-| Live circulation desk UI                | ☐    | follow-up                         |
+| Check                                   | Done | Evidence                         |
+| --------------------------------------- | ---- | -------------------------------- |
+| SQL `db/sql/009_library_schema.sql`     | ☑    |                                  |
+| Gateway mount InMemoryLibraryRepository | ☑    | domain-plugins                   |
+| Web shells + sidebar                    | ☑    |                                  |
+| Live catalog create + list              | ☑    | `NewLibraryItemForm` + items API |
+| Overdues list from API                  | ☑    | `/library/overdues`              |
+| PgLibraryStore                          | ☐    | follow-up                        |
+| Live circulation desk UI                | ☐    | follow-up                        |
 
 ## Residual
 
