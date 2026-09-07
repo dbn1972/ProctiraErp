@@ -91,4 +91,24 @@ export class LibraryService {
       (loan) => loan.status !== 'returned' && loan.dueAt.getTime() < now.getTime(),
     );
   }
+
+  /**
+   * Student-transfer checklist hook: clear when no open loans remain.
+   */
+  async getStudentClearance(tenantId: string, studentId: string) {
+    const loans = await this.repository.listLoans(tenantId);
+    const openLoans = loans.filter(
+      (loan) => loan.studentId === studentId && loan.status !== 'returned',
+    );
+    const overdueCount = openLoans.filter((loan) => loan.dueAt.getTime() < Date.now()).length;
+
+    return {
+      studentId,
+      clear: openLoans.length === 0,
+      openLoanCount: openLoans.length,
+      overdueCount,
+      openLoans,
+      checkedAt: new Date(),
+    };
+  }
 }

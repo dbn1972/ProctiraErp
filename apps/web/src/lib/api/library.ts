@@ -101,3 +101,26 @@ export async function returnLibraryLoan(loanId: string): Promise<LibraryLoan> {
   }
   return result.data;
 }
+
+export interface LibraryClearance {
+  studentId: string;
+  clear: boolean;
+  openLoanCount: number;
+  overdueCount: number;
+  openLoans: LibraryLoan[];
+  checkedAt: string;
+}
+
+export async function getLibraryClearance(studentId: string): Promise<LibraryClearance> {
+  const result = await gatewayFetch<LibraryClearance>(
+    `/library/patrons/${encodeURIComponent(studentId)}/clearance`,
+  );
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CLEARANCE_FAILED',
+      message: result.error?.message ?? 'Failed to check library clearance',
+    });
+  }
+  return result.data;
+}

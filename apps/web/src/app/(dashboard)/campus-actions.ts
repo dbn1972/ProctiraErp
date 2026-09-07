@@ -16,6 +16,7 @@ import {
 import {
   checkoutLibraryItem,
   createLibraryItem,
+  getLibraryClearance,
   returnLibraryLoan,
   type CreateLibraryItemInput,
 } from '@/lib/api/library';
@@ -24,6 +25,9 @@ export interface CampusActionState {
   status: 'idle' | 'success' | 'error';
   message?: string;
   id?: string;
+  clear?: boolean;
+  openLoanCount?: number;
+  overdueCount?: number;
 }
 
 export async function createHostelAction(input: CreateHostelInput): Promise<CampusActionState> {
@@ -61,6 +65,33 @@ export async function createLibraryItemAction(
           : error instanceof Error
             ? error.message
             : 'Failed to create library item',
+    };
+  }
+}
+
+export async function checkLibraryClearanceAction(studentId: string): Promise<CampusActionState> {
+  try {
+    const clearance = await getLibraryClearance(studentId);
+    return {
+      status: 'success',
+      message: clearance.clear
+        ? 'Library clear — no open loans.'
+        : `Not clear — ${clearance.openLoanCount} open loan(s)` +
+          (clearance.overdueCount ? ` (${clearance.overdueCount} overdue)` : '') +
+          '.',
+      clear: clearance.clear,
+      openLoanCount: clearance.openLoanCount,
+      overdueCount: clearance.overdueCount,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to check library clearance',
     };
   }
 }

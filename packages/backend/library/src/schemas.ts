@@ -28,3 +28,9 @@ export const ReturnSchema = Type.Object({
 });
 
 export type ReturnInput = Static<typeof ReturnSchema>;
+
+export const PatronParamsSchema = Type.Object({
+  studentId: Type.String({ minLength: 1, maxLength: 128 }),
+});
+
+export type PatronParams = Static<typeof PatronParamsSchema>;

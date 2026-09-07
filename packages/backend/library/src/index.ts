@@ -23,8 +23,18 @@ export {
   ensureLibrarySchema,
 } from './pg-library-repository.js';
 
-export { CreateLibraryItemSchema, CheckoutSchema, ReturnSchema } from './schemas.js';
-export type { CreateLibraryItemInput, CheckoutInput, ReturnInput } from './schemas.js';
+export {
+  CreateLibraryItemSchema,
+  CheckoutSchema,
+  ReturnSchema,
+  PatronParamsSchema,
+} from './schemas.js';
+export type {
+  CreateLibraryItemInput,
+  CheckoutInput,
+  ReturnInput,
+  PatronParams,
+} from './schemas.js';
 
 export { registerLibraryRoutes } from './routes.js';
 export type { LibraryRoutesOptions } from './routes.js';

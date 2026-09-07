@@ -33,6 +33,7 @@
 | Circulation checkout/return UI            | ☑    | `CirculationDesk`                   |
 | PgLibraryStore                            | ☑    | `pg-library-repository.ts`          |
 | Demo SQL seed                             | ☑    | `db/sql/009b_library_seed.sql`      |
+| Transfer clearance API + UI               | ☑    | `GET /patrons/:id/clearance`        |
 
 ## Residual
 

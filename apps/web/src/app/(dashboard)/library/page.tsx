@@ -13,6 +13,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listLibraryItems } from '@/lib/api/library';
+import { LibraryClearanceForm } from './_components/clearance-form';
 import { NewLibraryItemForm } from './_components/new-item-form';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +42,7 @@ export default async function LibraryCatalogPage() {
       </div>
 
       <NewLibraryItemForm />
+      <LibraryClearanceForm />
 
       <Card>
         <CardHeader>

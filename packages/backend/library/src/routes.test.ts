@@ -78,17 +78,36 @@ describe('Library Routes', () => {
     });
   });
 
-  describe('GET /library/items', () => {
-    it('should list catalog items', async () => {
-      await app.inject({
+  describe('GET /library/patrons/:studentId/clearance', () => {
+    it('should report not clear while loans are open', async () => {
+      const itemRes = await app.inject({
         method: 'POST',
         url: '/library/items',
-        payload: { title: 'History of Art' },
+        payload: { title: 'Clearance Book', copies: 1 },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/library/circulation/checkout',
+        payload: { itemId: itemRes.json().id, studentId: STUDENT_ID },
       });
 
-      const response = await app.inject({ method: 'GET', url: '/library/items' });
+      const blocked = await app.inject({
+        method: 'GET',
+        url: `/library/patrons/${STUDENT_ID}/clearance`,
+      });
+      expect(blocked.statusCode).toBe(200);
+      expect(blocked.json().clear).toBe(false);
+      expect(blocked.json().openLoanCount).toBe(1);
+    });
+
+    it('should report clear when no open loans', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/library/patrons/${STUDENT_ID}/clearance`,
+      });
       expect(response.statusCode).toBe(200);
-      expect(response.json().data).toHaveLength(1);
+      expect(response.json().clear).toBe(true);
+      expect(response.json().openLoanCount).toBe(0);
     });
   });
 });

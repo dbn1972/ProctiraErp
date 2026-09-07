@@ -9,9 +9,11 @@ import type { LibraryService } from './library-service.js';
 import {
   CheckoutSchema,
   CreateLibraryItemSchema,
+  PatronParamsSchema,
   ReturnSchema,
   type CheckoutInput,
   type CreateLibraryItemInput,
+  type PatronParams,
   type ReturnInput,
 } from './schemas.js';
 
@@ -224,6 +226,46 @@ export async function registerLibraryRoutes(
 
       const overdues = await libraryService.listOverdues(tenantId);
       return reply.status(200).send({ data: overdues.map(formatLoan) });
+    },
+  );
+
+  fastify.get(
+    `${prefix}/patrons/:studentId/clearance`,
+    async function clearanceHandler(
+      request: FastifyRequest<{ Params: PatronParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(PatronParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid student ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const clearance = await libraryService.getStudentClearance(
+        tenantId,
+        paramsResult.data.studentId,
+      );
+      return reply.status(200).send({
+        studentId: clearance.studentId,
+        clear: clearance.clear,
+        openLoanCount: clearance.openLoanCount,
+        overdueCount: clearance.overdueCount,
+        openLoans: clearance.openLoans.map(formatLoan),
+        checkedAt: clearance.checkedAt.toISOString(),
+      });
     },
   );
 }
