@@ -34,8 +34,9 @@
 | PgCommunicationStore                            | ☑    | `pg-communication-repository.ts`              |
 | Demo SQL seed                                   | ☑    | `db/sql/007b_communication_seed.sql`          |
 | Sandbox campaign send                           | ☑    | `POST /campaigns/:id/send` + list UI button   |
+| Sandbox emergency dispatch                      | ☑    | `POST /emergency/:id/dispatch` after confirm  |
 | Live hostel/route audience counts               | ☑    | `live-audience.ts` when `DATABASE_URL`        |
-| Provider adapters (Twilio/FCM/SMTP)             | ☐    | honesty notes on sandbox send                 |
+| Provider adapters (Twilio/FCM/SMTP)             | ☐    | honesty notes on sandbox send/dispatch        |
 
 ## Residual
 

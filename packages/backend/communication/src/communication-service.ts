@@ -123,4 +123,33 @@ export class CommunicationService {
 
     return updated!;
   }
+
+  /**
+   * Sandbox dispatch for a fully confirmed emergency blast.
+   */
+  async dispatchEmergencyBlast(tenantId: string, id: string) {
+    const blast = await this.repository.findEmergencyBlastById(id, tenantId);
+    if (!blast) {
+      throw new NotFoundError(`Emergency blast with id '${id}' not found`);
+    }
+    if (blast.status === 'sent') {
+      throw new ConflictError('Emergency blast is already marked sent');
+    }
+    if (blast.status !== 'confirmed') {
+      throw new ConflictError('Emergency blast must be dual-confirmed before dispatch');
+    }
+
+    const updated = await this.repository.updateEmergencyBlast(id, tenantId, {
+      status: 'sent',
+    });
+
+    return {
+      blast: updated!,
+      delivery: {
+        mode: 'sandbox' as const,
+        honestyNote:
+          'Sandbox emergency dispatch — status marked sent without calling SMS/push providers. Dual-confirm audit trail retained.',
+      },
+    };
+  }
 }

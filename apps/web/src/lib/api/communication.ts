@@ -155,3 +155,25 @@ export async function confirmEmergencyBlast(id: string, actorId: string): Promis
   }
   return result.data;
 }
+
+export interface DispatchEmergencyResult extends EmergencyBlast {
+  delivery: {
+    mode: string;
+    honestyNote: string;
+  };
+}
+
+export async function dispatchEmergencyBlast(id: string): Promise<DispatchEmergencyResult> {
+  const result = await gatewayFetch<DispatchEmergencyResult>(
+    `/communication/emergency/${id}/dispatch`,
+    { method: 'POST' },
+  );
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'DISPATCH_FAILED',
+      message: result.error?.message ?? 'Failed to dispatch emergency blast',
+    });
+  }
+  return result.data;
+}

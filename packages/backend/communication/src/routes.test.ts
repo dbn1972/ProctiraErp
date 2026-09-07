@@ -143,6 +143,35 @@ describe('Communication Routes', () => {
     });
   });
 
+  describe('POST /communication/emergency/:id/dispatch', () => {
+    it('should sandbox-dispatch a confirmed blast', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/communication/emergency',
+        payload: { reason: 'Fire drill', channels: ['sms'] },
+      });
+      const blast = createRes.json();
+      await app.inject({
+        method: 'POST',
+        url: `/communication/emergency/${blast.id}/confirm`,
+        payload: { actorId: ACTOR_1 },
+      });
+      await app.inject({
+        method: 'POST',
+        url: `/communication/emergency/${blast.id}/confirm`,
+        payload: { actorId: ACTOR_2 },
+      });
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/communication/emergency/${blast.id}/dispatch`,
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().status).toBe('sent');
+      expect(response.json().delivery.mode).toBe('sandbox');
+    });
+  });
+
   describe('POST /communication/audience/preview', () => {
     it('should return an audience preview for hostel scope', async () => {
       const response = await app.inject({

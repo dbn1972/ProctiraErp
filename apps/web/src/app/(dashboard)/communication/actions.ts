@@ -7,6 +7,7 @@ import {
   confirmEmergencyBlast,
   createCampaign,
   createEmergencyBlast,
+  dispatchEmergencyBlast,
   previewCampaignAudience,
   sendCampaign,
   type CreateCampaignInput,
@@ -135,6 +136,29 @@ export async function confirmEmergencyBlastAction(
           : error instanceof Error
             ? error.message
             : 'Failed to confirm emergency blast',
+    };
+  }
+}
+
+export async function dispatchEmergencyBlastAction(id: string): Promise<CommunicationActionState> {
+  try {
+    const result = await dispatchEmergencyBlast(id);
+    revalidatePath('/communication/emergency');
+    return {
+      status: 'success',
+      message: `Emergency blast dispatched (${result.delivery.mode}).`,
+      id: result.id,
+      honestyNote: result.delivery.honestyNote,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to dispatch emergency blast',
     };
   }
 }

@@ -16,7 +16,11 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 
-import { confirmEmergencyBlastAction, createEmergencyBlastAction } from '../actions';
+import {
+  confirmEmergencyBlastAction,
+  createEmergencyBlastAction,
+  dispatchEmergencyBlastAction,
+} from '../actions';
 import type { EmergencyBlast } from '@/lib/api/communication';
 
 const CHANNELS = ['sms', 'push', 'email', 'in_app'] as const;
@@ -31,6 +35,7 @@ export function EmergencyBlastPanel({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [honesty, setHonesty] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
   const [channels, setChannels] = useState<string[]>(['sms', 'push']);
@@ -60,6 +65,7 @@ export function EmergencyBlastPanel({
     startTransition(async () => {
       setError(null);
       setMessage(null);
+      setHonesty(null);
       const result = await createEmergencyBlastAction({
         reason,
         channels,
@@ -80,12 +86,29 @@ export function EmergencyBlastPanel({
     startTransition(async () => {
       setError(null);
       setMessage(null);
+      setHonesty(null);
       const result = await confirmEmergencyBlastAction(blastId, actorId);
       if (result.status === 'error') {
         setError(result.message ?? 'Confirm failed');
         return;
       }
       setMessage(result.message ?? 'Confirmed.');
+      router.refresh();
+    });
+  }
+
+  function onDispatch(blastId: string) {
+    startTransition(async () => {
+      setError(null);
+      setMessage(null);
+      setHonesty(null);
+      const result = await dispatchEmergencyBlastAction(blastId);
+      if (result.status === 'error') {
+        setError(result.message ?? 'Dispatch failed');
+        return;
+      }
+      setMessage(result.message ?? 'Dispatched.');
+      setHonesty(result.honestyNote ?? null);
       router.refresh();
     });
   }
@@ -99,7 +122,8 @@ export function EmergencyBlastPanel({
             Draft emergency blast
           </CardTitle>
           <CardDescription>
-            Requires two distinct confirmations before send. Quiet hours are bypassed on confirm.
+            Requires two distinct confirmations before sandbox dispatch. Quiet hours are bypassed on
+            confirm.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -165,6 +189,7 @@ export function EmergencyBlastPanel({
                 {message}
               </p>
             ) : null}
+            {honesty ? <p className="text-xs text-muted-foreground">{honesty}</p> : null}
             <div className="flex justify-end">
               <Button type="submit" disabled={pending}>
                 <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -179,7 +204,8 @@ export function EmergencyBlastPanel({
         <CardHeader>
           <CardTitle className="text-base">Open blasts</CardTitle>
           <CardDescription>
-            Confirm as the signed-in actor. A second distinct actor is required for final confirm.
+            Confirm as the signed-in actor. A second distinct actor is required for final confirm,
+            then sandbox dispatch.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -203,17 +229,32 @@ export function EmergencyBlastPanel({
                       {blast.confirmActor2 ? ' · confirm 2 recorded' : ''}
                     </p>
                   </div>
-                  {blast.status === 'pending_confirm' ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={pending}
-                      onClick={() => onConfirm(blast.id)}
-                    >
-                      Confirm as me
-                    </Button>
-                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {blast.status === 'pending_confirm' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="min-h-11"
+                        disabled={pending}
+                        onClick={() => onConfirm(blast.id)}
+                      >
+                        Confirm as me
+                      </Button>
+                    ) : null}
+                    {blast.status === 'confirmed' ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="min-h-11"
+                        disabled={pending}
+                        onClick={() => onDispatch(blast.id)}
+                        data-testid="dispatch-emergency-button"
+                      >
+                        Sandbox dispatch
+                      </Button>
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>
