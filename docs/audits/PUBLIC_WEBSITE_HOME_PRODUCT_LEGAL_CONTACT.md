@@ -14,20 +14,20 @@ Copied from `docs/audits/templates/ENTERPRISE_MODULE_TEST_CHECKLIST.md`.
 
 ## 0. Screen inventory
 
-| Nav label    | Route           | Roles  | PII/PHI | Notes                                         |
-| ------------ | --------------- | ------ | ------- | --------------------------------------------- |
-| Home         | `/`             | public | Low     | Marketing landing                             |
-| Product      | `/product`      | public | Low     | Feature overview                              |
-| Installation | `/installation` | public | Low     | Developer / self-host docs                    |
-| Security     | `/security`     | public | Low     | Footer primary                                |
-| Compliance   | `/compliance`   | public | Low     | Footer / legal group                          |
+| Nav label    | Route           | Roles  | PII/PHI | Notes                                                  |
+| ------------ | --------------- | ------ | ------- | ------------------------------------------------------ |
+| Home         | `/`             | public | Low     | Marketing landing                                      |
+| Product      | `/product`      | public | Low     | Feature overview                                       |
+| Installation | `/installation` | public | Low     | Developer / self-host docs                             |
+| Security     | `/security`     | public | Low     | Footer primary                                         |
+| Compliance   | `/compliance`   | public | Low     | Footer / legal group                                   |
 | Status       | `/status`       | public | Low     | Probe-backed when `STATUS_PROBE_*` set; else prelaunch |
-| About        | `/about`        | public | Low     | Mission / values (no lucide `Github` icon)    |
-| Contact      | `/contact`      | public | Medium  | Write path via `/api/contact`                 |
-| Legal hub    | `/legal`        | public | Low     | Legal notices                                 |
-| Privacy      | `/privacy`      | public | Low     | Privacy policy                                |
-| Terms        | `/terms`        | public | Low     | Terms of service                              |
-| Cookies      | `/cookies`      | public | Low     | Cookie policy                                 |
+| About        | `/about`        | public | Low     | Mission / values (no lucide `Github` icon)             |
+| Contact      | `/contact`      | public | Medium  | Write path via `/api/contact`                          |
+| Legal hub    | `/legal`        | public | Low     | Legal notices                                          |
+| Privacy      | `/privacy`      | public | Low     | Privacy policy                                         |
+| Terms        | `/terms`        | public | Low     | Terms of service                                       |
+| Cookies      | `/cookies`      | public | Low     | Cookie policy                                          |
 
 ### Status + contact webhook paths (ops)
 

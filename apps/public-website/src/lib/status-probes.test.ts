@@ -44,7 +44,9 @@ describe('status probes', () => {
   });
 
   it('maps non-500 failure responses to degraded (not invented ok)', async () => {
-    const fetchImpl = vi.fn(async () => new Response('nope', { status: 401 })) as unknown as typeof fetch;
+    const fetchImpl = vi.fn(
+      async () => new Response('nope', { status: 401 }),
+    ) as unknown as typeof fetch;
     await expect(probeUrl('http://auth.example/login', fetchImpl)).resolves.toBe('degraded');
   });
 });

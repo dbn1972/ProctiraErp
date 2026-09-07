@@ -27,11 +27,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-proctira_dev_password}
       POSTGRES_DB: ${POSTGRES_DB:-proctira}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proctira} -d ${POSTGRES_DB:-proctira}"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-proctira} -d ${POSTGRES_DB:-proctira}']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -41,13 +41,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ['redis-server', '--appendonly', 'yes']
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - '${REDIS_PORT:-6379}:6379'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ['CMD', 'redis-cli', 'ping']
       interval: 10s
       timeout: 5s
       retries: 5
@@ -71,13 +71,14 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     ports:
-      - "${KAFKA_PORT:-9092}:9092"
+      - '${KAFKA_PORT:-9092}:9092'
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      test:
+        ['CMD-SHELL', 'kafka-broker-api-versions --bootstrap-server localhost:9092 >/dev/null 2>&1']
       interval: 15s
       timeout: 10s
       retries: 10
@@ -92,12 +93,12 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-proctira}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-proctira_dev_password}
     ports:
-      - "${RABBITMQ_PORT:-5672}:5672"
-      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
+      - '${RABBITMQ_PORT:-5672}:5672'
+      - '${RABBITMQ_MGMT_PORT:-15672}:15672'
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
       interval: 15s
       timeout: 10s
       retries: 5
@@ -112,12 +113,12 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-proctira}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-proctira_dev_password}
     ports:
-      - "${MINIO_API_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+      - '${MINIO_API_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
     volumes:
       - minio-data:/data
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:9000/minio/health/live"]
+      test: ['CMD', 'curl', '--fail', 'http://localhost:9000/minio/health/live']
       interval: 15s
       timeout: 5s
       retries: 5
@@ -167,7 +168,7 @@ services:
       S3_BUCKET: ${S3_BUCKET}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
     ports:
-      - "${GATEWAY_PORT:-3000}:3000"
+      - '${GATEWAY_PORT:-3000}:3000'
     networks:
       - proctira
 
@@ -192,7 +193,7 @@ services:
       KAFKA_BROKERS: ${KAFKA_BROKERS}
       RABBITMQ_URL: ${RABBITMQ_URL}
     ports:
-      - "${ETL_WORKER_PORT:-3010}:3010"
+      - '${ETL_WORKER_PORT:-3010}:3010'
     networks:
       - proctira
 
@@ -213,7 +214,7 @@ services:
       GATEWAY_URL: ${GATEWAY_URL}
       COOKIE_SECRET: ${COOKIE_SECRET}
     ports:
-      - "${WEB_PORT:-3001}:3001"
+      - '${WEB_PORT:-3001}:3001'
     networks:
       - proctira
 
@@ -232,7 +233,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
-      - "${REGISTRATION_PORTAL_PORT:-3002}:3002"
+      - '${REGISTRATION_PORTAL_PORT:-3002}:3002'
     networks:
       - proctira
 
@@ -256,7 +257,7 @@ services:
       STATUS_PROBE_API_URL: ${STATUS_PROBE_API_URL:-http://api-gateway:3000/health}
       STATUS_PROBE_AUTH_URL: ${STATUS_PROBE_AUTH_URL:-http://api-gateway:3000/health/live}
     ports:
-      - "${PUBLIC_WEBSITE_PORT:-3003}:3003"
+      - '${PUBLIC_WEBSITE_PORT:-3003}:3003'
     networks:
       - proctira
 
@@ -277,7 +278,7 @@ services:
       GATEWAY_URL: ${GATEWAY_URL}
       COOKIE_SECRET: ${COOKIE_SECRET}
     ports:
-      - "${ADMIN_CONSOLE_PORT:-3004}:3004"
+      - '${ADMIN_CONSOLE_PORT:-3004}:3004'
     networks:
       - proctira
 
@@ -296,7 +297,7 @@ services:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
-      - "${DEVELOPER_PORTAL_PORT:-3005}:3005"
+      - '${DEVELOPER_PORTAL_PORT:-3005}:3005'
     networks:
       - proctira
 
@@ -319,7 +320,7 @@ services:
       REDIS_URL: ${REDIS_URL}
       GATEWAY_URL: ${GATEWAY_URL}
     ports:
-      - "${INSTALL_WIZARD_PORT:-3100}:3100"
+      - '${INSTALL_WIZARD_PORT:-3100}:3100'
     networks:
       - proctira
 

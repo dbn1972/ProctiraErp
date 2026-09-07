@@ -18,9 +18,7 @@ export interface StatusSnapshot {
   probes: Partial<Record<'web' | 'api' | 'auth', ProbeState>>;
 }
 
-export function readStatusProbeUrlsFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): StatusProbeUrls {
+export function readStatusProbeUrlsFromEnv(env: NodeJS.ProcessEnv = process.env): StatusProbeUrls {
   return {
     web: env.STATUS_PROBE_WEB_URL?.trim() || undefined,
     api: env.STATUS_PROBE_API_URL?.trim() || undefined,
