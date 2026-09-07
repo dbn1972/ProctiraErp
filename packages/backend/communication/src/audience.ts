@@ -8,15 +8,39 @@ export interface AudiencePreviewResult {
   scope: string;
   breakdown: Record<string, number>;
   honestyNote: string;
+  source: 'estimator' | 'live';
 }
 
 const BASE_TENANT = 500;
 
 export function estimateAudience(
   audienceJson: Record<string, unknown> = {},
+  live?: { hostelActiveAssignments?: number | null; routeActiveAssignments?: number | null },
 ): AudiencePreviewResult {
   const scope = String(audienceJson['scope'] ?? 'all').toLowerCase();
   const breakdown: Record<string, number> = { base: BASE_TENANT };
+
+  if (scope === 'hostel' && live?.hostelActiveAssignments != null) {
+    return {
+      estimatedRecipients: live.hostelActiveAssignments,
+      scope,
+      breakdown: { liveHostelAssignments: live.hostelActiveAssignments },
+      honestyNote:
+        'Live count from active hostel_assignments (guardians/channels not expanded yet).',
+      source: 'live',
+    };
+  }
+
+  if (scope === 'route' && live?.routeActiveAssignments != null) {
+    return {
+      estimatedRecipients: live.routeActiveAssignments,
+      scope,
+      breakdown: { liveRouteAssignments: live.routeActiveAssignments },
+      honestyNote:
+        'Live count from active transport_student_assignments (guardians/channels not expanded yet).',
+      source: 'live',
+    };
+  }
 
   let estimated = BASE_TENANT;
 
@@ -48,5 +72,6 @@ export function estimateAudience(
     breakdown,
     honestyNote:
       'v1 estimator — not live enrollment counts. Wire student/hostel/route segment resolvers for production parity.',
+    source: 'estimator',
   };
 }

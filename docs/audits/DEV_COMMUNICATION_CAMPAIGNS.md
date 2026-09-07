@@ -34,8 +34,9 @@
 | PgCommunicationStore                            | ☑    | `pg-communication-repository.ts`              |
 | Demo SQL seed                                   | ☑    | `db/sql/007b_communication_seed.sql`          |
 | Sandbox campaign send                           | ☑    | `POST /campaigns/:id/send` + list UI button   |
-| Live segment resolver / provider adapters       | ☐    | honesty notes on preview + sandbox send       |
+| Live hostel/route audience counts               | ☑    | `live-audience.ts` when `DATABASE_URL`        |
+| Provider adapters (Twilio/FCM/SMTP)             | ☐    | honesty notes on sandbox send                 |
 
 ## Residual
 
-Live segment resolvers + Twilio/FCM/SMTP adapters. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).
+Provider adapters + guardian expansion. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).

@@ -15,4 +15,10 @@ describe('estimateAudience', () => {
     expect(estimateAudience({ scope: 'grade', grade: '10' }).estimatedRecipients).toBe(100);
     expect(estimateAudience({ scope: 'hostel' }).estimatedRecipients).toBe(75);
   });
+
+  it('prefers live hostel counts when provided', () => {
+    const result = estimateAudience({ scope: 'hostel' }, { hostelActiveAssignments: 12 });
+    expect(result.estimatedRecipients).toBe(12);
+    expect(result.source).toBe('live');
+  });
 });

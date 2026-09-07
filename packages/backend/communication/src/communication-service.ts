@@ -7,12 +7,14 @@ import { v4 as uuidv4 } from 'uuid';
 import type { CommunicationRepository } from './communication-repository.js';
 import type { CreateCampaignInput, CreateEmergencyBlastInput } from './schemas.js';
 import { estimateAudience } from './audience.js';
+import { fetchLiveAudienceCounts } from './live-audience.js';
 
 export class CommunicationService {
   constructor(private readonly repository: CommunicationRepository) {}
 
-  previewAudience(audienceJson: Record<string, unknown> = {}) {
-    return estimateAudience(audienceJson);
+  async previewAudience(tenantId: string, audienceJson: Record<string, unknown> = {}) {
+    const live = await fetchLiveAudienceCounts(tenantId, audienceJson);
+    return estimateAudience(audienceJson, live);
   }
   async createCampaign(tenantId: string, input: CreateCampaignInput) {
     return this.repository.createCampaign({

@@ -144,7 +144,7 @@ describe('Communication Routes', () => {
   });
 
   describe('POST /communication/audience/preview', () => {
-    it('should return an estimated recipient count', async () => {
+    it('should return an audience preview for hostel scope', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/communication/audience/preview',
@@ -152,8 +152,10 @@ describe('Communication Routes', () => {
       });
       expect(response.statusCode).toBe(200);
       const body = response.json();
-      expect(body.estimatedRecipients).toBeGreaterThan(0);
       expect(body.scope).toBe('hostel');
+      expect(typeof body.estimatedRecipients).toBe('number');
+      expect(body.estimatedRecipients).toBeGreaterThanOrEqual(0);
+      expect(body.honestyNote).toBeTruthy();
     });
 
     it('should estimate all-tenant scope', async () => {
@@ -164,6 +166,7 @@ describe('Communication Routes', () => {
       });
       expect(response.statusCode).toBe(200);
       expect(response.json().estimatedRecipients).toBe(500);
+      expect(response.json().source).toBe('estimator');
     });
   });
 });

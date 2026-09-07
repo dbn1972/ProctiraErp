@@ -43,6 +43,8 @@ export type {
 
 export { estimateAudience } from './audience.js';
 export type { AudiencePreviewResult } from './audience.js';
+export { fetchLiveAudienceCounts } from './live-audience.js';
+export type { LiveAudienceCounts } from './live-audience.js';
 
 export { registerCommunicationRoutes } from './routes.js';
 export type { CommunicationRoutesOptions } from './routes.js';

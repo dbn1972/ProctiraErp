@@ -119,7 +119,8 @@ export async function registerCommunicationRoutes(
         });
       }
 
-      const preview = communicationService.previewAudience(
+      const preview = await communicationService.previewAudience(
+        tenantId,
         (result.data.audienceJson as Record<string, unknown> | undefined) ?? {},
       );
       return reply.status(200).send(preview);

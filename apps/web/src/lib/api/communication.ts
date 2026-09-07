@@ -45,6 +45,7 @@ export interface AudiencePreview {
   scope: string;
   breakdown: Record<string, number>;
   honestyNote: string;
+  source?: string;
 }
 
 export interface CreateEmergencyBlastInput {
