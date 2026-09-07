@@ -1,7 +1,7 @@
 # Enterprise module development — Library circulation
 
 **Capability / module:** Library  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `b39d0a0`  
 **Date (UTC):** 2026-09-07  
 **Peer parity target:** Catalog items, checkout/return, overdue list  
 **Paired test audit:** pending WS6
@@ -30,9 +30,9 @@
 | Web shells + sidebar                    | ☑    |                                  |
 | Live catalog create + list              | ☑    | `NewLibraryItemForm` + items API |
 | Overdues list from API                  | ☑    | `/library/overdues`              |
+| Circulation checkout/return UI          | ☑    | `CirculationDesk`                |
 | PgLibraryStore                          | ☐    | follow-up                        |
-| Live circulation desk UI                | ☐    | follow-up                        |
 
 ## Residual
 
-Wire circulation desk + Pg store; seed demo catalog per cert school.
+Pg store + seed demo catalog per cert school; WS6 enterprise pack. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).
