@@ -29,6 +29,7 @@ import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
 import serviceRouterPlugin from './plugins/service-router.js';
+import storageHealthPlugin from './plugins/storage-health.js';
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -149,6 +150,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     services: config.services,
   });
 
+  // 5b. Object storage health (install CLI / ops) — public probe, no JWT
+  await app.register(storageHealthPlugin);
+
   // 6. Register OpenAPI documentation via @fastify/swagger
   await app.register(swagger, {
     openapi: {
@@ -229,6 +233,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/api/v1/auth/login',
     '/api/v1/auth/refresh',
     '/api/v1/services',
+    '/api/v1/storage/health',
   ];
 
   await app.register(authPlugin, {
@@ -296,6 +301,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/api/v1/auth/login',
       '/api/v1/auth/refresh',
       '/api/v1/services',
+      '/api/v1/storage/health',
     ],
     resolveSlugToId: false, // Gateway doesn't have direct DB access
   });
@@ -326,6 +332,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/docs/*',
       '/api/v1/auth/login',
       '/api/v1/auth/refresh',
+      '/api/v1/storage/health',
     ],
   });
 
