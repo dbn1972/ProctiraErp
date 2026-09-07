@@ -167,13 +167,12 @@ function buildQuery(filters: StaffListFilters): string {
   return qs ? `?${qs}` : '';
 }
 
-export async function listStaff(
-  filters: StaffListFilters = {},
-): Promise<StaffListResponse> {
-  const result = await gatewayFetch<StaffListResponse>(
-    `/staff${buildQuery(filters)}`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
-  );
+export async function listStaff(filters: StaffListFilters = {}): Promise<StaffListResponse> {
+  const result = await gatewayFetch<StaffListResponse>(`/staff${buildQuery(filters)}`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   if (!result.ok || !result.data) {
     return {
       data: [],
@@ -206,10 +205,7 @@ export async function createStaff(input: CreateStaffInput): Promise<Staff> {
   return result.data;
 }
 
-export async function updateStaff(
-  id: string,
-  input: UpdateStaffInput,
-): Promise<Staff> {
+export async function updateStaff(id: string, input: UpdateStaffInput): Promise<Staff> {
   const result = await gatewayFetch<Staff>(`/staff/${id}`, {
     method: 'PUT',
     json: input,
@@ -224,19 +220,15 @@ export async function deleteStaff(id: string): Promise<void> {
 
 /* ------------------------------------------------------------- Assignments */
 
-export async function listStaffAssignments(
-  staffId: string,
-): Promise<Assignment[]> {
+export async function listStaffAssignments(staffId: string): Promise<Assignment[]> {
   const result = await gatewayFetch<{ data: Assignment[]; meta?: PaginationMeta }>(
     `/staff/assignments?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
-export async function createAssignment(
-  input: CreateAssignmentInput,
-): Promise<Assignment> {
+export async function createAssignment(input: CreateAssignmentInput): Promise<Assignment> {
   const result = await gatewayFetch<Assignment>('/staff/assignments', {
     method: 'POST',
     json: input,
@@ -252,12 +244,10 @@ export async function listAppraisalTemplates(): Promise<AppraisalTemplate[]> {
     '/staff/appraisals/templates?pageSize=100',
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
-export async function getAppraisalTemplate(
-  templateId: string,
-): Promise<AppraisalTemplate | null> {
+export async function getAppraisalTemplate(templateId: string): Promise<AppraisalTemplate | null> {
   const result = await gatewayFetch<AppraisalTemplate>(
     `/staff/appraisals/templates/${templateId}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 30 } },
@@ -265,19 +255,15 @@ export async function getAppraisalTemplate(
   return result.ok ? result.data : null;
 }
 
-export async function listStaffAppraisals(
-  staffId: string,
-): Promise<Appraisal[]> {
+export async function listStaffAppraisals(staffId: string): Promise<Appraisal[]> {
   const result = await gatewayFetch<{ data: Appraisal[] }>(
     `/staff/appraisals?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
-export async function createAppraisal(
-  input: CreateAppraisalInput,
-): Promise<Appraisal> {
+export async function createAppraisal(input: CreateAppraisalInput): Promise<Appraisal> {
   const result = await gatewayFetch<Appraisal>('/staff/appraisals', {
     method: 'POST',
     json: input,
@@ -288,12 +274,65 @@ export async function createAppraisal(
 
 /* ------------------------------------------------------------- Training */
 
-export async function listStaffCertifications(
-  staffId: string,
-): Promise<TrainingCertification[]> {
+export async function listStaffCertifications(staffId: string): Promise<TrainingCertification[]> {
   const result = await gatewayFetch<{ data: TrainingCertification[] }>(
     `/staff/training/certifications?staffId=${encodeURIComponent(staffId)}&pageSize=100`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+/* ------------------------------------------------------------- HR Leave */
+
+export interface StaffLeave {
+  id: string;
+  tenantId: string;
+  staffId: string;
+  leaveType: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+  status: string;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateStaffLeaveInput {
+  staffId: string;
+  leaveType?: 'annual' | 'sick' | 'casual' | 'unpaid' | 'other';
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}
+
+export async function listStaffLeaves(): Promise<StaffLeave[]> {
+  const result = await gatewayFetch<{ data: StaffLeave[] }>('/staff/leaves', {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function createStaffLeave(input: CreateStaffLeaveInput): Promise<StaffLeave> {
+  const result = await gatewayFetch<StaffLeave>('/staff/leaves', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
+}
+
+export async function decideStaffLeave(
+  id: string,
+  status: 'approved' | 'rejected',
+): Promise<StaffLeave> {
+  const result = await gatewayFetch<StaffLeave>(`/staff/leaves/${id}/decide`, {
+    method: 'POST',
+    json: { status },
+  });
+  if (!result.data) throw new Error('Empty response from staff-service');
+  return result.data;
 }

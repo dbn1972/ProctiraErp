@@ -22,11 +22,7 @@ export type { StaffPluginOptions } from './staff-plugin.js';
 export { StaffService } from './staff-service.js';
 
 // Repository
-export type {
-  StaffEntity,
-  StaffFilter,
-  StaffRepository,
-} from './staff-repository.js';
+export type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
 
 // In-memory repository (for testing)
 export { InMemoryStaffRepository } from './in-memory-repository.js';
@@ -206,6 +202,35 @@ export type {
 // Training Routes
 export { registerTrainingRoutes } from './training-routes.js';
 export type { TrainingRoutesOptions } from './training-routes.js';
+
+// ─── Staff Leave (HR leave v1) ────────────────────────────────────────
+
+export { StaffLeaveService } from './leave-service.js';
+export type {
+  StaffLeaveEntity,
+  StaffLeaveRepository,
+  StaffLeaveStatus,
+  StaffLeaveType,
+} from './leave-repository.js';
+export { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
+export {
+  CreateStaffLeaveSchema,
+  DecideStaffLeaveSchema,
+  StaffLeaveParamsSchema,
+} from './leave-schemas.js';
+export type {
+  CreateStaffLeaveInput,
+  DecideStaffLeaveInput,
+  StaffLeaveParams,
+} from './leave-schemas.js';
+export { registerStaffLeaveRoutes } from './leave-routes.js';
+export type { StaffLeaveRoutesOptions } from './leave-routes.js';
+export {
+  createStaffLeaveRepository,
+  ensureStaffLeaveSchema,
+  isPgStaffLeaveEnabled,
+  PgStaffLeaveRepository,
+} from './pg-leave-repository.js';
 
 // Persistence: Prisma repository + env-driven factory
 export { PrismaStaffRepository } from './prisma-staff-repository.js';

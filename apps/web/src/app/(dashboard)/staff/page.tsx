@@ -41,11 +41,7 @@ interface PageProps {
   searchParams?: Record<string, string | string[] | undefined>;
 }
 
-function readStr(
-  params: PageProps['searchParams'],
-  key: string,
-  fallback = '',
-): string {
+function readStr(params: PageProps['searchParams'], key: string, fallback = ''): string {
   if (!params) return fallback;
   const v = params[key];
   if (typeof v === 'string') return v;
@@ -53,12 +49,8 @@ function readStr(
   return fallback;
 }
 
-function readNum(
-  params: PageProps['searchParams'],
-  key: string,
-  fallback: number,
-): number {
-  const raw    = readStr(params, key);
+function readNum(params: PageProps['searchParams'], key: string, fallback: number): number {
+  const raw = readStr(params, key);
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
@@ -103,34 +95,39 @@ function readCdStr(cd: Record<string, unknown> | null | undefined, key: string):
 function readCdArr(cd: Record<string, unknown> | null | undefined, key: string): string[] {
   const v = cd?.[key];
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
-  if (typeof v === 'string' && v.trim()) return v.split(',').map((s) => s.trim()).filter(Boolean);
+  if (typeof v === 'string' && v.trim())
+    return v
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   return [];
 }
 
 /* ──────────────────────────────────────────────── Status pill ── */
 
 const STATUS_PILL: Record<string, string> = {
-  ACTIVE:        'bg-emerald-50  text-emerald-700  dark:bg-emerald-950/40 dark:text-emerald-400',
-  INACTIVE:      'bg-zinc-100    text-zinc-600     dark:bg-zinc-800       dark:text-zinc-400',
-  ON_LEAVE:      'bg-amber-50    text-amber-700    dark:bg-amber-950/40   dark:text-amber-400',
-  PROBATION:     'bg-sky-50      text-sky-700      dark:bg-sky-950/40     dark:text-sky-400',
-  SUSPENDED:     'bg-red-50      text-red-700      dark:bg-red-950/40     dark:text-red-400',
-  RESIGNED:      'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
-  RETIRED:       'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
+  ACTIVE: 'bg-emerald-50  text-emerald-700  dark:bg-emerald-950/40 dark:text-emerald-400',
+  INACTIVE: 'bg-zinc-100    text-zinc-600     dark:bg-zinc-800       dark:text-zinc-400',
+  ON_LEAVE: 'bg-amber-50    text-amber-700    dark:bg-amber-950/40   dark:text-amber-400',
+  PROBATION: 'bg-sky-50      text-sky-700      dark:bg-sky-950/40     dark:text-sky-400',
+  SUSPENDED: 'bg-red-50      text-red-700      dark:bg-red-950/40     dark:text-red-400',
+  RESIGNED: 'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
+  RETIRED: 'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  ACTIVE:    'Active',
-  INACTIVE:  'Inactive',
-  ON_LEAVE:  'On leave',
+  ACTIVE: 'Active',
+  INACTIVE: 'Inactive',
+  ON_LEAVE: 'On leave',
   PROBATION: 'Probation',
   SUSPENDED: 'Suspended',
-  RESIGNED:  'Resigned',
-  RETIRED:   'Retired',
+  RESIGNED: 'Resigned',
+  RETIRED: 'Retired',
 };
 
 function StatusPill({ status }: { status: string }) {
-  const cls   = STATUS_PILL[status] ?? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400';
+  const cls =
+    STATUS_PILL[status] ?? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400';
   const label = STATUS_LABEL[status] ?? status;
   return (
     <span
@@ -157,8 +154,8 @@ interface StaffMember {
 }
 
 function buildSubMeta(member: StaffMember): string {
-  const cd       = member.customData ?? {};
-  const gender   = readCdStr(cd, 'gender');
+  const cd = member.customData ?? {};
+  const gender = readCdStr(cd, 'gender');
   const joinDate = readCdStr(cd, 'joinDate') || readCdStr(cd, 'joinedDate');
   const roleNote = readCdStr(cd, 'roleNote');
   const parts: string[] = [];
@@ -174,13 +171,13 @@ function buildSubMeta(member: StaffMember): string {
 }
 
 function StaffRow({ member }: { member: StaffMember }) {
-  const cd      = member.customData ?? {};
+  const cd = member.customData ?? {};
   const initials = `${member.firstName.charAt(0)}${member.lastName.charAt(0)}`.toUpperCase();
   const fullName = `${member.firstName} ${member.lastName}`;
-  const palette  = avatarPalette(fullName);
-  const subMeta  = buildSubMeta(member);
+  const palette = avatarPalette(fullName);
+  const subMeta = buildSubMeta(member);
   const subjects = readCdArr(cd, 'subjects');
-  const school   = readCdStr(cd, 'institutionName') || readCdStr(cd, 'schoolName');
+  const school = readCdStr(cd, 'institutionName') || readCdStr(cd, 'schoolName');
   const designation = readCdStr(cd, 'designation') || member.position;
 
   return (
@@ -204,9 +201,7 @@ function StaffRow({ member }: { member: StaffMember }) {
             >
               {fullName}
             </Link>
-            {subMeta && (
-              <p className="truncate text-[11px] text-muted-foreground">{subMeta}</p>
-            )}
+            {subMeta && <p className="truncate text-[11px] text-muted-foreground">{subMeta}</p>}
           </div>
         </div>
       </TableCell>
@@ -241,7 +236,10 @@ function StaffRow({ member }: { member: StaffMember }) {
       </TableCell>
 
       {/* School */}
-      <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground" title={school || undefined}>
+      <TableCell
+        className="max-w-[200px] truncate text-sm text-muted-foreground"
+        title={school || undefined}
+      >
         {school || '—'}
       </TableCell>
 
@@ -275,22 +273,25 @@ function StaffRow({ member }: { member: StaffMember }) {
 /* ──────────────────────────────────────────────── Page ── */
 
 export default async function StaffListPage({ searchParams }: PageProps) {
-  const search        = readStr(searchParams, 'search');
+  const search = readStr(searchParams, 'search');
   const institutionId = readStr(searchParams, 'institutionId');
-  const position      = readStr(searchParams, 'position');
-  const status        = readStr(searchParams, 'status', 'ALL');
-  const type          = (readStr(searchParams, 'type', 'ALL') || 'ALL') as
-    'ALL' | 'TEACHING' | 'NON_TEACHING' | 'ON_LEAVE';
+  const position = readStr(searchParams, 'position');
+  const status = readStr(searchParams, 'status', 'ALL');
+  const type = (readStr(searchParams, 'type', 'ALL') || 'ALL') as
+    | 'ALL'
+    | 'TEACHING'
+    | 'NON_TEACHING'
+    | 'ON_LEAVE';
 
   const filters: StaffListFilters = {
-    page:      readNum(searchParams, 'page', 1),
-    pageSize:  readNum(searchParams, 'pageSize', 20),
-    sortBy:    'lastName',
+    page: readNum(searchParams, 'page', 1),
+    pageSize: readNum(searchParams, 'pageSize', 20),
+    sortBy: 'lastName',
     sortOrder: 'asc',
   };
-  if (search)        filters.search        = search;
+  if (search) filters.search = search;
   if (institutionId) filters.institutionId = institutionId;
-  if (position)      filters.position      = position;
+  if (position) filters.position = position;
   if (status && status !== 'ALL') filters.status = status as StaffListFilters['status'];
 
   const [staffResponse, institutions] = await Promise.all([
@@ -302,14 +303,10 @@ export default async function StaffListPage({ searchParams }: PageProps) {
 
   return (
     <section aria-labelledby="staff-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1
-            id="staff-heading"
-            className="text-3xl font-extrabold tracking-tight text-foreground"
-          >
+          <h1 id="staff-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
             Staff
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -317,6 +314,9 @@ export default async function StaffListPage({ searchParams }: PageProps) {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/leaves">Leave requests</Link>
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/staff/assignments/new">
               <GitBranch className="me-1.5 h-4 w-4" aria-hidden="true" />
@@ -333,10 +333,7 @@ export default async function StaffListPage({ searchParams }: PageProps) {
       </div>
 
       {/* ── Type tabs ── */}
-      <StaffTypeTabs
-        activeType={type}
-        counts={{ ALL: totalAll }}
-      />
+      <StaffTypeTabs activeType={type} counts={{ ALL: totalAll }} />
 
       {/* ── Filter bar ── */}
       <div className="py-1">
