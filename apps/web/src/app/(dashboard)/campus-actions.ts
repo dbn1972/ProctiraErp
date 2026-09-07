@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
-import { createHostel, type CreateHostelInput } from '@/lib/api/hostel';
+import { createHostel, createHostelAssignment, type CreateHostelInput } from '@/lib/api/hostel';
 import {
   checkoutLibraryItem,
   createLibraryItem,
@@ -97,6 +97,30 @@ export async function returnLibraryLoanAction(loanId: string): Promise<CampusAct
           : error instanceof Error
             ? error.message
             : 'Return failed',
+    };
+  }
+}
+
+export async function createHostelAssignmentAction(input: {
+  studentId: string;
+  bedId: string;
+  startDate: string;
+  endDate?: string;
+}): Promise<CampusActionState> {
+  try {
+    const row = await createHostelAssignment(input);
+    revalidatePath('/hostel');
+    revalidatePath('/hostel/assignments');
+    return { status: 'success', message: 'Assignment created.', id: row.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create assignment',
     };
   }
 }

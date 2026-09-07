@@ -64,3 +64,24 @@ export async function listHostelAssignments(): Promise<HostelAssignment[]> {
   });
   return result.data?.data ?? [];
 }
+
+export async function createHostelAssignment(input: {
+  studentId: string;
+  bedId: string;
+  startDate: string;
+  endDate?: string;
+  isActive?: boolean;
+}): Promise<HostelAssignment> {
+  const result = await gatewayFetch<HostelAssignment>('/hostel/assignments', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create hostel assignment',
+    });
+  }
+  return result.data;
+}

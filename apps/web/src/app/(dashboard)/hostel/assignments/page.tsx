@@ -13,6 +13,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listHostelAssignments } from '@/lib/api/hostel';
+import { NewHostelAssignmentForm } from '../_components/new-assignment-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +34,9 @@ export default async function HostelAssignmentsPage() {
           <Link href="/hostel">Back to hostel</Link>
         </Button>
       </div>
+
+      <NewHostelAssignmentForm />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Active assignments</CardTitle>
