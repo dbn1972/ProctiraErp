@@ -363,15 +363,15 @@ Prefer **B→C** and **D** in parallel after WS0; **E** after B; **F/G** paralle
 
 ## Status tracker
 
-| WS                        | Status      | Tip / audit |
-| ------------------------- | ----------- | ----------- |
-| WS0 Inventory & contracts | **Planned** | this doc    |
-| WS1 Notifications         | **Planned** | —           |
-| WS2 Communication         | **Planned** | —           |
-| WS3 Transport             | **Planned** | —           |
-| WS4 Hostel                | **Planned** | —           |
-| WS5 Library               | **Planned** | —           |
-| WS6 Enterprise test packs | **Planned** | —           |
+| WS                        | Status          | Tip / audit                            |
+| ------------------------- | --------------- | -------------------------------------- |
+| WS0 Inventory & contracts | **In progress** | Nav + DEV audits on tip                |
+| WS1 Notifications         | **In progress** | SQL + prefs/devices + gateway + shells |
+| WS2 Communication         | **Planned**     | —                                      |
+| WS3 Transport             | **In progress** | SQL + gateway + shells                 |
+| WS4 Hostel                | **Planned**     | —                                      |
+| WS5 Library               | **Planned**     | —                                      |
+| WS6 Enterprise test packs | **Planned**     | ungated smoke `20-…-inventory-smoke`   |
 
 ---
 

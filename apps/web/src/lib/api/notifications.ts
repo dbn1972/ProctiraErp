@@ -13,15 +13,12 @@
  * Validates: Requirements 22.1, 22.2, 22.4, 22.5
  */
 
-import {
-  browserGatewayFetch,
-  BrowserGatewayError,
-} from './browser-gateway';
+import { browserGatewayFetch, BrowserGatewayError } from './browser-gateway';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
 /** Delivery channels supported by the Notification Service. */
-export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook';
+export type NotificationChannel = 'email' | 'in_app' | 'push' | 'webhook' | 'sms';
 
 /** Notification categories that users can opt in/out of. */
 export type NotificationCategory =
@@ -76,9 +73,7 @@ export const NOTIFICATION_API_ENDPOINTS = {
  * Fetches the current user's notification preferences.
  */
 export async function getNotificationPreferences(): Promise<NotificationPreferencesData> {
-  return browserGatewayFetch<NotificationPreferencesData>(
-    NOTIFICATION_API_ENDPOINTS.PREFERENCES,
-  );
+  return browserGatewayFetch<NotificationPreferencesData>(NOTIFICATION_API_ENDPOINTS.PREFERENCES);
 }
 
 /**
@@ -88,13 +83,10 @@ export async function getNotificationPreferences(): Promise<NotificationPreferen
 export async function updateNotificationPreferences(
   patch: NotificationPreferencesPatch,
 ): Promise<NotificationPreferencesData> {
-  return browserGatewayFetch<NotificationPreferencesData>(
-    NOTIFICATION_API_ENDPOINTS.PREFERENCES,
-    {
-      method: 'PATCH',
-      json: patch,
-    },
-  );
+  return browserGatewayFetch<NotificationPreferencesData>(NOTIFICATION_API_ENDPOINTS.PREFERENCES, {
+    method: 'PATCH',
+    json: patch,
+  });
 }
 
 export { BrowserGatewayError as NotificationApiError };

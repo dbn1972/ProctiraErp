@@ -27,6 +27,11 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { NotificationService } from './notification-service.js';
 import {
+  InMemoryNotificationPrefsStore,
+  type NotificationPreferencesData,
+  type NotificationPrefsStore,
+} from './prefs-store.js';
+import {
   SendNotificationSchema,
   CreateNotificationRuleSchema,
   UpdateNotificationRuleSchema,
@@ -48,6 +53,8 @@ import {
  */
 export interface NotificationRoutesOptions {
   notificationService: NotificationService;
+  /** Preferences / device store (defaults to in-memory when omitted). */
+  prefsStore?: NotificationPrefsStore;
   /** Route prefix (default: '/notifications') */
   prefix?: string;
 }
@@ -165,6 +172,131 @@ export async function registerNotificationRoutes(
   options: NotificationRoutesOptions,
 ): Promise<void> {
   const { notificationService, prefix = '/notifications' } = options;
+  const prefsStore = options.prefsStore ?? new InMemoryNotificationPrefsStore();
+
+  function getTenantId(request: FastifyRequest): string | null {
+    return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
+  }
+
+  function getUserId(request: FastifyRequest): string | null {
+    const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
+    return user?.sub ?? user?.userId ?? null;
+  }
+
+  // ─── Preferences (before /:notificationId) ───────────────────────────────
+
+  fastify.get(`${prefix}/preferences`, async (request, reply) => {
+    const tenantId = getTenantId(request);
+    const userId = getUserId(request);
+    if (!tenantId || !userId) {
+      return reply.status(400).send({
+        code: 'AUTH_CONTEXT_REQUIRED',
+        message: 'Tenant and user context are required',
+        statusCode: 400,
+      });
+    }
+    const prefs = await prefsStore.getPreferences(tenantId, userId);
+    return reply.status(200).send(prefs);
+  });
+
+  fastify.patch(`${prefix}/preferences`, async (request, reply) => {
+    const tenantId = getTenantId(request);
+    const userId = getUserId(request);
+    if (!tenantId || !userId) {
+      return reply.status(400).send({
+        code: 'AUTH_CONTEXT_REQUIRED',
+        message: 'Tenant and user context are required',
+        statusCode: 400,
+      });
+    }
+    const prefs = await prefsStore.updatePreferences(
+      tenantId,
+      userId,
+      (request.body ?? {}) as Partial<NotificationPreferencesData>,
+    );
+    return reply.status(200).send(prefs);
+  });
+
+  // ─── Devices ─────────────────────────────────────────────────────────────
+
+  fastify.get(`${prefix}/devices`, async (request, reply) => {
+    const tenantId = getTenantId(request);
+    const userId = getUserId(request);
+    if (!tenantId || !userId) {
+      return reply.status(400).send({
+        code: 'AUTH_CONTEXT_REQUIRED',
+        message: 'Tenant and user context are required',
+        statusCode: 400,
+      });
+    }
+    const devices = await prefsStore.listDevices(tenantId, userId);
+    return reply.status(200).send({
+      data: devices.map((d) => ({
+        id: d.id,
+        platform: d.platform,
+        pushToken: d.pushToken,
+        createdAt: d.createdAt.toISOString(),
+        updatedAt: d.updatedAt.toISOString(),
+      })),
+    });
+  });
+
+  fastify.post(`${prefix}/devices`, async (request, reply) => {
+    const tenantId = getTenantId(request);
+    const userId = getUserId(request);
+    if (!tenantId || !userId) {
+      return reply.status(400).send({
+        code: 'AUTH_CONTEXT_REQUIRED',
+        message: 'Tenant and user context are required',
+        statusCode: 400,
+      });
+    }
+    const body = (request.body ?? {}) as {
+      platform?: 'ios' | 'android' | 'web';
+      pushToken?: string;
+    };
+    if (!body.platform || !body.pushToken) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'platform and pushToken are required',
+        statusCode: 400,
+      });
+    }
+    const device = await prefsStore.registerDevice({
+      tenantId,
+      userId,
+      platform: body.platform,
+      pushToken: body.pushToken,
+    });
+    return reply.status(201).send({
+      id: device.id,
+      platform: device.platform,
+      pushToken: device.pushToken,
+      createdAt: device.createdAt.toISOString(),
+      updatedAt: device.updatedAt.toISOString(),
+    });
+  });
+
+  fastify.delete(`${prefix}/devices/:deviceId`, async (request, reply) => {
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    const deviceId = (request.params as { deviceId: string }).deviceId;
+    const deleted = await prefsStore.deleteDevice(tenantId, deviceId);
+    if (!deleted) {
+      return reply.status(404).send({
+        code: 'NOT_FOUND',
+        message: 'Device not found',
+        statusCode: 404,
+      });
+    }
+    return reply.status(204).send();
+  });
 
   // ─── User Notifications ────────────────────────────────────────────────
   // NOTE: Registered before /:notificationId to avoid route conflicts
@@ -419,10 +551,7 @@ export async function registerNotificationRoutes(
    */
   fastify.get(
     `${prefix}/rules`,
-    async function listRulesHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listRulesHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({
@@ -630,10 +759,7 @@ export async function registerNotificationRoutes(
    */
   fastify.get(
     `${prefix}/templates`,
-    async function listTemplatesHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listTemplatesHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({

@@ -179,6 +179,9 @@ importers:
       '@proctira/backend-institution':
         specifier: workspace:*
         version: link:../../packages/backend/institution
+      '@proctira/backend-notification':
+        specifier: workspace:*
+        version: link:../../packages/backend/notification
       '@proctira/backend-scholarship':
         specifier: workspace:*
         version: link:../../packages/backend/scholarship
@@ -191,6 +194,9 @@ importers:
       '@proctira/backend-timetable':
         specifier: workspace:*
         version: link:../../packages/backend/timetable
+      '@proctira/backend-transport':
+        specifier: workspace:*
+        version: link:../../packages/backend/transport
       '@proctira/common':
         specifier: workspace:*
         version: link:../../packages/shared/common
@@ -1486,6 +1492,9 @@ importers:
       fastify-plugin:
         specifier: ^4.5.0
         version: 4.5.1
+      pg:
+        specifier: ^8.21.0
+        version: 8.21.0
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
@@ -1493,6 +1502,9 @@ importers:
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
       '@types/uuid':
         specifier: ^9.0.8
         version: 9.0.8

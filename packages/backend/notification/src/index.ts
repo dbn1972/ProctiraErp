@@ -38,6 +38,28 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryNotificationRepository } from './in-memory-repository.js';
 
+// Prefs / devices
+export {
+  createNotificationPrefsStore,
+  createPgNotificationPrefsStore,
+  defaultPreferences,
+  InMemoryNotificationPrefsStore,
+  isPgNotificationPrefsEnabled,
+} from './prefs-store.js';
+export type {
+  CategoryPreference,
+  DigestFrequency,
+  NotificationCategory,
+  NotificationChannel as PreferenceNotificationChannel,
+  NotificationDevice,
+  NotificationPreferencesData,
+  NotificationPrefsStore,
+  QuietHours,
+} from './prefs-store.js';
+
+export { createNotificationStack } from './create-notification-stack.js';
+export type { NotificationStack } from './create-notification-stack.js';
+
 // Schemas
 export {
   DeliveryChannelSchema,

@@ -196,6 +196,17 @@ const SCREENS = {
     ['counselling-new', '/health/counselling/new'],
     ['special-needs', '/health/special-needs'],
   ],
+  notifications: [
+    ['inbox', '/notifications'],
+    ['rules', '/admin/notification-rules'],
+  ],
+  transport: [
+    ['overview', '/transport'],
+    ['routes', '/transport/routes'],
+    ['route-new', '/transport/routes/new'],
+    ['vehicles', '/transport/vehicles'],
+    ['assignments', '/transport/assignments'],
+  ],
   'data-warehouse': [
     ['overview', '/data-warehouse'],
     ['import', '/data-warehouse/import'],

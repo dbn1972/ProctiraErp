@@ -15,11 +15,7 @@
  * - 22.5: Track delivery status (sent, delivered, read, failed)
  * - 22.6: Retry email delivery up to 3 times with exponential backoff
  */
-import {
-  NotFoundError,
-  ValidationError,
-  BusinessRuleError,
-} from '@proctira/common';
+import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -133,10 +129,7 @@ export class NotificationService {
    *
    * @returns Array of created notification records (one per recipient)
    */
-  async send(
-    tenantId: string,
-    input: SendNotificationInput,
-  ): Promise<NotificationEntity[]> {
+  async send(tenantId: string, input: SendNotificationInput): Promise<NotificationEntity[]> {
     // Resolve template
     const template = await this.repository.getTemplateById(tenantId, input.templateId);
     if (!template) {
@@ -147,7 +140,13 @@ export class NotificationService {
     if (template.channel !== input.channel) {
       throw new ValidationError(
         `Template channel '${template.channel}' does not match requested channel '${input.channel}'`,
-        [{ field: 'channel', rule: 'mismatch', message: `Template is for '${template.channel}' but '${input.channel}' was requested` }],
+        [
+          {
+            field: 'channel',
+            rule: 'mismatch',
+            message: `Template is for '${template.channel}' but '${input.channel}' was requested`,
+          },
+        ],
       );
     }
 
@@ -276,6 +275,12 @@ export class NotificationService {
             success = true;
           }
           break;
+
+        case 'sms':
+          // SMS sender adapter lands with Comms Center (WS2). Until then,
+          // treat as accepted for in-process / sandbox tenants.
+          success = true;
+          break;
       }
     } catch (error: unknown) {
       success = false;
@@ -368,10 +373,7 @@ export class NotificationService {
    *
    * Requirement 22.5: Track delivery status per notification instance.
    */
-  async getDeliveryStatus(
-    tenantId: string,
-    notificationId: string,
-  ): Promise<NotificationEntity> {
+  async getDeliveryStatus(tenantId: string, notificationId: string): Promise<NotificationEntity> {
     const notification = await this.repository.getNotificationById(tenantId, notificationId);
     if (!notification) {
       throw new NotFoundError(`Notification '${notificationId}' not found`);
@@ -382,20 +384,16 @@ export class NotificationService {
   /**
    * Mark a notification as read (for in-app notifications).
    */
-  async markAsRead(
-    tenantId: string,
-    notificationId: string,
-  ): Promise<NotificationEntity> {
+  async markAsRead(tenantId: string, notificationId: string): Promise<NotificationEntity> {
     const notification = await this.repository.getNotificationById(tenantId, notificationId);
     if (!notification) {
       throw new NotFoundError(`Notification '${notificationId}' not found`);
     }
 
-    const updated = await this.repository.updateNotificationStatus(
-      notificationId,
-      tenantId,
-      { status: 'read', readAt: new Date() },
-    );
+    const updated = await this.repository.updateNotificationStatus(notificationId, tenantId, {
+      status: 'read',
+      readAt: new Date(),
+    });
 
     return updated!;
   }
@@ -406,7 +404,12 @@ export class NotificationService {
   async getUserNotifications(
     tenantId: string,
     userId: string,
-    options: { page?: number; pageSize?: number; status?: DeliveryStatus; channel?: DeliveryChannel },
+    options: {
+      page?: number;
+      pageSize?: number;
+      status?: DeliveryStatus;
+      channel?: DeliveryChannel;
+    },
   ): Promise<PaginatedNotifications> {
     return this.repository.getUserNotifications(tenantId, userId, {
       page: options.page ?? 1,
@@ -635,10 +638,7 @@ export class NotificationService {
   /**
    * Get a template by ID.
    */
-  async getTemplate(
-    tenantId: string,
-    templateId: string,
-  ): Promise<NotificationTemplateEntity> {
+  async getTemplate(tenantId: string, templateId: string): Promise<NotificationTemplateEntity> {
     const template = await this.repository.getTemplateById(tenantId, templateId);
     if (!template) {
       throw new NotFoundError(`Notification template '${templateId}' not found`);
@@ -663,6 +663,8 @@ export class NotificationService {
         return this.config.pushMaxRetries;
       case 'webhook':
         return this.config.webhookMaxRetries;
+      case 'sms':
+        return this.config.emailMaxRetries; // SMS uses email retry budget until dedicated SMS sender
       case 'in_app':
         return 0; // In-app notifications don't need retries
     }

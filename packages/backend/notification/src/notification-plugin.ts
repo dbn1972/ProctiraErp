@@ -24,6 +24,7 @@ import {
   type NotificationQueuePublisher,
   type NotificationServiceConfig,
 } from './notification-service.js';
+import type { NotificationPrefsStore } from './prefs-store.js';
 import { registerNotificationRoutes } from './routes.js';
 
 /**
@@ -32,6 +33,8 @@ import { registerNotificationRoutes } from './routes.js';
 export interface NotificationPluginOptions {
   /** Notification repository implementation */
   repository: NotificationRepository;
+  /** Preferences / device store (optional — defaults to in-memory) */
+  prefsStore?: NotificationPrefsStore;
   /** Email sender implementation (optional) */
   emailSender?: EmailSender;
   /** Push notification sender implementation (optional) */
@@ -63,6 +66,7 @@ export const notificationPlugin = fp(
   ) {
     const {
       repository,
+      prefsStore,
       emailSender,
       pushSender,
       webhookSender,
@@ -87,6 +91,7 @@ export const notificationPlugin = fp(
     // Register notification routes
     await registerNotificationRoutes(fastify, {
       notificationService,
+      prefsStore,
       prefix,
     });
   },

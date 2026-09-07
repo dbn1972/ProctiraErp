@@ -13,6 +13,10 @@
  *    create*Repository factories when DATABASE_URL is set, else in-memory.
  *  - health counselling: raw SQL + `pg` when DATABASE_URL is set (no Prisma);
  *    other health entities + scholarships + workflows seed in-memory.
+ *  - notifications: in-memory delivery records; prefs/devices use raw SQL +
+ *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
+ *  - transport: in-memory routes/vehicles/assignments (SQL schema ready in
+ *    db/sql/006_transport_schema.sql; Pg store follow-up).
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
@@ -40,6 +44,7 @@ import {
 } from '@proctira/backend-examination';
 import { healthPlugin, createHealthRepository } from '@proctira/backend-health';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -47,14 +52,9 @@ import {
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
-import {
-  createGradebookRepository,
-  gradebookPlugin,
-} from '@proctira/backend-gradebook';
-import {
-  createTimetableRepository,
-  timetablePlugin,
-} from '@proctira/backend-timetable';
+import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
+import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
+import { InMemoryTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -248,6 +248,31 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // shapes expected by App Router pages.
       await scope.register(workflowUiPlugin, {
         seed: createWorkflowUiSeed(),
+      });
+    },
+  },
+  {
+    name: 'notification',
+    proxyPrefixes: ['/notifications'],
+    register: async (scope) => {
+      // In-memory notification records + prefs/devices (PG when DATABASE_URL).
+      const { repository, prefsStore } = createNotificationStack();
+      await scope.register(notificationPlugin, {
+        repository,
+        prefsStore,
+        prefix: '/notifications',
+      });
+    },
+  },
+  {
+    name: 'transport',
+    proxyPrefixes: ['/transport'],
+    register: async (scope) => {
+      // In-memory until PgTransportStore lands on db/sql/006_transport_schema.sql.
+      const repository = new InMemoryTransportRepository();
+      await scope.register(transportPlugin, {
+        repository,
+        prefix: '/transport',
       });
     },
   },
