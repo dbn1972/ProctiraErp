@@ -18,7 +18,7 @@
  * |   role=board-admin   |                             |
  * | role=principal       | /app/dashboard/school       |
  * | role=teacher         | /app/dashboard/teacher      |
- * | role=parent / student| /app/dashboard/me           |
+ * | role=parent / student| /parent                      |
  * | (none of the above)  | /app/dashboard/me  (fallback)|
  *
  * The fallback is the lowest-privilege surface (`/me`) so that a user holding
@@ -57,7 +57,12 @@ export const DASHBOARD_ROUTES = {
   me: '/app/dashboard/me',
 } as const;
 
-export type DashboardRoute = (typeof DASHBOARD_ROUTES)[keyof typeof DASHBOARD_ROUTES];
+/** Parent / guardian / student portal (first-class shell, not staff dashboard). */
+export const PARENT_PORTAL_ROUTE = '/parent';
+
+export type DashboardRoute =
+  | (typeof DASHBOARD_ROUTES)[keyof typeof DASHBOARD_ROUTES]
+  | typeof PARENT_PORTAL_ROUTE;
 
 /**
  * Lowest-privilege accessible dashboard. Used when no scope/role rule
@@ -95,7 +100,7 @@ function rolesContain(
  *   4. `principal` role (school admin), or school scope paired with the
  *      principal role.
  *   5. `teacher` role.
- *   6. `parent` / `student` role.
+ *   6. `parent` / `guardian` / `student` role → parent portal.
  *   7. Fallback: `/app/dashboard/me`.
  *
  * Server-side policy still gates the data on each route; this function is
@@ -137,9 +142,9 @@ export function selectDefaultDashboardRoute(
     return DASHBOARD_ROUTES.teacher;
   }
 
-  // (6) Parents and students share the personal dashboard.
-  if (rolesContain(roles, ['parent', 'student'])) {
-    return DASHBOARD_ROUTES.me;
+  // (6) Parents, guardians, and students land on the parent portal.
+  if (rolesContain(roles, ['parent', 'guardian', 'student'])) {
+    return PARENT_PORTAL_ROUTE;
   }
 
   // (7) Fallback — lowest-privilege surface.

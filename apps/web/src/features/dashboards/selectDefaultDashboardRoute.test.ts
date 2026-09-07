@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DASHBOARD_ROUTES,
   FALLBACK_ROUTE,
+  PARENT_PORTAL_ROUTE,
   selectDefaultDashboardRoute,
   type RoleRouterInput,
 } from './selectDefaultDashboardRoute';
@@ -72,16 +73,23 @@ describe('selectDefaultDashboardRoute — role mapping (Task 52.1, Req 40.9)', (
     ).toBe(DASHBOARD_ROUTES.teacher);
   });
 
-  it('routes the parent role to /app/dashboard/me', () => {
+  it('routes the parent role to /parent', () => {
     expect(
       selectDefaultDashboardRoute(makeInput({ roles: ['parent'] })),
-    ).toBe(DASHBOARD_ROUTES.me);
+    ).toBe(PARENT_PORTAL_ROUTE);
+    expect(PARENT_PORTAL_ROUTE).toBe('/parent');
   });
 
-  it('routes the student role to /app/dashboard/me', () => {
+  it('routes the guardian role to /parent', () => {
+    expect(
+      selectDefaultDashboardRoute(makeInput({ roles: ['guardian'] })),
+    ).toBe(PARENT_PORTAL_ROUTE);
+  });
+
+  it('routes the student role to /parent', () => {
     expect(
       selectDefaultDashboardRoute(makeInput({ roles: ['student'] })),
-    ).toBe(DASHBOARD_ROUTES.me);
+    ).toBe(PARENT_PORTAL_ROUTE);
   });
 
   it('treats common role aliases (snake_case, UPPER) the same as kebab-case', () => {

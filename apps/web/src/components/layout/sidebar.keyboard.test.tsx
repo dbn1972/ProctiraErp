@@ -40,6 +40,7 @@ vi.mock('next-intl', () => ({
       examinations: 'Examinations',
       scholarships: 'Scholarships',
       health: 'Health',
+      parentPortal: 'Parent portal',
       notifications: 'Notifications',
       transport: 'Transport',
       communication: 'Communication',
