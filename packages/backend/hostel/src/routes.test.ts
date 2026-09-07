@@ -202,6 +202,50 @@ describe('Hostel Routes', () => {
     });
   });
 
+  describe('POST /hostel/visitors/:id/status', () => {
+    it('should check in then check out a visitor', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Gate Hall', code: 'GH-01' },
+      });
+      const created = await app.inject({
+        method: 'POST',
+        url: '/hostel/visitors',
+        payload: {
+          hostelId: hostel.json().id,
+          visitorName: 'Guardian',
+          studentId: STUDENT_ID,
+          visitDate: '2026-04-01',
+        },
+      });
+      const visitorId = created.json().id as string;
+
+      const checkedIn = await app.inject({
+        method: 'POST',
+        url: `/hostel/visitors/${visitorId}/status`,
+        payload: { status: 'checked_in' },
+      });
+      expect(checkedIn.statusCode).toBe(200);
+      expect(checkedIn.json().status).toBe('checked_in');
+
+      const checkedOut = await app.inject({
+        method: 'POST',
+        url: `/hostel/visitors/${visitorId}/status`,
+        payload: { status: 'checked_out' },
+      });
+      expect(checkedOut.statusCode).toBe(200);
+      expect(checkedOut.json().status).toBe('checked_out');
+
+      const invalid = await app.inject({
+        method: 'POST',
+        url: `/hostel/visitors/${visitorId}/status`,
+        payload: { status: 'denied' },
+      });
+      expect(invalid.statusCode).toBe(409);
+    });
+  });
+
   describe('block → room → bed chain', () => {
     it('should create block, room, and bed in sequence', async () => {
       const hostel = await app.inject({

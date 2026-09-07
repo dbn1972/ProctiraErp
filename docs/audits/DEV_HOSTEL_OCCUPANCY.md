@@ -39,6 +39,7 @@
 | Demo SQL seed                            | ☑    | `db/sql/008b_hostel_seed.sql`       |
 | Assignment marks bed unavailable         | ☑    | conflict on second active assign    |
 | Leave approve/reject                     | ☑    | `POST /leaves/:id/decide` + UI      |
+| Visitor check-in/out                     | ☑    | `POST /visitors/:id/status` + UI    |
 
 ## Residual
 

@@ -4,7 +4,7 @@
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { HostelRepository, LeaveStatus } from './hostel-repository.js';
+import type { HostelRepository, LeaveStatus, VisitorStatus } from './hostel-repository.js';
 import type {
   CreateAssignmentInput,
   CreateBedInput,
@@ -120,6 +120,27 @@ export class HostelService {
 
   async listVisitors(tenantId: string) {
     return this.repository.listVisitors(tenantId);
+  }
+
+  async updateVisitorStatus(tenantId: string, visitorId: string, status: VisitorStatus) {
+    const visitor = await this.repository.findVisitorById(visitorId, tenantId);
+    if (!visitor) {
+      throw new NotFoundError(`Visitor with id '${visitorId}' not found`);
+    }
+
+    const allowed: Record<VisitorStatus, VisitorStatus[]> = {
+      expected: ['checked_in', 'denied'],
+      checked_in: ['checked_out'],
+      checked_out: [],
+      denied: [],
+    };
+
+    if (!allowed[visitor.status].includes(status)) {
+      throw new ConflictError(`Cannot transition visitor from ${visitor.status} to ${status}`);
+    }
+
+    const updated = await this.repository.updateVisitor(visitorId, tenantId, { status });
+    return updated!;
   }
 
   async createBlock(tenantId: string, input: CreateBlockInput) {

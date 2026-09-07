@@ -158,6 +158,24 @@ export async function decideHostelLeave(
   return result.data;
 }
 
+export async function updateHostelVisitorStatus(
+  id: string,
+  status: 'checked_in' | 'checked_out' | 'denied',
+): Promise<HostelVisitor> {
+  const result = await gatewayFetch<HostelVisitor>(`/hostel/visitors/${id}/status`, {
+    method: 'POST',
+    json: { status },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'STATUS_FAILED',
+      message: result.error?.message ?? 'Failed to update visitor status',
+    });
+  }
+  return result.data;
+}
+
 export async function listHostelVisitors(): Promise<HostelVisitor[]> {
   const result = await gatewayFetch<{ data: HostelVisitor[] }>('/hostel/visitors', {
     throwOnError: false,

@@ -52,6 +52,22 @@ export const DecideLeaveSchema = Type.Object({
 
 export type DecideLeaveInput = Static<typeof DecideLeaveSchema>;
 
+export const VisitorParamsSchema = Type.Object({
+  id: Type.String({ pattern: UUID_PATTERN }),
+});
+
+export type VisitorParams = Static<typeof VisitorParamsSchema>;
+
+export const UpdateVisitorStatusSchema = Type.Object({
+  status: Type.Union([
+    Type.Literal('checked_in'),
+    Type.Literal('checked_out'),
+    Type.Literal('denied'),
+  ]),
+});
+
+export type UpdateVisitorStatusInput = Static<typeof UpdateVisitorStatusSchema>;
+
 export const CreateVisitorSchema = Type.Object({
   hostelId: Type.String({ pattern: UUID_PATTERN }),
   visitorName: Type.String({ minLength: 1, maxLength: 255 }),

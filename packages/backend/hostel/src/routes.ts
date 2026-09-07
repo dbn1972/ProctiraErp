@@ -17,6 +17,8 @@ import {
   DecideLeaveSchema,
   HostelParamsSchema,
   LeaveParamsSchema,
+  UpdateVisitorStatusSchema,
+  VisitorParamsSchema,
   type CreateAssignmentInput,
   type CreateBedInput,
   type CreateBlockInput,
@@ -27,6 +29,8 @@ import {
   type DecideLeaveInput,
   type HostelParams,
   type LeaveParams,
+  type UpdateVisitorStatusInput,
+  type VisitorParams,
 } from './schemas.js';
 
 export interface HostelRoutesOptions {
@@ -580,6 +584,57 @@ export async function registerHostelRoutes(
       try {
         const visitor = await hostelService.createVisitor(tenantId, result.data);
         return reply.status(201).send(formatVisitor(visitor));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/visitors/:id/status`,
+    async function updateVisitorStatusHandler(
+      request: FastifyRequest<{ Params: VisitorParams; Body: UpdateVisitorStatusInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(VisitorParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid visitor ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(UpdateVisitorStatusSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const visitor = await hostelService.updateVisitorStatus(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data.status,
+        );
+        return reply.status(200).send(formatVisitor(visitor));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

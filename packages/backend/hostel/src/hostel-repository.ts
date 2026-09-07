@@ -108,6 +108,12 @@ export interface HostelRepository {
     data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelVisitorEntity>;
   listVisitors(tenantId: string): Promise<HostelVisitorEntity[]>;
+  findVisitorById(id: string, tenantId: string): Promise<HostelVisitorEntity | null>;
+  updateVisitor(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<HostelVisitorEntity, 'status'>>,
+  ): Promise<HostelVisitorEntity | null>;
 
   createBlock(data: Omit<HostelBlockEntity, 'createdAt' | 'updatedAt'>): Promise<HostelBlockEntity>;
   listBlocks(tenantId: string, hostelId?: string): Promise<HostelBlockEntity[]>;

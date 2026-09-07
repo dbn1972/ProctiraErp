@@ -95,6 +95,26 @@ export class InMemoryHostelRepository implements HostelRepository {
     return this.visitors.filter((v) => v.tenantId === tenantId);
   }
 
+  async findVisitorById(id: string, tenantId: string): Promise<HostelVisitorEntity | null> {
+    return this.visitors.find((v) => v.id === id && v.tenantId === tenantId) ?? null;
+  }
+
+  async updateVisitor(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<HostelVisitorEntity, 'status'>>,
+  ): Promise<HostelVisitorEntity | null> {
+    const index = this.visitors.findIndex((v) => v.id === id && v.tenantId === tenantId);
+    if (index === -1) return null;
+    const updated: HostelVisitorEntity = {
+      ...this.visitors[index]!,
+      ...data,
+      updatedAt: new Date(),
+    };
+    this.visitors[index] = updated;
+    return updated;
+  }
+
   async createBlock(
     data: Omit<HostelBlockEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelBlockEntity> {

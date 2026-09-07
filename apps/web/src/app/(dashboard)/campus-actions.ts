@@ -12,6 +12,7 @@ import {
   createHostelRoom,
   createHostelVisitor,
   decideHostelLeave,
+  updateHostelVisitorStatus,
   type CreateHostelInput,
 } from '@/lib/api/hostel';
 import {
@@ -235,6 +236,31 @@ export async function decideHostelLeaveAction(
           : error instanceof Error
             ? error.message
             : 'Failed to decide leave',
+    };
+  }
+}
+
+export async function updateHostelVisitorStatusAction(
+  id: string,
+  status: 'checked_in' | 'checked_out' | 'denied',
+): Promise<CampusActionState> {
+  try {
+    const row = await updateHostelVisitorStatus(id, status);
+    revalidatePath('/hostel/visitors');
+    return {
+      status: 'success',
+      message: `Visitor marked ${status.replace('_', ' ')}.`,
+      id: row.id,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to update visitor status',
     };
   }
 }
