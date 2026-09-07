@@ -92,18 +92,18 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 
 ### Web App — Services (**9.5**)
 
-| Screen                                        | Score | Status           | Gap to 9.5                                      |
-| --------------------------------------------- | ----: | ---------------- | ----------------------------------------------- |
-| Scholarships · (6)                            |   9.5 | Ready w/ waivers | Live IdP; finance engine residual thin          |
-| Health · screenings / profile / special needs |   9.3 | Ready w/ waivers | Non-counselling PHI still in-memory             |
-| Health · counselling                          |   9.5 | Ready w/ waivers | PG-backed create + list sync; IdP residual      |
-| Workflows · (5)                               |   9.5 | Ready w/ waivers | Domain engine mount residual                    |
-| Notifications · inbox / prefs / devices       |   9.5 | Ready w/ waivers | Live SMTP/FCM/Twilio (sandbox)                  |
-| Communication · campaigns / emergency         |   9.5 | Ready w/ waivers | Live provider adapters (sandbox)                |
-| Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | GPS non-goal                                    |
-| Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Mess fees non-goal                              |
-| Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | OPAC non-goal                                   |
-| Parent portal · messages / consents / fees    |   8.5 | Ready w/ waivers | Live PSP; Flutter API clients thin; multidevice |
+| Screen                                        | Score | Status           | Gap to 9.5                                 |
+| --------------------------------------------- | ----: | ---------------- | ------------------------------------------ |
+| Scholarships · (6)                            |   9.5 | Ready w/ waivers | Live IdP; finance engine residual thin     |
+| Health · screenings / profile / special needs |   9.3 | Ready w/ waivers | Non-counselling PHI still in-memory        |
+| Health · counselling                          |   9.5 | Ready w/ waivers | PG-backed create + list sync; IdP residual |
+| Workflows · (5)                               |   9.5 | Ready w/ waivers | Domain engine mount residual               |
+| Notifications · inbox / prefs / devices       |   9.5 | Ready w/ waivers | Live SMTP/FCM/Twilio (sandbox)             |
+| Communication · campaigns / emergency         |   9.5 | Ready w/ waivers | Live provider adapters (sandbox)           |
+| Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | GPS non-goal                               |
+| Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Mess fees non-goal                         |
+| Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | OPAC non-goal                              |
+| Parent portal · messages / consents / fees    |   9.0 | Ready w/ waivers | Live PSP; Flutter API thin; child picker   |
 
 ### Web App — Insights & System (**9.5**)
 
@@ -172,6 +172,7 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 | 2026-09-07 | `083f56c`+    | WS6 close: tip CI green (PR #23); five campus test audits Tip CI ☑; local replay 39/39; billing residual removed                                                                | Campus WS0–WS6 **Done\***; program still **~9.4** (IdP/device-farm/providers) |
 | 2026-09-07 | parent-portal | Parent portal v1: SQL 010, backend package, `/parent` shell, Flutter `/parent` mode, messaging/consent/fee sandbox; staff shells preserved                                      | Parent portal **8.5** in progress; tip CI pending                             |
 | 2026-09-07 | `7656860`     | Parent portal WS4: tip CI 13/13 green on PR #25; Tip CI ☑; plan WS0–WS4 Done\*                                                                                                  | Parent portal **8.5** Ready w/ waivers                                        |
+| 2026-09-07 | ux-review     | Added `enterprise-ux-designer` skill; parent 12 + campus 57 multidevice captures; plain-language copy; Family portal chrome; UX audits                                          | Parent portal **9.0**; campus UX copy P0 cleared                              |
 
 ## How to read when you ask “updated score?”
 

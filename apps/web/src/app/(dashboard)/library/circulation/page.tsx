@@ -17,7 +17,7 @@ export default async function LibraryCirculationPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Circulation</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Checkout and return via `/library/circulation/checkout` and `/return`.
+            Check items out to borrowers and record returns.
           </p>
         </div>
         <Button asChild variant="outline">

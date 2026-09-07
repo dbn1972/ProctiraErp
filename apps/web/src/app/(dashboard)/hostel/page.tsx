@@ -27,7 +27,7 @@ export default async function HostelOverviewPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Hostel</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Occupancy, assignments, leaves, and visitors. Gateway plugin: `/api/v1/hostel`.
+          Occupancy, bed assignments, leave requests, and visitor logs.
         </p>
       </div>
 

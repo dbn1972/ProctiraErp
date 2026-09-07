@@ -24,9 +24,10 @@ export default async function ParentHomePage() {
   return (
     <div className="space-y-6" data-testid="parent-home">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Home</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Linked children, messages, consents, and school fees. Gateway plugin: `/api/v1/parent-portal`.
+          Stay connected with your school — messages, permission requests, and fees for your
+          children.
         </p>
       </div>
 
@@ -35,7 +36,7 @@ export default async function ParentHomePage() {
           <CardTitle className="text-base">Your children</CardTitle>
           <CardDescription>
             {children.length === 0
-              ? 'No linked children yet.'
+              ? 'Link a child to get started.'
               : `${children.length} linked child${children.length === 1 ? '' : 'ren'}.`}
           </CardDescription>
         </CardHeader>
@@ -96,7 +97,7 @@ export default async function ParentHomePage() {
               <CreditCard className="h-4 w-4" aria-hidden="true" />
               Fees
             </CardTitle>
-            <CardDescription>Invoices and sandbox payments</CardDescription>
+            <CardDescription>Invoices and online payments</CardDescription>
           </CardHeader>
           <CardContent>
             <Button asChild variant="outline" className="min-h-12">

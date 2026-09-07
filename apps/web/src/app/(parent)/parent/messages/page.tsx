@@ -1,10 +1,7 @@
 /**
  * Parent messages list (Server Component).
  */
-import Link from 'next/link';
-
 import {
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -28,12 +25,9 @@ export default async function ParentMessagesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Messages</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Threads via GET/POST `/parent-portal/messages/threads`.
+            Two-way conversations with your school about your children.
           </p>
         </div>
-        <Button asChild variant="outline" className="min-h-12">
-          <Link href="/parent">Back to home</Link>
-        </Button>
       </div>
 
       <CreateThreadForm studentIds={studentIds} />
@@ -43,14 +37,14 @@ export default async function ParentMessagesPage() {
           <CardTitle className="text-base">Conversations</CardTitle>
           <CardDescription>
             {threads.length === 0
-              ? 'No message threads yet.'
+              ? 'Start a conversation below.'
               : `${threads.length} thread${threads.length === 1 ? '' : 's'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {threads.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
-              No message threads yet.
+              No conversations yet. Start a new message above — your school will reply here.
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">

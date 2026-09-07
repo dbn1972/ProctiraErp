@@ -13,7 +13,7 @@ export default async function LibraryOverduesPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Overdues</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Live list from `/api/v1/library/overdues`.
+          Items past their due date that still need follow-up.
         </p>
       </div>
       <Card>

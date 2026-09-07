@@ -60,12 +60,13 @@ export function ParentPortalShell({ children }: ParentPortalShellProps) {
       <header
         className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
       >
-        <div className="mx-auto flex h-14 min-h-14 max-w-5xl items-center px-4 md:px-6">
+        <div className="mx-auto flex h-14 min-h-14 max-w-5xl items-center justify-between gap-4 px-4 md:px-6">
           <Link
             href="/parent"
-            className="inline-flex min-h-12 items-center text-base font-semibold tracking-tight text-foreground"
+            className="inline-flex min-h-12 flex-col justify-center text-foreground"
           >
-            Parent portal
+            <span className="text-base font-semibold tracking-tight">Family portal</span>
+            <span className="text-[11px] font-normal text-muted-foreground">ProctiraERP</span>
           </Link>
         </div>
       </header>

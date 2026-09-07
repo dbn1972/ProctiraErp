@@ -1,10 +1,7 @@
 /**
  * Parent consents (Server Component).
  */
-import Link from 'next/link';
-
 import {
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -27,13 +24,9 @@ export default async function ParentConsentsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Consents</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Permission requests via GET `/parent-portal/consents` · decide via POST
-            `/parent-portal/consents/:id/decide`.
+            Review permission requests from the school and approve or deny them.
           </p>
         </div>
-        <Button asChild variant="outline" className="min-h-12">
-          <Link href="/parent">Back to home</Link>
-        </Button>
       </div>
 
       <Card>
@@ -41,14 +34,14 @@ export default async function ParentConsentsPage() {
           <CardTitle className="text-base">Consent requests</CardTitle>
           <CardDescription>
             {consents.length === 0
-              ? 'No consent requests.'
+              ? 'Nothing waiting for your decision.'
               : `${consents.length} request${consents.length === 1 ? '' : 's'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {consents.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
-              No consent requests.
+              You are all caught up — there are no pending permission requests.
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">

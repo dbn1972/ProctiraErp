@@ -122,8 +122,7 @@ export function EmergencyBlastPanel({
             Draft emergency blast
           </CardTitle>
           <CardDescription>
-            Requires two distinct confirmations before sandbox dispatch. Quiet hours are bypassed on
-            confirm.
+            Requires two distinct confirmations before send. Quiet hours are bypassed on confirm.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -204,8 +203,8 @@ export function EmergencyBlastPanel({
         <CardHeader>
           <CardTitle className="text-base">Open blasts</CardTitle>
           <CardDescription>
-            Confirm as the signed-in actor. A second distinct actor is required for final confirm,
-            then sandbox dispatch.
+            Confirm as the signed-in actor. A second distinct actor must confirm before the blast
+            can send.
           </CardDescription>
         </CardHeader>
         <CardContent>

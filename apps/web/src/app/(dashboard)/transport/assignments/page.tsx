@@ -24,7 +24,7 @@ export default async function TransportAssignmentsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Assignments</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Driver and student assignments via `/api/v1/transport/*-assignments`.
+          Assign drivers to vehicles and students to routes.
         </p>
       </div>
 

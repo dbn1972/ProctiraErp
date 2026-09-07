@@ -22,6 +22,14 @@ Plan of record for core SIS peer parity:
 
 `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`
 
-**Rule:** Build with the development skill → certify with the testing skill. Do not claim product **10/10** on test evidence alone, or “production-ready” on UI mocks alone.
+### UX design review (Definition of Design Review)
+
+For **UX / visual / IA / empty-state / mobile chrome** critique (not axe-only), read and obey:
+
+`.cursor/skills/enterprise-ux-designer/SKILL.md`
+
+Checklist: `docs/audits/templates/ENTERPRISE_UX_DESIGN_REVIEW.md`
+
+**Rule:** Build with the development skill → certify with the testing skill → design-review with the UX designer skill when asked for UX sign-off. Do not claim product **10/10** on test evidence alone, “production-ready” on UI mocks alone, or “UX reviewed” from CI green / axe lists without viewing captures.
 
 Hooks in `.cursor/hooks.json` enforce follow-ups for enterprise-test sessions until the test checklist evidence pack is complete.

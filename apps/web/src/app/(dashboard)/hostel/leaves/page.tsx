@@ -28,7 +28,7 @@ export default async function HostelLeavesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Leaves</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Leave requests via GET/POST `/hostel/leaves` · decide via `/hostel/leaves/:id/decide`.
+            Review leave requests and approve or deny them.
           </p>
         </div>
         <Button asChild variant="outline">

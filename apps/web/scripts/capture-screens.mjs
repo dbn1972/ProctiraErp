@@ -46,15 +46,40 @@ const MODULE_FILTER = (process.env.CAPTURE_MODULES ?? '')
 
 // A far-future, unsigned JWT (alg=none). The middleware/requireSession only
 // base64-decode the payload to read `exp`/`tenantId`; they never verify it.
+// CAPTURE_ROLE=parent|guardian|student|admin (default admin) for shell-accurate demos.
 function mintToken() {
+  const roleKey = (process.env.CAPTURE_ROLE ?? 'admin').toLowerCase();
+  const roleMap = {
+    parent: {
+      email: 'parent@proctira.dev',
+      displayName: 'Demo Parent',
+      roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+    },
+    guardian: {
+      email: 'guardian@proctira.dev',
+      displayName: 'Demo Guardian',
+      roles: [{ roleId: 'guardian', roleName: 'Guardian', areaId: null }],
+    },
+    student: {
+      email: 'student@proctira.dev',
+      displayName: 'Demo Student',
+      roles: [{ roleId: 'student', roleName: 'Student', areaId: null }],
+    },
+    admin: {
+      email: 'demo@proctira.dev',
+      displayName: 'Demo Admin',
+      roles: [{ roleId: 'super-admin', roleName: 'SUPER_ADMIN', areaId: null }],
+    },
+  };
+  const identity = roleMap[roleKey] ?? roleMap.admin;
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
   const header = b64({ alg: 'none', typ: 'JWT' });
   const payload = b64({
     sub: '00000000-0000-4000-8000-000000000001',
     tenantId: '00000000-0000-4000-8000-0000000000aa',
-    email: 'demo@proctira.dev',
-    displayName: 'Demo Admin',
-    roles: [{ roleId: 'super-admin', roleName: 'SUPER_ADMIN', areaId: null }],
+    email: identity.email,
+    displayName: identity.displayName,
+    roles: identity.roles,
     exp: Math.floor(Date.now() / 1000) + 86_400,
   });
   return `${header}.${payload}.sig`;

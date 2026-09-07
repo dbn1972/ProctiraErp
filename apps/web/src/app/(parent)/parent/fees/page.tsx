@@ -1,10 +1,7 @@
 /**
  * Parent fees (Server Component).
  */
-import Link from 'next/link';
-
 import {
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -27,13 +24,9 @@ export default async function ParentFeesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fees</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Invoices via GET `/parent-portal/fees/invoices` · pay via POST
-            `/parent-portal/fees/invoices/:id/pay`.
+            View school fee invoices and pay them when they are issued.
           </p>
         </div>
-        <Button asChild variant="outline" className="min-h-12">
-          <Link href="/parent">Back to home</Link>
-        </Button>
       </div>
 
       <Card>
@@ -41,14 +34,15 @@ export default async function ParentFeesPage() {
           <CardTitle className="text-base">Invoices</CardTitle>
           <CardDescription>
             {invoices.length === 0
-              ? 'No invoices.'
+              ? 'Nothing due right now.'
               : `${invoices.length} invoice${invoices.length === 1 ? '' : 's'}.`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {invoices.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
-              No invoices.
+              No fee invoices right now. When your school issues one, it will appear here for
+              payment.
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">

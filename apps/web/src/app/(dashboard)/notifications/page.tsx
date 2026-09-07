@@ -37,8 +37,7 @@ export default async function NotificationsInboxPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Notifications</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            In-app inbox for tenant alerts. Delivery is served by the gateway notification plugin
-            (`/api/v1/notifications`).
+            In-app inbox for your school alerts. Manage email, push, and SMS preferences anytime.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -60,15 +59,13 @@ export default async function NotificationsInboxPage() {
             <Bell className="h-4 w-4" aria-hidden="true" />
             Inbox
           </CardTitle>
-          <CardDescription>
-            Loaded from GET /notifications/user/:userId for your signed-in account.
-          </CardDescription>
+          <CardDescription>Alerts for your signed-in account.</CardDescription>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
-              No notifications yet. Preferences and device registration are live via
-              `/notifications/preferences` and `/notifications/devices`.
+              No notifications yet. Use Preferences to choose email, push, or SMS — and register a
+              device when you want mobile alerts.
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
