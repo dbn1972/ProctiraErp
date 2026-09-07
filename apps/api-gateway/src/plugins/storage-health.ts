@@ -10,10 +10,8 @@
  * Live Twilio SMS remains waived until secrets are available.
  */
 
-import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
-import fp from 'fastify-plugin';
-import { Readable } from 'node:stream';
 import { randomUUID } from 'node:crypto';
+import type { Readable } from 'node:stream';
 
 import {
   createStorageAdapter,
@@ -21,6 +19,8 @@ import {
   type StorageAdapter,
   type StorageAdapterConfig,
 } from '@proctira/storage';
+import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
+import fp from 'fastify-plugin';
 
 export interface StorageHealthOptions {
   /** Override adapter (tests). When omitted, built from env. */
@@ -86,9 +86,15 @@ export function buildStorageAdapterConfig(config: StorageEnvConfig): StorageAdap
 }
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
+  const chunks: Uint8Array[] = [];
   for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    if (typeof chunk === 'string') {
+      chunks.push(Buffer.from(chunk, 'utf8'));
+    } else if (chunk instanceof Uint8Array) {
+      chunks.push(chunk);
+    } else {
+      chunks.push(Uint8Array.from(chunk as Iterable<number>));
+    }
   }
   return Buffer.concat(chunks);
 }
