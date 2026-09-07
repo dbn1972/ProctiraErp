@@ -366,6 +366,66 @@ describe('TimetableService', () => {
     expect(service.listAudits(tenantId).some((a) => a.action === 'section.publish')).toBe(true);
     expect(service.listAudits(tenantB)).toEqual([]);
   });
+
+  it('isolates bells/subs across tenants and audits bell/meeting/sub writes', async () => {
+    const tenantB = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+    const service = new TimetableService(new InMemoryTimetableRepository());
+
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Bell Iso',
+      code: 'BELL-ISO',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    expect(await service.listBellSchedules(tenantB)).toEqual([]);
+    expect(await service.getBellSchedule(tenantB, schedule.id)).toBeNull();
+
+    const period = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    expect(await service.listPeriods(tenantB, schedule.id)).toEqual([]);
+
+    const section = await service.createSection(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Sub Iso',
+      code: 'SUB-ISO',
+      capacity: 10,
+    });
+    const meeting = await service.createMeeting(tenantId, {
+      institutionId,
+      academicPeriodId,
+      sectionId: section.id,
+      subjectId: null,
+      staffId: staffA,
+      periodId: period.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+    });
+    expect(await service.getMeeting(tenantB, meeting.id)).toBeNull();
+
+    const sub = await service.createSubstitution(tenantId, {
+      sectionMeetingId: meeting.id,
+      substituteStaffId: staffB,
+      substitutionDate: '2026-09-09',
+    });
+    expect(await service.listSubstitutions(tenantB)).toEqual([]);
+    expect(await service.getSubstitution(tenantB, sub.id)).toBeNull();
+
+    const actions = service.listAudits(tenantId).map((a) => a.action);
+    expect(actions).toContain('bell_schedule.create');
+    expect(actions).toContain('period.create');
+    expect(actions).toContain('meeting.create');
+    expect(actions).toContain('substitution.create');
+    expect(service.listAudits(tenantB)).toEqual([]);
+  });
 });
 
 describe('timetable access', () => {

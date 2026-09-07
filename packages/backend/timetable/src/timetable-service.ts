@@ -97,10 +97,10 @@ export class TimetableService {
     return this.repo.getBellSchedule(tenantId, id);
   }
 
-  createBellSchedule(tenantId: string, input: BellScheduleInput) {
+  async createBellSchedule(tenantId: string, input: BellScheduleInput) {
     const now = nowIso();
     const code = input.code?.trim() || slugCode(input.name, 'BELL');
-    return this.repo.createBellSchedule({
+    const row = await this.repo.createBellSchedule({
       id: randomUUID(),
       tenantId,
       ...input,
@@ -110,14 +110,45 @@ export class TimetableService {
       createdAt: now,
       updatedAt: now,
     });
+    this.recordAudit({
+      tenantId,
+      action: 'bell_schedule.create',
+      entityType: 'bell_schedule',
+      entityId: row.id,
+      actorId: null,
+      details: { code: row.code, institutionId: row.institutionId },
+    });
+    return row;
   }
 
-  updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleInput>) {
-    return this.repo.updateBellSchedule(tenantId, id, patch);
+  async updateBellSchedule(tenantId: string, id: string, patch: Partial<BellScheduleInput>) {
+    const row = await this.repo.updateBellSchedule(tenantId, id, patch);
+    if (row) {
+      this.recordAudit({
+        tenantId,
+        action: 'bell_schedule.update',
+        entityType: 'bell_schedule',
+        entityId: id,
+        actorId: null,
+        details: { patchKeys: Object.keys(patch) },
+      });
+    }
+    return row;
   }
 
-  deleteBellSchedule(tenantId: string, id: string) {
-    return this.repo.deleteBellSchedule(tenantId, id);
+  async deleteBellSchedule(tenantId: string, id: string) {
+    const ok = await this.repo.deleteBellSchedule(tenantId, id);
+    if (ok) {
+      this.recordAudit({
+        tenantId,
+        action: 'bell_schedule.delete',
+        entityType: 'bell_schedule',
+        entityId: id,
+        actorId: null,
+        details: {},
+      });
+    }
+    return ok;
   }
 
   listPeriods(tenantId: string, bellScheduleId: string) {
@@ -133,21 +164,52 @@ export class TimetableService {
       throw new ValidationError('Period startTime must be before endTime');
     }
     const now = nowIso();
-    return this.repo.createPeriod({
+    const row = await this.repo.createPeriod({
       id: randomUUID(),
       tenantId,
       ...input,
       createdAt: now,
       updatedAt: now,
     });
+    this.recordAudit({
+      tenantId,
+      action: 'period.create',
+      entityType: 'period',
+      entityId: row.id,
+      actorId: null,
+      details: { bellScheduleId: row.bellScheduleId, periodOrder: row.periodOrder },
+    });
+    return row;
   }
 
-  updatePeriod(tenantId: string, id: string, patch: Partial<PeriodInput>) {
-    return this.repo.updatePeriod(tenantId, id, patch);
+  async updatePeriod(tenantId: string, id: string, patch: Partial<PeriodInput>) {
+    const row = await this.repo.updatePeriod(tenantId, id, patch);
+    if (row) {
+      this.recordAudit({
+        tenantId,
+        action: 'period.update',
+        entityType: 'period',
+        entityId: id,
+        actorId: null,
+        details: { patchKeys: Object.keys(patch) },
+      });
+    }
+    return row;
   }
 
-  deletePeriod(tenantId: string, id: string) {
-    return this.repo.deletePeriod(tenantId, id);
+  async deletePeriod(tenantId: string, id: string) {
+    const ok = await this.repo.deletePeriod(tenantId, id);
+    if (ok) {
+      this.recordAudit({
+        tenantId,
+        action: 'period.delete',
+        entityType: 'period',
+        entityId: id,
+        actorId: null,
+        details: {},
+      });
+    }
+    return ok;
   }
 
   listRooms(tenantId: string, filter?: ListRoomsFilter) {
@@ -368,13 +430,27 @@ export class TimetableService {
     await this.assertSectionEditable(tenantId, input.sectionId);
     await this.assertNoMeetingClash(tenantId, input);
     const now = nowIso();
-    return this.repo.createMeeting({
+    const row = await this.repo.createMeeting({
       id: randomUUID(),
       tenantId,
       ...input,
       createdAt: now,
       updatedAt: now,
     });
+    this.recordAudit({
+      tenantId,
+      action: 'meeting.create',
+      entityType: 'section_meeting',
+      entityId: row.id,
+      actorId: null,
+      details: {
+        sectionId: row.sectionId,
+        periodId: row.periodId,
+        dayOfWeek: row.dayOfWeek,
+        staffId: row.staffId,
+      },
+    });
+    return row;
   }
 
   async updateMeeting(tenantId: string, id: string, patch: Partial<MeetingInput>) {
@@ -393,14 +469,36 @@ export class TimetableService {
       status: patch.status ?? existing.status,
     };
     await this.assertNoMeetingClash(tenantId, candidate, id);
-    return this.repo.updateMeeting(tenantId, id, patch);
+    const row = await this.repo.updateMeeting(tenantId, id, patch);
+    if (row) {
+      this.recordAudit({
+        tenantId,
+        action: 'meeting.update',
+        entityType: 'section_meeting',
+        entityId: id,
+        actorId: null,
+        details: { patchKeys: Object.keys(patch) },
+      });
+    }
+    return row;
   }
 
   async deleteMeeting(tenantId: string, id: string) {
     const existing = await this.repo.getMeeting(tenantId, id);
     if (!existing) return false;
     await this.assertSectionEditable(tenantId, existing.sectionId);
-    return this.repo.deleteMeeting(tenantId, id);
+    const ok = await this.repo.deleteMeeting(tenantId, id);
+    if (ok) {
+      this.recordAudit({
+        tenantId,
+        action: 'meeting.delete',
+        entityType: 'section_meeting',
+        entityId: id,
+        actorId: null,
+        details: { sectionId: existing.sectionId },
+      });
+    }
+    return ok;
   }
 
   listSubstitutions(tenantId: string, filter?: ListSubstitutionsFilter) {
@@ -467,7 +565,7 @@ export class TimetableService {
     }
 
     const now = nowIso();
-    return this.repo.createSubstitution({
+    const row = await this.repo.createSubstitution({
       id: randomUUID(),
       tenantId,
       institutionId,
@@ -480,6 +578,19 @@ export class TimetableService {
       createdAt: now,
       updatedAt: now,
     });
+    this.recordAudit({
+      tenantId,
+      action: 'substitution.create',
+      entityType: 'substitution',
+      entityId: row.id,
+      actorId: null,
+      details: {
+        sectionMeetingId: row.sectionMeetingId,
+        substituteStaffId: row.substituteStaffId,
+        substitutionDate: row.substitutionDate,
+      },
+    });
+    return row;
   }
 
   listAttendancePeriods(tenantId: string, filter: { institutionId: string; dayOfWeek?: number }) {
