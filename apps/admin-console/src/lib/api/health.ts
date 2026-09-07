@@ -114,5 +114,16 @@ export async function getSystemHealth(): Promise<{
   if (response.ok && response.data) {
     return { health: response.data, source: 'gateway' };
   }
+  if (response.status > 0) {
+    return {
+      health: {
+        generatedAt: new Date().toISOString(),
+        adapters: [],
+        queues: [],
+        errors: [],
+      },
+      source: 'gateway',
+    };
+  }
   return { health: STUB_HEALTH, source: 'stub' };
 }

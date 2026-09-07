@@ -30,7 +30,7 @@ import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 export const dynamic = 'force-dynamic';
 
 export default async function DataWarehouseMapPage() {
-  const features = await listGeoFeatures();
+  const { features, source } = await listGeoFeatures();
 
   return (
     <section aria-labelledby="map-heading" className="space-y-6">
@@ -58,6 +58,7 @@ export default async function DataWarehouseMapPage() {
       </div>
 
       <ScaffoldModeBanner
+        source={source}
         surface="GIS map"
         detail="Interactive Leaflet/MapLibre is progressive-enhancement. Empty feature lists mean the warehouse map API is offline — not fabricated coordinates."
       />

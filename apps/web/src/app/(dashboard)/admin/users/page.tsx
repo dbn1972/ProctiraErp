@@ -51,7 +51,7 @@ function initials(name: string): string {
 }
 
 export default async function AdminUsersPage() {
-  const users = await listUsers();
+  const { users, source } = await listUsers();
   const activeCount = users.filter((u) => u.status === 'ACTIVE').length;
 
   return (
@@ -76,6 +76,7 @@ export default async function AdminUsersPage() {
       </div>
 
       <ScaffoldModeBanner
+        source={source}
         surface="Admin users"
         detail="Nested admin UI scaffold. Lists stay empty when tenant admin APIs are offline."
       />

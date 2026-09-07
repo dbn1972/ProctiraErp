@@ -26,9 +26,7 @@ test.describe('auth — sign-in (MFA challenge)', () => {
 
     await page.goto('/login');
     await page.getByLabel(/email/i).fill('admin@school.edu');
-    await page
-      .getByLabel(/password/i, { exact: true })
-      .fill('CorrectHorse9!');
+    await page.getByRole('textbox', { name: /^password$/i }).fill('CorrectHorse9!');
     await page.getByRole('button', { name: /sign in/i }).click();
 
     await page.waitForURL((u) => u.pathname.startsWith('/mfa'));

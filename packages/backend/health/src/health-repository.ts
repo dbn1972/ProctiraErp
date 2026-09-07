@@ -252,6 +252,8 @@ export interface HealthRepository {
   updateCounsellingSession(id: string, tenantId: string, data: Partial<CounsellingSessionEntity>): Promise<CounsellingSessionEntity | null>;
   findCounsellingSessionById(id: string, tenantId: string): Promise<CounsellingSessionEntity | null>;
   listCounsellingSessionsByStudent(tenantId: string, studentId: string, pagination: PaginationOptions): Promise<PaginatedResult<CounsellingSessionEntity>>;
+  /** Tenant-wide list for redesign UI aggregates (optional on older impls). */
+  listAllCounsellingSessions?(tenantId: string): Promise<CounsellingSessionEntity[]>;
 
   // Screening Programs
   createScreeningProgram(data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>): Promise<ScreeningProgramEntity>;

@@ -1,10 +1,11 @@
 /**
- * API client for communicating with the Install/Bootstrap Service.
+ * API client for the Install Wizard BFF (`/api/install/*`).
  *
- * Connects to the Fastify backend install service endpoints.
+ * Issues a CSRF + install-token session, then sends both on mutate calls.
+ * Optional NEXT_PUBLIC_INSTALL_API_URL overrides the base (still expects same contract).
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_INSTALL_API_URL ?? 'http://localhost:3000/install';
+const API_BASE_URL = process.env.NEXT_PUBLIC_INSTALL_API_URL ?? '/api/install';
 
 export interface ValidationResult {
   success: boolean;
@@ -112,13 +113,55 @@ export interface AdminAccountConfig {
 
 class InstallApiClient {
   private baseUrl: string;
+  private csrfToken: string | null = null;
+  private installToken: string | null = null;
+  private sessionPromise: Promise<void> | null = null;
 
   constructor(baseUrl: string = API_BASE_URL) {
     this.baseUrl = baseUrl;
   }
 
+  /** Ensure CSRF + install-token session is established (idempotent). */
+  async ensureSession(): Promise<void> {
+    if (this.csrfToken && this.installToken) return;
+    if (!this.sessionPromise) {
+      this.sessionPromise = (async () => {
+        const response = await fetch(`${this.baseUrl}/session`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to start install session: ${response.statusText}`);
+        }
+        const data = (await response.json()) as {
+          csrfToken?: string;
+          installToken?: string;
+        };
+        if (!data.csrfToken || !data.installToken) {
+          throw new Error('Install session response missing tokens.');
+        }
+        this.csrfToken = data.csrfToken;
+        this.installToken = data.installToken;
+      })().finally(() => {
+        this.sessionPromise = null;
+      });
+    }
+    await this.sessionPromise;
+  }
+
+  private authHeaders(): Record<string, string> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.csrfToken) headers['x-csrf-token'] = this.csrfToken;
+    if (this.installToken) headers['x-install-token'] = this.installToken;
+    return headers;
+  }
+
   async getStatus(): Promise<BootstrapStatus> {
-    const response = await fetch(`${this.baseUrl}/status`);
+    await this.ensureSession();
+    const response = await fetch(`${this.baseUrl}/status`, {
+      credentials: 'include',
+      headers: this.authHeaders(),
+    });
     if (!response.ok) {
       throw new Error(`Failed to get status: ${response.statusText}`);
     }
@@ -146,9 +189,12 @@ class InstallApiClient {
   }
 
   async finalize(): Promise<BootstrapResult> {
+    await this.ensureSession();
     const response = await fetch(`${this.baseUrl}/finalize`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      headers: this.authHeaders(),
+      body: JSON.stringify({}),
     });
     if (!response.ok) {
       const data = (await response.json().catch(() => ({}))) as { error?: string };
@@ -164,11 +210,11 @@ class InstallApiClient {
   }
 
   async createAdminAccount(config: AdminAccountConfig): Promise<{ success: boolean; error?: string }> {
-    // This endpoint would be part of the finalize flow
-    // For now, it's included in the finalize step
+    await this.ensureSession();
     const response = await fetch(`${this.baseUrl}/admin`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      headers: this.authHeaders(),
       body: JSON.stringify(config),
     });
     if (!response.ok) {
@@ -179,9 +225,11 @@ class InstallApiClient {
   }
 
   private async postConfig(path: string, config: unknown): Promise<ValidationResult> {
+    await this.ensureSession();
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      headers: this.authHeaders(),
       body: JSON.stringify(config),
     });
     if (!response.ok) {

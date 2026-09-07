@@ -138,12 +138,12 @@ export function ResetPasswordForm(): JSX.Element {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               minLength={MIN_PASSWORD_LENGTH}
-              className="pe-10"
+              className="h-12 min-h-12 pe-10"
             />
             <button
               type="button"
               onClick={() => setShowPassword((v) => !v)}
-              className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+              className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
               aria-label={showPassword ? t('hidePassword') : t('showPassword')}
               tabIndex={-1}
             >
@@ -176,12 +176,12 @@ export function ResetPasswordForm(): JSX.Element {
               value={confirmation}
               onChange={(e) => setConfirmation(e.target.value)}
               minLength={MIN_PASSWORD_LENGTH}
-              className="pe-10"
+              className="h-12 min-h-12 pe-10"
             />
             <button
               type="button"
               onClick={() => setShowConfirmation((v) => !v)}
-              className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+              className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
               aria-label={showConfirmation ? t('hidePassword') : t('showPassword')}
               tabIndex={-1}
             >
@@ -201,7 +201,7 @@ export function ResetPasswordForm(): JSX.Element {
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        <Link href="/login" className="text-primary hover:underline">
+        <Link href="/login" className="inline-flex min-h-12 items-center text-primary hover:underline">
           {t('backToSignIn')}
         </Link>
       </p>

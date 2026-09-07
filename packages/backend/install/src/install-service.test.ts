@@ -429,6 +429,24 @@ describe('InstallServiceImpl', () => {
       expect(latestRun!.status).toBe('completed');
       expect(latestRun!.completedSteps).toEqual(['cdn', 'database', 'storage', 'cache', 'queue']);
     });
+
+    it('should lock configure and finalize after successful bootstrap', async () => {
+      await service.configureCDN(validCdnConfig());
+      await service.configureDatabase(validDatabaseConfig());
+      await service.configureStorage(validStorageConfig());
+      await service.configureCache(validCacheConfig());
+      await service.configureQueue(validQueueConfig());
+      const first = await service.finalizeBootstrap();
+      expect(first.success).toBe(true);
+
+      const lockedConfigure = await service.configureCDN(validCdnConfig());
+      expect(lockedConfigure.success).toBe(false);
+      expect(lockedConfigure.error).toMatch(/already finalized|locked/i);
+
+      const lockedFinalize = await service.finalizeBootstrap();
+      expect(lockedFinalize.success).toBe(false);
+      expect(lockedFinalize.error).toMatch(/already finalized|locked/i);
+    });
   });
 
   describe('getAdapterHealth', () => {

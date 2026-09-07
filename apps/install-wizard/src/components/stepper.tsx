@@ -7,10 +7,11 @@ interface StepperProps {
   currentStepIndex: number;
 }
 
-export function Stepper({ steps, currentStepIndex }: StepperProps) {
+export function Stepper({ steps, currentStepIndex: _currentStepIndex }: StepperProps) {
   return (
     <nav
       aria-label="Setup progress"
+      tabIndex={0}
       className="mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white px-4 py-5 shadow-sm sm:px-6"
     >
       <ol className="flex min-w-max items-start sm:min-w-0">
@@ -48,7 +49,7 @@ export function Stepper({ steps, currentStepIndex }: StepperProps) {
                       ? 'font-semibold text-gray-900'
                       : step.status === 'completed'
                         ? 'font-medium text-primary-700'
-                        : 'text-gray-400'
+                        : 'text-gray-600'
                   }`}
                 >
                   {step.label}
@@ -72,7 +73,13 @@ export function Stepper({ steps, currentStepIndex }: StepperProps) {
 
 function CheckIcon() {
   return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
     </svg>
   );
@@ -80,7 +87,13 @@ function CheckIcon() {
 
 function XIcon() {
   return (
-    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
     </svg>
   );

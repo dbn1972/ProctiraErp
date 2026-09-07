@@ -5,11 +5,19 @@
  *  - Aggregate list/detail endpoints consumed by App Router pages
  *  - Tenant-scoped seed filtering (cross-tenant deny)
  *  - onRequest hook that maps JWT roles → request.healthAccessContext
+ *  - Counselling list merges UI seed with live domain/PG writes
  */
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
-import { HEALTH_DEMO_TENANT_ID, createHealthUiSeed, type HealthUiSeed } from './health-ui-seed.js';
+import type { CounsellingSessionEntity, HealthRepository } from '@proctira/backend-health';
+
+import {
+  HEALTH_DEMO_TENANT_ID,
+  createHealthUiSeed,
+  type HealthUiSeed,
+  type UiCounsellingSession,
+} from './health-ui-seed.js';
 
 /** Roles allowed to view health PII via UI aggregates. */
 const HEALTH_UI_ROLES = new Set([
@@ -89,13 +97,35 @@ function forTenant<T extends { tenantId: string }>(items: T[], tenantId: string)
   return items.filter((item) => item.tenantId === tenantId);
 }
 
+function mapDomainCounselling(entity: CounsellingSessionEntity): UiCounsellingSession {
+  const statusMap: Record<string, UiCounsellingSession['status']> = {
+    scheduled: 'SCHEDULED',
+    completed: 'COMPLETED',
+    cancelled: 'CANCELLED',
+    'no-show': 'CANCELLED',
+  };
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    studentId: entity.studentId,
+    studentName: entity.studentId.slice(0, 8),
+    counsellorName: entity.counsellorId.slice(0, 8),
+    sessionDate: entity.sessionDate,
+    topic: entity.reason,
+    status: statusMap[entity.status] ?? 'SCHEDULED',
+  };
+}
+
 export interface HealthUiPluginOptions {
   seed?: HealthUiSeed;
+  /** When provided, counselling list merges seed + live domain/PG sessions. */
+  repository?: HealthRepository;
 }
 
 export const healthUiPlugin = fp(
   async function healthUiPluginImpl(fastify: FastifyInstance, options: HealthUiPluginOptions = {}) {
     const seed = options.seed ?? createHealthUiSeed();
+    const repository = options.repository;
 
     // Bridge JWT → domain healthAccessContext for resource-scoped routes.
     // Keep mapping conservative: no PRINCIPAL/ADMIN elevation to full admin.
@@ -157,7 +187,26 @@ export const healthUiPlugin = fp(
     fastify.get('/health/counselling', async (request, reply) => {
       const tenantId = assertHealthAccess(request, reply);
       if (!tenantId) return;
-      return reply.send({ data: forTenant(seed.counselling, tenantId) });
+      const seeded = forTenant(seed.counselling, tenantId);
+      let live: UiCounsellingSession[] = [];
+      if (repository?.listAllCounsellingSessions) {
+        const entities = await repository.listAllCounsellingSessions(tenantId);
+        live = entities.map(mapDomainCounselling);
+      }
+      const byId = new Map<string, UiCounsellingSession>();
+      for (const row of seeded) byId.set(row.id, row);
+      for (const row of live) byId.set(row.id, row);
+      const data = Array.from(byId.values()).sort((a, b) =>
+        b.sessionDate.localeCompare(a.sessionDate),
+      );
+      return reply.send({
+        data,
+        meta: {
+          source: repository ? 'live+seed' : 'seed',
+          liveCount: live.length,
+          seedCount: seeded.length,
+        },
+      });
     });
 
     fastify.get('/health/screenings', async (request, reply) => {

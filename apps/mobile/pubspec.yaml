@@ -1,5 +1,5 @@
 name: proctira_mobile
-description: "ProctiraERP Unified Platform mobile application."
+description: 'ProctiraERP Unified Platform mobile application.'
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -44,9 +44,9 @@ dependencies:
   uuid: ^4.4.0
 
   # Device capabilities for mobile features
-  geolocator: ^13.0.0          # GPS for attendance geofence validation
-  image_picker: ^1.1.0          # Camera + gallery for document capture
-  permission_handler: ^11.3.0   # Runtime permissions (location, camera)
+  geolocator: ^13.0.0 # GPS for attendance geofence validation
+  image_picker: ^1.1.0 # Camera + gallery for document capture
+  permission_handler: ^11.3.0 # Runtime permissions (location, camera)
 
   # Workspace packages
   proctira_api_client:
@@ -66,3 +66,18 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/fonts/
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Inter-ExtraBold.ttf
+          weight: 800

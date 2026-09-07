@@ -61,7 +61,10 @@ describe('<MfaCodeInput />', () => {
       expect(cell).toHaveAttribute('aria-label', `Digit ${i + 1} of 6`);
       expect(cell).toHaveAttribute('inputMode', 'numeric');
       expect(cell).toHaveAttribute('autoComplete', 'one-time-code');
-      expect(cell).toHaveAttribute('maxLength', '1');
+      // Each cell is controlled to a single visible digit; clamping is
+      // handled in JS so fast keyboard input can deliver multi-char
+      // `change` events without the browser dropping trailing digits.
+      expect(cell.value.length).toBeLessThanOrEqual(1);
     });
   });
 

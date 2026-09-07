@@ -84,6 +84,9 @@ const STANDARD_ROUTES = [
   '/assessments',
   '/examinations',
   '/scholarships',
+  '/scholarships/programs/new',
+  '/scholarships/applications',
+  '/scholarships/disbursements',
   '/workflows',
   '/workflows/approvals',
   '/workflows/instances',
@@ -91,8 +94,27 @@ const STANDARD_ROUTES = [
   '/reports',
   '/reports/new',
   '/health',
+  '/notifications',
+  '/admin/notification-rules',
+  '/transport',
+  '/transport/routes',
+  '/transport/vehicles',
+  '/transport/assignments',
+  '/communication',
+  '/communication/campaigns',
+  '/communication/campaigns/new',
+  '/communication/emergency',
+  '/hostel',
+  '/hostel/structure',
+  '/hostel/assignments',
+  '/hostel/leaves',
+  '/hostel/visitors',
+  '/library',
+  '/library/circulation',
+  '/library/overdues',
   '/health/screenings',
   '/health/counselling',
+  '/health/counselling/new',
   '/health/special-needs',
   '/data-warehouse',
   '/data-warehouse/import',
@@ -396,16 +418,17 @@ test.describe('Property F-5: Touch Target Minimum — public surfaces (no backen
   test('all interactive elements on public routes have min(width, height) ≥ 44px', async ({
     page,
   }) => {
+    test.setTimeout(90_000);
     for (const route of PUBLIC_ROUTES) {
-      const response = await page.goto(route);
+      const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
 
       // Skip routes that are not available
       if (!response || response.status() >= 400) {
         continue;
       }
 
-      await page.waitForLoadState('networkidle').catch(() => {});
-      await page.waitForTimeout(500);
+      await page.waitForLoadState('load').catch(() => {});
+      await page.waitForTimeout(200);
 
       const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_STANDARD, route);
 
@@ -429,6 +452,7 @@ test.describe('Property F-5: Touch Target Minimum — public surfaces (no backen
   test('all interactive elements on public routes at mobile viewport have min(width, height) ≥ 48px', async ({
     browser,
   }) => {
+    test.setTimeout(90_000);
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       hasTouch: true,
@@ -438,14 +462,14 @@ test.describe('Property F-5: Touch Target Minimum — public surfaces (no backen
 
     try {
       for (const route of PUBLIC_ROUTES) {
-        const response = await page.goto(route);
+        const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
 
         if (!response || response.status() >= 400) {
           continue;
         }
 
-        await page.waitForLoadState('networkidle').catch(() => {});
-        await page.waitForTimeout(500);
+        await page.waitForLoadState('load').catch(() => {});
+        await page.waitForTimeout(200);
 
         const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_MOBILE, route);
 

@@ -2,10 +2,11 @@
  * NotificationPreferences — Settings → Notifications (Task 60A.11).
  *
  * Provides a unified screen for managing notification delivery preferences:
- *   • Per-channel toggles (email, in-app, push, webhook) for each
+ *   • Per-channel toggles (email, in-app, push, webhook, SMS) for each
  *     notification category (academic, attendance, examination, workflow, system)
  *   • Digest frequency configuration (immediate, daily, weekly)
  *   • Quiet hours configuration (time range + day selection)
+ *   • Channel delivery sandbox honesty banner until live SMTP/FCM/Twilio adapters are wired
  *
  * Wires to the Notification Service from task 18 via:
  *   GET  /api/v1/notifications/preferences
@@ -60,7 +61,7 @@ import {
 
 // ─── Constants ───────────────────────────────────────────────────────────
 
-const CHANNELS: NotificationChannel[] = ['email', 'in_app', 'push', 'webhook'];
+const CHANNELS: NotificationChannel[] = ['email', 'in_app', 'push', 'webhook', 'sms'];
 const CATEGORIES: NotificationCategory[] = [
   'academic',
   'attendance',
@@ -76,7 +77,7 @@ function getDefaultPreferences(): NotificationPreferencesData {
   return {
     categories: CATEGORIES.map((category) => ({
       category,
-      channels: { email: true, in_app: true, push: true, webhook: false },
+      channels: { email: true, in_app: true, push: true, webhook: false, sms: false },
     })),
     digestFrequency: 'immediate',
     quietHours: {
@@ -108,9 +109,8 @@ export default function NotificationPreferences({
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [preferences, setPreferences] = useState<NotificationPreferencesData>(
-    getDefaultPreferences,
-  );
+  const [preferences, setPreferences] =
+    useState<NotificationPreferencesData>(getDefaultPreferences);
   const [isDirty, setIsDirty] = useState(false);
   const [submitState, setSubmitState] = useState<
     | { kind: 'idle' }
@@ -133,11 +133,7 @@ export default function NotificationPreferences({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setLoadError(
-          err instanceof Error
-            ? err.message
-            : t('settings.notifications.loadFailed'),
-        );
+        setLoadError(err instanceof Error ? err.message : t('settings.notifications.loadFailed'));
         setLoading(false);
       });
     return () => {
@@ -175,27 +171,21 @@ export default function NotificationPreferences({
     setIsDirty(true);
   }, []);
 
-  const handleQuietHoursStartChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setPreferences((prev) => ({
-        ...prev,
-        quietHours: { ...prev.quietHours, startTime: e.target.value },
-      }));
-      setIsDirty(true);
-    },
-    [],
-  );
+  const handleQuietHoursStartChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPreferences((prev) => ({
+      ...prev,
+      quietHours: { ...prev.quietHours, startTime: e.target.value },
+    }));
+    setIsDirty(true);
+  }, []);
 
-  const handleQuietHoursEndChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      setPreferences((prev) => ({
-        ...prev,
-        quietHours: { ...prev.quietHours, endTime: e.target.value },
-      }));
-      setIsDirty(true);
-    },
-    [],
-  );
+  const handleQuietHoursEndChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setPreferences((prev) => ({
+      ...prev,
+      quietHours: { ...prev.quietHours, endTime: e.target.value },
+    }));
+    setIsDirty(true);
+  }, []);
 
   const handleQuietHoursDayToggle = useCallback((day: number, enabled: boolean) => {
     setPreferences((prev) => {
@@ -223,10 +213,7 @@ export default function NotificationPreferences({
       setSubmitState({ kind: 'success', message });
       announce(message, 'polite');
     } catch (err: unknown) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : t('settings.notifications.saveFailed');
+      const message = err instanceof Error ? err.message : t('settings.notifications.saveFailed');
       setSubmitState({ kind: 'error', message });
       announce(message, 'assertive');
     }
@@ -236,11 +223,7 @@ export default function NotificationPreferences({
 
   if (loading) {
     return (
-      <div
-        className="space-y-6 p-6"
-        role="status"
-        aria-label={t('common.loading')}
-      >
+      <div className="space-y-6 p-6" role="status" aria-label={t('common.loading')}>
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-96" />
         <Skeleton className="h-64 w-full" />
@@ -267,10 +250,13 @@ export default function NotificationPreferences({
         <h1 className="text-2xl font-semibold text-foreground">
           {t('settings.notifications.title')}
         </h1>
-        <p className="mt-1 text-muted-foreground">
-          {t('settings.notifications.description')}
-        </p>
+        <p className="mt-1 text-muted-foreground">{t('settings.notifications.description')}</p>
       </header>
+
+      <Alert className="mb-6" data-testid="sms-sandbox-banner">
+        <AlertTitle>{t('settings.notifications.smsSandboxTitle')}</AlertTitle>
+        <AlertDescription>{t('settings.notifications.smsSandboxDescription')}</AlertDescription>
+      </Alert>
 
       {submitState.kind === 'error' && (
         <Alert variant="destructive" className="mb-6" data-testid="notification-prefs-error">
@@ -290,13 +276,11 @@ export default function NotificationPreferences({
         <Card>
           <CardHeader>
             <CardTitle>{t('settings.notifications.categories.title')}</CardTitle>
-            <CardDescription>
-              {t('settings.notifications.categories.description')}
-            </CardDescription>
+            <CardDescription>{t('settings.notifications.categories.description')}</CardDescription>
           </CardHeader>
           <CardContent>
             {/* Header row */}
-            <div className="grid grid-cols-5 gap-4 mb-3 px-2">
+            <div className="grid grid-cols-6 gap-4 mb-3 px-2">
               <div className="col-span-1" />
               {CHANNELS.map((channel) => (
                 <div
@@ -314,7 +298,7 @@ export default function NotificationPreferences({
             {preferences.categories.map((catPref) => (
               <div
                 key={catPref.category}
-                className="grid grid-cols-5 gap-4 items-center py-3 px-2 rounded-md hover:bg-muted/50"
+                className="grid grid-cols-6 gap-4 items-center py-3 px-2 rounded-md hover:bg-muted/50"
                 data-testid={`category-row-${catPref.category}`}
               >
                 <Label className="col-span-1 font-medium text-foreground">
@@ -345,9 +329,7 @@ export default function NotificationPreferences({
         <Card>
           <CardHeader>
             <CardTitle>{t('settings.notifications.digest.title')}</CardTitle>
-            <CardDescription>
-              {t('settings.notifications.digest.description')}
-            </CardDescription>
+            <CardDescription>{t('settings.notifications.digest.description')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="max-w-xs">
@@ -381,9 +363,7 @@ export default function NotificationPreferences({
         <Card>
           <CardHeader>
             <CardTitle>{t('settings.notifications.quietHours.title')}</CardTitle>
-            <CardDescription>
-              {t('settings.notifications.quietHours.description')}
-            </CardDescription>
+            <CardDescription>{t('settings.notifications.quietHours.description')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3">

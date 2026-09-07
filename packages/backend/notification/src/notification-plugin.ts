@@ -21,10 +21,15 @@ import {
   type EmailSender,
   type PushSender,
   type WebhookSender,
+  type SmsSender,
   type NotificationQueuePublisher,
   type NotificationServiceConfig,
 } from './notification-service.js';
+import type { NotificationPrefsStore } from './prefs-store.js';
 import { registerNotificationRoutes } from './routes.js';
+import { createSandboxEmailSender } from './sandbox-email-sender.js';
+import { createSandboxPushSender } from './sandbox-push-sender.js';
+import { createSandboxSmsSender } from './sandbox-sms-sender.js';
 
 /**
  * Options for the notification plugin.
@@ -32,12 +37,16 @@ import { registerNotificationRoutes } from './routes.js';
 export interface NotificationPluginOptions {
   /** Notification repository implementation */
   repository: NotificationRepository;
+  /** Preferences / device store (optional — defaults to in-memory) */
+  prefsStore?: NotificationPrefsStore;
   /** Email sender implementation (optional) */
   emailSender?: EmailSender;
   /** Push notification sender implementation (optional) */
   pushSender?: PushSender;
   /** Webhook sender implementation (optional) */
   webhookSender?: WebhookSender;
+  /** SMS sender implementation (optional — defaults to sandbox) */
+  smsSender?: SmsSender;
   /** Queue publisher for retry scheduling (optional) */
   queuePublisher?: NotificationQueuePublisher;
   /** Service configuration overrides */
@@ -63,9 +72,11 @@ export const notificationPlugin = fp(
   ) {
     const {
       repository,
-      emailSender,
-      pushSender,
+      prefsStore,
+      emailSender = createSandboxEmailSender(),
+      pushSender = createSandboxPushSender(),
       webhookSender,
+      smsSender = createSandboxSmsSender(),
       queuePublisher,
       config,
       prefix = '/notifications',
@@ -77,6 +88,7 @@ export const notificationPlugin = fp(
       emailSender,
       pushSender,
       webhookSender,
+      smsSender,
       queuePublisher,
       config,
     );
@@ -87,6 +99,7 @@ export const notificationPlugin = fp(
     // Register notification routes
     await registerNotificationRoutes(fastify, {
       notificationService,
+      prefsStore,
       prefix,
     });
   },

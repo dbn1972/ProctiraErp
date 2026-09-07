@@ -23,9 +23,9 @@ interface DocumentUploadProps {
  * Single-document drag-and-drop upload widget.
  *
  * Validates file type and size in the browser (matching the backend's
- * ALLOWED_FILE_TYPES + MAX_FILE_SIZE_BYTES) and stores the file in the
- * registration draft as base64. The backend enforces the same rules on
- * submission.
+ * ALLOWED_FILE_TYPES + MAX_FILE_SIZE_BYTES) and stores **metadata** in the
+ * registration draft. File bytes stay in memory until submit (never
+ * sessionStorage). The backend enforces the same rules on submission.
  */
 export function DocumentUpload({ documentType, label, required }: DocumentUploadProps) {
   const t = useTranslations('documents');
@@ -54,15 +54,14 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
 
       setUploading(true);
       try {
-        const content = await fileToBase64(file);
         const meta: DocumentUploadMetadata = {
           fileName: file.name,
           fileType: file.type,
           fileSize: file.size,
           documentType,
-          content,
         };
-        addDocument(meta);
+        // Keep File in memory; metadata-only in draft / sessionStorage.
+        addDocument(meta, file);
       } catch {
         setError(t('uploadError'));
       } finally {
@@ -88,7 +87,12 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
     <div>
       <label className="input-label">
         {label}
-        {required && <span className="text-red-500" aria-hidden="true"> *</span>}
+        {required && (
+          <span className="text-red-500" aria-hidden="true">
+            {' '}
+            *
+          </span>
+        )}
       </label>
 
       {existing ? (
@@ -112,13 +116,15 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
         </div>
       ) : (
         <div
-          {...getRootProps()}
+          {...getRootProps({
+            // Avoid nested-interactive: the file input is the sole control;
+            // do not also promote the wrapper to role=button.
+            role: undefined,
+            tabIndex: undefined,
+          })}
           className={`dropzone ${isDragActive ? 'dropzone-active' : ''}`}
-          role="button"
-          tabIndex={0}
-          aria-label={`Upload ${label}`}
         >
-          <input {...getInputProps()} aria-label={`File input for ${label}`} />
+          <input {...getInputProps()} aria-label={`Upload ${label}`} />
           {uploading ? (
             <div className="flex items-center gap-2">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
@@ -126,10 +132,11 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
             </div>
           ) : (
             <>
-              <Upload className="mb-2 h-8 w-8 text-gray-400" aria-hidden="true" />
-              <p className="text-sm text-gray-600">{t('dragDrop')}</p>
-              <p className="mt-1 text-xs text-gray-400">
-                {t('maxSize', { size: String(maxSizeMB) })} · {t('allowedTypes', { types: ALLOWED_EXTENSIONS })}
+              <Upload className="mb-2 h-8 w-8 text-gray-500" aria-hidden="true" />
+              <p className="text-sm text-gray-700">{t('dragDrop')}</p>
+              <p className="mt-1 text-xs text-gray-600">
+                {t('maxSize', { size: String(maxSizeMB) })} ·{' '}
+                {t('allowedTypes', { types: ALLOWED_EXTENSIONS })}
               </p>
             </>
           )}
@@ -143,22 +150,4 @@ export function DocumentUpload({ documentType, label, required }: DocumentUpload
       )}
     </div>
   );
-}
-
-/** Reads a `File` as a base64-encoded string (without the `data:` prefix). */
-function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== 'string') {
-        reject(new Error('Unexpected reader result'));
-        return;
-      }
-      const comma = result.indexOf(',');
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('File read failed'));
-    reader.readAsDataURL(file);
-  });
 }

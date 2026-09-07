@@ -10,7 +10,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 
 import {
@@ -55,6 +55,11 @@ export function GradingSchemeForm({
   const [serverState, setServerState] =
     useState<ActionState<{ schemeId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   const form = useForm<GradingSchemeFormValues>({
     resolver: zodResolver(gradingSchemeFormSchema),
@@ -102,6 +107,8 @@ export function GradingSchemeForm({
 
   return (
     <form
+      data-testid="grading-scheme-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
       noValidate
       onSubmit={(event) => {
         void handleSubmit(onSubmit)(event);
@@ -305,7 +312,11 @@ export function GradingSchemeForm({
         >
           Cancel
         </Button>
-        <Button type="submit" disabled={isPending}>
+        <Button
+          type="submit"
+          disabled={isPending}
+          data-testid="grading-scheme-submit"
+        >
           {isPending
             ? mode === 'create'
               ? 'Creating…'

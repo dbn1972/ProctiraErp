@@ -7,7 +7,7 @@
  * Access control: Backend health-service enforces role-based access. Pages
  * call requireSession() and pass the access token through gatewayFetch.
  */
-import { gatewayFetch } from './gateway';
+import { GatewayError, gatewayFetch } from './gateway';
 
 export interface HealthRecord {
   id: string;
@@ -39,6 +39,38 @@ export interface CounsellingSession {
   sessionDate: string;
   topic: string;
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+}
+
+/** Domain create payload for POST /health/counselling/sessions. */
+export interface CreateCounsellingSessionInput {
+  studentId: string;
+  counsellorId: string;
+  sessionDate: string;
+  sessionType: 'individual' | 'group' | 'family' | 'crisis';
+  reason: string;
+  caseNotes: string;
+  outcome?: string;
+  followUpRequired: boolean;
+  followUpDate?: string;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no-show';
+}
+
+/** Domain entity returned by POST /health/counselling/sessions. */
+export interface CreatedCounsellingSession {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  counsellorId: string;
+  sessionDate: string;
+  sessionType: string;
+  reason: string;
+  caseNotes: string;
+  outcome: string | null;
+  followUpRequired: boolean;
+  followUpDate: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ScreeningProgram {
@@ -102,6 +134,27 @@ export async function listCounsellingSessions(): Promise<CounsellingSession[]> {
     { throwOnError: false, next: { revalidate: 0 } },
   );
   return result.data?.data ?? [];
+}
+
+/**
+ * Creates a counselling session via the in-process health domain plugin
+ * (`POST /health/counselling/sessions`). Throws GatewayError on failure.
+ */
+export async function createCounsellingSession(
+  input: CreateCounsellingSessionInput,
+): Promise<CreatedCounsellingSession> {
+  const result = await gatewayFetch<CreatedCounsellingSession>(
+    '/health/counselling/sessions',
+    { method: 'POST', json: input },
+  );
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create counselling session',
+    });
+  }
+  return result.data;
 }
 
 export async function listScreeningPrograms(): Promise<ScreeningProgram[]> {

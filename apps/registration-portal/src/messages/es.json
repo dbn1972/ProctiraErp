@@ -96,7 +96,9 @@
     "uploadError": "Error al subir el archivo",
     "fileTooLarge": "El archivo supera el tamaño máximo de {size} MB",
     "invalidType": "Tipo no permitido. Permitidos: {types}",
-    "remove": "Eliminar"
+    "remove": "Eliminar",
+    "reuploadHint": "vuelva a cargar",
+    "reuploadRequired": "Debe volver a cargar {fileName} antes de enviar"
   },
   "institutions": {
     "title": "Buscar escuelas",

@@ -4,6 +4,7 @@
  */
 
 export { createTenant, createTenantConfig } from './tenant.factory.js';
+export { createBoard, createBoardList } from './board.factory.js';
 export { createInstitution, createInstitutionList } from './institution.factory.js';
 export { createStudent, createStudentList } from './student.factory.js';
 export { createStaff, createStaffList } from './staff.factory.js';
@@ -15,6 +16,8 @@ export type {
   Tenant,
   TenantConfig,
   Area,
+  Board,
+  BoardType,
   Institution,
   Student,
   Staff,

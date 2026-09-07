@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -85,7 +84,7 @@ void main() {
       });
 
       await pumpJourneyApp(tester);
-      _go(tester, '/students');
+      goJourney('/students');
       await tester.pumpAndSettle();
 
       // Student row appears.
@@ -100,11 +99,12 @@ void main() {
       expect(find.text('Grace Hopper'), findsOneWidget);
       expect(find.text('stu-1'), findsOneWidget);
 
-      // Tap "View enrollment history" CTA.
-      await tester.tap(find.widgetWithText(
-        FilledButton,
-        'View enrollment history',
-      ));
+      // Scroll the profile ListView so the bottom CTA is built/hit-testable.
+      await tester.drag(find.byType(ListView).first, const Offset(0, -500));
+      await tester.pumpAndSettle();
+      final Finder historyCta = find.text('View enrollment history');
+      expect(historyCta, findsOneWidget);
+      await tester.tap(historyCta);
       await tester.pumpAndSettle();
 
       // Both academic periods are listed (grouped headers).
@@ -117,8 +117,3 @@ void main() {
   );
 }
 
-void _go(WidgetTester tester, String location) {
-  final BuildContext context =
-      tester.element(find.byType(MaterialApp).first);
-  GoRouter.of(context).go(location);
-}

@@ -240,7 +240,7 @@ export default function HomePage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-[#FBBF24]" aria-hidden="true" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#34D399]" aria-hidden="true" />
                 <span className="ml-2 font-mono text-[11px] text-gray-400">quickstart.sh</span>
-                <span className="ml-auto text-[11px] font-bold uppercase tracking-wider text-gray-500">curl</span>
+                <span className="ml-auto text-[11px] font-bold uppercase tracking-wider text-gray-400">curl</span>
               </div>
               <pre className="overflow-x-auto px-5 py-4 font-mono text-xs leading-relaxed text-[#C6D0E8]" aria-label="Example API request">
 {`# List students enrolled this week in your sandbox tenant
@@ -377,7 +377,7 @@ curl "https://api.proctira.dev/v3/students" \\
         </div>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4 border-t border-gray-200 px-6 py-5 text-xs text-gray-500">
           <span>© 2026 ProctiraERP · Developer Portal</span>
-          <span className="ml-auto inline-flex items-center gap-2 font-semibold text-accent-600">
+          <span className="ml-auto inline-flex items-center gap-2 font-semibold text-accent-700">
             <span className="h-1.5 w-1.5 rounded-full bg-accent-500" aria-hidden="true" />
             All systems operational
           </span>

@@ -10,6 +10,9 @@
  * - POST /install/configure/queue - Configure Queue adapter
  * - POST /install/finalize - Finalize bootstrap
  * - GET /install/health - Aggregated health check
+ *
+ * Mutating routes require `X-Install-Token` when `INSTALL_TOKEN` / options.installToken is set.
+ * After finalize, configure/finalize return 409 (bootstrap lock).
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
@@ -33,6 +36,11 @@ import {
   CacheConfigSchema,
   QueueConfigSchema,
 } from './types';
+import {
+  enforceInstallToken,
+  resolveInstallToken,
+  statusForInstallResult,
+} from './install-security';
 
 /**
  * Options for the install plugin.
@@ -46,6 +54,11 @@ export interface InstallPluginOptions {
   connectivityTester?: ConnectivityTester;
   /** Logger name override */
   loggerName?: string;
+  /**
+   * Shared install token required on mutating routes.
+   * Falls back to INSTALL_TOKEN env. When unset, token gate is disabled.
+   */
+  installToken?: string;
 }
 
 // Extend Fastify types
@@ -70,6 +83,7 @@ export const installPlugin = fp(
       loggerName = 'install-service',
     } = options;
 
+    const expectedToken = resolveInstallToken(options);
     const logger = createLogger({ name: loggerName });
 
     const installService = new InstallServiceImpl({
@@ -84,6 +98,12 @@ export const installPlugin = fp(
     // Register routes under the prefix
     fastify.register(
       async function installRoutes(app) {
+        const requireToken = async (request: FastifyRequest, reply: FastifyReply) => {
+          if (!enforceInstallToken(request, reply, expectedToken)) {
+            return reply;
+          }
+        };
+
         // GET /install/status - Get bootstrap status
         app.get('/status', async (_request: FastifyRequest, reply: FastifyReply) => {
           const status = await installService.getBootstrapStatus();
@@ -97,11 +117,11 @@ export const installPlugin = fp(
             schema: {
               body: CdnConfigSchema,
             },
+            preHandler: requireToken,
           },
           async (request, reply) => {
             const result = await installService.configureCDN(request.body);
-            const statusCode = result.success ? 200 : 400;
-            return reply.status(statusCode).send(result);
+            return reply.status(statusForInstallResult(result.success, result.error)).send(result);
           },
         );
 
@@ -112,11 +132,11 @@ export const installPlugin = fp(
             schema: {
               body: DatabaseConfigSchema,
             },
+            preHandler: requireToken,
           },
           async (request, reply) => {
             const result = await installService.configureDatabase(request.body);
-            const statusCode = result.success ? 200 : 400;
-            return reply.status(statusCode).send(result);
+            return reply.status(statusForInstallResult(result.success, result.error)).send(result);
           },
         );
 
@@ -127,11 +147,11 @@ export const installPlugin = fp(
             schema: {
               body: StorageConfigSchema,
             },
+            preHandler: requireToken,
           },
           async (request, reply) => {
             const result = await installService.configureStorage(request.body);
-            const statusCode = result.success ? 200 : 400;
-            return reply.status(statusCode).send(result);
+            return reply.status(statusForInstallResult(result.success, result.error)).send(result);
           },
         );
 
@@ -142,11 +162,11 @@ export const installPlugin = fp(
             schema: {
               body: CacheConfigSchema,
             },
+            preHandler: requireToken,
           },
           async (request, reply) => {
             const result = await installService.configureCache(request.body);
-            const statusCode = result.success ? 200 : 400;
-            return reply.status(statusCode).send(result);
+            return reply.status(statusForInstallResult(result.success, result.error)).send(result);
           },
         );
 
@@ -157,25 +177,31 @@ export const installPlugin = fp(
             schema: {
               body: QueueConfigSchema,
             },
+            preHandler: requireToken,
           },
           async (request, reply) => {
             const result = await installService.configureQueue(request.body);
-            const statusCode = result.success ? 200 : 400;
-            return reply.status(statusCode).send(result);
+            return reply.status(statusForInstallResult(result.success, result.error)).send(result);
           },
         );
 
         // POST /install/finalize - Finalize bootstrap
-        app.post('/finalize', async (_request: FastifyRequest, reply: FastifyReply) => {
-          const result = await installService.finalizeBootstrap();
-          const statusCode = result.success ? 200 : 400;
-          return reply.status(statusCode).send(result);
-        });
+        app.post(
+          '/finalize',
+          {
+            preHandler: requireToken,
+          },
+          async (_request: FastifyRequest, reply: FastifyReply) => {
+            const result = await installService.finalizeBootstrap();
+            return reply.status(statusForInstallResult(result.success, result.error)).send(result);
+          },
+        );
 
         // GET /install/health - Aggregated health check
         app.get('/health', async (_request: FastifyRequest, reply: FastifyReply) => {
           const health = await installService.getAdapterHealth();
-          const statusCode = health.status === 'healthy' ? 200 : health.status === 'degraded' ? 207 : 503;
+          const statusCode =
+            health.status === 'healthy' ? 200 : health.status === 'degraded' ? 207 : 503;
           return reply.status(statusCode).send(health);
         });
       },

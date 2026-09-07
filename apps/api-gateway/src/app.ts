@@ -55,6 +55,24 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     genReqId: () => crypto.randomUUID(),
   });
 
+  // Fastify's default JSON parser 500s on Content-Type: application/json with
+  // an empty body (common for bodyless POSTs from clients that always set the
+  // header). Treat empty payloads as {}.
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    const raw = typeof body === 'string' ? body : '';
+    if (raw.length === 0) {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(raw) as unknown);
+    } catch (err) {
+      const error = err as Error & { statusCode?: number };
+      error.statusCode = 400;
+      done(error, undefined);
+    }
+  });
+
   // 1. Register global error handler (first, so it catches all errors)
   await app.register(errorHandlerPlugin, {
     includeStackTrace: config.env === 'development',

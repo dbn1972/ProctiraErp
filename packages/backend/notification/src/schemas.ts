@@ -22,56 +22,76 @@ const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 
 // ─── Delivery Channel ────────────────────────────────────────────────────────
 
-export const DeliveryChannelSchema = Type.Union([
-  Type.Literal('email'),
-  Type.Literal('in_app'),
-  Type.Literal('push'),
-  Type.Literal('webhook'),
-], { description: 'Notification delivery channel' });
+export const DeliveryChannelSchema = Type.Union(
+  [
+    Type.Literal('email'),
+    Type.Literal('in_app'),
+    Type.Literal('push'),
+    Type.Literal('webhook'),
+    Type.Literal('sms'),
+  ],
+  { description: 'Notification delivery channel' },
+);
 
 export type DeliveryChannel = Static<typeof DeliveryChannelSchema>;
 
 // ─── Delivery Status ─────────────────────────────────────────────────────────
 
-export const DeliveryStatusSchema = Type.Union([
-  Type.Literal('sent'),
-  Type.Literal('delivered'),
-  Type.Literal('read'),
-  Type.Literal('failed'),
-], { description: 'Notification delivery status' });
+export const DeliveryStatusSchema = Type.Union(
+  [Type.Literal('sent'), Type.Literal('delivered'), Type.Literal('read'), Type.Literal('failed')],
+  { description: 'Notification delivery status' },
+);
 
 export type DeliveryStatus = Static<typeof DeliveryStatusSchema>;
 
 // ─── Priority ────────────────────────────────────────────────────────────────
 
-export const PrioritySchema = Type.Union([
-  Type.Literal('low'),
-  Type.Literal('normal'),
-  Type.Literal('high'),
-], { description: 'Notification priority' });
+export const PrioritySchema = Type.Union(
+  [Type.Literal('low'), Type.Literal('normal'), Type.Literal('high')],
+  { description: 'Notification priority' },
+);
 
 export type Priority = Static<typeof PrioritySchema>;
 
 // ─── Recipient Query ─────────────────────────────────────────────────────────
 
-export const RecipientQuerySchema = Type.Object({
-  userIds: Type.Optional(Type.Array(Type.String({
-    pattern: UuidPattern,
-    description: 'Explicit user IDs',
-  }))),
-  roleIds: Type.Optional(Type.Array(Type.String({
-    pattern: UuidPattern,
-    description: 'Role IDs to match recipients',
-  }))),
-  areaIds: Type.Optional(Type.Array(Type.String({
-    pattern: UuidPattern,
-    description: 'Area IDs to scope recipients',
-  }))),
-  institutionIds: Type.Optional(Type.Array(Type.String({
-    pattern: UuidPattern,
-    description: 'Institution IDs to scope recipients',
-  }))),
-}, { description: 'Query to resolve notification recipients' });
+export const RecipientQuerySchema = Type.Object(
+  {
+    userIds: Type.Optional(
+      Type.Array(
+        Type.String({
+          pattern: UuidPattern,
+          description: 'Explicit user IDs',
+        }),
+      ),
+    ),
+    roleIds: Type.Optional(
+      Type.Array(
+        Type.String({
+          pattern: UuidPattern,
+          description: 'Role IDs to match recipients',
+        }),
+      ),
+    ),
+    areaIds: Type.Optional(
+      Type.Array(
+        Type.String({
+          pattern: UuidPattern,
+          description: 'Area IDs to scope recipients',
+        }),
+      ),
+    ),
+    institutionIds: Type.Optional(
+      Type.Array(
+        Type.String({
+          pattern: UuidPattern,
+          description: 'Institution IDs to scope recipients',
+        }),
+      ),
+    ),
+  },
+  { description: 'Query to resolve notification recipients' },
+);
 
 export type RecipientQuery = Static<typeof RecipientQuerySchema>;
 
@@ -88,22 +108,27 @@ export const SendNotificationSchema = Type.Object({
     description: 'Template variable substitution map',
   }),
   priority: Type.Optional(PrioritySchema),
-  webhookUrl: Type.Optional(Type.String({
-    description: 'Webhook URL for webhook channel delivery',
-  })),
+  webhookUrl: Type.Optional(
+    Type.String({
+      description: 'Webhook URL for webhook channel delivery',
+    }),
+  ),
 });
 
 export type SendNotificationInput = Static<typeof SendNotificationSchema>;
 
 // ─── Notification Rule ───────────────────────────────────────────────────────
 
-export const NotificationRuleEventSchema = Type.Union([
-  Type.Literal('create'),
-  Type.Literal('update'),
-  Type.Literal('delete'),
-  Type.Literal('threshold'),
-  Type.Literal('schedule'),
-], { description: 'Event type that triggers the rule' });
+export const NotificationRuleEventSchema = Type.Union(
+  [
+    Type.Literal('create'),
+    Type.Literal('update'),
+    Type.Literal('delete'),
+    Type.Literal('threshold'),
+    Type.Literal('schedule'),
+  ],
+  { description: 'Event type that triggers the rule' },
+);
 
 export type NotificationRuleEvent = Static<typeof NotificationRuleEventSchema>;
 
@@ -131,12 +156,16 @@ export const CreateNotificationRuleSchema = Type.Object({
     description: 'Channels to deliver notification on',
   }),
   recipientQuery: RecipientQuerySchema,
-  isActive: Type.Optional(Type.Boolean({
-    description: 'Whether the rule is active (default: true)',
-  })),
-  schedule: Type.Optional(Type.String({
-    description: 'Cron expression for schedule-based rules',
-  })),
+  isActive: Type.Optional(
+    Type.Boolean({
+      description: 'Whether the rule is active (default: true)',
+    }),
+  ),
+  schedule: Type.Optional(
+    Type.String({
+      description: 'Cron expression for schedule-based rules',
+    }),
+  ),
 });
 
 export type CreateNotificationRuleInput = Static<typeof CreateNotificationRuleSchema>;
@@ -156,10 +185,12 @@ export const CreateNotificationTemplateSchema = Type.Object({
     description: 'Template name',
   }),
   channel: DeliveryChannelSchema,
-  subject: Type.Optional(Type.String({
-    maxLength: 500,
-    description: 'Email subject line (for email channel)',
-  })),
+  subject: Type.Optional(
+    Type.String({
+      maxLength: 500,
+      description: 'Email subject line (for email channel)',
+    }),
+  ),
   body: Type.String({
     minLength: 1,
     description: 'Template body with {{variable}} placeholders',
@@ -173,12 +204,17 @@ export type CreateNotificationTemplateInput = Static<typeof CreateNotificationTe
 
 // ─── Query Schemas ───────────────────────────────────────────────────────────
 
-export const GetUserNotificationsQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, description: 'Page number' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, description: 'Items per page' })),
-  status: Type.Optional(DeliveryStatusSchema),
-  channel: Type.Optional(DeliveryChannelSchema),
-}, { additionalProperties: false });
+export const GetUserNotificationsQuerySchema = Type.Object(
+  {
+    page: Type.Optional(Type.Number({ minimum: 1, description: 'Page number' })),
+    pageSize: Type.Optional(
+      Type.Number({ minimum: 1, maximum: 100, description: 'Items per page' }),
+    ),
+    status: Type.Optional(DeliveryStatusSchema),
+    channel: Type.Optional(DeliveryChannelSchema),
+  },
+  { additionalProperties: false },
+);
 
 export type GetUserNotificationsQuery = Static<typeof GetUserNotificationsQuerySchema>;
 

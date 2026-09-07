@@ -96,7 +96,9 @@
     "uploadError": "فشل رفع الملف",
     "fileTooLarge": "الملف يتجاوز {size} ميجابايت",
     "invalidType": "نوع غير مسموح. المسموح: {types}",
-    "remove": "إزالة"
+    "remove": "إزالة",
+    "reuploadHint": "يلزم إعادة الرفع",
+    "reuploadRequired": "يجب إعادة رفع {fileName} قبل الإرسال"
   },
   "institutions": {
     "title": "البحث عن المدارس",

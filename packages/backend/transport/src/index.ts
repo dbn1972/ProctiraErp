@@ -36,6 +36,15 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryTransportRepository } from './in-memory-repository.js';
 
+// Postgres repository + factory
+export { createTransportRepository, isPgTransportEnabled } from './create-transport-repository.js';
+export {
+  PgTransportRepository,
+  createPgTransportRepository,
+  ensureTransportSchema,
+  getSharedTransportPool,
+} from './pg-transport-repository.js';
+
 // Schemas
 export {
   CreateTransportRouteSchema,

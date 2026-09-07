@@ -25,6 +25,15 @@ export type { InstallServiceDependencies, ConnectivityTester } from './install-s
 export { installPlugin } from './install-plugin';
 export type { InstallPluginOptions } from './install-plugin';
 
+// Security helpers
+export {
+  INSTALL_TOKEN_HEADER,
+  enforceInstallToken,
+  resolveInstallToken,
+  statusForInstallResult,
+} from './install-security';
+export type { InstallTokenGateOptions } from './install-security';
+
 // Store
 export { InMemoryBootstrapStore, DatabaseBootstrapStore } from './bootstrap-store';
 export type { BootstrapStore } from './bootstrap-store';

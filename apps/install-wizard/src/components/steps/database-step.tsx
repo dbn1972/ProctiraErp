@@ -4,6 +4,10 @@ import { useState } from 'react';
 import { StepCard } from '@/components/step-card';
 import { StatusMessage } from '@/components/status-message';
 import { apiClient, type DatabaseConfig, type ValidationResult } from '@/lib/api-client';
+import {
+  validateDatabaseConfig,
+  type DatabaseFieldErrors,
+} from '@/lib/database-validation';
 
 interface DatabaseStepProps {
   onComplete: () => void;
@@ -22,6 +26,7 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
   });
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<ValidationResult | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<DatabaseFieldErrors>({});
 
   const handleProviderChange = (provider: 'postgresql' | 'mysql') => {
     setConfig((prev) => ({
@@ -30,9 +35,22 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
       port: provider === 'postgresql' ? 5432 : 3306,
     }));
     setResult(null);
+    setFieldErrors({});
   };
 
   const handleTest = async () => {
+    const errors = validateDatabaseConfig(config);
+    setFieldErrors(errors ?? {});
+    if (errors) {
+      setResult({
+        success: false,
+        step: 'database',
+        message: 'Validation failed',
+        error: 'Fix the highlighted fields before testing the connection.',
+      });
+      return;
+    }
+
     setTesting(true);
     setResult(null);
     try {
@@ -58,8 +76,7 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
       title="Step 1: Database Configuration"
       description="Select your database provider and configure the connection. The wizard will test connectivity before proceeding."
     >
-      <div className="space-y-4">
-        {/* Provider Selection */}
+      <div className="space-y-4" data-testid="database-step">
         <fieldset>
           <legend className="label">Database Provider</legend>
           <div className="mt-2 flex gap-4">
@@ -86,9 +103,11 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
               <span className="text-sm font-medium">MySQL</span>
             </label>
           </div>
+          {fieldErrors.provider ? (
+            <p className="error-text" data-testid="db-error-provider">{fieldErrors.provider}</p>
+          ) : null}
         </fieldset>
 
-        {/* Connection Details */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="db-host" className="label">Host</label>
@@ -100,6 +119,9 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
               onChange={(e) => setConfig((prev) => ({ ...prev, host: e.target.value }))}
               placeholder="localhost"
             />
+            {fieldErrors.host ? (
+              <p className="error-text" data-testid="db-error-host">{fieldErrors.host}</p>
+            ) : null}
           </div>
           <div>
             <label htmlFor="db-port" className="label">Port</label>
@@ -112,6 +134,9 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
               min={1}
               max={65535}
             />
+            {fieldErrors.port ? (
+              <p className="error-text" data-testid="db-error-port">{fieldErrors.port}</p>
+            ) : null}
           </div>
           <div>
             <label htmlFor="db-name" className="label">Database Name</label>
@@ -123,6 +148,9 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
               onChange={(e) => setConfig((prev) => ({ ...prev, database: e.target.value }))}
               placeholder="proctira"
             />
+            {fieldErrors.database ? (
+              <p className="error-text" data-testid="db-error-database">{fieldErrors.database}</p>
+            ) : null}
           </div>
           <div>
             <label htmlFor="db-pool" className="label">Pool Size</label>
@@ -135,6 +163,9 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
               min={1}
               max={100}
             />
+            {fieldErrors.poolSize ? (
+              <p className="error-text" data-testid="db-error-pool">{fieldErrors.poolSize}</p>
+            ) : null}
           </div>
           <div>
             <label htmlFor="db-user" className="label">Username</label>
@@ -146,6 +177,9 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
               onChange={(e) => setConfig((prev) => ({ ...prev, username: e.target.value }))}
               placeholder="postgres"
             />
+            {fieldErrors.username ? (
+              <p className="error-text" data-testid="db-error-username">{fieldErrors.username}</p>
+            ) : null}
           </div>
           <div>
             <label htmlFor="db-pass" className="label">Password</label>
@@ -157,10 +191,12 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
               onChange={(e) => setConfig((prev) => ({ ...prev, password: e.target.value }))}
               placeholder="••••••••"
             />
+            {fieldErrors.password ? (
+              <p className="error-text" data-testid="db-error-password">{fieldErrors.password}</p>
+            ) : null}
           </div>
         </div>
 
-        {/* SSL Toggle */}
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -171,7 +207,6 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
           <span className="text-sm text-gray-700">Enable SSL/TLS connection</span>
         </label>
 
-        {/* Status Message */}
         {result && (
           <StatusMessage
             type={result.success ? 'success' : 'error'}
@@ -182,13 +217,13 @@ export function DatabaseStep({ onComplete }: DatabaseStepProps) {
           />
         )}
 
-        {/* Test Button */}
         <div className="flex justify-end pt-2">
           <button
             type="button"
-            onClick={handleTest}
-            disabled={testing || !config.host || !config.username || !config.password || !config.database}
+            onClick={() => { void handleTest(); }}
+            disabled={testing}
             className="btn-primary"
+            data-testid="database-test-submit"
           >
             {testing ? (
               <>

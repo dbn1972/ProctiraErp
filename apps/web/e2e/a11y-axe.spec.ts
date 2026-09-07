@@ -44,7 +44,7 @@ test.describe('a11y — public surfaces (no backend required)', () => {
     // Wait for the form chrome to be rendered before scanning so axe
     // sees the same DOM a real user would interact with.
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    await expect(page.getByRole('textbox', { name: /^password$/i })).toBeVisible();
 
     await runAxe(page, { checkpointLabel: '/login' });
   });
@@ -128,6 +128,29 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/data-warehouse/field-mapping',
     '/data-warehouse/map',
     '/admin',
+    '/health',
+    '/health/screenings',
+    '/health/counselling',
+    '/health/counselling/new',
+    '/health/special-needs',
+    '/notifications',
+    '/transport',
+    '/transport/routes',
+    '/transport/vehicles',
+    '/transport/assignments',
+    '/communication',
+    '/communication/campaigns',
+    '/communication/emergency',
+    '/hostel',
+    '/hostel/structure',
+    '/hostel/assignments',
+    '/library',
+    '/library/circulation',
+    '/library/overdues',
+    '/scholarships',
+    '/scholarships/programs/new',
+    '/scholarships/applications',
+    '/scholarships/disbursements',
   ] as const) {
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
       await loginAsTenantAdmin(page);

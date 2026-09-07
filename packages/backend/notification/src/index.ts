@@ -21,9 +21,14 @@ export type {
   EmailSender,
   PushSender,
   WebhookSender,
+  SmsSender,
   NotificationQueuePublisher,
   NotificationServiceConfig,
 } from './notification-service.js';
+
+export { createSandboxEmailSender, EMAIL_SANDBOX_HONESTY_NOTE } from './sandbox-email-sender.js';
+export { createSandboxPushSender, PUSH_SANDBOX_HONESTY_NOTE } from './sandbox-push-sender.js';
+export { createSandboxSmsSender, SMS_SANDBOX_HONESTY_NOTE } from './sandbox-sms-sender.js';
 
 // Repository
 export type {
@@ -37,6 +42,28 @@ export type {
 
 // In-memory repository (for testing)
 export { InMemoryNotificationRepository } from './in-memory-repository.js';
+
+// Prefs / devices
+export {
+  createNotificationPrefsStore,
+  createPgNotificationPrefsStore,
+  defaultPreferences,
+  InMemoryNotificationPrefsStore,
+  isPgNotificationPrefsEnabled,
+} from './prefs-store.js';
+export type {
+  CategoryPreference,
+  DigestFrequency,
+  NotificationCategory,
+  NotificationChannel as PreferenceNotificationChannel,
+  NotificationDevice,
+  NotificationPreferencesData,
+  NotificationPrefsStore,
+  QuietHours,
+} from './prefs-store.js';
+
+export { createNotificationStack } from './create-notification-stack.js';
+export type { NotificationStack } from './create-notification-stack.js';
 
 // Schemas
 export {

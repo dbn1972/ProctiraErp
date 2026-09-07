@@ -4,8 +4,8 @@ import { validateAdminAccount } from './admin-validation';
 
 const valid = {
   email: 'admin@example.edu',
-  password: 'securepass',
-  confirmPassword: 'securepass',
+  password: 'Securepass1',
+  confirmPassword: 'Securepass1',
   firstName: 'Ada',
   lastName: 'Lovelace',
   tenantName: 'Demo District',
@@ -22,8 +22,12 @@ describe('validateAdminAccount', () => {
     expect(validateAdminAccount({ ...valid, email: 'bad' })?.email).toMatch(/invalid/i);
   });
 
-  it('rejects short passwords and mismatches', () => {
+  it('rejects short passwords, weak complexity, and mismatches', () => {
     expect(validateAdminAccount({ ...valid, password: 'short' })?.password).toMatch(/8/i);
+    expect(
+      validateAdminAccount({ ...valid, password: 'longenough', confirmPassword: 'longenough' })
+        ?.password,
+    ).toMatch(/letter and one number/i);
     expect(
       validateAdminAccount({ ...valid, confirmPassword: 'other' })?.confirmPassword,
     ).toMatch(/match/i);

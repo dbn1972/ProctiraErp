@@ -15,11 +15,7 @@
  * - 22.5: Track delivery status (sent, delivered, read, failed)
  * - 22.6: Retry email delivery up to 3 times with exponential backoff
  */
-import {
-  NotFoundError,
-  ValidationError,
-  BusinessRuleError,
-} from '@proctira/common';
+import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -45,12 +41,13 @@ import type {
  * Interface for sending email notifications.
  */
 export interface EmailSender {
-  send(params: {
-    to: string;
-    subject: string;
-    body: string;
-    tenantId: string;
-  }): Promise<{ success: boolean; messageId?: string; error?: string }>;
+  send(params: { to: string; subject: string; body: string; tenantId: string }): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    mode?: 'sandbox' | 'live';
+    honestyNote?: string;
+  }>;
 }
 
 /**
@@ -63,7 +60,13 @@ export interface PushSender {
     body: string;
     data?: Record<string, string>;
     tenantId: string;
-  }): Promise<{ success: boolean; messageId?: string; error?: string }>;
+  }): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    mode?: 'sandbox' | 'live';
+    honestyNote?: string;
+  }>;
 }
 
 /**
@@ -75,6 +78,19 @@ export interface WebhookSender {
     payload: Record<string, unknown>;
     tenantId: string;
   }): Promise<{ success: boolean; statusCode?: number; error?: string }>;
+}
+
+/**
+ * Interface for sending SMS notifications.
+ */
+export interface SmsSender {
+  send(params: { to: string; body: string; tenantId: string }): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    mode?: 'sandbox' | 'live';
+    honestyNote?: string;
+  }>;
 }
 
 /**
@@ -98,6 +114,8 @@ export interface NotificationServiceConfig {
   pushMaxRetries: number;
   /** Maximum retries for webhook delivery (default: 2) */
   webhookMaxRetries: number;
+  /** Maximum retries for SMS delivery (default: 3) */
+  smsMaxRetries: number;
 }
 
 const DEFAULT_CONFIG: NotificationServiceConfig = {
@@ -105,6 +123,7 @@ const DEFAULT_CONFIG: NotificationServiceConfig = {
   emailMaxRetries: 3,
   pushMaxRetries: 2,
   webhookMaxRetries: 2,
+  smsMaxRetries: 3,
 };
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -117,6 +136,7 @@ export class NotificationService {
     private readonly emailSender?: EmailSender,
     private readonly pushSender?: PushSender,
     private readonly webhookSender?: WebhookSender,
+    private readonly smsSender?: SmsSender,
     private readonly queuePublisher?: NotificationQueuePublisher,
     config?: Partial<NotificationServiceConfig>,
   ) {
@@ -133,10 +153,7 @@ export class NotificationService {
    *
    * @returns Array of created notification records (one per recipient)
    */
-  async send(
-    tenantId: string,
-    input: SendNotificationInput,
-  ): Promise<NotificationEntity[]> {
+  async send(tenantId: string, input: SendNotificationInput): Promise<NotificationEntity[]> {
     // Resolve template
     const template = await this.repository.getTemplateById(tenantId, input.templateId);
     if (!template) {
@@ -147,7 +164,13 @@ export class NotificationService {
     if (template.channel !== input.channel) {
       throw new ValidationError(
         `Template channel '${template.channel}' does not match requested channel '${input.channel}'`,
-        [{ field: 'channel', rule: 'mismatch', message: `Template is for '${template.channel}' but '${input.channel}' was requested` }],
+        [
+          {
+            field: 'channel',
+            rule: 'mismatch',
+            message: `Template is for '${template.channel}' but '${input.channel}' was requested`,
+          },
+        ],
       );
     }
 
@@ -276,6 +299,21 @@ export class NotificationService {
             success = true;
           }
           break;
+
+        case 'sms':
+          if (this.smsSender) {
+            const result = await this.smsSender.send({
+              to: notification.recipientUserId,
+              body: renderedBody,
+              tenantId: notification.tenantId,
+            });
+            success = result.success;
+            errorMessage = result.error;
+          } else {
+            // No SMS sender configured — sandbox accept (honesty via delivery-capabilities).
+            success = true;
+          }
+          break;
       }
     } catch (error: unknown) {
       success = false;
@@ -368,10 +406,7 @@ export class NotificationService {
    *
    * Requirement 22.5: Track delivery status per notification instance.
    */
-  async getDeliveryStatus(
-    tenantId: string,
-    notificationId: string,
-  ): Promise<NotificationEntity> {
+  async getDeliveryStatus(tenantId: string, notificationId: string): Promise<NotificationEntity> {
     const notification = await this.repository.getNotificationById(tenantId, notificationId);
     if (!notification) {
       throw new NotFoundError(`Notification '${notificationId}' not found`);
@@ -382,20 +417,16 @@ export class NotificationService {
   /**
    * Mark a notification as read (for in-app notifications).
    */
-  async markAsRead(
-    tenantId: string,
-    notificationId: string,
-  ): Promise<NotificationEntity> {
+  async markAsRead(tenantId: string, notificationId: string): Promise<NotificationEntity> {
     const notification = await this.repository.getNotificationById(tenantId, notificationId);
     if (!notification) {
       throw new NotFoundError(`Notification '${notificationId}' not found`);
     }
 
-    const updated = await this.repository.updateNotificationStatus(
-      notificationId,
-      tenantId,
-      { status: 'read', readAt: new Date() },
-    );
+    const updated = await this.repository.updateNotificationStatus(notificationId, tenantId, {
+      status: 'read',
+      readAt: new Date(),
+    });
 
     return updated!;
   }
@@ -406,7 +437,12 @@ export class NotificationService {
   async getUserNotifications(
     tenantId: string,
     userId: string,
-    options: { page?: number; pageSize?: number; status?: DeliveryStatus; channel?: DeliveryChannel },
+    options: {
+      page?: number;
+      pageSize?: number;
+      status?: DeliveryStatus;
+      channel?: DeliveryChannel;
+    },
   ): Promise<PaginatedNotifications> {
     return this.repository.getUserNotifications(tenantId, userId, {
       page: options.page ?? 1,
@@ -635,10 +671,7 @@ export class NotificationService {
   /**
    * Get a template by ID.
    */
-  async getTemplate(
-    tenantId: string,
-    templateId: string,
-  ): Promise<NotificationTemplateEntity> {
+  async getTemplate(tenantId: string, templateId: string): Promise<NotificationTemplateEntity> {
     const template = await this.repository.getTemplateById(tenantId, templateId);
     if (!template) {
       throw new NotFoundError(`Notification template '${templateId}' not found`);
@@ -663,8 +696,34 @@ export class NotificationService {
         return this.config.pushMaxRetries;
       case 'webhook':
         return this.config.webhookMaxRetries;
+      case 'sms':
+        return this.config.smsMaxRetries;
       case 'in_app':
         return 0; // In-app notifications don't need retries
     }
+  }
+
+  /**
+   * Honesty metadata for channel delivery modes (prefs UI / ops banners).
+   * Defaults report sandbox until live SMTP/FCM/Twilio adapters replace the stubs.
+   */
+  getDeliveryCapabilities() {
+    return {
+      email: {
+        mode: 'sandbox' as const,
+        honestyNote:
+          'Sandbox email — preference toggles and sends are accepted without calling SMTP. Wire SMTP/SendGrid (or equivalent) credentials for production delivery.',
+      },
+      push: {
+        mode: 'sandbox' as const,
+        honestyNote:
+          'Sandbox push — device registration and sends are accepted without calling FCM/APNs. Wire FCM credentials for production delivery.',
+      },
+      sms: {
+        mode: 'sandbox' as const,
+        honestyNote:
+          'Sandbox SMS — preference toggles and sends are accepted without calling a carrier. Wire Twilio (or equivalent) credentials for production delivery.',
+      },
+    };
   }
 }

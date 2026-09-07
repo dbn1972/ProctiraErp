@@ -52,8 +52,13 @@ export function validateAdminAccount(
 
   if (!password) errors.password = 'Password is required';
   else if (password.length < 8) errors.password = 'Password must be at least 8 characters';
+  else if (password.length > 128) errors.password = 'Password must be at most 128 characters';
+  else if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+    errors.password = 'Password must include at least one letter and one number';
+  }
 
-  if (password !== confirmPassword) errors.confirmPassword = 'Passwords do not match';
+  if (!confirmPassword) errors.confirmPassword = 'Confirm password is required';
+  else if (password !== confirmPassword) errors.confirmPassword = 'Passwords do not match';
 
   if (!firstName) errors.firstName = 'First name is required';
   if (!lastName) errors.lastName = 'Last name is required';

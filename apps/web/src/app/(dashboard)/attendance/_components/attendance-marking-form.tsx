@@ -205,6 +205,11 @@ export function AttendanceMarkingForm({
   const [serverState, setServerState] =
     useState<ActionState<BulkAttendanceResponse> | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   // Draft autosave (Task 60.5 / Requirement 38.8). The slot key
   // includes the academic period so two periods open in different
@@ -351,7 +356,11 @@ export function AttendanceMarkingForm({
   );
 
   return (
-    <div className="space-y-6">
+    <div
+      className="space-y-6"
+      data-testid="attendance-marking-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <div className="grid gap-4 md:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor="institutionId">Institution</Label>
@@ -474,6 +483,7 @@ export function AttendanceMarkingForm({
         <div
           className="rounded-md border border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 px-4 py-3 text-sm text-[hsl(var(--destructive))]"
           role="alert"
+          data-testid="attendance-marking-error"
         >
           {serverState.message}
         </div>
@@ -483,13 +493,17 @@ export function AttendanceMarkingForm({
           className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700"
           role="status"
           aria-live="polite"
+          data-testid="attendance-marking-success"
         >
           {serverState.message}
         </div>
       )}
 
       {rows.length === 0 ? (
-        <p className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]">
+        <p
+          className="rounded-md border border-dashed p-4 text-sm text-[hsl(var(--muted-foreground))]"
+          data-testid="attendance-marking-empty"
+        >
           No roster yet. Choose an institution, class, academic period, and
           date, then click <strong>Load roster</strong>.
         </p>
@@ -559,17 +573,22 @@ export function AttendanceMarkingForm({
         </div>
       )}
 
-      {rows.length > 0 && (
-        <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/90 px-5 py-3 shadow-lg backdrop-blur">
-          <span className="me-auto text-xs text-muted-foreground">
-            {rows.length} {rows.length === 1 ? 'student' : 'students'} on roster · draft autosaves locally
-          </span>
-          <Button type="button" onClick={handleSave} disabled={isSaving}>
-            <Save className="me-1.5 h-4 w-4" aria-hidden="true" />
-            {isSaving ? 'Submitting…' : 'Submit attendance'}
-          </Button>
-        </div>
-      )}
+      <div className="sticky bottom-4 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-background/90 px-5 py-3 shadow-lg backdrop-blur">
+        <span className="me-auto text-xs text-muted-foreground">
+          {rows.length > 0
+            ? `${rows.length} ${rows.length === 1 ? 'student' : 'students'} on roster · draft autosaves locally`
+            : 'Select institution, class, period, and date, then load a roster before submitting'}
+        </span>
+        <Button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
+          data-testid="attendance-marking-submit"
+        >
+          <Save className="me-1.5 h-4 w-4" aria-hidden="true" />
+          {isSaving ? 'Submitting…' : 'Submit attendance'}
+        </Button>
+      </div>
     </div>
   );
 }

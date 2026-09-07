@@ -1,0 +1,18 @@
+/**
+ * Prefer Postgres raw-SQL repository when DATABASE_URL is set; else in-memory.
+ * No Prisma on the gradebook certification path.
+ */
+import { InMemoryGradebookRepository } from './in-memory-repository.js';
+import {
+  createPgGradebookRepository,
+  isPgGradebookEnabled,
+} from './pg-gradebook-repository.js';
+import type { GradebookRepository } from './gradebook-repository.js';
+
+export function createGradebookRepository(): GradebookRepository {
+  if (isPgGradebookEnabled()) {
+    const pg = createPgGradebookRepository();
+    if (pg) return pg;
+  }
+  return new InMemoryGradebookRepository();
+}

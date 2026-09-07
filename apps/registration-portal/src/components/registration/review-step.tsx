@@ -16,15 +16,16 @@ import { useRegistration } from './registration-context';
  * Step 3 — Review and submit.
  *
  * Shows the collected applicant information and uploaded documents, then
- * POSTs to the backend `/registrations` endpoint. On success the tracking
- * number is stored in `sessionStorage` (via the context) and the user is
+ * POSTs to the backend `/registrations` endpoint. Document bytes are read from
+ * the in-memory file map at submit time (base64), never from sessionStorage.
+ * On success the tracking number is stored in `sessionStorage` and the user is
  * sent to `/apply/success`.
  */
 export function ReviewStep({ institutionType }: { institutionType: string }) {
   const t = useTranslations();
   const router = useRouter();
   const locale = useLocale();
-  const { draft, update } = useRegistration();
+  const { draft, update, getDocumentFile } = useRegistration();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,24 +52,36 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
     setSubmitting(true);
     setError(null);
 
-    const payload: RegistrationSubmissionInput = {
-      institutionId: draft.institutionId,
-      firstName: draft.firstName,
-      lastName: draft.lastName,
-      dateOfBirth: draft.dateOfBirth,
-      gender: draft.gender,
-      guardianName: draft.guardianName,
-      guardianPhone: draft.guardianPhone,
-      guardianEmail: draft.guardianEmail || undefined,
-      customFields: Object.entries(draft.customFields).map(([fieldId, value]) => ({
-        fieldId,
-        value,
-      })),
-      documents: draft.documents,
-      preferredLanguage: locale,
-    };
-
     try {
+      const documents = await Promise.all(
+        draft.documents.map(async (doc) => {
+          const file = getDocumentFile(doc.documentType);
+          if (!file) {
+            // Metadata survived a refresh but bytes did not — ask to re-upload.
+            throw new Error(t('documents.reuploadRequired', { fileName: doc.fileName }));
+          }
+          const content = await fileToBase64(file);
+          return { ...doc, content };
+        }),
+      );
+
+      const payload: RegistrationSubmissionInput = {
+        institutionId: draft.institutionId,
+        firstName: draft.firstName,
+        lastName: draft.lastName,
+        dateOfBirth: draft.dateOfBirth,
+        gender: draft.gender,
+        guardianName: draft.guardianName,
+        guardianPhone: draft.guardianPhone,
+        guardianEmail: draft.guardianEmail || undefined,
+        customFields: Object.entries(draft.customFields).map(([fieldId, value]) => ({
+          fieldId,
+          value,
+        })),
+        documents,
+        preferredLanguage: locale,
+      };
+
       const result = await submitRegistration(payload);
       update({ trackingNumber: result.trackingNumber });
       // Persist tracking number for the success page (sessionStorage scoped to this draft)
@@ -117,6 +130,11 @@ export function ReviewStep({ institutionType }: { institutionType: string }) {
               {draft.documents.map((doc) => (
                 <li key={doc.documentType}>
                   {doc.documentType}: {doc.fileName} ({(doc.fileSize / 1024).toFixed(1)} KB)
+                  {!getDocumentFile(doc.documentType) ? (
+                    <span className="ms-2 text-amber-700">
+                      ({t('documents.reuploadHint')})
+                    </span>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -152,4 +170,22 @@ function Row({ label, value }: { label: string; value: string }) {
       <dd className="text-gray-900">{value || '—'}</dd>
     </div>
   );
+}
+
+/** Reads a `File` as a base64-encoded string (without the `data:` prefix). */
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Unexpected reader result'));
+        return;
+      }
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
 }

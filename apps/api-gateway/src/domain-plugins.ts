@@ -9,12 +9,24 @@
  *
  * Persistence status (current schema):
  *  - student / institution / staff (incl. assignments) / attendance /
- *    assessment / examination / scholarship: Prisma-backed (Postgres + RLS)
- *    via their create*Repository factories when DATABASE_URL is set, else
- *    in-memory (scholarship + health + workflows currently seed in-memory
- *    demo data for redesign UI aggregates).
- *  - assessment report-card repositories are not wired yet (no Prisma
- *    implementation); report-card routes stay disabled.
+ *    assessment / examination: Prisma-backed (Postgres + RLS) via their
+ *    create*Repository factories when DATABASE_URL is set, else in-memory.
+ *  - health counselling: raw SQL + `pg` when DATABASE_URL is set (no Prisma);
+ *    other health entities + scholarships + workflows seed in-memory.
+ *  - notifications: in-memory delivery records; prefs/devices use raw SQL +
+ *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
+ *  - transport: raw SQL + `pg` when DATABASE_URL is set
+ *    (db/sql/006_transport_schema.sql); else in-memory.
+ *  - communication / hostel / library: raw SQL + `pg` when DATABASE_URL is set
+ *    (db/sql/007–009_*.sql); else in-memory.
+ *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
+ *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
+ *    else in-memory.
+ *  - gradebook (entries / GPA / report cards / transcripts / board exports):
+ *    raw SQL + `pg` when DATABASE_URL is set (003 + 004 indexes); else in-memory.
+ *  - insights / platform-admin: in-process UI aggregates with write endpoints.
+ *  - assessment report-card repositories are not wired yet; report-card routes
+ *    stay disabled (WS3 uses /gradebook/report-cards; WS4 uses /gradebook/board-exports).
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -32,8 +44,9 @@ import {
   createResultRepository,
   examinationPlugin,
 } from '@proctira/backend-examination';
-import { healthPlugin, InMemoryHealthRepository } from '@proctira/backend-health';
+import { healthPlugin, createHealthRepository } from '@proctira/backend-health';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -41,15 +54,25 @@ import {
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
+import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
+import {
+  communicationPlugin,
+  createCommunicationRepository,
+} from '@proctira/backend-communication';
+import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
+import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
+import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
+import { insightsUiPlugin } from './insights-ui-plugin.js';
+import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 import { createWorkflowUiSeed } from './workflow-ui-seed.js';
-
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
   /** Logical name (for logging). */
@@ -142,6 +165,30 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     },
   },
   {
+    name: 'timetable',
+    proxyPrefixes: ['/timetable'],
+    register: async (scope) => {
+      // Raw pg against 003_sis_timetable_schedule_schema.sql when DATABASE_URL
+      // is set; in-memory otherwise. No Prisma on this path.
+      await scope.register(timetablePlugin, {
+        repository: createTimetableRepository(),
+        prefix: '/timetable',
+      });
+    },
+  },
+  {
+    name: 'gradebook',
+    proxyPrefixes: ['/gradebook'],
+    register: async (scope) => {
+      // Raw pg against 003/004 gradebook tables when DATABASE_URL is set;
+      // in-memory otherwise. No Prisma on this path.
+      await scope.register(gradebookPlugin, {
+        repository: createGradebookRepository(),
+        prefix: '/gradebook',
+      });
+    },
+  },
+  {
     name: 'scholarship',
     proxyPrefixes: ['/scholarships'],
     register: async (scope) => {
@@ -159,20 +206,44 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'health',
     proxyPrefixes: ['/health'],
     register: async (scope) => {
-      // In-memory domain plugin + redesign UI aggregates until Prisma health
-      // models land. UI routes must register before/with the domain plugin so
-      // App Router pages can list records / special needs / counselling /
-      // screenings without composing student-scoped resource calls.
-      const repository = new InMemoryHealthRepository();
-      // UI aggregates first so redesign list paths are stable; domain CRUD
-      // remains available under resource-scoped paths.
+      // Postgres counselling overlay when DATABASE_URL is set (raw pg, no Prisma).
+      // Other health entities stay in-memory until their SQL schemas land.
+      // UI aggregates merge seed + live counselling writes for list sync.
+      const repository = createHealthRepository();
       await scope.register(healthUiPlugin, {
         seed: createHealthUiSeed(),
+        repository,
       });
       await scope.register(healthPlugin, {
         repository,
         prefix: '/health',
       });
+    },
+  },
+  {
+    name: 'insights',
+    proxyPrefixes: ['/reports', '/data-warehouse'],
+    register: async (scope) => {
+      // Redesign Insights UI aggregates (templates / runs / DW indicators /
+      // import jobs / map features) with in-process write endpoints so App
+      // Router banners can hide when the gateway responds.
+      await scope.register(insightsUiPlugin);
+    },
+  },
+  {
+    name: 'platform-admin',
+    proxyPrefixes: [
+      '/tenants',
+      '/plugins',
+      '/break-glass',
+      '/plans',
+      '/themes',
+      '/platform',
+      '/audit',
+    ],
+    register: async (scope) => {
+      // Prefer live gateway responses for Platform Admin Console clients.
+      await scope.register(platformAdminUiPlugin);
     },
   },
   {
@@ -185,6 +256,67 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // shapes expected by App Router pages.
       await scope.register(workflowUiPlugin, {
         seed: createWorkflowUiSeed(),
+      });
+    },
+  },
+  {
+    name: 'notification',
+    proxyPrefixes: ['/notifications'],
+    register: async (scope) => {
+      // In-memory notification records + prefs/devices (PG when DATABASE_URL).
+      const { repository, prefsStore } = createNotificationStack();
+      await scope.register(notificationPlugin, {
+        repository,
+        prefsStore,
+        prefix: '/notifications',
+      });
+    },
+  },
+  {
+    name: 'transport',
+    proxyPrefixes: ['/transport'],
+    register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/006_transport_schema.sql); else in-memory.
+      const repository = createTransportRepository();
+      await scope.register(transportPlugin, {
+        repository,
+        prefix: '/transport',
+      });
+    },
+  },
+  {
+    name: 'communication',
+    proxyPrefixes: ['/communication'],
+    register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/007_communication_schema.sql); else in-memory.
+      const repository = createCommunicationRepository();
+      await scope.register(communicationPlugin, {
+        repository,
+        prefix: '/communication',
+      });
+    },
+  },
+  {
+    name: 'hostel',
+    proxyPrefixes: ['/hostel'],
+    register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/008_hostel_schema.sql); else in-memory.
+      const repository = createHostelRepository();
+      await scope.register(hostelPlugin, {
+        repository,
+        prefix: '/hostel',
+      });
+    },
+  },
+  {
+    name: 'library',
+    proxyPrefixes: ['/library'],
+    register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/009_library_schema.sql); else in-memory.
+      const repository = createLibraryRepository();
+      await scope.register(libraryPlugin, {
+        repository,
+        prefix: '/library',
       });
     },
   },

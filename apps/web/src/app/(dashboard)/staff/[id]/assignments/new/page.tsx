@@ -9,7 +9,6 @@
  * - AssignmentForm kept 100% intact
  */
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
 
 import { AlertTriangle, ArrowLeft } from 'lucide-react';
 
@@ -158,11 +157,24 @@ export default async function NewAssignmentPage({ params, searchParams }: PagePr
       : Promise.resolve<ClassSection[]>([]),
   ]);
 
-  if (!staff) {
-    notFound();
-  }
+  // Soft-render when the profile API is unavailable so client validation still works.
+  const staffId = staff?.id ?? params.id;
+  const fullName = staff
+    ? `${staff.firstName} ${staff.lastName}`
+    : 'this staff member';
 
-  const fullName = `${staff.firstName} ${staff.lastName}`;
+  // listSubjects / listClasses may return `{ data: [] }` from some gateways — normalize.
+  const subjectRows = Array.isArray(subjects)
+    ? subjects
+    : Array.isArray((subjects as { data?: SubjectSummary[] } | null)?.data)
+      ? ((subjects as { data: SubjectSummary[] }).data)
+      : [];
+  const classRows = Array.isArray(classes)
+    ? classes
+    : Array.isArray((classes as { data?: ClassSection[] } | null)?.data)
+      ? ((classes as { data: ClassSection[] }).data)
+      : [];
+  const institutionRows = Array.isArray(institutions) ? institutions : [];
 
   return (
     <section aria-labelledby="new-assignment-heading" className="space-y-6">
@@ -184,13 +196,22 @@ export default async function NewAssignmentPage({ params, searchParams }: PagePr
         </div>
         <div className="shrink-0">
           <Button asChild variant="ghost" size="sm">
-            <Link href={`/staff/${staff.id}`}>
+            <Link href={`/staff/${staffId}`}>
               <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
               Back to profile
             </Link>
           </Button>
         </div>
       </div>
+
+      {!staff && (
+        <div
+          className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          role="status"
+        >
+          Staff profile could not be loaded. You can still complete the form; save requires a live staff record.
+        </div>
+      )}
 
       {/* ── 2-column layout ── */}
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
@@ -205,10 +226,10 @@ export default async function NewAssignmentPage({ params, searchParams }: PagePr
           </CardHeader>
           <CardContent>
             <AssignmentForm
-              staffId={staff.id}
-              institutions={institutions.map((i) => ({ id: i.id, name: i.name }))}
-              subjects={subjects.map((s) => ({ id: s.id, name: s.name, code: s.code }))}
-              classes={classes.map((c) => ({ id: c.id, name: c.name }))}
+              staffId={staffId}
+              institutions={institutionRows.map((i) => ({ id: i.id, name: i.name }))}
+              subjects={subjectRows.map((s) => ({ id: s.id, name: s.name, code: s.code }))}
+              classes={classRows.map((c) => ({ id: c.id, name: c.name }))}
               defaultInstitutionId={institutionId}
             />
           </CardContent>

@@ -5,7 +5,7 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 
 import {
   Button,
@@ -34,6 +34,11 @@ export function NewDefinitionForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,7 +48,7 @@ export function NewDefinitionForm() {
     const steps = parseSteps(String(fd.get('steps') ?? ''));
 
     if (!name || !moduleName || steps.length === 0) {
-      setError('Name, module, and at least one step (name,role) are required.');
+      setError('Name, module, and at least one step are required.');
       return;
     }
 
@@ -70,7 +75,14 @@ export function NewDefinitionForm() {
   return (
     <Card className="max-w-[860px]">
       <CardContent className="p-6">
-        <form className="space-y-5" noValidate onSubmit={onSubmit}>
+        <form
+          className="space-y-5"
+          noValidate
+          onSubmit={onSubmit}
+          aria-label="Create workflow definition"
+          data-testid="workflow-definition-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
+        >
           <FormField id="wf-name" label="Workflow name" required>
             <Input
               id="wf-name"
@@ -103,7 +115,7 @@ export function NewDefinitionForm() {
           </FormField>
 
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-destructive" role="alert" data-testid="workflow-definition-error">
               {error}
             </p>
           ) : null}

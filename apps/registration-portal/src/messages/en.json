@@ -96,7 +96,9 @@
     "uploadError": "Failed to upload file",
     "fileTooLarge": "File exceeds maximum size of {size} MB",
     "invalidType": "File type not allowed. Allowed: {types}",
-    "remove": "Remove"
+    "remove": "Remove",
+    "reuploadHint": "re-upload required",
+    "reuploadRequired": "{fileName} must be re-uploaded before submit"
   },
   "institutions": {
     "title": "Find Schools",

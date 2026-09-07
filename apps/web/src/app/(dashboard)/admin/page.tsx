@@ -71,6 +71,7 @@ export default function AdminLandingPage() {
       </div>
 
       <ScaffoldModeBanner
+        force
         surface="Administration"
         detail="Admin hub and nested settings are UI scaffolds. Nested lists stay empty when tenant admin APIs are offline rather than inventing accounts."
       />

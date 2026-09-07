@@ -96,7 +96,9 @@
     "uploadError": "Échec du téléversement",
     "fileTooLarge": "Le fichier dépasse {size} Mo",
     "invalidType": "Type non autorisé. Autorisés : {types}",
-    "remove": "Supprimer"
+    "remove": "Supprimer",
+    "reuploadHint": "re-téléversement requis",
+    "reuploadRequired": "{fileName} doit être re-téléversé avant l'envoi"
   },
   "institutions": {
     "title": "Trouver une école",

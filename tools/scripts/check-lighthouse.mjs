@@ -195,6 +195,50 @@ export function evaluateLhrAgainstThresholds(lhr, thresholds = SCORE_THRESHOLDS)
   return { passed, scores };
 }
 
+/** Median of a numeric list (LHCI assert aggregation for multi-run collects). */
+export function medianScore(values) {
+  const sorted = values.filter((v) => typeof v === 'number' && !Number.isNaN(v)).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+/**
+ * Collapse multiple LHR files for the same URL into one synthetic report whose
+ * category scores are the per-category median (matches lhci assertAggregationMethod).
+ */
+export function medianLhrByUrl(reports) {
+  const byUrl = new Map();
+  for (const report of reports) {
+    if (!report?.lhr?.categories) continue;
+    const key = report.url || 'unknown';
+    if (!byUrl.has(key)) byUrl.set(key, []);
+    byUrl.get(key).push(report);
+  }
+  const out = [];
+  for (const [url, group] of byUrl) {
+    if (group.length === 1) {
+      out.push(group[0]);
+      continue;
+    }
+    const categories = {};
+    const categoryIds = new Set();
+    for (const g of group) {
+      for (const id of Object.keys(g.lhr.categories || {})) categoryIds.add(id);
+    }
+    for (const id of categoryIds) {
+      const scores = group.map((g) => g.lhr.categories[id]?.score);
+      categories[id] = { score: medianScore(scores) };
+    }
+    out.push({
+      url,
+      file: group.map((g) => g.file).join(','),
+      lhr: { ...group[0].lhr, categories, finalUrl: url, requestedUrl: url },
+    });
+  }
+  return out;
+}
+
 /**
  * Walk a Lighthouse JSON output directory (the layout produced by
  * `upload.target = 'filesystem'`) and return one entry per
@@ -275,7 +319,20 @@ async function runProfile({ profile, lhciBinary, baseUrl }) {
 
   const urls = [];
   let allPassed = true;
-  for (const report of reports) {
+  // Evaluate the median score per URL so a single noisy run (e.g. 0.79)
+  // cannot fail the gate when numberOfRuns > 1 — same aggregation as lhci.
+  const aggregated = medianLhrByUrl(reports);
+  if (aggregated.length === 0) {
+    return {
+      profile,
+      passed: false,
+      urls: [],
+      skipped: false,
+      reason: 'no parseable lhr reports after median aggregation',
+      exitCode: result.status,
+    };
+  }
+  for (const report of aggregated) {
     if (!report.lhr) {
       allPassed = false;
       urls.push({

@@ -11,6 +11,7 @@ export function createInstitution(overrides: Partial<Institution> = {}): Institu
     tenantId: faker.string.uuid(),
     name: `${faker.company.name()} School`,
     code: faker.string.alphanumeric(8).toUpperCase(),
+    boardId: null,
     areaId: faker.string.uuid(),
     typeId: faker.string.uuid(),
     sectorId: faker.string.uuid(),

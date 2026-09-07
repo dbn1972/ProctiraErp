@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test';
  * Most authenticated journeys gate on `E2E_BACKEND_READY=1`. Public auth
  * surfaces (`/login`, `/forbidden`) always run.
  */
-const PORT = process.env.PORT ?? '3004';
+const PORT = process.env.PORT ?? '3014';
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({

@@ -5,7 +5,7 @@
  */
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 
 import {
@@ -26,6 +26,11 @@ export function NewProgramForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,6 +45,35 @@ export function NewProgramForm() {
     const applicationStartDate = String(fd.get('applicationStartDate') ?? '');
     const applicationEndDate = String(fd.get('applicationEndDate') ?? '');
     const eligibilityNotes = String(fd.get('eligibility') ?? '').trim();
+
+    if (!name) {
+      setError('Name is required.');
+      return;
+    }
+    if (!code) {
+      setError('Program code is required.');
+      return;
+    }
+    if (!Number.isFinite(totalSlots) || totalSlots < 1) {
+      setError('Total slots must be at least 1.');
+      return;
+    }
+    if (!Number.isFinite(awardAmount) || awardAmount <= 0) {
+      setError('Award amount must be greater than 0.');
+      return;
+    }
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      setError('Currency must be a 3-letter ISO code.');
+      return;
+    }
+    if (!applicationStartDate || !applicationEndDate) {
+      setError('Application window dates are required.');
+      return;
+    }
+    if (applicationEndDate < applicationStartDate) {
+      setError('Application end date must be on or after the start date.');
+      return;
+    }
 
     startTransition(async () => {
       setError(null);
@@ -73,26 +107,50 @@ export function NewProgramForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-5" noValidate onSubmit={onSubmit}>
+        <form
+          className="space-y-5"
+          noValidate
+          onSubmit={onSubmit}
+          aria-label="Create scholarship program"
+          data-testid="scholarship-program-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="program-name" label="Name" required>
               <Input
                 id="program-name"
                 name="name"
                 placeholder="Academic Excellence Award"
-                required
+                className="h-11 min-h-11"
               />
             </FormField>
             <FormField id="program-code" label="Code" required>
-              <Input id="program-code" name="code" placeholder="AEA-2025" required />
+              <Input
+                id="program-code"
+                name="code"
+                placeholder="AEA-2025"
+                className="h-11 min-h-11"
+              />
             </FormField>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             <FormField id="program-slots" label="Total slots" required>
-              <Input id="program-slots" name="totalSlots" type="number" min="1" required />
+              <Input
+                id="program-slots"
+                name="totalSlots"
+                type="number"
+                min="1"
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="program-amount" label="Award amount" required>
-              <Input id="program-amount" name="awardAmount" type="number" step="0.01" required />
+              <Input
+                id="program-amount"
+                name="awardAmount"
+                type="number"
+                step="0.01"
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="program-currency" label="Currency" required>
               <Input
@@ -101,16 +159,26 @@ export function NewProgramForm() {
                 placeholder="INR"
                 maxLength={3}
                 defaultValue="INR"
-                required
+                className="h-11 min-h-11"
               />
             </FormField>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="program-app-start" label="Application opens" required>
-              <Input id="program-app-start" name="applicationStartDate" type="date" required />
+              <Input
+                id="program-app-start"
+                name="applicationStartDate"
+                type="date"
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="program-app-end" label="Application closes" required>
-              <Input id="program-app-end" name="applicationEndDate" type="date" required />
+              <Input
+                id="program-app-end"
+                name="applicationEndDate"
+                type="date"
+                className="h-11 min-h-11"
+              />
             </FormField>
           </div>
           <FormField id="program-eligibility" label="Eligibility criteria">
@@ -119,11 +187,16 @@ export function NewProgramForm() {
               name="eligibility"
               rows={4}
               placeholder="Describe academic, demographic, or financial criteria…"
+              className="min-h-24"
             />
           </FormField>
 
           {error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p
+              className="text-sm text-destructive"
+              role="alert"
+              data-testid="scholarship-program-error"
+            >
               {error}
             </p>
           ) : null}

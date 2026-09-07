@@ -105,6 +105,7 @@ export function LoginForm(): JSX.Element {
               placeholder="admin@school.edu"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="h-12 min-h-12"
             />
           </div>
 
@@ -120,12 +121,12 @@ export function LoginForm(): JSX.Element {
                 disabled={isSubmitting}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="pe-10"
+                className="h-12 min-h-12 pe-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                className="absolute end-0 top-0 inline-flex h-12 w-12 min-h-12 min-w-12 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                 aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                 tabIndex={-1}
               >
@@ -134,18 +135,19 @@ export function LoginForm(): JSX.Element {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-foreground">
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex min-h-12 items-center gap-3 text-sm text-foreground">
               <Checkbox
                 checked={rememberMe}
                 onCheckedChange={(value) => setRememberMe(value === true)}
                 aria-label={t('rememberMe')}
+                className="h-12 w-12 min-h-12 min-w-12"
               />
               <span>{t('rememberMe')}</span>
             </label>
             <Link
               href="/forgot-password"
-              className="text-sm font-medium text-primary hover:underline"
+              className="inline-flex min-h-12 items-center text-sm font-medium text-primary hover:underline"
             >
               {t('forgotPassword')}
             </Link>

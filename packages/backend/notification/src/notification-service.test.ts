@@ -12,7 +12,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
-import { NotificationService, type EmailSender, type NotificationQueuePublisher } from './notification-service.js';
+import {
+  NotificationService,
+  type EmailSender,
+  type NotificationQueuePublisher,
+} from './notification-service.js';
 import type { NotificationEntity } from './notification-repository.js';
 
 describe('NotificationService', () => {
@@ -137,7 +141,7 @@ describe('NotificationService', () => {
       });
 
       expect(notifications).toHaveLength(2);
-      const recipientIds = notifications.map(n => n.recipientUserId);
+      const recipientIds = notifications.map((n) => n.recipientUserId);
       expect(recipientIds).toContain(userId1);
       expect(recipientIds).toContain(userId2);
     });
@@ -263,6 +267,7 @@ describe('NotificationService', () => {
         emailSender,
         undefined,
         undefined,
+        undefined,
         queuePublisher,
       );
 
@@ -289,7 +294,7 @@ describe('NotificationService', () => {
 
       // Notification should be marked as failed (delivery failed)
       expect(notifications[0]!.status).toBe('failed');
-      
+
       // Should have queued for retry
       expect(queuedNotifications).toHaveLength(1);
       expect(queuedNotifications[0]!.delayMs).toBe(1000); // First retry: 1000ms
@@ -460,24 +465,20 @@ describe('NotificationService', () => {
     });
 
     it('should trigger notifications for matching rules', async () => {
-      const notifications = await service.processEvent(
-        tenantId,
-        'student',
-        'create',
-        { entityType: 'student', event: 'created', studentName: 'John' },
-      );
+      const notifications = await service.processEvent(tenantId, 'student', 'create', {
+        entityType: 'student',
+        event: 'created',
+        studentName: 'John',
+      });
 
       expect(notifications.length).toBeGreaterThan(0);
       expect(notifications[0]!.channel).toBe('in_app');
     });
 
     it('should not trigger notifications when no rules match', async () => {
-      const notifications = await service.processEvent(
-        tenantId,
-        'institution',
-        'delete',
-        { entityType: 'institution' },
-      );
+      const notifications = await service.processEvent(tenantId, 'institution', 'delete', {
+        entityType: 'institution',
+      });
 
       expect(notifications).toHaveLength(0);
     });
@@ -488,12 +489,9 @@ describe('NotificationService', () => {
         isActive: false,
       });
 
-      const notifications = await service.processEvent(
-        tenantId,
-        'student',
-        'create',
-        { entityType: 'student' },
-      );
+      const notifications = await service.processEvent(tenantId, 'student', 'create', {
+        entityType: 'student',
+      });
 
       expect(notifications).toHaveLength(0);
     });

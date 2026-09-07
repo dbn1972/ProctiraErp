@@ -53,7 +53,7 @@ export default async function SupportPage({
       />
 
       <StubDataBanner
-        force={tenantsSource === 'stub' || bgSource === 'stub'}
+        source={tenantsSource === 'stub' || bgSource === 'stub' ? 'stub' : 'gateway'}
         detail="Tenant picker and break-glass grant checks use stub fixtures when the gateway is offline. Masquerade never opens a live elevated session in stub mode."
       />
 

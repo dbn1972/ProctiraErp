@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 
 import { cn } from './lib/utils';
 
@@ -108,6 +109,11 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
     ref,
   ) {
     const inputsRef = React.useRef<Array<HTMLInputElement | null>>([]);
+    // Mirror the controlled `value` synchronously so rapid keystrokes
+    // (e.g. Playwright `keyboard.type('12')`) read the latest code
+    // before React re-renders.
+    const valueRef = React.useRef(value);
+    valueRef.current = value;
     const cells = spread(sanitizeOtp(value, length), length);
 
     // Focus the first slot on mount when `autoFocus` is requested. We
@@ -117,9 +123,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       if (autoFocus && inputsRef.current[0]) {
         inputsRef.current[0].focus();
       }
-      // Run once on mount; intentionally omit deps.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [autoFocus]);
 
     function focusInput(index: number): void {
       const target = inputsRef.current[index];
@@ -131,17 +135,28 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
 
     function emit(next: string): void {
       const sanitized = sanitizeOtp(next, length);
-      onChange(sanitized);
+      valueRef.current = sanitized;
+      flushSync(() => {
+        onChange(sanitized);
+      });
       if (sanitized.length === length && onComplete) {
         onComplete(sanitized);
       }
     }
 
-    function handleChange(
-      event: React.ChangeEvent<HTMLInputElement>,
-      index: number,
-    ): void {
+    function insertDigit(digit: string, index: number): void {
+      const currentValue = valueRef.current;
+      const shouldAppend =
+        index >= currentValue.length ||
+        (index === currentValue.length - 1 && cells[index] !== '' && currentValue.length < length);
+      const nextValue = shouldAppend ? currentValue + digit : currentValue.slice(0, index) + digit;
+      emit(nextValue);
+      focusInput(Math.min(nextValue.length, length - 1));
+    }
+
+    function handleChange(event: React.ChangeEvent<HTMLInputElement>, index: number): void {
       const raw = event.target.value;
+      const currentValue = valueRef.current;
       // The browser may deliver multiple characters at once (autofill,
       // IME, mobile suggestions). Treat that as a paste-like operation.
       const digits = sanitizeOtp(raw, length);
@@ -149,17 +164,12 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
         // The user emptied the slot. Truncate the code so it stays
         // left-aligned (the design.md contract treats `value` as a
         // gap-free string, length 0..6).
-        emit(value.slice(0, index));
+        emit(currentValue.slice(0, index));
         return;
       }
 
       if (digits.length === 1) {
-        // Replace the digit at `index`, dropping anything to the right
-        // so the value stays left-aligned. The auto-advance below moves
-        // focus to the freshly empty slot for the next keystroke.
-        const nextValue = value.slice(0, index) + digits;
-        emit(nextValue);
-        if (index < length - 1) focusInput(index + 1);
+        insertDigit(digits, index);
         return;
       }
 
@@ -171,25 +181,29 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       focusInput(nextFocus);
     }
 
-    function handleKeyDown(
-      event: React.KeyboardEvent<HTMLInputElement>,
-      index: number,
-    ): void {
+    function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>, index: number): void {
+      if (/^\d$/.test(event.key)) {
+        event.preventDefault();
+        insertDigit(event.key, index);
+        return;
+      }
+
       switch (event.key) {
         case 'Backspace': {
+          const currentValue = valueRef.current;
           if (cells[index]) {
             // Clear the current cell. Stays focused so the user can
             // type a replacement digit immediately. We truncate the
             // value to keep it left-aligned (the contract treats
             // `value` as gap-free).
             event.preventDefault();
-            emit(value.slice(0, index));
+            emit(currentValue.slice(0, index));
             return;
           }
           // Empty cell — retreat to the previous slot and clear it.
           if (index > 0) {
             event.preventDefault();
-            emit(value.slice(0, index - 1));
+            emit(currentValue.slice(0, index - 1));
             focusInput(index - 1);
           }
           return;
@@ -223,10 +237,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
       }
     }
 
-    function handlePaste(
-      event: React.ClipboardEvent<HTMLInputElement>,
-      _index: number,
-    ): void {
+    function handlePaste(event: React.ClipboardEvent<HTMLInputElement>, _index: number): void {
       const raw = event.clipboardData.getData('text');
       const digits = sanitizeOtp(raw, length);
       if (digits.length === 0) return;
@@ -254,11 +265,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
         id={id}
         role="group"
         aria-label={ariaLabel}
-        className={cn(
-          'inline-flex items-center gap-2',
-          disabled && 'opacity-60',
-          className,
-        )}
+        className={cn('inline-flex items-center gap-2', disabled && 'opacity-60', className)}
         data-testid={testId}
       >
         {cells.map((cell, index) => (
@@ -271,7 +278,7 @@ export const MfaCodeInput = React.forwardRef<HTMLDivElement, MfaCodeInputProps>(
             inputMode="numeric"
             pattern="[0-9]*"
             autoComplete="one-time-code"
-            maxLength={1}
+            autoFocus={autoFocus && index === 0}
             disabled={disabled}
             value={cell}
             aria-label={digitLabel(index + 1, length)}

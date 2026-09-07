@@ -36,11 +36,28 @@ export interface Area {
   deletedAt: Date | null;
 }
 
+/** Education board under a tenant (NATIONAL / STATE / PRIVATE). */
+export type BoardType = 'NATIONAL' | 'STATE' | 'PRIVATE';
+
+export interface Board {
+  id: string;
+  tenantId: string;
+  name: string;
+  code: string;
+  type: BoardType;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
+}
+
 export interface Institution {
   id: string;
   tenantId: string;
   name: string;
   code: string;
+  /** Owning education board (optional for legacy factories). */
+  boardId: string | null;
   areaId: string;
   typeId: string;
   sectorId: string;

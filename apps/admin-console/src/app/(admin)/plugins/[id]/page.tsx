@@ -13,12 +13,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { Textarea } from '@/components/ui/input';
 import { getPlugin } from '@/lib/api/plugins';
 import { requireRole } from '@/lib/auth/server';
 import { formatDateTime } from '@/lib/utils';
 
-import { pluginDecisionAction } from '../actions';
+import { PluginDecisionForm } from './decision-form';
 
 export default async function PluginDetailPage({
   params,
@@ -81,7 +80,7 @@ export default async function PluginDetailPage({
                 Permissions
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {plugin.permissions.map((p) => (
+                {(plugin.permissions ?? []).map((p) => (
                   <Badge key={p} variant="warning" className="font-mono">
                     {p}
                   </Badge>
@@ -107,49 +106,7 @@ export default async function PluginDetailPage({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={pluginDecisionAction} className="space-y-3">
-              <input type="hidden" name="id" value={plugin.id} />
-              <Textarea
-                name="reason"
-                required
-                minLength={10}
-                placeholder="e.g. Manifest reviewed; permissions match disclosed scope."
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="submit"
-                  name="action"
-                  value="approve"
-                  variant="default"
-                >
-                  Approve
-                </Button>
-                <Button
-                  type="submit"
-                  name="action"
-                  value="reject"
-                  variant="outline"
-                >
-                  Reject
-                </Button>
-                <Button
-                  type="submit"
-                  name="action"
-                  value="revoke"
-                  variant="destructive"
-                >
-                  Revoke
-                </Button>
-                <Button
-                  type="submit"
-                  name="action"
-                  value="disable"
-                  variant="secondary"
-                >
-                  Disable
-                </Button>
-              </div>
-            </form>
+            <PluginDecisionForm pluginId={plugin.id} />
           </CardContent>
         </Card>
       </div>

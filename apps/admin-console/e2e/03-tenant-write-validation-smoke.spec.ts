@@ -25,7 +25,7 @@ async function setupOperatorSession(page: Page): Promise<void> {
     exp: now + 60 * 60 * 8,
   });
 
-  const baseUrl = new URL(page.url() === 'about:blank' ? 'http://127.0.0.1:3004' : page.url());
+  const baseUrl = new URL(page.url() === 'about:blank' ? 'http://127.0.0.1:3014' : page.url());
 
   await page.context().addCookies([
     {

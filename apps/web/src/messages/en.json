@@ -28,6 +28,11 @@
     "examinations": "Examinations",
     "scholarships": "Scholarships",
     "health": "Health",
+    "notifications": "Notifications",
+    "transport": "Transport",
+    "communication": "Communication",
+    "hostel": "Hostel",
+    "library": "Library",
     "workflows": "Workflows",
     "dataWarehouse": "Data Warehouse",
     "reports": "Reports",
@@ -481,6 +486,71 @@
         "primaryContrast": "Primary colour contrast must be at least 4.5:1 against white.",
         "accentContrast": "Accent colour contrast must be at least 3:1 against white.",
         "loginBgRequired": "Login background is required."
+      }
+    },
+    "notifications": {
+      "title": "Notification preferences",
+      "description": "Choose which channels you receive for each category.",
+      "loadFailed": "Could not load preferences.",
+      "loadFailedTitle": "Load failed",
+      "save": "Save preferences",
+      "saving": "Saving…",
+      "saveSuccess": "Preferences saved.",
+      "saveSuccessTitle": "Saved",
+      "saveFailed": "Could not save preferences.",
+      "saveFailedTitle": "Save failed",
+      "smsSandboxTitle": "Delivery channels are sandbox-only",
+      "smsSandboxDescription": "Email, push, and SMS preference toggles are saved, but messages are not delivered via SMTP/FCM/Twilio until live provider credentials are configured.",
+      "toggleLabel": "Toggle {channel} for {category}",
+      "channels": {
+        "email": "Email",
+        "in_app": "In-app",
+        "push": "Push",
+        "webhook": "Webhook",
+        "sms": "SMS"
+      },
+      "categories": {
+        "title": "Categories",
+        "description": "Enable or disable channels per category.",
+        "academic": "Academic",
+        "attendance": "Attendance",
+        "examination": "Examination",
+        "workflow": "Workflow",
+        "system": "System"
+      },
+      "digest": {
+        "title": "Digest",
+        "description": "How often to bundle non-urgent notices.",
+        "frequencyLabel": "Frequency",
+        "immediate": "Immediate",
+        "daily": "Daily",
+        "weekly": "Weekly"
+      },
+      "quietHours": {
+        "title": "Quiet hours",
+        "description": "Suppress non-emergency notifications overnight.",
+        "enableLabel": "Enable quiet hours",
+        "startTime": "Start",
+        "endTime": "End",
+        "daysLabel": "Days",
+        "days": {
+          "0": "Sunday",
+          "1": "Monday",
+          "2": "Tuesday",
+          "3": "Wednesday",
+          "4": "Thursday",
+          "5": "Friday",
+          "6": "Saturday"
+        },
+        "daysShort": {
+          "0": "Sun",
+          "1": "Mon",
+          "2": "Tue",
+          "3": "Wed",
+          "4": "Thu",
+          "5": "Fri",
+          "6": "Sat"
+        }
       }
     }
   },

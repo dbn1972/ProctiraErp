@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth/server';
+import { listBreakGlassRequests } from '@/lib/api/break-glass';
 
 import { BreakGlassRequestForm } from './request-form';
 
@@ -27,6 +28,7 @@ import { BreakGlassRequestForm } from './request-form';
  */
 export default async function BreakGlassPage() {
   await requireRole('breakGlassRequest', '/break-glass');
+  const { source } = await listBreakGlassRequests();
 
   return (
     <>
@@ -41,7 +43,7 @@ export default async function BreakGlassPage() {
       />
 
       <StubDataBanner
-        force
+        source={source}
         detail="Break-glass create/approve APIs fall back to stub requests when the gateway is offline. Grants shown here are not live elevated sessions."
       />
 
