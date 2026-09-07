@@ -45,7 +45,7 @@ export interface LibraryRepository {
   updateLoan(
     id: string,
     tenantId: string,
-    data: Partial<Pick<LibraryLoanEntity, 'returnedAt' | 'status'>>,
+    data: Partial<Pick<LibraryLoanEntity, 'returnedAt' | 'status' | 'dueAt'>>,
   ): Promise<LibraryLoanEntity | null>;
   listLoans(tenantId: string): Promise<LibraryLoanEntity[]>;
 }

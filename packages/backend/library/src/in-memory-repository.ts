@@ -60,7 +60,7 @@ export class InMemoryLibraryRepository implements LibraryRepository {
   async updateLoan(
     id: string,
     tenantId: string,
-    data: Partial<Pick<LibraryLoanEntity, 'returnedAt' | 'status'>>,
+    data: Partial<Pick<LibraryLoanEntity, 'returnedAt' | 'status' | 'dueAt'>>,
   ): Promise<LibraryLoanEntity | null> {
     const index = this.loans.findIndex((l) => l.id === id && l.tenantId === tenantId);
     if (index === -1) return null;

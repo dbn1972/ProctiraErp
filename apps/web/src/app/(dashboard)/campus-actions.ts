@@ -17,6 +17,7 @@ import {
   checkoutLibraryItem,
   createLibraryItem,
   getLibraryClearance,
+  renewLibraryLoan,
   returnLibraryLoan,
   type CreateLibraryItemInput,
 } from '@/lib/api/library';
@@ -137,6 +138,29 @@ export async function returnLibraryLoanAction(loanId: string): Promise<CampusAct
           : error instanceof Error
             ? error.message
             : 'Return failed',
+    };
+  }
+}
+
+export async function renewLibraryLoanAction(
+  loanId: string,
+  extendDays?: number,
+): Promise<CampusActionState> {
+  try {
+    const loan = await renewLibraryLoan(loanId, extendDays);
+    revalidatePath('/library');
+    revalidatePath('/library/circulation');
+    revalidatePath('/library/overdues');
+    return { status: 'success', message: `Renewed — due ${loan.dueAt}.`, id: loan.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Renew failed',
     };
   }
 }

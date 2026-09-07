@@ -102,6 +102,21 @@ export async function returnLibraryLoan(loanId: string): Promise<LibraryLoan> {
   return result.data;
 }
 
+export async function renewLibraryLoan(loanId: string, extendDays?: number): Promise<LibraryLoan> {
+  const result = await gatewayFetch<LibraryLoan>('/library/circulation/renew', {
+    method: 'POST',
+    json: { loanId, extendDays },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'RENEW_FAILED',
+      message: result.error?.message ?? 'Failed to renew loan',
+    });
+  }
+  return result.data;
+}
+
 export interface LibraryClearance {
   studentId: string;
   clear: boolean;

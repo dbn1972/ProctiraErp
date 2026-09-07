@@ -29,6 +29,13 @@ export const ReturnSchema = Type.Object({
 
 export type ReturnInput = Static<typeof ReturnSchema>;
 
+export const RenewSchema = Type.Object({
+  loanId: Type.String({ pattern: UUID_PATTERN }),
+  extendDays: Type.Optional(Type.Number({ minimum: 1, maximum: 90 })),
+});
+
+export type RenewInput = Static<typeof RenewSchema>;
+
 export const PatronParamsSchema = Type.Object({
   studentId: Type.String({ minLength: 1, maxLength: 128 }),
 });

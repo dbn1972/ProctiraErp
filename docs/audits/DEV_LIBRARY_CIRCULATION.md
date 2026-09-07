@@ -34,6 +34,7 @@
 | PgLibraryStore                            | ☑    | `pg-library-repository.ts`          |
 | Demo SQL seed                             | ☑    | `db/sql/009b_library_seed.sql`      |
 | Transfer clearance API + UI               | ☑    | `GET /patrons/:id/clearance`        |
+| Loan renew (+14 days)                     | ☑    | `POST /circulation/renew` + desk UI |
 
 ## Residual
 

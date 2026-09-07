@@ -78,6 +78,35 @@ describe('Library Routes', () => {
     });
   });
 
+  describe('POST /library/circulation/renew', () => {
+    it('should extend due date for an open loan', async () => {
+      const itemRes = await app.inject({
+        method: 'POST',
+        url: '/library/items',
+        payload: { title: 'Renewable Book', copies: 1 },
+      });
+      const checkoutRes = await app.inject({
+        method: 'POST',
+        url: '/library/circulation/checkout',
+        payload: {
+          itemId: itemRes.json().id,
+          studentId: STUDENT_ID,
+          dueAt: '2026-01-01T00:00:00.000Z',
+        },
+      });
+      const loan = checkoutRes.json();
+
+      const renewRes = await app.inject({
+        method: 'POST',
+        url: '/library/circulation/renew',
+        payload: { loanId: loan.id, extendDays: 7 },
+      });
+      expect(renewRes.statusCode).toBe(200);
+      expect(renewRes.json().status).toBe('checked_out');
+      expect(new Date(renewRes.json().dueAt).getTime()).toBeGreaterThan(Date.now());
+    });
+  });
+
   describe('GET /library/patrons/:studentId/clearance', () => {
     it('should report not clear while loans are open', async () => {
       const itemRes = await app.inject({

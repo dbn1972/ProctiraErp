@@ -27,12 +27,14 @@ export {
   CreateLibraryItemSchema,
   CheckoutSchema,
   ReturnSchema,
+  RenewSchema,
   PatronParamsSchema,
 } from './schemas.js';
 export type {
   CreateLibraryItemInput,
   CheckoutInput,
   ReturnInput,
+  RenewInput,
   PatronParams,
 } from './schemas.js';
 

@@ -10,10 +10,12 @@ import {
   CheckoutSchema,
   CreateLibraryItemSchema,
   PatronParamsSchema,
+  RenewSchema,
   ReturnSchema,
   type CheckoutInput,
   type CreateLibraryItemInput,
   type PatronParams,
+  type RenewInput,
   type ReturnInput,
 } from './schemas.js';
 
@@ -202,6 +204,47 @@ export async function registerLibraryRoutes(
 
       try {
         const loan = await libraryService.returnLoan(tenantId, result.data.loanId);
+        return reply.status(200).send(formatLoan(loan));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/circulation/renew`,
+    async function renewHandler(
+      request: FastifyRequest<{ Body: RenewInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(RenewSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const loan = await libraryService.renewLoan(
+          tenantId,
+          result.data.loanId,
+          result.data.extendDays ?? 14,
+        );
         return reply.status(200).send(formatLoan(loan));
       } catch (error: unknown) {
         if (error instanceof AppError) {

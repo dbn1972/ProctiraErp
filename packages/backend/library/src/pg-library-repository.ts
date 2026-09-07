@@ -197,7 +197,7 @@ export class PgLibraryRepository implements LibraryRepository {
   async updateLoan(
     id: string,
     tenantId: string,
-    data: Partial<Pick<LibraryLoanEntity, 'returnedAt' | 'status'>>,
+    data: Partial<Pick<LibraryLoanEntity, 'returnedAt' | 'status' | 'dueAt'>>,
   ): Promise<LibraryLoanEntity | null> {
     await this.ensureSchema();
     const sets: string[] = [];
@@ -211,6 +211,10 @@ export class PgLibraryRepository implements LibraryRepository {
     if (data.status !== undefined) {
       sets.push(`status = $${i++}`);
       values.push(data.status);
+    }
+    if (data.dueAt !== undefined) {
+      sets.push(`due_at = $${i++}`);
+      values.push(data.dueAt);
     }
 
     if (sets.length === 0) {

@@ -15,7 +15,11 @@ import {
   Input,
 } from '@proctira/ui/components';
 
-import { checkoutLibraryItemAction, returnLibraryLoanAction } from '../../campus-actions';
+import {
+  checkoutLibraryItemAction,
+  renewLibraryLoanAction,
+  returnLibraryLoanAction,
+} from '../../campus-actions';
 import type { LibraryItem } from '@/lib/api/library';
 
 export function CirculationDesk({
@@ -88,6 +92,28 @@ export function CirculationDesk({
     });
   }
 
+  function onRenew(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const fd = new FormData(event.currentTarget);
+    const loanId = String(fd.get('loanId') ?? '').trim();
+    if (!loanId) {
+      setError('Loan id is required.');
+      return;
+    }
+
+    startTransition(async () => {
+      setError(null);
+      setMessage(null);
+      const result = await renewLibraryLoanAction(loanId, 14);
+      if (result.status === 'error') {
+        setError(result.message ?? 'Renew failed');
+        return;
+      }
+      setMessage(result.message ?? 'Loan renewed.');
+      router.refresh();
+    });
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card>
@@ -127,7 +153,7 @@ export function CirculationDesk({
             <FormField id="checkout-due" label="Due date">
               <Input id="checkout-due" name="dueAt" type="date" className="h-11 min-h-11" />
             </FormField>
-            <Button type="submit" disabled={pending || items.length === 0}>
+            <Button type="submit" disabled={pending || items.length === 0} className="min-h-11">
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Working…' : 'Checkout'}
             </Button>
@@ -137,10 +163,12 @@ export function CirculationDesk({
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Return</CardTitle>
-          <CardDescription>POST `/library/circulation/return`</CardDescription>
+          <CardTitle className="text-base">Return / renew</CardTitle>
+          <CardDescription>
+            POST `/library/circulation/return` · `/library/circulation/renew`
+          </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <form
             className="space-y-4"
             noValidate
@@ -156,8 +184,27 @@ export function CirculationDesk({
                 className="h-11 min-h-11"
               />
             </FormField>
-            <Button type="submit" variant="outline" disabled={pending}>
+            <Button type="submit" variant="outline" disabled={pending} className="min-h-11">
               Return loan
+            </Button>
+          </form>
+          <form
+            className="space-y-4"
+            noValidate
+            onSubmit={onRenew}
+            aria-label="Renew library loan"
+            data-testid="library-renew-form"
+          >
+            <FormField id="renew-loan" label="Loan id" required>
+              <Input
+                id="renew-loan"
+                name="loanId"
+                defaultValue={lastLoanId ?? ''}
+                className="h-11 min-h-11"
+              />
+            </FormField>
+            <Button type="submit" variant="outline" disabled={pending} className="min-h-11">
+              Renew (+14 days)
             </Button>
           </form>
         </CardContent>

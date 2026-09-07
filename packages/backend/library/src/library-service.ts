@@ -84,6 +84,28 @@ export class LibraryService {
     return updated!;
   }
 
+  /**
+   * Extend due date for an open loan (default +14 days from current dueAt or now).
+   */
+  async renewLoan(tenantId: string, loanId: string, extendDays = 14) {
+    const loan = await this.repository.findLoanById(loanId, tenantId);
+    if (!loan) {
+      throw new NotFoundError(`Loan with id '${loanId}' not found`);
+    }
+    if (loan.status === 'returned') {
+      throw new BusinessRuleError('Cannot renew a returned loan');
+    }
+
+    const base = loan.dueAt.getTime() > Date.now() ? loan.dueAt : new Date();
+    const dueAt = new Date(base.getTime() + extendDays * 24 * 60 * 60 * 1000);
+
+    const updated = await this.repository.updateLoan(loanId, tenantId, {
+      dueAt,
+      status: 'checked_out',
+    });
+    return updated!;
+  }
+
   async listOverdues(tenantId: string) {
     const now = new Date();
     const loans = await this.repository.listLoans(tenantId);
