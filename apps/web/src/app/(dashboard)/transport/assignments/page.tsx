@@ -1,14 +1,22 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listDriverAssignments, listStudentAssignments } from '@/lib/api/transport';
+import {
+  listDriverAssignments,
+  listStudentAssignments,
+  listTransportRoutes,
+  listTransportVehicles,
+} from '@/lib/api/transport';
+import { AssignmentForms } from '../_components/assignment-forms';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransportAssignmentsPage() {
   await requireSession();
-  const [drivers, students] = await Promise.all([
+  const [drivers, students, routes, vehicles] = await Promise.all([
     listDriverAssignments(),
     listStudentAssignments(),
+    listTransportRoutes(),
+    listTransportVehicles(),
   ]);
 
   return (
@@ -19,6 +27,9 @@ export default async function TransportAssignmentsPage() {
           Driver and student assignments via `/api/v1/transport/*-assignments`.
         </p>
       </div>
+
+      <AssignmentForms routes={routes} vehicles={vehicles} />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>

@@ -196,3 +196,45 @@ export async function listStudentAssignments(): Promise<StudentAssignment[]> {
   );
   return result.data?.data ?? [];
 }
+
+export async function createDriverAssignment(input: {
+  vehicleId: string;
+  driverId: string;
+  routeId?: string;
+  startDate: string;
+  endDate?: string;
+}): Promise<DriverAssignment> {
+  const result = await gatewayFetch<DriverAssignment>('/transport/driver-assignments', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create driver assignment',
+    });
+  }
+  return result.data;
+}
+
+export async function createStudentAssignment(input: {
+  studentId: string;
+  routeId: string;
+  stopId?: string;
+  startDate: string;
+  endDate?: string;
+}): Promise<StudentAssignment> {
+  const result = await gatewayFetch<StudentAssignment>('/transport/student-assignments', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create student assignment',
+    });
+  }
+  return result.data;
+}

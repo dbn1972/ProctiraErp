@@ -32,8 +32,8 @@
 | Web shells + sidebar                        | ☑    |                                                  |
 | Live create form + list from API            | ☑    | `transport.ts`, `NewRouteForm`, routes list page |
 | Live vehicle create + list                  | ☑    | `NewVehicleForm` + vehicles page                 |
-| Assignment write UIs                        | ☐    | follow-up                                        |
+| Assignment create + list UIs                  | ☑    | `AssignmentForms` + assignments page             |
 
 ## Residual
 
-Seed demo routes per cert school; assignment forms; WS6 enterprise test pack. Tip CI blocked by GitHub billing until spending limit is raised.
+Seed demo routes per cert school; WS6 enterprise test pack. Tip CI blocked by GitHub billing until spending limit is raised.
