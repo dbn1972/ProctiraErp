@@ -137,18 +137,41 @@ describe('ParentPortalService', () => {
 
       expect(invoice.status).toBe('open');
 
-      const { invoice: paidInvoice, payment } = await service.payInvoice(
-        TENANT_A,
-        PARENT_USER,
-        invoice.id,
-        { method: 'sandbox' },
-      );
+      const {
+        invoice: paidInvoice,
+        payment,
+        receipt,
+      } = await service.payInvoice(TENANT_A, PARENT_USER, invoice.id, { method: 'sandbox' });
 
       expect(paidInvoice.status).toBe('paid');
       expect(payment.amountCents).toBe(2500000);
       expect(payment.method).toBe('sandbox');
       expect(payment.status).toBe('succeeded');
       expect(payment.payerUserId).toBe(PARENT_USER);
+      expect(receipt.paymentId).toBe(payment.id);
+      expect(receipt.receiptNumber).toMatch(/^RCP-/);
+    });
+
+    it('creates invoice from fee plan and isolates plans across tenants', async () => {
+      const plan = await service.createFeePlan(TENANT_A, 'staff-admin', {
+        code: 'TERM1',
+        name: 'Term 1 tuition plan',
+        amountCents: 1500000,
+        currency: 'INR',
+        frequency: 'term',
+      });
+
+      const invoice = await service.createInvoice(TENANT_A, 'staff-admin', {
+        studentId: STUDENT_ID,
+        planId: plan.id,
+      });
+
+      expect(invoice.planId).toBe(plan.id);
+      expect(invoice.title).toBe('Term 1 tuition plan');
+      expect(invoice.amountCents).toBe(1500000);
+
+      expect(await service.listFeePlans(TENANT_B)).toHaveLength(0);
+      expect(await service.listInvoicesForStaff(TENANT_B)).toHaveLength(0);
     });
 
     it('rejects paying an already paid invoice', async () => {
@@ -160,9 +183,9 @@ describe('ParentPortalService', () => {
 
       await service.payInvoice(TENANT_A, PARENT_USER, invoice.id);
 
-      await expect(
-        service.payInvoice(TENANT_A, PARENT_USER, invoice.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.payInvoice(TENANT_A, PARENT_USER, invoice.id)).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 
@@ -205,9 +228,9 @@ describe('ParentPortalService', () => {
         body: 'Hello',
       });
 
-      await expect(
-        service.listMessages(TENANT_B, PARENT_USER, thread.id),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.listMessages(TENANT_B, PARENT_USER, thread.id)).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 });

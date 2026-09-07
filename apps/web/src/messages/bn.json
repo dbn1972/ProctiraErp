@@ -32,7 +32,8 @@
     "workflows": "ওয়ার্কফ্লো",
     "dataWarehouse": "ডেটা ওয়্যারহাউস",
     "reports": "প্রতিবেদন",
-    "admin": "প্রশাসন"
+    "admin": "প্রশাসন",
+    "fees": "ফি"
   },
   "auth": {
     "login": "সাইন ইন",

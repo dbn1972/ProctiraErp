@@ -9,9 +9,7 @@ import { expect, test, type Page } from '@playwright/test';
  */
 
 function createFakeJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString(
-    'base64',
-  );
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64');
   const body = Buffer.from(JSON.stringify(payload)).toString('base64');
   return `${header}.${body}.ZmFrZS1zaWduYXR1cmU`;
 }
@@ -28,9 +26,7 @@ async function setupTenantSession(page: Page): Promise<void> {
     exp: now + 60 * 60 * 8,
   });
 
-  const baseUrl = new URL(
-    page.url() === 'about:blank' ? 'http://localhost:3001' : page.url(),
-  );
+  const baseUrl = new URL(page.url() === 'about:blank' ? 'http://localhost:3001' : page.url());
 
   await page.context().addCookies([
     {
@@ -69,7 +65,8 @@ test.describe('Insights & System — write validation (ungated)', () => {
 
   test('/reports/new requires a template before generate', async ({ page }) => {
     await page.goto('/reports/new');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(/new report/i);
+    // Mobile shell also renders an h1 brand title — target the page heading by name.
+    await expect(page.getByRole('heading', { name: 'New report', exact: true })).toBeVisible();
     await expect(page.getByTestId('scaffold-mode-banner')).toBeVisible();
     await expect(page.getByTestId('report-builder-form')).toBeVisible();
 
@@ -79,11 +76,9 @@ test.describe('Insights & System — write validation (ungated)', () => {
     );
   });
 
-  test('/data-warehouse/field-mapping requires at least one mapped column', async ({
-    page,
-  }) => {
+  test('/data-warehouse/field-mapping requires at least one mapped column', async ({ page }) => {
     await page.goto('/data-warehouse/field-mapping');
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(/field mapping/i);
+    await expect(page.locator('#dw-mapping-heading')).toHaveText(/field mapping/i);
     await expect(page.getByTestId('scaffold-mode-banner')).toBeVisible();
 
     await page.getByRole('button', { name: /continue to validate/i }).click();

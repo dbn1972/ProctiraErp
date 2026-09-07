@@ -1,7 +1,7 @@
 # Peer-gap closure — ordered slices (honest)
 
 **Updated (UTC):** 2026-09-07  
-**Rule:** One slice at a time · product/IA → build → UX/a11y/security as needed → test → release → **main tip CI** · no invented screenshots or fake “10/10”.  
+**Rule:** One slice at a time · product/IA → build → UX/a11y/security as needed · test · release · **main tip CI** · no invented screenshots or fake “10/10”.  
 **Skills map:** `docs/plans/ENTERPRISE_SKILLS_MAP.md`
 
 ## Shipped (do not re-open as missing)
@@ -13,6 +13,8 @@
 | SIS timetable / master schedule / gradebook / board packs   | On main (residuals remain — see queue)                              |
 | #1 SIS gradebook harden                                     | **PR #27 merged**                                                   |
 | #2 SIS master-schedule harden                               | **PR #28 merged**                                                   |
+| #3 SIS timetable harden                                     | **PR #29 merged**                                                   |
+| #5 Health PHI vault                                         | **PR #31 merged**                                                   |
 
 ## Closure queue (one-by-one)
 
@@ -31,13 +33,15 @@
 
 ## Active slice
 
-**#3 SIS timetable harden** — branch `cursor/sis-timetable-harden-56c3`
+**#4 Fees & finance v1** — branch `cursor/fees-finance-v1-56c3` · PR #30 (rebase onto main after #29/#31)
 
 | Prior               | Status                        |
 | ------------------- | ----------------------------- |
 | Parent portal v1    | **Merged** PR #25             |
 | #1 Gradebook harden | **Merged** PR #27             |
-| #2 Master-schedule  | **Merged** PR #28 @ `d7b57b1` |
+| #2 Master-schedule  | **Merged** PR #28             |
+| #3 Timetable harden | **Merged** PR #29             |
+| #5 Health PHI vault | **Merged** PR #31             |
 
 ## Honesty
 

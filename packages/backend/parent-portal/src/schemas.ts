@@ -37,11 +37,7 @@ export type ThreadParams = Static<typeof ThreadParamsSchema>;
 export const AddMessageSchema = Type.Object({
   body: Type.String({ minLength: 1, maxLength: 10000 }),
   senderRole: Type.Optional(
-    Type.Union([
-      Type.Literal('parent'),
-      Type.Literal('staff'),
-      Type.Literal('system'),
-    ]),
+    Type.Union([Type.Literal('parent'), Type.Literal('staff'), Type.Literal('system')]),
   ),
 });
 
@@ -75,11 +71,30 @@ export const DecideConsentSchema = Type.Object({
 
 export type DecideConsentInput = Static<typeof DecideConsentSchema>;
 
-export const CreateInvoiceSchema = Type.Object({
-  studentId: Type.String({ pattern: UUID_PATTERN }),
-  title: Type.String({ minLength: 1, maxLength: 500 }),
+export const CreateFeePlanSchema = Type.Object({
+  code: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  name: Type.String({ minLength: 1, maxLength: 500 }),
   description: Type.Optional(Type.String({ maxLength: 5000 })),
   amountCents: Type.Number({ minimum: 0 }),
+  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+  frequency: Type.Optional(
+    Type.Union([
+      Type.Literal('once'),
+      Type.Literal('term'),
+      Type.Literal('month'),
+      Type.Literal('year'),
+    ]),
+  ),
+});
+
+export type CreateFeePlanInput = Static<typeof CreateFeePlanSchema>;
+
+export const CreateInvoiceSchema = Type.Object({
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  planId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  title: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+  description: Type.Optional(Type.String({ maxLength: 5000 })),
+  amountCents: Type.Optional(Type.Number({ minimum: 0 })),
   currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
   dueAt: Type.Optional(Type.String()),
 });
@@ -91,6 +106,12 @@ export const InvoiceParamsSchema = Type.Object({
 });
 
 export type InvoiceParams = Static<typeof InvoiceParamsSchema>;
+
+export const ReceiptParamsSchema = Type.Object({
+  id: Type.String({ pattern: UUID_PATTERN }),
+});
+
+export type ReceiptParams = Static<typeof ReceiptParamsSchema>;
 
 export const PayInvoiceSchema = Type.Object({
   method: Type.Optional(

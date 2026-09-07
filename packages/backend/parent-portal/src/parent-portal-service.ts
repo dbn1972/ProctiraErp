@@ -7,12 +7,18 @@ import { v4 as uuidv4 } from 'uuid';
 import type { ParentPortalRepository } from './parent-portal-repository.js';
 import type {
   CreateConsentInput,
+  CreateFeePlanInput,
   CreateInvoiceInput,
   CreateThreadInput,
   DecideConsentInput,
   LinkChildInput,
   PayInvoiceInput,
 } from './schemas.js';
+
+function receiptNumberFor(paymentId: string): string {
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+}
 
 export class ParentPortalService {
   constructor(private readonly repository: ParentPortalRepository) {}
@@ -57,11 +63,7 @@ export class ParentPortalService {
     }
   }
 
-  async createThread(
-    tenantId: string,
-    parentUserId: string,
-    input: CreateThreadInput,
-  ) {
+  async createThread(tenantId: string, parentUserId: string, input: CreateThreadInput) {
     await this.assertParentLinkedToStudent(tenantId, parentUserId, input.studentId);
 
     const thread = await this.repository.createThread({
@@ -126,11 +128,7 @@ export class ParentPortalService {
     return this.repository.listMessagesForThread(tenantId, threadId);
   }
 
-  async createConsentRequest(
-    tenantId: string,
-    actorId: string,
-    input: CreateConsentInput,
-  ) {
+  async createConsentRequest(tenantId: string, actorId: string, input: CreateConsentInput) {
     return this.repository.createConsent({
       id: uuidv4(),
       tenantId,
@@ -172,15 +170,70 @@ export class ParentPortalService {
     return updated!;
   }
 
+  async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
+    const code =
+      input.code?.trim() ||
+      input.name
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_')
+        .replace(/^_|_$/g, '')
+        .slice(0, 32) ||
+      'PLAN';
+
+    return this.repository.createFeePlan({
+      id: uuidv4(),
+      tenantId,
+      code,
+      name: input.name,
+      description: input.description ?? '',
+      amountCents: input.amountCents,
+      currency: input.currency ?? 'INR',
+      frequency: input.frequency ?? 'term',
+      status: 'active',
+      createdBy: actorId,
+    });
+  }
+
+  async listFeePlans(tenantId: string) {
+    return this.repository.listFeePlans(tenantId);
+  }
+
   async createInvoice(tenantId: string, actorId: string, input: CreateInvoiceInput) {
+    let title = input.title;
+    let description = input.description ?? '';
+    let amountCents = input.amountCents;
+    let currency = input.currency ?? 'INR';
+    let planId: string | null = input.planId ?? null;
+
+    if (input.planId) {
+      const plan = await this.repository.findFeePlanById(input.planId, tenantId);
+      if (!plan || plan.status !== 'active') {
+        throw new NotFoundError(`Fee plan with id '${input.planId}' not found`);
+      }
+      planId = plan.id;
+      title = input.title ?? plan.name;
+      description = input.description ?? plan.description;
+      amountCents = input.amountCents ?? plan.amountCents;
+      currency = input.currency ?? plan.currency;
+    }
+
+    if (title == null || title.trim() === '') {
+      throw new BusinessRuleError('Invoice title is required');
+    }
+    if (amountCents == null || amountCents < 0) {
+      throw new BusinessRuleError('Invoice amountCents is required');
+    }
+
     return this.repository.createInvoice({
       id: uuidv4(),
       tenantId,
       studentId: input.studentId,
-      title: input.title,
-      description: input.description ?? '',
-      amountCents: input.amountCents,
-      currency: input.currency ?? 'INR',
+      planId,
+      title,
+      description,
+      amountCents,
+      currency,
       status: 'open',
       dueAt: input.dueAt ? new Date(input.dueAt) : null,
       createdBy: actorId,
@@ -190,6 +243,49 @@ export class ParentPortalService {
   async listInvoicesForParent(tenantId: string, parentUserId: string) {
     const studentIds = await this.getLinkedStudentIds(tenantId, parentUserId);
     return this.repository.listInvoicesForStudentIds(tenantId, studentIds);
+  }
+
+  async listInvoicesForStaff(tenantId: string) {
+    return this.repository.listInvoicesForTenant(tenantId);
+  }
+
+  async voidInvoice(tenantId: string, invoiceId: string) {
+    const invoice = await this.repository.findInvoiceById(invoiceId, tenantId);
+    if (!invoice) {
+      throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
+    }
+    if (invoice.status === 'paid') {
+      throw new BusinessRuleError('Cannot void a paid invoice');
+    }
+    if (invoice.status === 'void') {
+      return invoice;
+    }
+    const updated = await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' });
+    return updated!;
+  }
+
+  async listPaymentsForStaff(tenantId: string) {
+    return this.repository.listPaymentsForTenant(tenantId);
+  }
+
+  async listReceiptsForStaff(tenantId: string) {
+    return this.repository.listReceiptsForTenant(tenantId);
+  }
+
+  async listReceiptsForParent(tenantId: string, parentUserId: string) {
+    const invoices = await this.listInvoicesForParent(tenantId, parentUserId);
+    return this.repository.listReceiptsForInvoiceIds(
+      tenantId,
+      invoices.map((invoice) => invoice.id),
+    );
+  }
+
+  async getReceipt(tenantId: string, receiptId: string) {
+    const receipt = await this.repository.findReceiptById(receiptId, tenantId);
+    if (!receipt) {
+      throw new NotFoundError(`Receipt with id '${receiptId}' not found`);
+    }
+    return receipt;
   }
 
   async payInvoice(
@@ -223,10 +319,21 @@ export class ParentPortalService {
       paidAt,
     });
 
+    const receipt = await this.repository.createReceipt({
+      id: uuidv4(),
+      tenantId,
+      paymentId: payment.id,
+      invoiceId: invoice.id,
+      receiptNumber: receiptNumberFor(payment.id),
+      amountCents: invoice.amountCents,
+      currency: invoice.currency,
+      issuedAt: paidAt,
+    });
+
     const updatedInvoice = await this.repository.updateInvoice(invoiceId, tenantId, {
       status: 'paid',
     });
 
-    return { invoice: updatedInvoice!, payment };
+    return { invoice: updatedInvoice!, payment, receipt };
   }
 }

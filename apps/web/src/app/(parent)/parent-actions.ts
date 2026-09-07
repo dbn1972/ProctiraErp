@@ -84,9 +84,13 @@ export async function decideConsentAction(
 
 export async function payInvoiceAction(invoiceId: string): Promise<ParentActionState> {
   try {
-    const { payment } = await payInvoice(invoiceId, 'sandbox');
+    const { payment, receipt } = await payInvoice(invoiceId, 'sandbox');
     revalidatePath('/parent/fees');
-    return { status: 'success', message: 'Payment recorded (sandbox).', id: payment.id };
+    return {
+      status: 'success',
+      message: `Payment recorded (sandbox). Receipt ${receipt.receiptNumber}.`,
+      id: payment.id,
+    };
   } catch (error) {
     return {
       status: 'error',

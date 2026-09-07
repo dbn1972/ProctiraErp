@@ -42,6 +42,7 @@ vi.mock('next-intl', () => ({
       scholarships: 'Scholarships',
       health: 'Health',
       parentPortal: 'Parent portal',
+      fees: 'Fees',
       notifications: 'Notifications',
       transport: 'Transport',
       communication: 'Communication',

@@ -66,6 +66,7 @@ export interface FeeInvoice {
   id: string;
   tenantId: string;
   studentId: string;
+  planId: string | null;
   title: string;
   description: string;
   amountCents: number;
@@ -87,6 +88,52 @@ export interface FeePayment {
   status: string;
   paidAt: string;
   createdAt: string;
+}
+
+export interface FeePlan {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  description: string;
+  amountCents: number;
+  currency: string;
+  frequency: string;
+  status: string;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FeeReceipt {
+  id: string;
+  tenantId: string;
+  paymentId: string;
+  invoiceId: string;
+  receiptNumber: string;
+  amountCents: number;
+  currency: string;
+  issuedAt: string;
+  createdAt: string;
+}
+
+export interface CreateFeePlanInput {
+  code?: string;
+  name: string;
+  description?: string;
+  amountCents: number;
+  currency?: string;
+  frequency?: 'once' | 'term' | 'month' | 'year';
+}
+
+export interface CreateInvoiceInput {
+  studentId: string;
+  planId?: string;
+  title?: string;
+  description?: string;
+  amountCents?: number;
+  currency?: string;
+  dueAt?: string;
 }
 
 export async function listChildren(): Promise<ParentChildLink[]> {
@@ -195,8 +242,64 @@ export async function decideConsent(
   return result.data;
 }
 
-export async function listInvoices(): Promise<FeeInvoice[]> {
-  const result = await gatewayFetch<{ data: FeeInvoice[] }>('/parent-portal/fees/invoices', {
+export async function listInvoices(scope: 'parent' | 'staff' = 'parent'): Promise<FeeInvoice[]> {
+  const qs = scope === 'staff' ? '?scope=staff' : '';
+  const result = await gatewayFetch<{ data: FeeInvoice[] }>(`/parent-portal/fees/invoices${qs}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createInvoice(input: CreateInvoiceInput): Promise<FeeInvoice> {
+  const result = await gatewayFetch<FeeInvoice>('/parent-portal/fees/invoices', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_INVOICE_FAILED',
+      message: result.error?.message ?? 'Failed to create invoice',
+    });
+  }
+  return result.data;
+}
+
+export async function listFeePlans(): Promise<FeePlan[]> {
+  const result = await gatewayFetch<{ data: FeePlan[] }>('/parent-portal/fees/plans', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createFeePlan(input: CreateFeePlanInput): Promise<FeePlan> {
+  const result = await gatewayFetch<FeePlan>('/parent-portal/fees/plans', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_PLAN_FAILED',
+      message: result.error?.message ?? 'Failed to create fee plan',
+    });
+  }
+  return result.data;
+}
+
+export async function listPayments(): Promise<FeePayment[]> {
+  const result = await gatewayFetch<{ data: FeePayment[] }>('/parent-portal/fees/payments', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function listReceipts(scope: 'parent' | 'staff' = 'parent'): Promise<FeeReceipt[]> {
+  const qs = scope === 'staff' ? '?scope=staff' : '';
+  const result = await gatewayFetch<{ data: FeeReceipt[] }>(`/parent-portal/fees/receipts${qs}`, {
     throwOnError: false,
     next: { revalidate: 0 },
   });
@@ -206,14 +309,15 @@ export async function listInvoices(): Promise<FeeInvoice[]> {
 export async function payInvoice(
   id: string,
   method: 'sandbox' | 'upi' | 'card' | 'cash' = 'sandbox',
-): Promise<{ invoice: FeeInvoice; payment: FeePayment }> {
-  const result = await gatewayFetch<{ invoice: FeeInvoice; payment: FeePayment }>(
-    `/parent-portal/fees/invoices/${id}/pay`,
-    {
-      method: 'POST',
-      json: { method },
-    },
-  );
+): Promise<{ invoice: FeeInvoice; payment: FeePayment; receipt: FeeReceipt }> {
+  const result = await gatewayFetch<{
+    invoice: FeeInvoice;
+    payment: FeePayment;
+    receipt: FeeReceipt;
+  }>(`/parent-portal/fees/invoices/${id}/pay`, {
+    method: 'POST',
+    json: { method },
+  });
   if (!result.data) {
     throw new GatewayError({
       status: result.status,

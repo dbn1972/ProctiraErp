@@ -32,7 +32,8 @@
     "workflows": "कार्यप्रवाह",
     "dataWarehouse": "डेटा वेअरहाउस",
     "reports": "अहवाल",
-    "admin": "प्रशासन"
+    "admin": "प्रशासन",
+    "fees": "शुल्क"
   },
   "auth": {
     "login": "साइन इन",

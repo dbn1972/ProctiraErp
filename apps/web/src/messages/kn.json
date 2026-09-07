@@ -32,7 +32,8 @@
     "workflows": "ವರ್ಕ್‌ಫ್ಲೋಗಳು",
     "dataWarehouse": "ಡೇಟಾ ವೇರ್‌ಹೌಸ್",
     "reports": "ವರದಿಗಳು",
-    "admin": "ಆಡಳಿತ"
+    "admin": "ಆಡಳಿತ",
+    "fees": "ಶುಲ್ಕ"
   },
   "auth": {
     "login": "ಸೈನ್ ಇನ್",

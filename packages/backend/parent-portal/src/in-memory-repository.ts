@@ -5,6 +5,8 @@ import type {
   ConsentEntity,
   FeeInvoiceEntity,
   FeePaymentEntity,
+  FeePlanEntity,
+  FeeReceiptEntity,
   MessageEntity,
   MessageThreadEntity,
   ParentChildLinkEntity,
@@ -16,8 +18,10 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
   private threads: MessageThreadEntity[] = [];
   private messages: MessageEntity[] = [];
   private consents: ConsentEntity[] = [];
+  private plans: FeePlanEntity[] = [];
   private invoices: FeeInvoiceEntity[] = [];
   private payments: FeePaymentEntity[] = [];
+  private receipts: FeeReceiptEntity[] = [];
 
   async createChildLink(
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
@@ -44,20 +48,14 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     tenantId: string,
     studentId: string,
   ): Promise<ParentChildLinkEntity[]> {
-    return this.links.filter(
-      (link) => link.tenantId === tenantId && link.studentId === studentId,
-    );
+    return this.links.filter((link) => link.tenantId === tenantId && link.studentId === studentId);
   }
 
   async findChildLink(id: string, tenantId: string): Promise<ParentChildLinkEntity | null> {
     return this.links.find((link) => link.id === id && link.tenantId === tenantId) ?? null;
   }
 
-  async hasActiveLink(
-    tenantId: string,
-    parentUserId: string,
-    studentId: string,
-  ): Promise<boolean> {
+  async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
     return this.links.some(
       (link) =>
         link.tenantId === tenantId &&
@@ -121,17 +119,16 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     return entity;
   }
 
-  async listConsentsForParent(
-    tenantId: string,
-    parentUserId: string,
-  ): Promise<ConsentEntity[]> {
+  async listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]> {
     return this.consents.filter(
       (consent) => consent.tenantId === tenantId && consent.parentUserId === parentUserId,
     );
   }
 
   async findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null> {
-    return this.consents.find((consent) => consent.id === id && consent.tenantId === tenantId) ?? null;
+    return (
+      this.consents.find((consent) => consent.id === id && consent.tenantId === tenantId) ?? null
+    );
   }
 
   async updateConsent(
@@ -150,6 +147,23 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     };
     this.consents[index] = updated;
     return updated;
+  }
+
+  async createFeePlan(
+    data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<FeePlanEntity> {
+    const now = new Date();
+    const entity: FeePlanEntity = { ...data, createdAt: now, updatedAt: now };
+    this.plans.push(entity);
+    return entity;
+  }
+
+  async listFeePlans(tenantId: string): Promise<FeePlanEntity[]> {
+    return this.plans.filter((plan) => plan.tenantId === tenantId);
+  }
+
+  async findFeePlanById(id: string, tenantId: string): Promise<FeePlanEntity | null> {
+    return this.plans.find((plan) => plan.id === id && plan.tenantId === tenantId) ?? null;
   }
 
   async createInvoice(
@@ -172,8 +186,14 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     );
   }
 
+  async listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]> {
+    return this.invoices.filter((invoice) => invoice.tenantId === tenantId);
+  }
+
   async findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null> {
-    return this.invoices.find((invoice) => invoice.id === id && invoice.tenantId === tenantId) ?? null;
+    return (
+      this.invoices.find((invoice) => invoice.id === id && invoice.tenantId === tenantId) ?? null
+    );
   }
 
   async updateInvoice(
@@ -198,5 +218,36 @@ export class InMemoryParentPortalRepository implements ParentPortalRepository {
     const entity: FeePaymentEntity = { ...data, createdAt: new Date() };
     this.payments.push(entity);
     return entity;
+  }
+
+  async listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]> {
+    return this.payments.filter((payment) => payment.tenantId === tenantId);
+  }
+
+  async createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity> {
+    const entity: FeeReceiptEntity = { ...data, createdAt: new Date() };
+    this.receipts.push(entity);
+    return entity;
+  }
+
+  async listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]> {
+    return this.receipts.filter((receipt) => receipt.tenantId === tenantId);
+  }
+
+  async listReceiptsForInvoiceIds(
+    tenantId: string,
+    invoiceIds: string[],
+  ): Promise<FeeReceiptEntity[]> {
+    if (invoiceIds.length === 0) return [];
+    const idSet = new Set(invoiceIds);
+    return this.receipts.filter(
+      (receipt) => receipt.tenantId === tenantId && idSet.has(receipt.invoiceId),
+    );
+  }
+
+  async findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null> {
+    return (
+      this.receipts.find((receipt) => receipt.id === id && receipt.tenantId === tenantId) ?? null
+    );
   }
 }

@@ -1,7 +1,8 @@
 /**
  * Postgres-backed parent portal repository (raw `pg` — no Prisma).
  *
- * When DATABASE_URL is set, data persists via db/sql/010_parent_portal_schema.sql.
+ * When DATABASE_URL is set, data persists via db/sql/010_parent_portal_schema.sql
+ * and db/sql/011_fees_finance_schema.sql.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -15,6 +16,10 @@ import type {
   ConsentType,
   FeeInvoiceEntity,
   FeePaymentEntity,
+  FeePlanEntity,
+  FeePlanFrequency,
+  FeePlanStatus,
+  FeeReceiptEntity,
   InvoiceStatus,
   LinkRelationship,
   LinkStatus,
@@ -74,8 +79,10 @@ export async function ensureParentPortalSchema(
   if (!pool) throw new Error('DATABASE_URL is required for parent portal schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
-      const sql = readFileSync(resolveSqlPath('010_parent_portal_schema.sql'), 'utf8');
-      await pool.query(sql);
+      const sql010 = readFileSync(resolveSqlPath('010_parent_portal_schema.sql'), 'utf8');
+      await pool.query(sql010);
+      const sql011 = readFileSync(resolveSqlPath('011_fees_finance_schema.sql'), 'utf8');
+      await pool.query(sql011);
     })();
   }
   await schemaReady;
@@ -86,7 +93,10 @@ export async function ensureParentPortalSeed(
 ): Promise<void> {
   if (!pool) return;
   await ensureParentPortalSchema(pool);
-  if (process.env.PARENT_PORTAL_APPLY_SEED !== '1' && process.env.PARENT_PORTAL_APPLY_SEED !== 'true') {
+  if (
+    process.env.PARENT_PORTAL_APPLY_SEED !== '1' &&
+    process.env.PARENT_PORTAL_APPLY_SEED !== 'true'
+  ) {
     return;
   }
   if (!seedReady) {
@@ -157,11 +167,29 @@ function mapConsent(row: Record<string, unknown>): ConsentEntity {
   };
 }
 
+function mapPlan(row: Record<string, unknown>): FeePlanEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    code: String(row.code),
+    name: String(row.name),
+    description: String(row.description),
+    amountCents: Number(row.amount_cents),
+    currency: String(row.currency),
+    frequency: String(row.frequency) as FeePlanFrequency,
+    status: String(row.status) as FeePlanStatus,
+    createdBy: row.created_by == null ? null : String(row.created_by),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
 function mapInvoice(row: Record<string, unknown>): FeeInvoiceEntity {
   return {
     id: String(row.id),
     tenantId: String(row.tenant_id),
     studentId: String(row.student_id),
+    planId: row.plan_id == null ? null : String(row.plan_id),
     title: String(row.title),
     description: String(row.description),
     amountCents: Number(row.amount_cents),
@@ -184,6 +212,20 @@ function mapPayment(row: Record<string, unknown>): FeePaymentEntity {
     method: String(row.method) as PaymentMethod,
     status: String(row.status) as PaymentStatus,
     paidAt: toDate(row.paid_at),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapReceipt(row: Record<string, unknown>): FeeReceiptEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    paymentId: String(row.payment_id),
+    invoiceId: String(row.invoice_id),
+    receiptNumber: String(row.receipt_number),
+    amountCents: Number(row.amount_cents),
+    currency: String(row.currency),
+    issuedAt: toDate(row.issued_at),
     createdAt: toDate(row.created_at),
   };
 }
@@ -247,11 +289,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapLink(result.rows[0] as Record<string, unknown>);
   }
 
-  async hasActiveLink(
-    tenantId: string,
-    parentUserId: string,
-    studentId: string,
-  ): Promise<boolean> {
+  async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
     await this.ensureSchema();
     const result = await this.pool.query(
       `SELECT 1 FROM parent_child_links
@@ -349,10 +387,7 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapConsent(result.rows[0] as Record<string, unknown>);
   }
 
-  async listConsentsForParent(
-    tenantId: string,
-    parentUserId: string,
-  ): Promise<ConsentEntity[]> {
+  async listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]> {
     await this.ensureSchema();
     const result = await this.pool.query(
       `SELECT * FROM parent_consents
@@ -410,18 +445,62 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     return mapConsent(result.rows[0] as Record<string, unknown>);
   }
 
+  async createFeePlan(
+    data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<FeePlanEntity> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `INSERT INTO parent_fee_plans (
+         id, tenant_id, code, name, description, amount_cents, currency, frequency, status, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.code,
+        data.name,
+        data.description,
+        data.amountCents,
+        data.currency,
+        data.frequency,
+        data.status,
+        data.createdBy,
+      ],
+    );
+    return mapPlan(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listFeePlans(tenantId: string): Promise<FeePlanEntity[]> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM parent_fee_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((row) => mapPlan(row as Record<string, unknown>));
+  }
+
+  async findFeePlanById(id: string, tenantId: string): Promise<FeePlanEntity | null> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM parent_fee_plans WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapPlan(result.rows[0] as Record<string, unknown>);
+  }
+
   async createInvoice(
     data: Omit<FeeInvoiceEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<FeeInvoiceEntity> {
     await this.ensureSchema();
     const result = await this.pool.query(
       `INSERT INTO parent_fee_invoices (
-         id, tenant_id, student_id, title, description, amount_cents, currency, status, due_at, created_by
-       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+         id, tenant_id, student_id, plan_id, title, description, amount_cents, currency, status, due_at, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [
         data.id,
         data.tenantId,
         data.studentId,
+        data.planId,
         data.title,
         data.description,
         data.amountCents,
@@ -445,6 +524,15 @@ export class PgParentPortalRepository implements ParentPortalRepository {
        WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
        ORDER BY created_at DESC`,
       [tenantId, studentIds],
+    );
+    return result.rows.map((row) => mapInvoice(row as Record<string, unknown>));
+  }
+
+  async listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM parent_fee_invoices WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
     );
     return result.rows.map((row) => mapInvoice(row as Record<string, unknown>));
   }
@@ -497,6 +585,69 @@ export class PgParentPortalRepository implements ParentPortalRepository {
       ],
     );
     return mapPayment(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 ORDER BY paid_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((row) => mapPayment(row as Record<string, unknown>));
+  }
+
+  async createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `INSERT INTO parent_fee_receipts (
+         id, tenant_id, payment_id, invoice_id, receipt_number, amount_cents, currency, issued_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.paymentId,
+        data.invoiceId,
+        data.receiptNumber,
+        data.amountCents,
+        data.currency,
+        data.issuedAt,
+      ],
+    );
+    return mapReceipt(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 ORDER BY issued_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
+  }
+
+  async listReceiptsForInvoiceIds(
+    tenantId: string,
+    invoiceIds: string[],
+  ): Promise<FeeReceiptEntity[]> {
+    await this.ensureSchema();
+    if (invoiceIds.length === 0) return [];
+    const result = await this.pool.query(
+      `SELECT * FROM parent_fee_receipts
+       WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[])
+       ORDER BY issued_at DESC`,
+      [tenantId, invoiceIds],
+    );
+    return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
+  }
+
+  async findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM parent_fee_receipts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapReceipt(result.rows[0] as Record<string, unknown>);
   }
 }
 

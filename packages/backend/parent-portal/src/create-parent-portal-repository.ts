@@ -3,7 +3,10 @@
  */
 import { InMemoryParentPortalRepository } from './in-memory-repository.js';
 import type { ParentPortalRepository } from './parent-portal-repository.js';
-import { getSharedParentPortalPool, PgParentPortalRepository } from './pg-parent-portal-repository.js';
+import {
+  getSharedParentPortalPool,
+  PgParentPortalRepository,
+} from './pg-parent-portal-repository.js';
 
 export function isPgParentPortalEnabled(): boolean {
   const url = process.env.DATABASE_URL?.trim();

@@ -64,10 +64,29 @@ export interface ConsentEntity {
   updatedAt: Date;
 }
 
+export type FeePlanFrequency = 'once' | 'term' | 'month' | 'year';
+export type FeePlanStatus = 'active' | 'archived';
+
+export interface FeePlanEntity {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  description: string;
+  amountCents: number;
+  currency: string;
+  frequency: FeePlanFrequency;
+  status: FeePlanStatus;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface FeeInvoiceEntity {
   id: string;
   tenantId: string;
   studentId: string;
+  planId: string | null;
   title: string;
   description: string;
   amountCents: number;
@@ -91,32 +110,31 @@ export interface FeePaymentEntity {
   createdAt: Date;
 }
 
+export interface FeeReceiptEntity {
+  id: string;
+  tenantId: string;
+  paymentId: string;
+  invoiceId: string;
+  receiptNumber: string;
+  amountCents: number;
+  currency: string;
+  issuedAt: Date;
+  createdAt: Date;
+}
+
 export interface ParentPortalRepository {
   createChildLink(
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<ParentChildLinkEntity>;
-  listChildLinksForParent(
-    tenantId: string,
-    parentUserId: string,
-  ): Promise<ParentChildLinkEntity[]>;
-  listChildLinksForStudent(
-    tenantId: string,
-    studentId: string,
-  ): Promise<ParentChildLinkEntity[]>;
+  listChildLinksForParent(tenantId: string, parentUserId: string): Promise<ParentChildLinkEntity[]>;
+  listChildLinksForStudent(tenantId: string, studentId: string): Promise<ParentChildLinkEntity[]>;
   findChildLink(id: string, tenantId: string): Promise<ParentChildLinkEntity | null>;
-  hasActiveLink(
-    tenantId: string,
-    parentUserId: string,
-    studentId: string,
-  ): Promise<boolean>;
+  hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean>;
 
   createThread(
     data: Omit<MessageThreadEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<MessageThreadEntity>;
-  listThreadsForStudentIds(
-    tenantId: string,
-    studentIds: string[],
-  ): Promise<MessageThreadEntity[]>;
+  listThreadsForStudentIds(tenantId: string, studentIds: string[]): Promise<MessageThreadEntity[]>;
   findThreadById(id: string, tenantId: string): Promise<MessageThreadEntity | null>;
 
   createMessage(data: Omit<MessageEntity, 'createdAt'>): Promise<MessageEntity>;
@@ -125,10 +143,7 @@ export interface ParentPortalRepository {
   createConsent(
     data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'decidedAt'>,
   ): Promise<ConsentEntity>;
-  listConsentsForParent(
-    tenantId: string,
-    parentUserId: string,
-  ): Promise<ConsentEntity[]>;
+  listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]>;
   findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null>;
   updateConsent(
     id: string,
@@ -136,13 +151,13 @@ export interface ParentPortalRepository {
     data: Partial<Pick<ConsentEntity, 'status' | 'decidedAt'>>,
   ): Promise<ConsentEntity | null>;
 
-  createInvoice(
-    data: Omit<FeeInvoiceEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<FeeInvoiceEntity>;
-  listInvoicesForStudentIds(
-    tenantId: string,
-    studentIds: string[],
-  ): Promise<FeeInvoiceEntity[]>;
+  createFeePlan(data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>): Promise<FeePlanEntity>;
+  listFeePlans(tenantId: string): Promise<FeePlanEntity[]>;
+  findFeePlanById(id: string, tenantId: string): Promise<FeePlanEntity | null>;
+
+  createInvoice(data: Omit<FeeInvoiceEntity, 'createdAt' | 'updatedAt'>): Promise<FeeInvoiceEntity>;
+  listInvoicesForStudentIds(tenantId: string, studentIds: string[]): Promise<FeeInvoiceEntity[]>;
+  listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]>;
   findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null>;
   updateInvoice(
     id: string,
@@ -151,4 +166,10 @@ export interface ParentPortalRepository {
   ): Promise<FeeInvoiceEntity | null>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
+  listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;
+
+  createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity>;
+  listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]>;
+  listReceiptsForInvoiceIds(tenantId: string, invoiceIds: string[]): Promise<FeeReceiptEntity[]>;
+  findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null>;
 }
