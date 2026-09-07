@@ -4,7 +4,10 @@ import { readFileSync } from 'node:fs';
 import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 
 import { writeBoardExportArtifacts } from './board-export-generator.js';
-import { assertBoardExportCompleteness, validateBoardExportCompleteness } from './board-export-validation.js';
+import {
+  assertBoardExportCompleteness,
+  validateBoardExportCompleteness,
+} from './board-export-validation.js';
 import { getBoardPack, listBoardPacks, type BoardPackCode } from './board-pack-registry.js';
 import { computeGpaSnapshot, type CourseGradeInput, type GpaPolicy } from './gpa-engine.js';
 import { GradeLockedError } from './gradebook-errors.js';
@@ -27,6 +30,18 @@ import type {
   IssueTranscriptInput,
   UpsertGradeEntryInput,
 } from './schemas.js';
+import { writeTranscriptPdfLite } from './transcript-artifact.js';
+
+export interface GradebookAuditEntry {
+  id: string;
+  tenantId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  actorId: string | null;
+  at: string;
+  details: Record<string, unknown>;
+}
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -39,7 +54,21 @@ function actorId(requestUser?: { id?: string; sub?: string }): string | null {
 const BOARD_EXPORT_JOB_TYPE = 'MARKSHEET_PACK';
 
 export class GradebookService {
+  private readonly auditLog: GradebookAuditEntry[] = [];
+
   constructor(private readonly repo: GradebookRepository) {}
+
+  listAudits(tenantId: string): GradebookAuditEntry[] {
+    return this.auditLog.filter((row) => row.tenantId === tenantId);
+  }
+
+  private recordAudit(entry: Omit<GradebookAuditEntry, 'id' | 'at'>): void {
+    this.auditLog.push({
+      id: randomUUID(),
+      at: nowIso(),
+      ...entry,
+    });
+  }
 
   listSections(tenantId: string, filter?: ListSectionsFilter) {
     return this.repo.listSections(tenantId, filter);
@@ -161,10 +190,18 @@ export class GradebookService {
         updatedAt: now,
       });
       if (!updated) throw new NotFoundError(`Grade entry ${existing.id} not found`);
+      this.recordAudit({
+        tenantId,
+        action: 'grade.upsert',
+        entityType: 'grade_entry',
+        entityId: updated.id,
+        actorId: actorId(user),
+        details: { studentId: input.studentId, mode: 'update' },
+      });
       return updated;
     }
 
-    return this.repo.createGradeEntry({
+    const created = await this.repo.createGradeEntry({
       id: randomUUID(),
       tenantId,
       sectionId: input.sectionId ?? null,
@@ -179,6 +216,15 @@ export class GradebookService {
       createdAt: now,
       updatedAt: now,
     });
+    this.recordAudit({
+      tenantId,
+      action: 'grade.upsert',
+      entityType: 'grade_entry',
+      entityId: created.id,
+      actorId: actorId(user),
+      details: { studentId: input.studentId, mode: 'create' },
+    });
+    return created;
   }
 
   async computeGpa(
@@ -218,8 +264,8 @@ export class GradebookService {
           ? entry.metadata.creditRuleCode
           : entry.assessmentCode;
       const rule = ruleCode
-        ? creditRules.find((r) => r.code === ruleCode) ??
-          (await this.repo.getCreditRuleByCode(tenantId, ruleCode))
+        ? (creditRules.find((r) => r.code === ruleCode) ??
+          (await this.repo.getCreditRuleByCode(tenantId, ruleCode)))
         : null;
       courses.push({
         courseCode: entry.assessmentCode ?? entry.id.slice(0, 8),
@@ -355,7 +401,7 @@ export class GradebookService {
     const snapshots = await this.repo.listGpaSnapshots(tenantId, input.studentId);
     const snapshot = input.gpaSnapshotId
       ? await this.repo.getGpaSnapshot(tenantId, input.gpaSnapshotId)
-      : snapshots[0] ?? null;
+      : (snapshots[0] ?? null);
     if (input.gpaSnapshotId && !snapshot) {
       throw new NotFoundError(`GPA snapshot ${input.gpaSnapshotId} not found`);
     }
@@ -374,9 +420,19 @@ export class GradebookService {
     };
     const body = JSON.stringify(payload);
     const checksum = createHash('sha256').update(body).digest('hex');
-    const artifactUri = `memory://transcripts/${input.studentId}/v${nextVersion}.json`;
+    const artifacts = writeTranscriptPdfLite({
+      tenantId,
+      studentId: input.studentId,
+      version: nextVersion,
+      issuedAt: now,
+      weightedGpa: snapshot?.weightedGpa ?? null,
+      unweightedGpa: snapshot?.unweightedGpa ?? null,
+      creditsEarned: snapshot?.creditsEarned ?? null,
+      checksumSha256: checksum,
+    });
+    const artifactUri = artifacts.pdfLitePath;
 
-    return this.repo.createTranscript({
+    const row = await this.repo.createTranscript({
       id: randomUUID(),
       tenantId,
       studentId: input.studentId,
@@ -389,10 +445,22 @@ export class GradebookService {
       metadata: {
         ...payload,
         immutable: true,
+        pdfLitePath: artifacts.pdfLitePath,
+        jsonPath: artifacts.jsonPath,
+        artifactKind: 'pdf-lite-html',
       },
       createdAt: now,
       updatedAt: now,
     });
+    this.recordAudit({
+      tenantId,
+      action: 'transcript.issue',
+      entityType: 'transcript_issuance',
+      entityId: row.id,
+      actorId: actorId(user),
+      details: { studentId: input.studentId, version: nextVersion, artifactUri },
+    });
+    return row;
   }
 
   async createBoardExportJob(
@@ -567,11 +635,14 @@ export class GradebookService {
       if (format === 'csv') {
         const p = typeof meta.marksheetCsvPath === 'string' ? meta.marksheetCsvPath : null;
         if (!p) throw new NotFoundError('Marksheet CSV artifact missing');
-        return { path: p, filename: `marksheet-${jobId}.csv`, contentType: 'text/csv; charset=utf-8' };
+        return {
+          path: p,
+          filename: `marksheet-${jobId}.csv`,
+          contentType: 'text/csv; charset=utf-8',
+        };
       }
       if (format === 'json') {
-        const p =
-          typeof meta.examResultsJsonPath === 'string' ? meta.examResultsJsonPath : null;
+        const p = typeof meta.examResultsJsonPath === 'string' ? meta.examResultsJsonPath : null;
         if (!p) throw new NotFoundError('Exam results JSON artifact missing');
         return {
           path: p,

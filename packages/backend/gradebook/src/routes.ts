@@ -11,6 +11,7 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { assertGradebookAccess, type GradebookAction } from './gradebook-access.js';
 import {
   isGradebookSchemaMissingError,
   isGradeLockedError,
@@ -50,6 +51,32 @@ function tenantIdOf(request: FastifyRequest, reply: FastifyReply): string | unde
 
 function requestUser(request: FastifyRequest): { id?: string; sub?: string } | undefined {
   return (request as FastifyRequest & { user?: { id?: string; sub?: string } }).user;
+}
+
+function requestRoles(request: FastifyRequest): unknown {
+  const user = (
+    request as FastifyRequest & {
+      user?: { roles?: unknown };
+    }
+  ).user;
+  return user?.roles ?? [];
+}
+
+function requireAction(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  action: GradebookAction,
+): boolean {
+  try {
+    assertGradebookAccess(requestRoles(request), action);
+    return true;
+  } catch (error) {
+    if (error instanceof AppError) {
+      reply.status(error.statusCode).send(error.toJSON());
+      return false;
+    }
+    throw error;
+  }
 }
 
 function sendDomainError(reply: FastifyReply, error: unknown) {
@@ -108,6 +135,7 @@ export async function registerGradebookRoutes(
   fastify.put(`${prefix}/entries`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'grade.entry')) return;
     const validated = validate(UpsertGradeEntrySchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -140,6 +168,7 @@ export async function registerGradebookRoutes(
   fastify.post(`${prefix}/credit-rules`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'credit_rule.write')) return;
     const validated = validate(CreateCreditRuleSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -172,6 +201,7 @@ export async function registerGradebookRoutes(
   fastify.post(`${prefix}/gpa/compute`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'gpa.compute')) return;
     const validated = validate(ComputeGpaSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -214,6 +244,7 @@ export async function registerGradebookRoutes(
   fastify.post(`${prefix}/report-cards`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'report_card.create')) return;
     const validated = validate(CreateReportCardJobSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -224,11 +255,7 @@ export async function registerGradebookRoutes(
       });
     }
     try {
-      const job = await service.createReportCardJob(
-        tenantId,
-        validated.data,
-        requestUser(request),
-      );
+      const job = await service.createReportCardJob(tenantId, validated.data, requestUser(request));
       return reply.status(201).send(job);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -301,6 +328,7 @@ export async function registerGradebookRoutes(
   fastify.post(`${prefix}/transcripts/issue`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'transcript.issue')) return;
     const validated = validate(IssueTranscriptSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -311,11 +339,7 @@ export async function registerGradebookRoutes(
       });
     }
     try {
-      const row = await service.issueTranscript(
-        tenantId,
-        validated.data,
-        requestUser(request),
-      );
+      const row = await service.issueTranscript(tenantId, validated.data, requestUser(request));
       return reply.status(201).send(row);
     } catch (error) {
       return sendDomainError(reply, error);
@@ -351,6 +375,7 @@ export async function registerGradebookRoutes(
   fastify.post(`${prefix}/board-exports`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'board_export.create')) return;
     const validated = validate(CreateBoardExportJobSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({

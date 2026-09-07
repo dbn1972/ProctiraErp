@@ -1,35 +1,34 @@
-# SIS Gradebook — test notes (WS3)
+# SIS Gradebook — test notes (WS3 + harden)
 
 **Module:** Gradebook / transcripts  
-**Branch:** `cursor/enterprise-score-uplift-56c3`  
-**Date (UTC):** 2026-09-06  
-**Artifacts:** `/opt/cursor/artifacts/sis-gradebook-audit/`
+**Branch:** `cursor/sis-gradebook-harden-56c3`  
+**Date (UTC):** 2026-09-07  
+**Artifacts:** `/opt/cursor/artifacts/sis-gradebook-audit/` · transcript PDF-lite under `SIS_TRANSCRIPT_DIR`
 
 ## Inventory
 
-| Screen | Route | Ungated smoke |
-| --- | --- | --- |
+| Screen                | Route                          | Ungated smoke                              |
+| --------------------- | ------------------------------ | ------------------------------------------ |
 | Institution gradebook | `/institutions/[id]/gradebook` | `e2e/23-gradebook-inventory-smoke.spec.ts` |
-| Student records | `/students/records` | same |
+| Student records       | `/students/records`            | same                                       |
 
 ## Unit / domain
 
-- `pnpm --filter @proctira/backend-gradebook test` → 11 passed (GPA engine + service).
+- `pnpm --filter @proctira/backend-gradebook test` — GPA + service + **RBAC + cross-tenant + audit + pdf-lite**
 
-## Live Postgres write smoke (server)
+## Harden evidence (this branch)
 
-Script: `packages/backend/gradebook/scripts/live-smoke.mjs`  
-Evidence: `/opt/cursor/artifacts/sis-gradebook-audit/live-smoke.json`
-
-Result highlights:
-
-- Grade upsert ×2 → GPA snapshot weighted/unweighted 9.5, credits 2  
-- Transcript v1 + v2 issued; checksums differ (`immutabilityOk: true`)  
-- Report-card job `SUCCEEDED` with `memory://report-cards/…html`
+| Check                                                 | Status |
+| ----------------------------------------------------- | ------ |
+| Teacher can enter grades; cannot issue transcript     | ☑ unit |
+| Registrar can issue transcript                        | ☑ unit |
+| Cross-tenant list empty                               | ☑ unit |
+| Audit on upsert + issue                               | ☑ unit |
+| Transcript `artifactUri` → `transcript.pdf-lite.html` | ☑ unit |
 
 ## Residuals
 
-- Authenticated Playwright E2E gated on `E2E_BACKEND_READY`  
-- Multidevice captures / device-farm not run  
-- Live IdP not claimed  
-- RBAC deny tests residual
+- Authenticated Playwright E2E gated on `E2E_BACKEND_READY`
+- Multidevice / device-farm
+- Live IdP
+- Crypto-sealed PDF (non-goal)
