@@ -14,9 +14,17 @@ This skill is the **Definition of Test** for any redesign nav module (e.g. Schol
 
 ## Related skills
 
+- Product / IA: `.cursor/skills/enterprise-product-ia/SKILL.md`
 - Build: `.cursor/skills/enterprise-module-development/SKILL.md`
-- Test: `.cursor/skills/enterprise-module-production-ready/SKILL.md`
-- **UX design review:** `.cursor/skills/enterprise-ux-designer/SKILL.md` (IA / copy / hierarchy — view captures; axe alone is not enough)
+- UX design review: `.cursor/skills/enterprise-ux-designer/SKILL.md`
+- Accessibility: `.cursor/skills/enterprise-accessibility/SKILL.md`
+- Security & tenancy: `.cursor/skills/enterprise-security-tenancy/SKILL.md`
+- Mobile Flutter: `.cursor/skills/enterprise-mobile-flutter/SKILL.md`
+- Data / SQL: `.cursor/skills/enterprise-data-sql-certification/SKILL.md`
+- Release / ops: `.cursor/skills/enterprise-release-ops/SKILL.md`
+- Skills map: `docs/plans/ENTERPRISE_SKILLS_MAP.md`
+
+For **building / implementing** missing product capability (schedule, gradebook, transcripts, board exports, etc.), also follow `.cursor/skills/enterprise-module-development/SKILL.md` (**Definition of Build**) and the plan `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`. Product **10/10** requires build + test exit criteria (and UX/security/release gates when claiming full enterprise ship).
 
 ## Honest coverage map (do not overclaim)
 
