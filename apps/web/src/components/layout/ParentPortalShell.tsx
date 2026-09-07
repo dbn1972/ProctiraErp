@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { CreditCard, Home, MessageSquare, ShieldCheck, type LucideIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
+import { useBrand } from '@/providers/BrandConfigProvider';
 
 interface ParentNavItem {
   key: 'home' | 'messages' | 'consents' | 'fees';
@@ -51,6 +52,7 @@ export interface ParentPortalShellProps {
 
 export function ParentPortalShell({ children }: ParentPortalShellProps) {
   const pathname = usePathname();
+  const { name: brandName } = useBrand();
 
   return (
     <div
@@ -66,7 +68,7 @@ export function ParentPortalShell({ children }: ParentPortalShellProps) {
             className="inline-flex min-h-12 flex-col justify-center text-foreground"
           >
             <span className="text-base font-semibold tracking-tight">Family portal</span>
-            <span className="text-[11px] font-normal text-muted-foreground">ProctiraERP</span>
+            <span className="text-[11px] font-normal text-muted-foreground">{brandName}</span>
           </Link>
         </div>
       </header>
