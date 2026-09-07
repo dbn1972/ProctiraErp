@@ -21,11 +21,13 @@ import {
   type EmailSender,
   type PushSender,
   type WebhookSender,
+  type SmsSender,
   type NotificationQueuePublisher,
   type NotificationServiceConfig,
 } from './notification-service.js';
 import type { NotificationPrefsStore } from './prefs-store.js';
 import { registerNotificationRoutes } from './routes.js';
+import { createSandboxSmsSender } from './sandbox-sms-sender.js';
 
 /**
  * Options for the notification plugin.
@@ -41,6 +43,8 @@ export interface NotificationPluginOptions {
   pushSender?: PushSender;
   /** Webhook sender implementation (optional) */
   webhookSender?: WebhookSender;
+  /** SMS sender implementation (optional — defaults to sandbox) */
+  smsSender?: SmsSender;
   /** Queue publisher for retry scheduling (optional) */
   queuePublisher?: NotificationQueuePublisher;
   /** Service configuration overrides */
@@ -70,6 +74,7 @@ export const notificationPlugin = fp(
       emailSender,
       pushSender,
       webhookSender,
+      smsSender = createSandboxSmsSender(),
       queuePublisher,
       config,
       prefix = '/notifications',
@@ -81,6 +86,7 @@ export const notificationPlugin = fp(
       emailSender,
       pushSender,
       webhookSender,
+      smsSender,
       queuePublisher,
       config,
     );

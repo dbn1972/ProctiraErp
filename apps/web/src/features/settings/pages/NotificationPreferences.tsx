@@ -2,10 +2,11 @@
  * NotificationPreferences — Settings → Notifications (Task 60A.11).
  *
  * Provides a unified screen for managing notification delivery preferences:
- *   • Per-channel toggles (email, in-app, push, webhook) for each
+ *   • Per-channel toggles (email, in-app, push, webhook, SMS) for each
  *     notification category (academic, attendance, examination, workflow, system)
  *   • Digest frequency configuration (immediate, daily, weekly)
  *   • Quiet hours configuration (time range + day selection)
+ *   • SMS sandbox honesty banner until a live carrier adapter is wired
  *
  * Wires to the Notification Service from task 18 via:
  *   GET  /api/v1/notifications/preferences
@@ -251,6 +252,11 @@ export default function NotificationPreferences({
         </h1>
         <p className="mt-1 text-muted-foreground">{t('settings.notifications.description')}</p>
       </header>
+
+      <Alert className="mb-6" data-testid="sms-sandbox-banner">
+        <AlertTitle>{t('settings.notifications.smsSandboxTitle')}</AlertTitle>
+        <AlertDescription>{t('settings.notifications.smsSandboxDescription')}</AlertDescription>
+      </Alert>
 
       {submitState.kind === 'error' && (
         <Alert variant="destructive" className="mb-6" data-testid="notification-prefs-error">

@@ -185,6 +185,10 @@ export async function registerNotificationRoutes(
 
   // ─── Preferences (before /:notificationId) ───────────────────────────────
 
+  fastify.get(`${prefix}/delivery-capabilities`, async (_request, reply) => {
+    return reply.status(200).send(notificationService.getDeliveryCapabilities());
+  });
+
   fastify.get(`${prefix}/preferences`, async (request, reply) => {
     const tenantId = getTenantId(request);
     const userId = getUserId(request);

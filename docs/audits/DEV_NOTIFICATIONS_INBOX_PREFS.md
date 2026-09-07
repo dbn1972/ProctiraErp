@@ -24,16 +24,19 @@
 
 ## 1–3 Build status
 
-| Check                                     | Done | Evidence                                |
-| ----------------------------------------- | ---- | --------------------------------------- |
-| SQL `db/sql/005_notifications_schema.sql` | ☑    | prefs + devices + notifications         |
-| Prefs/devices store + unit tests          | ☑    | `prefs-store.ts`, `prefs-store.test.ts` |
-| SMS in DeliveryChannelSchema              | ☑    | schemas + web CHANNELS                  |
-| Gateway mount                             | ☑    | `domain-plugins` notification registrar |
-| Web shells + sidebar                      | ☑    | App Router + `nav.notifications`        |
-| Live inbox from `GET /user/:userId`       | ☑    | `notifications-inbox.ts` + inbox page   |
+| Check                                      | Done | Evidence                                |
+| ------------------------------------------ | ---- | --------------------------------------- |
+| SQL `db/sql/005_notifications_schema.sql`  | ☑    | prefs + devices + notifications         |
+| Prefs/devices store + unit tests           | ☑    | `prefs-store.ts`, `prefs-store.test.ts` |
+| SMS in DeliveryChannelSchema               | ☑    | schemas + web CHANNELS                  |
+| Gateway mount                              | ☑    | `domain-plugins` notification registrar |
+| Web shells + sidebar                       | ☑    | App Router + `nav.notifications`        |
+| Live inbox from `GET /user/:userId`        | ☑    | `notifications-inbox.ts` + inbox page   |
+| SMS sandbox sender + honesty banner        | ☑    | `sandbox-sms-sender.ts` + prefs Alert   |
+| `GET /notifications/delivery-capabilities` | ☑    | SMS mode + honesty note                 |
 
 ## Residual
 
 - Pg-backed notification _delivery_ rows still follow-up (prefs/devices PG when DATABASE_URL).
 - Interactive rules editor UI.
+- Live Twilio (or equivalent) adapter.

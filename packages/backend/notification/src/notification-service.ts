@@ -74,6 +74,19 @@ export interface WebhookSender {
 }
 
 /**
+ * Interface for sending SMS notifications.
+ */
+export interface SmsSender {
+  send(params: { to: string; body: string; tenantId: string }): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+    mode?: 'sandbox' | 'live';
+    honestyNote?: string;
+  }>;
+}
+
+/**
  * Interface for queuing notifications for retry via RabbitMQ.
  */
 export interface NotificationQueuePublisher {
@@ -94,6 +107,8 @@ export interface NotificationServiceConfig {
   pushMaxRetries: number;
   /** Maximum retries for webhook delivery (default: 2) */
   webhookMaxRetries: number;
+  /** Maximum retries for SMS delivery (default: 3) */
+  smsMaxRetries: number;
 }
 
 const DEFAULT_CONFIG: NotificationServiceConfig = {
@@ -101,6 +116,7 @@ const DEFAULT_CONFIG: NotificationServiceConfig = {
   emailMaxRetries: 3,
   pushMaxRetries: 2,
   webhookMaxRetries: 2,
+  smsMaxRetries: 3,
 };
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -113,6 +129,7 @@ export class NotificationService {
     private readonly emailSender?: EmailSender,
     private readonly pushSender?: PushSender,
     private readonly webhookSender?: WebhookSender,
+    private readonly smsSender?: SmsSender,
     private readonly queuePublisher?: NotificationQueuePublisher,
     config?: Partial<NotificationServiceConfig>,
   ) {
@@ -277,9 +294,18 @@ export class NotificationService {
           break;
 
         case 'sms':
-          // SMS sender adapter lands with Comms Center (WS2). Until then,
-          // treat as accepted for in-process / sandbox tenants.
-          success = true;
+          if (this.smsSender) {
+            const result = await this.smsSender.send({
+              to: notification.recipientUserId,
+              body: renderedBody,
+              tenantId: notification.tenantId,
+            });
+            success = result.success;
+            errorMessage = result.error;
+          } else {
+            // No SMS sender configured — sandbox accept (honesty via delivery-capabilities).
+            success = true;
+          }
           break;
       }
     } catch (error: unknown) {
@@ -664,9 +690,22 @@ export class NotificationService {
       case 'webhook':
         return this.config.webhookMaxRetries;
       case 'sms':
-        return this.config.emailMaxRetries; // SMS uses email retry budget until dedicated SMS sender
+        return this.config.smsMaxRetries;
       case 'in_app':
         return 0; // In-app notifications don't need retries
     }
+  }
+
+  /**
+   * Honesty metadata for channel delivery modes (prefs UI / ops banners).
+   */
+  getDeliveryCapabilities() {
+    return {
+      sms: {
+        mode: this.smsSender ? ('sandbox' as const) : ('sandbox' as const),
+        honestyNote:
+          'Sandbox SMS — preference toggles and sends are accepted without calling a carrier. Wire Twilio (or equivalent) credentials for production delivery.',
+      },
+    };
   }
 }

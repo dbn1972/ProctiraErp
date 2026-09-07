@@ -21,9 +21,12 @@ export type {
   EmailSender,
   PushSender,
   WebhookSender,
+  SmsSender,
   NotificationQueuePublisher,
   NotificationServiceConfig,
 } from './notification-service.js';
+
+export { createSandboxSmsSender, SMS_SANDBOX_HONESTY_NOTE } from './sandbox-sms-sender.js';
 
 // Repository
 export type {

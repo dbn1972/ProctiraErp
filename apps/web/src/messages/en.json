@@ -499,6 +499,8 @@
       "saveSuccessTitle": "Saved",
       "saveFailed": "Could not save preferences.",
       "saveFailedTitle": "Save failed",
+      "smsSandboxTitle": "SMS is sandbox-only",
+      "smsSandboxDescription": "SMS preference toggles are saved, but messages are not sent to a carrier until Twilio (or equivalent) credentials are configured.",
       "toggleLabel": "Toggle {channel} for {category}",
       "channels": {
         "email": "Email",
