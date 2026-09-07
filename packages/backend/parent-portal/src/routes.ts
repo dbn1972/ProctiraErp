@@ -1,0 +1,649 @@
+/**
+ * Parent portal routes — child links, messaging, consents, fees.
+ */
+import { AppError } from '@proctira/common';
+import { validate } from '@proctira/validation';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+
+import type { ParentPortalService } from './parent-portal-service.js';
+import {
+  AddMessageSchema,
+  ConsentParamsSchema,
+  CreateConsentSchema,
+  CreateInvoiceSchema,
+  CreateThreadSchema,
+  DecideConsentSchema,
+  InvoiceParamsSchema,
+  LinkChildSchema,
+  PayInvoiceSchema,
+  ThreadParamsSchema,
+  type AddMessageInput,
+  type CreateConsentInput,
+  type CreateInvoiceInput,
+  type CreateThreadInput,
+  type DecideConsentInput,
+  type LinkChildInput,
+  type PayInvoiceInput,
+  type ThreadParams,
+  type ConsentParams,
+  type InvoiceParams,
+} from './schemas.js';
+
+export interface ParentPortalRoutesOptions {
+  parentPortalService: ParentPortalService;
+  prefix?: string;
+}
+
+function getTenantId(request: FastifyRequest): string | null {
+  return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
+}
+
+function getActorId(request: FastifyRequest): string {
+  const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
+  const headerUserId = request.headers['x-user-id'];
+  const fromHeader = Array.isArray(headerUserId) ? headerUserId[0] : headerUserId;
+  return user?.sub ?? fromHeader ?? 'anonymous';
+}
+
+function formatLink(entity: {
+  id: string;
+  tenantId: string;
+  parentUserId: string;
+  studentId: string;
+  relationship: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    parentUserId: entity.parentUserId,
+    studentId: entity.studentId,
+    relationship: entity.relationship,
+    status: entity.status,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatThread(entity: {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  subject: string;
+  createdBy: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    studentId: entity.studentId,
+    subject: entity.subject,
+    createdBy: entity.createdBy,
+    status: entity.status,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatMessage(entity: {
+  id: string;
+  threadId: string;
+  tenantId: string;
+  senderUserId: string;
+  senderRole: string;
+  body: string;
+  createdAt: Date;
+}) {
+  return {
+    id: entity.id,
+    threadId: entity.threadId,
+    tenantId: entity.tenantId,
+    senderUserId: entity.senderUserId,
+    senderRole: entity.senderRole,
+    body: entity.body,
+    createdAt: entity.createdAt.toISOString(),
+  };
+}
+
+function formatConsent(entity: {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  parentUserId: string;
+  consentType: string;
+  title: string;
+  description: string;
+  status: string;
+  decidedAt: Date | null;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    studentId: entity.studentId,
+    parentUserId: entity.parentUserId,
+    consentType: entity.consentType,
+    title: entity.title,
+    description: entity.description,
+    status: entity.status,
+    decidedAt: entity.decidedAt?.toISOString() ?? null,
+    createdBy: entity.createdBy,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatInvoice(entity: {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  title: string;
+  description: string;
+  amountCents: number;
+  currency: string;
+  status: string;
+  dueAt: Date | null;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    studentId: entity.studentId,
+    title: entity.title,
+    description: entity.description,
+    amountCents: entity.amountCents,
+    currency: entity.currency,
+    status: entity.status,
+    dueAt: entity.dueAt?.toISOString() ?? null,
+    createdBy: entity.createdBy,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatPayment(entity: {
+  id: string;
+  invoiceId: string;
+  tenantId: string;
+  payerUserId: string;
+  amountCents: number;
+  method: string;
+  status: string;
+  paidAt: Date;
+  createdAt: Date;
+}) {
+  return {
+    id: entity.id,
+    invoiceId: entity.invoiceId,
+    tenantId: entity.tenantId,
+    payerUserId: entity.payerUserId,
+    amountCents: entity.amountCents,
+    method: entity.method,
+    status: entity.status,
+    paidAt: entity.paidAt.toISOString(),
+    createdAt: entity.createdAt.toISOString(),
+  };
+}
+
+export async function registerParentPortalRoutes(
+  fastify: FastifyInstance,
+  options: ParentPortalRoutesOptions,
+): Promise<void> {
+  const { parentPortalService, prefix = '/parent-portal' } = options;
+
+  fastify.get(
+    `${prefix}/children`,
+    async function listChildrenHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+      const children = await parentPortalService.listChildrenForParent(tenantId, parentUserId);
+      return reply.status(200).send({ data: children.map(formatLink) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/children/links`,
+    async function linkChildHandler(
+      request: FastifyRequest<{ Body: LinkChildInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(LinkChildSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = result.data.parentUserId ?? getActorId(request);
+
+      try {
+        const link = await parentPortalService.linkChild(tenantId, parentUserId, result.data);
+        return reply.status(201).send(formatLink(link));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/messages/threads`,
+    async function listThreadsHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+      const threads = await parentPortalService.listThreadsForParent(tenantId, parentUserId);
+      return reply.status(200).send({ data: threads.map(formatThread) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/messages/threads`,
+    async function createThreadHandler(
+      request: FastifyRequest<{ Body: CreateThreadInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateThreadSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+
+      try {
+        const { thread, message } = await parentPortalService.createThread(
+          tenantId,
+          parentUserId,
+          result.data,
+        );
+        return reply.status(201).send({
+          thread: formatThread(thread),
+          message: formatMessage(message),
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/messages/threads/:threadId/messages`,
+    async function listMessagesHandler(
+      request: FastifyRequest<{ Params: ThreadParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ThreadParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid thread ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+
+      try {
+        const messages = await parentPortalService.listMessages(
+          tenantId,
+          parentUserId,
+          paramsResult.data.threadId,
+        );
+        return reply.status(200).send({ data: messages.map(formatMessage) });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/messages/threads/:threadId/messages`,
+    async function addMessageHandler(
+      request: FastifyRequest<{ Params: ThreadParams; Body: AddMessageInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ThreadParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid thread ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(AddMessageSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+
+      try {
+        const message = await parentPortalService.addMessage(
+          tenantId,
+          parentUserId,
+          paramsResult.data.threadId,
+          bodyResult.data.body,
+          bodyResult.data.senderRole ?? 'parent',
+        );
+        return reply.status(201).send(formatMessage(message));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/consents`,
+    async function listConsentsHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+      const consents = await parentPortalService.listConsentsForParent(tenantId, parentUserId);
+      return reply.status(200).send({ data: consents.map(formatConsent) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/consents`,
+    async function createConsentHandler(
+      request: FastifyRequest<{ Body: CreateConsentInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateConsentSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const actorId = getActorId(request);
+
+      try {
+        const consent = await parentPortalService.createConsentRequest(
+          tenantId,
+          actorId,
+          result.data,
+        );
+        return reply.status(201).send(formatConsent(consent));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/consents/:id/decide`,
+    async function decideConsentHandler(
+      request: FastifyRequest<{ Params: ConsentParams; Body: DecideConsentInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ConsentParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid consent ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(DecideConsentSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+
+      try {
+        const consent = await parentPortalService.decideConsent(
+          tenantId,
+          parentUserId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
+        return reply.status(200).send(formatConsent(consent));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/fees/invoices`,
+    async function listInvoicesHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+      const invoices = await parentPortalService.listInvoicesForParent(tenantId, parentUserId);
+      return reply.status(200).send({ data: invoices.map(formatInvoice) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/fees/invoices`,
+    async function createInvoiceHandler(
+      request: FastifyRequest<{ Body: CreateInvoiceInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateInvoiceSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const actorId = getActorId(request);
+
+      try {
+        const invoice = await parentPortalService.createInvoice(tenantId, actorId, result.data);
+        return reply.status(201).send(formatInvoice(invoice));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/fees/invoices/:id/pay`,
+    async function payInvoiceHandler(
+      request: FastifyRequest<{ Params: InvoiceParams; Body: PayInvoiceInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(InvoiceParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid invoice ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(PayInvoiceSchema, request.body ?? {});
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const parentUserId = getActorId(request);
+
+      try {
+        const { invoice, payment } = await parentPortalService.payInvoice(
+          tenantId,
+          parentUserId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
+        return reply.status(200).send({
+          invoice: formatInvoice(invoice),
+          payment: formatPayment(payment),
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+}

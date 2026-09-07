@@ -11,7 +11,7 @@ export default async function NewCommunicationCampaignPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">New campaign</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Creates a draft via `POST /api/v1/communication/campaigns`.
+          Draft a multi-channel outreach campaign. You can send it after review.
         </p>
       </div>
       <NewCampaignForm createdBy={session.user.sub} />

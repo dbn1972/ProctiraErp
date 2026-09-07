@@ -12,7 +12,19 @@ description: >-
 
 This skill is the **Definition of Test** for any redesign nav module (e.g. Scholarships, Health). Hooks in `.cursor/hooks.json` activate an enterprise-test session when the user asks for full/E2E/production-ready testing; the `stop` hook follows up until the bar below is met or explicitly waived.
 
-For **building / implementing** missing product capability (schedule, gradebook, transcripts, board exports, etc.), also follow `.cursor/skills/enterprise-module-development/SKILL.md` (**Definition of Build**) and the plan `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`. Product **10/10** requires both build and test exit criteria.
+## Related skills
+
+- Product / IA: `.cursor/skills/enterprise-product-ia/SKILL.md`
+- Build: `.cursor/skills/enterprise-module-development/SKILL.md`
+- UX design review: `.cursor/skills/enterprise-ux-designer/SKILL.md`
+- Accessibility: `.cursor/skills/enterprise-accessibility/SKILL.md`
+- Security & tenancy: `.cursor/skills/enterprise-security-tenancy/SKILL.md`
+- Mobile Flutter: `.cursor/skills/enterprise-mobile-flutter/SKILL.md`
+- Data / SQL: `.cursor/skills/enterprise-data-sql-certification/SKILL.md`
+- Release / ops: `.cursor/skills/enterprise-release-ops/SKILL.md`
+- Skills map: `docs/plans/ENTERPRISE_SKILLS_MAP.md`
+
+For **building / implementing** missing product capability (schedule, gradebook, transcripts, board exports, etc.), also follow `.cursor/skills/enterprise-module-development/SKILL.md` (**Definition of Build**) and the plan `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`. Product **10/10** requires build + test exit criteria (and UX/security/release gates when claiming full enterprise ship).
 
 ## Honest coverage map (do not overclaim)
 
@@ -35,12 +47,12 @@ Do **not** claim program production-ready without a **live Postgres** onboarding
 
 ### Default certification profile
 
-| Dimension | Default |
-| --- | --- |
-| Boards | 3 (e.g. CBSE NATIONAL, MH-STATE STATE, ICSE PRIVATE) |
-| Schools per board | 2 (6 institutions total) |
-| Students per school | **500** (3,000 enrollments) |
-| Staff per school | 25 (150 staff) |
+| Dimension           | Default                                              |
+| ------------------- | ---------------------------------------------------- |
+| Boards              | 3 (e.g. CBSE NATIONAL, MH-STATE STATE, ICSE PRIVATE) |
+| Schools per board   | 2 (6 institutions total)                             |
+| Students per school | **500** (3,000 enrollments)                          |
+| Staff per school    | 25 (150 staff)                                       |
 
 ### Agent procedure
 
@@ -54,13 +66,13 @@ Do **not** claim program production-ready without a **live Postgres** onboarding
 
 ### Pass / fail
 
-| Check | Pass criteria |
-| --- | --- |
-| Live DB | `DATABASE_URL` connects; no in-memory-only substitute for this pillar |
-| Schema | Raw SQL applied (no `prisma migrate` for this certification path) |
-| Volume | Every school has exactly `studentsPerSchool` enrollments |
-| Tenancy | All rows share one certification tenant; board↔institution FKs valid |
-| Evidence | Artifact JSON + SQL verify output committed or stored in artifacts |
+| Check    | Pass criteria                                                         |
+| -------- | --------------------------------------------------------------------- |
+| Live DB  | `DATABASE_URL` connects; no in-memory-only substitute for this pillar |
+| Schema   | Raw SQL applied (no `prisma migrate` for this certification path)     |
+| Volume   | Every school has exactly `studentsPerSchool` enrollments              |
+| Tenancy  | All rows share one certification tenant; board↔institution FKs valid  |
+| Evidence | Artifact JSON + SQL verify output committed or stored in artifacts    |
 
 Residual still required for full program 9.5+: live IdP E2E, device-farm mobile PNGs, live reports/admin gateway APIs — this pillar covers **data-plane onboarding volume** only.
 

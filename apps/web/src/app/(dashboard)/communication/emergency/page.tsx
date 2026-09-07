@@ -19,7 +19,7 @@ export default async function CommunicationEmergencyPage() {
             Emergency blasts
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Dual-confirm emergency messaging via `/api/v1/communication/emergency`.
+            Requires two confirmations before send. Use only for genuine emergencies.
           </p>
         </div>
         <Button asChild variant="outline">

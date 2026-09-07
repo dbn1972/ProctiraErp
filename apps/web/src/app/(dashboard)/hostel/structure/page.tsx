@@ -35,7 +35,7 @@ export default async function HostelStructurePage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Structure</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Manage blocks, rooms, and beds via `/hostel/blocks`, `/hostel/rooms`, `/hostel/beds`.
+            Manage blocks, rooms, and beds for hostel occupancy.
           </p>
         </div>
         <Button asChild variant="outline">

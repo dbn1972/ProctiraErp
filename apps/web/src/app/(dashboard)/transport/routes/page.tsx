@@ -24,7 +24,7 @@ export default async function TransportRoutesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Transport routes</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Live list from `/api/v1/transport/routes`.
+            Bus and van routes serving your campuses.
           </p>
         </div>
         <Button asChild>

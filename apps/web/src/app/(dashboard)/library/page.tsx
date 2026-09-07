@@ -28,7 +28,7 @@ export default async function LibraryCatalogPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Library</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Catalog and circulation. Gateway plugin: `/api/v1/library`.
+            Catalog, circulation, overdues, and student clearance.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -14,6 +14,10 @@ import '../../features/institutions/presentation/institution_detail_screen.dart'
 import '../../features/institutions/presentation/institutions_screen.dart';
 import '../../features/notifications/presentation/notification_preferences_screen.dart';
 import '../../features/notifications/presentation/notifications_screen.dart';
+import '../../features/parent_portal/presentation/parent_consents_screen.dart';
+import '../../features/parent_portal/presentation/parent_fees_screen.dart';
+import '../../features/parent_portal/presentation/parent_home_screen.dart';
+import '../../features/parent_portal/presentation/parent_messages_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/reports/presentation/report_detail_screen.dart';
 import '../../features/reports/presentation/reports_screen.dart';
@@ -47,6 +51,33 @@ class AppRouter {
           name: 'home',
           builder: (BuildContext context, GoRouterState state) =>
               const HomeScreen(),
+        ),
+        // Parent portal mode — separate from staff-leaning HomeScreen.
+        GoRoute(
+          path: '/parent',
+          name: 'parent-home',
+          builder: (BuildContext context, GoRouterState state) =>
+              const ParentHomeScreen(),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'messages',
+              name: 'parent-messages',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const ParentMessagesScreen(),
+            ),
+            GoRoute(
+              path: 'consents',
+              name: 'parent-consents',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const ParentConsentsScreen(),
+            ),
+            GoRoute(
+              path: 'fees',
+              name: 'parent-fees',
+              builder: (BuildContext context, GoRouterState state) =>
+                  const ParentFeesScreen(),
+            ),
+          ],
         ),
         GoRoute(
           path: '/login',

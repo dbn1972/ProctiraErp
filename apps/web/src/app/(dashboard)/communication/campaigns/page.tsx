@@ -26,8 +26,8 @@ export default async function CommunicationCampaignsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Campaigns</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Live list from `/api/v1/communication/campaigns`. Sandbox send marks delivery without
-            live provider credentials.
+            Create and send multi-channel school outreach. Delivery uses sandbox providers until
+            live credentials are configured.
           </p>
         </div>
         <Button asChild>

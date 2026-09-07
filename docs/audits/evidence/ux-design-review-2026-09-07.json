@@ -1,0 +1,33 @@
+{
+  "reviewedAt": "2026-09-07T15:10:00Z",
+  "branch": "cursor/parent-student-portal-56c3",
+  "skill": "enterprise-ux-designer",
+  "parent": {
+    "captures": 12,
+    "viewports": ["desktop", "tablet", "mobile"],
+    "screensDir": "apps/web/screens/parent",
+    "artifactsDir": "/opt/cursor/artifacts/parent-portal-ux-review",
+    "audit": "docs/audits/UX_PARENT_PORTAL.md",
+    "uxScore": 8.7,
+    "scoreboard": 9.0
+  },
+  "campus": {
+    "captures": 57,
+    "modules": ["notifications", "communication", "transport", "hostel", "library"],
+    "screensDir": "apps/web/screens/{module}",
+    "artifactsDir": "/opt/cursor/artifacts/campus-ux-review",
+    "audit": "docs/audits/UX_CAMPUS_SERVICES.md",
+    "uxScore": 8.4
+  },
+  "p0Cleared": [
+    "parent API-path copy",
+    "campus API-path copy on hubs/lists",
+    "notifications inbox GET jargon",
+    "emergency sandbox-dispatch primary copy"
+  ],
+  "residuals": [
+    "parent child picker (UUID entry)",
+    "staff sidebar IA length",
+    "live providers / IdP / device-farm"
+  ]
+}

@@ -11,7 +11,7 @@ export default async function TransportNewRoutePage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">New transport route</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Creates a route via `POST /api/v1/transport/routes`.
+          Creates a new transport route for your school.
         </p>
       </div>
       <NewRouteForm />

@@ -44,10 +44,7 @@ function renderRouter(user: AuthUser | null) {
             path="/app/dashboard/country"
             element={<div data-testid="country-page">country</div>}
           />
-          <Route
-            path="/app/dashboard/state"
-            element={<div data-testid="state-page">state</div>}
-          />
+          <Route path="/app/dashboard/state" element={<div data-testid="state-page">state</div>} />
           <Route
             path="/app/dashboard/board-admin"
             element={<div data-testid="board-admin-page">board-admin</div>}
@@ -60,10 +57,8 @@ function renderRouter(user: AuthUser | null) {
             path="/app/dashboard/teacher"
             element={<div data-testid="teacher-page">teacher</div>}
           />
-          <Route
-            path="/app/dashboard/me"
-            element={<div data-testid="me-page">me</div>}
-          />
+          <Route path="/app/dashboard/me" element={<div data-testid="me-page">me</div>} />
+          <Route path="/parent" element={<div data-testid="parent-portal-page">parent</div>} />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
@@ -89,38 +84,28 @@ describe('<RoleRouter> — scope→route mapping (Task 52.1)', () => {
   });
 
   it('routes a board-admin role to the board-admin dashboard', () => {
-    renderRouter(
-      makeUser({ scope: { level: 'school' }, roles: ['board-admin'] }),
-    );
+    renderRouter(makeUser({ scope: { level: 'school' }, roles: ['board-admin'] }));
     expect(screen.getByTestId('board-admin-page')).toBeTruthy();
   });
 
   it('routes a principal role to the school dashboard', () => {
-    renderRouter(
-      makeUser({ scope: { level: 'school' }, roles: ['principal'] }),
-    );
+    renderRouter(makeUser({ scope: { level: 'school' }, roles: ['principal'] }));
     expect(screen.getByTestId('school-page')).toBeTruthy();
   });
 
   it('routes a teacher role to the teacher dashboard', () => {
-    renderRouter(
-      makeUser({ scope: { level: 'school' }, roles: ['teacher'] }),
-    );
+    renderRouter(makeUser({ scope: { level: 'school' }, roles: ['teacher'] }));
     expect(screen.getByTestId('teacher-page')).toBeTruthy();
   });
 
-  it('routes a parent role to the personal (me) dashboard', () => {
-    renderRouter(
-      makeUser({ scope: { level: 'school' }, roles: ['parent'] }),
-    );
-    expect(screen.getByTestId('me-page')).toBeTruthy();
+  it('routes a parent role to the parent portal', () => {
+    renderRouter(makeUser({ scope: { level: 'school' }, roles: ['parent'] }));
+    expect(screen.getByTestId('parent-portal-page')).toBeTruthy();
   });
 
-  it('routes a student role to the personal (me) dashboard', () => {
-    renderRouter(
-      makeUser({ scope: { level: 'school' }, roles: ['student'] }),
-    );
-    expect(screen.getByTestId('me-page')).toBeTruthy();
+  it('routes a student role to the parent portal', () => {
+    renderRouter(makeUser({ scope: { level: 'school' }, roles: ['student'] }));
+    expect(screen.getByTestId('parent-portal-page')).toBeTruthy();
   });
 });
 
@@ -128,9 +113,7 @@ describe('<RoleRouter> — scope→route mapping (Task 52.1)', () => {
 
 describe('<RoleRouter> — fallback (Task 52.1)', () => {
   it('falls back to the personal dashboard when the user has no matching role/scope', () => {
-    renderRouter(
-      makeUser({ scope: { level: 'school' }, roles: ['some-future-role'] }),
-    );
+    renderRouter(makeUser({ scope: { level: 'school' }, roles: ['some-future-role'] }));
     expect(screen.getByTestId('me-page')).toBeTruthy();
   });
 
