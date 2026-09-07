@@ -10,15 +10,18 @@ import {
   AddMessageSchema,
   ConsentParamsSchema,
   CreateConsentSchema,
+  CreateFeePlanSchema,
   CreateInvoiceSchema,
   CreateThreadSchema,
   DecideConsentSchema,
   InvoiceParamsSchema,
   LinkChildSchema,
   PayInvoiceSchema,
+  ReceiptParamsSchema,
   ThreadParamsSchema,
   type AddMessageInput,
   type CreateConsentInput,
+  type CreateFeePlanInput,
   type CreateInvoiceInput,
   type CreateThreadInput,
   type DecideConsentInput,
@@ -27,6 +30,7 @@ import {
   type ThreadParams,
   type ConsentParams,
   type InvoiceParams,
+  type ReceiptParams,
 } from './schemas.js';
 
 export interface ParentPortalRoutesOptions {
@@ -139,10 +143,41 @@ function formatConsent(entity: {
   };
 }
 
+function formatPlan(entity: {
+  id: string;
+  tenantId: string;
+  code: string;
+  name: string;
+  description: string;
+  amountCents: number;
+  currency: string;
+  frequency: string;
+  status: string;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    code: entity.code,
+    name: entity.name,
+    description: entity.description,
+    amountCents: entity.amountCents,
+    currency: entity.currency,
+    frequency: entity.frequency,
+    status: entity.status,
+    createdBy: entity.createdBy,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
 function formatInvoice(entity: {
   id: string;
   tenantId: string;
   studentId: string;
+  planId: string | null;
   title: string;
   description: string;
   amountCents: number;
@@ -157,6 +192,7 @@ function formatInvoice(entity: {
     id: entity.id,
     tenantId: entity.tenantId,
     studentId: entity.studentId,
+    planId: entity.planId,
     title: entity.title,
     description: entity.description,
     amountCents: entity.amountCents,
@@ -189,6 +225,30 @@ function formatPayment(entity: {
     method: entity.method,
     status: entity.status,
     paidAt: entity.paidAt.toISOString(),
+    createdAt: entity.createdAt.toISOString(),
+  };
+}
+
+function formatReceipt(entity: {
+  id: string;
+  tenantId: string;
+  paymentId: string;
+  invoiceId: string;
+  receiptNumber: string;
+  amountCents: number;
+  currency: string;
+  issuedAt: Date;
+  createdAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    paymentId: entity.paymentId,
+    invoiceId: entity.invoiceId,
+    receiptNumber: entity.receiptNumber,
+    amountCents: entity.amountCents,
+    currency: entity.currency,
+    issuedAt: entity.issuedAt.toISOString(),
     createdAt: entity.createdAt.toISOString(),
   };
 }
@@ -534,6 +594,62 @@ export async function registerParentPortalRoutes(
   );
 
   fastify.get(
+    `${prefix}/fees/plans`,
+    async function listFeePlansHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const plans = await parentPortalService.listFeePlans(tenantId);
+      return reply.status(200).send({ data: plans.map(formatPlan) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/fees/plans`,
+    async function createFeePlanHandler(
+      request: FastifyRequest<{ Body: CreateFeePlanInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateFeePlanSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const actorId = getActorId(request);
+
+      try {
+        const plan = await parentPortalService.createFeePlan(tenantId, actorId, result.data);
+        return reply.status(201).send(formatPlan(plan));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
     `${prefix}/fees/invoices`,
     async function listInvoicesHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = getTenantId(request);
@@ -543,6 +659,15 @@ export async function registerParentPortalRoutes(
           message: 'Tenant context is required',
           statusCode: 400,
         });
+      }
+
+      const scope = String(
+        (request.query as { scope?: string } | undefined)?.scope ?? 'parent',
+      ).toLowerCase();
+
+      if (scope === 'staff') {
+        const invoices = await parentPortalService.listInvoicesForStaff(tenantId);
+        return reply.status(200).send({ data: invoices.map(formatInvoice) });
       }
 
       const parentUserId = getActorId(request);
@@ -591,6 +716,124 @@ export async function registerParentPortalRoutes(
   );
 
   fastify.post(
+    `${prefix}/fees/invoices/:id/void`,
+    async function voidInvoiceHandler(
+      request: FastifyRequest<{ Params: InvoiceParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(InvoiceParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid invoice ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const invoice = await parentPortalService.voidInvoice(tenantId, paramsResult.data.id);
+        return reply.status(200).send(formatInvoice(invoice));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/fees/payments`,
+    async function listPaymentsHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const payments = await parentPortalService.listPaymentsForStaff(tenantId);
+      return reply.status(200).send({ data: payments.map(formatPayment) });
+    },
+  );
+
+  fastify.get(
+    `${prefix}/fees/receipts`,
+    async function listReceiptsHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const scope = String(
+        (request.query as { scope?: string } | undefined)?.scope ?? 'parent',
+      ).toLowerCase();
+
+      if (scope === 'staff') {
+        const receipts = await parentPortalService.listReceiptsForStaff(tenantId);
+        return reply.status(200).send({ data: receipts.map(formatReceipt) });
+      }
+
+      const parentUserId = getActorId(request);
+      const receipts = await parentPortalService.listReceiptsForParent(tenantId, parentUserId);
+      return reply.status(200).send({ data: receipts.map(formatReceipt) });
+    },
+  );
+
+  fastify.get(
+    `${prefix}/fees/receipts/:id`,
+    async function getReceiptHandler(
+      request: FastifyRequest<{ Params: ReceiptParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ReceiptParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid receipt ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const receipt = await parentPortalService.getReceipt(tenantId, paramsResult.data.id);
+        return reply.status(200).send(formatReceipt(receipt));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
     `${prefix}/fees/invoices/:id/pay`,
     async function payInvoiceHandler(
       request: FastifyRequest<{ Params: InvoiceParams; Body: PayInvoiceInput }>,
@@ -628,7 +871,7 @@ export async function registerParentPortalRoutes(
       const parentUserId = getActorId(request);
 
       try {
-        const { invoice, payment } = await parentPortalService.payInvoice(
+        const { invoice, payment, receipt } = await parentPortalService.payInvoice(
           tenantId,
           parentUserId,
           paramsResult.data.id,
@@ -637,6 +880,7 @@ export async function registerParentPortalRoutes(
         return reply.status(200).send({
           invoice: formatInvoice(invoice),
           payment: formatPayment(payment),
+          receipt: formatReceipt(receipt),
         });
       } catch (error: unknown) {
         if (error instanceof AppError) {

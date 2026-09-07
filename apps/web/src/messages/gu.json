@@ -32,7 +32,8 @@
     "workflows": "વર્કફ્લો",
     "dataWarehouse": "ડેટા વેરહાઉસ",
     "reports": "અહેવાલો",
-    "admin": "વહીવટ"
+    "admin": "વહીવટ",
+    "fees": "ફી"
   },
   "auth": {
     "login": "સાઇન ઇન",
