@@ -8,6 +8,7 @@ import {
   createCampaign,
   createEmergencyBlast,
   previewCampaignAudience,
+  sendCampaign,
   type CreateCampaignInput,
   type CreateEmergencyBlastInput,
 } from '@/lib/api/communication';
@@ -37,6 +38,31 @@ export async function createCampaignAction(
           : error instanceof Error
             ? error.message
             : 'Failed to create campaign',
+    };
+  }
+}
+
+export async function sendCampaignAction(id: string): Promise<CommunicationActionState> {
+  try {
+    const result = await sendCampaign(id);
+    revalidatePath('/communication');
+    revalidatePath('/communication/campaigns');
+    return {
+      status: 'success',
+      message: `Campaign marked sent (${result.delivery.mode}).`,
+      id: result.id,
+      estimatedRecipients: result.delivery.estimatedRecipients,
+      honestyNote: result.delivery.honestyNote,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to send campaign',
     };
   }
 }

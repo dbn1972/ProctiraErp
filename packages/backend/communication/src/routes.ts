@@ -218,6 +218,46 @@ export async function registerCommunicationRoutes(
   );
 
   fastify.post(
+    `${prefix}/campaigns/:id/send`,
+    async function sendCampaignHandler(
+      request: FastifyRequest<{ Params: CampaignParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(CampaignParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid campaign ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const result = await communicationService.sendCampaign(tenantId, paramsResult.data.id);
+        return reply.status(200).send({
+          ...formatCampaign(result.campaign),
+          delivery: result.delivery,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
     `${prefix}/emergency`,
     async function createEmergencyHandler(
       request: FastifyRequest<{ Body: CreateEmergencyBlastInput }>,

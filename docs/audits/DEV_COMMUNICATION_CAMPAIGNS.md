@@ -32,8 +32,10 @@
 | Dual-confirm emergency UI                       | ☑    | `EmergencyBlastPanel`                         |
 | Audience preview API + UI                       | ☑    | `POST /communication/audience/preview` + form |
 | PgCommunicationStore                            | ☑    | `pg-communication-repository.ts`              |
-| Live segment resolver / send adapters           | ☐    | v1 estimator honesty note                     |
+| Demo SQL seed                                   | ☑    | `db/sql/007b_communication_seed.sql`          |
+| Sandbox campaign send                           | ☑    | `POST /campaigns/:id/send` + list UI button   |
+| Live segment resolver / provider adapters       | ☐    | honesty notes on preview + sandbox send       |
 
 ## Residual
 
-Live segment resolvers + send adapters; seed demo campaigns per cert school. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).
+Live segment resolvers + Twilio/FCM/SMTP adapters. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).

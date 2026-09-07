@@ -28,6 +28,22 @@ export class InMemoryCommunicationRepository implements CommunicationRepository 
     return this.campaigns.find((c) => c.id === id && c.tenantId === tenantId) ?? null;
   }
 
+  async updateCampaign(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<CampaignEntity, 'status' | 'scheduledAt' | 'sentAt'>>,
+  ): Promise<CampaignEntity | null> {
+    const index = this.campaigns.findIndex((c) => c.id === id && c.tenantId === tenantId);
+    if (index === -1) return null;
+    const updated: CampaignEntity = {
+      ...this.campaigns[index]!,
+      ...data,
+      updatedAt: new Date(),
+    };
+    this.campaigns[index] = updated;
+    return updated;
+  }
+
   async createEmergencyBlast(
     data: Omit<EmergencyBlastEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<EmergencyBlastEntity> {

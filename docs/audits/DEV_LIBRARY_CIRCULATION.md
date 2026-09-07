@@ -32,7 +32,8 @@
 | Overdues list from API                    | ☑    | `/library/overdues`                 |
 | Circulation checkout/return UI            | ☑    | `CirculationDesk`                   |
 | PgLibraryStore                            | ☑    | `pg-library-repository.ts`          |
+| Demo SQL seed                             | ☑    | `db/sql/009b_library_seed.sql`      |
 
 ## Residual
 
-Seed demo catalog per cert school; WS6 enterprise pack. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).
+WS6 enterprise pack. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).

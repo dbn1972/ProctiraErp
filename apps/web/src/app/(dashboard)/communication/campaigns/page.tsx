@@ -12,6 +12,8 @@ import {
 import { requireSession } from '@/lib/auth/server';
 import { listCampaigns } from '@/lib/api/communication';
 
+import { SendCampaignButton } from '../_components/send-campaign-button';
+
 export const dynamic = 'force-dynamic';
 
 export default async function CommunicationCampaignsPage() {
@@ -24,7 +26,8 @@ export default async function CommunicationCampaignsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Campaigns</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Live list from `/api/v1/communication/campaigns`.
+            Live list from `/api/v1/communication/campaigns`. Sandbox send marks delivery without
+            live provider credentials.
           </p>
         </div>
         <Button asChild>
@@ -60,6 +63,7 @@ export default async function CommunicationCampaignsPage() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {campaign.status} · {campaign.channels.join(', ') || 'no channels'}
                   </p>
+                  <SendCampaignButton campaignId={campaign.id} status={campaign.status} />
                 </li>
               ))}
             </ul>

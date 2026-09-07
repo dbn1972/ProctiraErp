@@ -93,6 +93,28 @@ export async function previewCampaignAudience(
   return result.data;
 }
 
+export interface SendCampaignResult extends CommunicationCampaign {
+  delivery: {
+    mode: string;
+    honestyNote: string;
+    estimatedRecipients: number;
+  };
+}
+
+export async function sendCampaign(id: string): Promise<SendCampaignResult> {
+  const result = await gatewayFetch<SendCampaignResult>(`/communication/campaigns/${id}/send`, {
+    method: 'POST',
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'SEND_FAILED',
+      message: result.error?.message ?? 'Failed to send campaign',
+    });
+  }
+  return result.data;
+}
+
 export async function listEmergencyBlasts(): Promise<EmergencyBlast[]> {
   const result = await gatewayFetch<{ data: EmergencyBlast[] }>('/communication/emergency', {
     throwOnError: false,

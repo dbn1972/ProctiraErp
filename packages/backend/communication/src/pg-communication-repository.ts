@@ -180,6 +180,47 @@ export class PgCommunicationRepository implements CommunicationRepository {
     return mapCampaignRow(result.rows[0] as Record<string, unknown>);
   }
 
+  async updateCampaign(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<CampaignEntity, 'status' | 'scheduledAt' | 'sentAt'>>,
+  ): Promise<CampaignEntity | null> {
+    await this.ensureSchema();
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+
+    if (data.status !== undefined) {
+      sets.push(`status = $${i++}`);
+      values.push(data.status);
+    }
+    if (data.scheduledAt !== undefined) {
+      sets.push(`scheduled_at = $${i++}`);
+      values.push(data.scheduledAt);
+    }
+    if (data.sentAt !== undefined) {
+      sets.push(`sent_at = $${i++}`);
+      values.push(data.sentAt);
+    }
+
+    if (sets.length === 0) {
+      return this.findCampaignById(id, tenantId);
+    }
+
+    sets.push(`updated_at = now()`);
+    values.push(id, tenantId);
+
+    const result = await this.pool.query(
+      `UPDATE comms_campaigns
+       SET ${sets.join(', ')}
+       WHERE id = $${i++} AND tenant_id = $${i}
+       RETURNING *`,
+      values,
+    );
+    if (!result.rows[0]) return null;
+    return mapCampaignRow(result.rows[0] as Record<string, unknown>);
+  }
+
   async createEmergencyBlast(
     data: Omit<EmergencyBlastEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<EmergencyBlastEntity> {

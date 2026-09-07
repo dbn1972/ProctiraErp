@@ -81,6 +81,29 @@ describe('Communication Routes', () => {
     });
   });
 
+  describe('POST /communication/campaigns/:id/send', () => {
+    it('should sandbox-send a draft campaign', async () => {
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/communication/campaigns',
+        payload: { name: 'Send me', channels: ['email'] },
+      });
+      const created = createRes.json();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: `/communication/campaigns/${created.id}/send`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.status).toBe('sent');
+      expect(body.sentAt).toBeTruthy();
+      expect(body.delivery.mode).toBe('sandbox');
+      expect(body.delivery.honestyNote).toContain('Sandbox');
+    });
+  });
+
   describe('POST /communication/emergency/:id/confirm', () => {
     it('should require two distinct actors to confirm', async () => {
       const createRes = await app.inject({

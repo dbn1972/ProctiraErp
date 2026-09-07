@@ -41,6 +41,38 @@ export class CommunicationService {
     return campaign;
   }
 
+  /**
+   * Sandbox send: transitions draft/scheduled → sent without calling live providers.
+   * Returns honesty metadata for UI banners until Twilio/FCM/SMTP secrets exist.
+   */
+  async sendCampaign(tenantId: string, id: string) {
+    const campaign = await this.getCampaign(tenantId, id);
+    if (campaign.status === 'sent') {
+      throw new ConflictError('Campaign is already marked sent');
+    }
+    if (campaign.status === 'sending') {
+      throw new ConflictError('Campaign send is already in progress');
+    }
+    if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
+      throw new ConflictError(`Cannot send campaign in status '${campaign.status}'`);
+    }
+
+    const updated = await this.repository.updateCampaign(id, tenantId, {
+      status: 'sent',
+      sentAt: new Date(),
+    });
+
+    return {
+      campaign: updated!,
+      delivery: {
+        mode: 'sandbox' as const,
+        honestyNote:
+          'Sandbox send — status marked sent without calling SMS/email/push providers. Wire adapter credentials for production delivery.',
+        estimatedRecipients: estimateAudience(campaign.audienceJson).estimatedRecipients,
+      },
+    };
+  }
+
   async createEmergencyBlast(tenantId: string, input: CreateEmergencyBlastInput) {
     return this.repository.createEmergencyBlast({
       id: uuidv4(),

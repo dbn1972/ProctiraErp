@@ -38,6 +38,11 @@ export interface CommunicationRepository {
   createCampaign(data: Omit<CampaignEntity, 'createdAt' | 'updatedAt'>): Promise<CampaignEntity>;
   listCampaigns(tenantId: string): Promise<CampaignEntity[]>;
   findCampaignById(id: string, tenantId: string): Promise<CampaignEntity | null>;
+  updateCampaign(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<CampaignEntity, 'status' | 'scheduledAt' | 'sentAt'>>,
+  ): Promise<CampaignEntity | null>;
 
   createEmergencyBlast(
     data: Omit<EmergencyBlastEntity, 'createdAt' | 'updatedAt'>,

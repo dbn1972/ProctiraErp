@@ -36,7 +36,8 @@
 | Leaves + visitors create/list            | ☑    | `NewLeaveForm` / `NewVisitorForm`   |
 | PgHostelStore                            | ☑    | `pg-hostel-repository.ts`           |
 | Block/room/bed admin UI                  | ☑    | `/hostel/structure` + create forms  |
+| Demo SQL seed                            | ☑    | `db/sql/008b_hostel_seed.sql`       |
 
 ## Residual
 
-Seed demo occupancy per cert school; WS6 enterprise pack. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).
+WS6 enterprise pack. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).
