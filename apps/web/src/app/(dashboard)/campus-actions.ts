@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
-import { createHostel, createHostelAssignment, type CreateHostelInput } from '@/lib/api/hostel';
+import {
+  createHostel,
+  createHostelAssignment,
+  createHostelLeave,
+  createHostelVisitor,
+  type CreateHostelInput,
+} from '@/lib/api/hostel';
 import {
   checkoutLibraryItem,
   createLibraryItem,
@@ -121,6 +127,53 @@ export async function createHostelAssignmentAction(input: {
           : error instanceof Error
             ? error.message
             : 'Failed to create assignment',
+    };
+  }
+}
+
+export async function createHostelLeaveAction(input: {
+  studentId: string;
+  hostelId: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}): Promise<CampusActionState> {
+  try {
+    const row = await createHostelLeave(input);
+    revalidatePath('/hostel/leaves');
+    return { status: 'success', message: 'Leave recorded.', id: row.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create leave',
+    };
+  }
+}
+
+export async function createHostelVisitorAction(input: {
+  hostelId: string;
+  visitorName: string;
+  studentId: string;
+  visitDate: string;
+}): Promise<CampusActionState> {
+  try {
+    const row = await createHostelVisitor(input);
+    revalidatePath('/hostel/visitors');
+    return { status: 'success', message: 'Visitor recorded.', id: row.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create visitor',
     };
   }
 }

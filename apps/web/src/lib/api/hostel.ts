@@ -85,3 +85,85 @@ export async function createHostelAssignment(input: {
   }
   return result.data;
 }
+
+export interface HostelLeave {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  hostelId: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HostelVisitor {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  visitorName: string;
+  studentId: string;
+  visitDate: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listHostelLeaves(): Promise<HostelLeave[]> {
+  const result = await gatewayFetch<{ data: HostelLeave[] }>('/hostel/leaves', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createHostelLeave(input: {
+  studentId: string;
+  hostelId: string;
+  startDate: string;
+  endDate: string;
+  reason?: string;
+}): Promise<HostelLeave> {
+  const result = await gatewayFetch<HostelLeave>('/hostel/leaves', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create leave',
+    });
+  }
+  return result.data;
+}
+
+export async function listHostelVisitors(): Promise<HostelVisitor[]> {
+  const result = await gatewayFetch<{ data: HostelVisitor[] }>('/hostel/visitors', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createHostelVisitor(input: {
+  hostelId: string;
+  visitorName: string;
+  studentId: string;
+  visitDate: string;
+}): Promise<HostelVisitor> {
+  const result = await gatewayFetch<HostelVisitor>('/hostel/visitors', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create visitor',
+    });
+  }
+  return result.data;
+}

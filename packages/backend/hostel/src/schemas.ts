@@ -29,3 +29,22 @@ export const CreateAssignmentSchema = Type.Object({
 });
 
 export type CreateAssignmentInput = Static<typeof CreateAssignmentSchema>;
+
+export const CreateLeaveSchema = Type.Object({
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  hostelId: Type.String({ pattern: UUID_PATTERN }),
+  startDate: Type.String({ minLength: 10, maxLength: 10 }),
+  endDate: Type.String({ minLength: 10, maxLength: 10 }),
+  reason: Type.Optional(Type.String({ maxLength: 1000 })),
+});
+
+export type CreateLeaveInput = Static<typeof CreateLeaveSchema>;
+
+export const CreateVisitorSchema = Type.Object({
+  hostelId: Type.String({ pattern: UUID_PATTERN }),
+  visitorName: Type.String({ minLength: 1, maxLength: 255 }),
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  visitDate: Type.String({ minLength: 10, maxLength: 10 }),
+});
+
+export type CreateVisitorInput = Static<typeof CreateVisitorSchema>;

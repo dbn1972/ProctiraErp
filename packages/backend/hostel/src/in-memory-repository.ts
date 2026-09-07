@@ -43,8 +43,26 @@ export class InMemoryHostelRepository implements HostelRepository {
     return this.assignments.filter((a) => a.tenantId === tenantId);
   }
 
+  async createLeave(
+    data: Omit<HostelLeaveEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HostelLeaveEntity> {
+    const now = new Date();
+    const entity: HostelLeaveEntity = { ...data, createdAt: now, updatedAt: now };
+    this.leaves.push(entity);
+    return entity;
+  }
+
   async listLeaves(tenantId: string): Promise<HostelLeaveEntity[]> {
     return this.leaves.filter((l) => l.tenantId === tenantId);
+  }
+
+  async createVisitor(
+    data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HostelVisitorEntity> {
+    const now = new Date();
+    const entity: HostelVisitorEntity = { ...data, createdAt: now, updatedAt: now };
+    this.visitors.push(entity);
+    return entity;
   }
 
   async listVisitors(tenantId: string): Promise<HostelVisitorEntity[]> {

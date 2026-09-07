@@ -17,8 +17,19 @@ export type {
 
 export { InMemoryHostelRepository } from './in-memory-repository.js';
 
-export { CreateHostelSchema, CreateAssignmentSchema, HostelParamsSchema } from './schemas.js';
-export type { CreateHostelInput, CreateAssignmentInput } from './schemas.js';
+export {
+  CreateHostelSchema,
+  CreateAssignmentSchema,
+  CreateLeaveSchema,
+  CreateVisitorSchema,
+  HostelParamsSchema,
+} from './schemas.js';
+export type {
+  CreateHostelInput,
+  CreateAssignmentInput,
+  CreateLeaveInput,
+  CreateVisitorInput,
+} from './schemas.js';
 
 export { registerHostelRoutes } from './routes.js';
 export type { HostelRoutesOptions } from './routes.js';

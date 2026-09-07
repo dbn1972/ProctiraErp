@@ -74,4 +74,55 @@ describe('Hostel Routes', () => {
       expect(response.json().studentId).toBe(STUDENT_ID);
     });
   });
+
+  describe('POST /hostel/leaves', () => {
+    it('should create a leave request', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Leave Hall', code: 'LH-01' },
+      });
+      const hostelId = hostel.json().id as string;
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/hostel/leaves',
+        payload: {
+          studentId: STUDENT_ID,
+          hostelId,
+          startDate: '2026-02-01',
+          endDate: '2026-02-05',
+          reason: 'Family visit',
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json().status).toBe('pending');
+    });
+  });
+
+  describe('POST /hostel/visitors', () => {
+    it('should create a visitor entry', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Visitor Hall', code: 'VH-01' },
+      });
+      const hostelId = hostel.json().id as string;
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/hostel/visitors',
+        payload: {
+          hostelId,
+          visitorName: 'Parent One',
+          studentId: STUDENT_ID,
+          visitDate: '2026-03-01',
+        },
+      });
+
+      expect(response.statusCode).toBe(201);
+      expect(response.json().visitorName).toBe('Parent One');
+    });
+  });
 });

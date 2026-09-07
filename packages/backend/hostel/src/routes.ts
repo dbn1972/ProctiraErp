@@ -9,9 +9,13 @@ import type { HostelService } from './hostel-service.js';
 import {
   CreateAssignmentSchema,
   CreateHostelSchema,
+  CreateLeaveSchema,
+  CreateVisitorSchema,
   HostelParamsSchema,
   type CreateAssignmentInput,
   type CreateHostelInput,
+  type CreateLeaveInput,
+  type CreateVisitorInput,
   type HostelParams,
 } from './schemas.js';
 
@@ -67,6 +71,56 @@ function formatAssignment(entity: {
     startDate: entity.startDate,
     endDate: entity.endDate,
     isActive: entity.isActive,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatLeave(entity: {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  hostelId: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    studentId: entity.studentId,
+    hostelId: entity.hostelId,
+    startDate: entity.startDate,
+    endDate: entity.endDate,
+    reason: entity.reason,
+    status: entity.status,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatVisitor(entity: {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  visitorName: string;
+  studentId: string;
+  visitDate: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    hostelId: entity.hostelId,
+    visitorName: entity.visitorName,
+    studentId: entity.studentId,
+    visitDate: entity.visitDate,
+    status: entity.status,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
   };
@@ -145,7 +199,44 @@ export async function registerHostelRoutes(
       }
 
       const leaves = await hostelService.listLeaves(tenantId);
-      return reply.status(200).send({ data: leaves });
+      return reply.status(200).send({ data: leaves.map(formatLeave) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/leaves`,
+    async function createLeaveHandler(
+      request: FastifyRequest<{ Body: CreateLeaveInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateLeaveSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const leave = await hostelService.createLeave(tenantId, result.data);
+        return reply.status(201).send(formatLeave(leave));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 
@@ -162,7 +253,44 @@ export async function registerHostelRoutes(
       }
 
       const visitors = await hostelService.listVisitors(tenantId);
-      return reply.status(200).send({ data: visitors });
+      return reply.status(200).send({ data: visitors.map(formatVisitor) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/visitors`,
+    async function createVisitorHandler(
+      request: FastifyRequest<{ Body: CreateVisitorInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateVisitorSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const visitor = await hostelService.createVisitor(tenantId, result.data);
+        return reply.status(201).send(formatVisitor(visitor));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 

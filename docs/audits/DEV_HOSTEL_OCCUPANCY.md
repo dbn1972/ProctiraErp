@@ -24,16 +24,17 @@
 
 ## Build status
 
-| Check                                  | Done | Evidence                    |
-| -------------------------------------- | ---- | --------------------------- |
-| SQL `db/sql/008_hostel_schema.sql`     | ☑    |                             |
-| Gateway mount InMemoryHostelRepository | ☑    | domain-plugins              |
-| Web shells + sidebar                   | ☑    |                             |
-| Live hostel create + list              | ☑    | `NewHostelForm` + `/hostel` |
-| Assignments list from API              | ☑    | `/hostel/assignments`       |
-| Assignment create form                 | ☑    | `NewHostelAssignmentForm`   |
-| PgHostelStore                          | ☐    | follow-up                   |
-| Block/room/bed admin UI                | ☐    | follow-up                   |
+| Check                                  | Done | Evidence                          |
+| -------------------------------------- | ---- | --------------------------------- |
+| SQL `db/sql/008_hostel_schema.sql`     | ☑    |                                   |
+| Gateway mount InMemoryHostelRepository | ☑    | domain-plugins                    |
+| Web shells + sidebar                   | ☑    |                                   |
+| Live hostel create + list              | ☑    | `NewHostelForm` + `/hostel`       |
+| Assignments list from API              | ☑    | `/hostel/assignments`             |
+| Assignment create form                 | ☑    | `NewHostelAssignmentForm`         |
+| Leaves + visitors create/list          | ☑    | `NewLeaveForm` / `NewVisitorForm` |
+| PgHostelStore                          | ☐    | follow-up                         |
+| Block/room/bed admin UI                | ☐    | follow-up                         |
 
 ## Residual
 

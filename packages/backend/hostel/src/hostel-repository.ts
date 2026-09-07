@@ -64,6 +64,12 @@ export interface HostelRepository {
     data: Omit<HostelAssignmentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelAssignmentEntity>;
   listAssignments(tenantId: string): Promise<HostelAssignmentEntity[]>;
+
+  createLeave(data: Omit<HostelLeaveEntity, 'createdAt' | 'updatedAt'>): Promise<HostelLeaveEntity>;
   listLeaves(tenantId: string): Promise<HostelLeaveEntity[]>;
+
+  createVisitor(
+    data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HostelVisitorEntity>;
   listVisitors(tenantId: string): Promise<HostelVisitorEntity[]>;
 }

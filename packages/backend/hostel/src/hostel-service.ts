@@ -5,7 +5,12 @@ import { NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { HostelRepository } from './hostel-repository.js';
-import type { CreateAssignmentInput, CreateHostelInput } from './schemas.js';
+import type {
+  CreateAssignmentInput,
+  CreateHostelInput,
+  CreateLeaveInput,
+  CreateVisitorInput,
+} from './schemas.js';
 
 export class HostelService {
   constructor(private readonly repository: HostelRepository) {}
@@ -50,8 +55,33 @@ export class HostelService {
     return this.repository.listAssignments(tenantId);
   }
 
+  async createLeave(tenantId: string, input: CreateLeaveInput) {
+    return this.repository.createLeave({
+      id: uuidv4(),
+      tenantId,
+      studentId: input.studentId,
+      hostelId: input.hostelId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      reason: input.reason ?? null,
+      status: 'pending',
+    });
+  }
+
   async listLeaves(tenantId: string) {
     return this.repository.listLeaves(tenantId);
+  }
+
+  async createVisitor(tenantId: string, input: CreateVisitorInput) {
+    return this.repository.createVisitor({
+      id: uuidv4(),
+      tenantId,
+      hostelId: input.hostelId,
+      visitorName: input.visitorName,
+      studentId: input.studentId,
+      visitDate: input.visitDate,
+      status: 'expected',
+    });
   }
 
   async listVisitors(tenantId: string) {
