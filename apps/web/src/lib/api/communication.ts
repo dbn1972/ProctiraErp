@@ -36,7 +36,15 @@ export interface CreateCampaignInput {
   name: string;
   channels?: string[];
   body?: string;
+  audienceJson?: Record<string, unknown>;
   createdBy?: string;
+}
+
+export interface AudiencePreview {
+  estimatedRecipients: number;
+  scope: string;
+  breakdown: Record<string, number>;
+  honestyNote: string;
 }
 
 export interface CreateEmergencyBlastInput {
@@ -63,6 +71,23 @@ export async function createCampaign(input: CreateCampaignInput): Promise<Commun
       status: result.status,
       code: result.error?.code ?? 'CREATE_FAILED',
       message: result.error?.message ?? 'Failed to create campaign',
+    });
+  }
+  return result.data;
+}
+
+export async function previewCampaignAudience(
+  audienceJson: Record<string, unknown>,
+): Promise<AudiencePreview> {
+  const result = await gatewayFetch<AudiencePreview>('/communication/audience/preview', {
+    method: 'POST',
+    json: { audienceJson },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'PREVIEW_FAILED',
+      message: result.error?.message ?? 'Failed to preview audience',
     });
   }
   return result.data;

@@ -23,16 +23,17 @@
 
 ## Build status
 
-| Check                                         | Done | Evidence                          |
-| --------------------------------------------- | ---- | --------------------------------- |
-| SQL `db/sql/007_communication_schema.sql`     | ☑    |                                   |
-| Gateway mount InMemoryCommunicationRepository | ☑    | domain-plugins                    |
-| Web shells + sidebar                          | ☑    |                                   |
-| Live campaign create + list                   | ☑    | `NewCampaignForm` + campaigns API |
-| Dual-confirm emergency UI                     | ☑    | `EmergencyBlastPanel`             |
-| PgCommunicationStore                          | ☐    | follow-up                         |
-| Send adapters / segment resolver              | ☐    | follow-up                         |
+| Check                                         | Done | Evidence                                      |
+| --------------------------------------------- | ---- | --------------------------------------------- |
+| SQL `db/sql/007_communication_schema.sql`     | ☑    |                                               |
+| Gateway mount InMemoryCommunicationRepository | ☑    | domain-plugins                                |
+| Web shells + sidebar                          | ☑    |                                               |
+| Live campaign create + list                   | ☑    | `NewCampaignForm` + campaigns API             |
+| Dual-confirm emergency UI                     | ☑    | `EmergencyBlastPanel`                         |
+| Audience preview API + UI                     | ☑    | `POST /communication/audience/preview` + form |
+| PgCommunicationStore                          | ☐    | follow-up                                     |
+| Live segment resolver / send adapters         | ☐    | v1 estimator honesty note                     |
 
 ## Residual
 
-Wire send adapters + Pg store; seed demo campaigns per cert school.
+Wire Pg store + live segment resolvers; seed demo campaigns per cert school. Tip CI currently blocked by GitHub billing/spending limit (jobs never start).

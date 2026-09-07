@@ -21,12 +21,17 @@ export {
   ConfirmEmergencySchema,
   CampaignParamsSchema,
   EmergencyParamsSchema,
+  AudiencePreviewSchema,
 } from './schemas.js';
 export type {
   CreateCampaignInput,
   CreateEmergencyBlastInput,
   ConfirmEmergencyInput,
+  AudiencePreviewInput,
 } from './schemas.js';
+
+export { estimateAudience } from './audience.js';
+export type { AudiencePreviewResult } from './audience.js';
 
 export { registerCommunicationRoutes } from './routes.js';
 export type { CommunicationRoutesOptions } from './routes.js';

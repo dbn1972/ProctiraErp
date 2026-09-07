@@ -18,9 +18,15 @@ import {
   Textarea,
 } from '@proctira/ui/components';
 
-import { createCampaignAction } from '../actions';
+import { createCampaignAction, previewAudienceAction } from '../actions';
 
 const CHANNELS = ['email', 'sms', 'push', 'in_app'] as const;
+const SCOPES = [
+  { value: 'all', label: 'Entire tenant' },
+  { value: 'grade', label: 'Grade / class' },
+  { value: 'hostel', label: 'Hostel residents' },
+  { value: 'route', label: 'Transport route' },
+] as const;
 
 export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
   const router = useRouter();
@@ -28,6 +34,9 @@ export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
   const [channels, setChannels] = useState<string[]>(['email', 'in_app']);
+  const [scope, setScope] = useState<(typeof SCOPES)[number]['value']>('all');
+  const [previewText, setPreviewText] = useState<string | null>(null);
+  const [honestyNote, setHonestyNote] = useState<string | null>(null);
 
   useEffect(() => {
     setHydrated(true);
@@ -37,6 +46,40 @@ export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
     setChannels((prev) => {
       if (checked) return prev.includes(channel) ? prev : [...prev, channel];
       return prev.filter((c) => c !== channel);
+    });
+  }
+
+  function buildAudience(fd: FormData): Record<string, unknown> {
+    const audience: Record<string, unknown> = { scope };
+    if (scope === 'grade') {
+      audience['grade'] = String(fd.get('grade') ?? '').trim() || 'all';
+    }
+    if (scope === 'hostel') {
+      const hostelId = String(fd.get('hostelId') ?? '').trim();
+      if (hostelId) audience['hostelId'] = hostelId;
+    }
+    if (scope === 'route') {
+      const routeId = String(fd.get('routeId') ?? '').trim();
+      if (routeId) audience['routeId'] = routeId;
+    }
+    return audience;
+  }
+
+  function onPreview(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault();
+    const form = event.currentTarget.form;
+    if (!form) return;
+    const fd = new FormData(form);
+    startTransition(async () => {
+      setError(null);
+      const result = await previewAudienceAction(buildAudience(fd));
+      if (result.status === 'error') {
+        setError(result.message ?? 'Preview failed');
+        setPreviewText(null);
+        return;
+      }
+      setPreviewText(result.message ?? null);
+      setHonestyNote(result.honestyNote ?? null);
     });
   }
 
@@ -60,6 +103,7 @@ export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
         name,
         body: body || undefined,
         channels,
+        audienceJson: buildAudience(fd),
         createdBy,
       });
       if (result.status === 'error') {
@@ -111,6 +155,36 @@ export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
               ))}
             </div>
           </fieldset>
+          <FormField id="campaign-scope" label="Audience scope" required>
+            <select
+              id="campaign-scope"
+              name="scope"
+              className="flex h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={scope}
+              onChange={(e) => setScope(e.target.value as (typeof SCOPES)[number]['value'])}
+            >
+              {SCOPES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </FormField>
+          {scope === 'grade' ? (
+            <FormField id="campaign-grade" label="Grade">
+              <Input id="campaign-grade" name="grade" placeholder="10" className="h-11 min-h-11" />
+            </FormField>
+          ) : null}
+          {scope === 'hostel' ? (
+            <FormField id="campaign-hostel" label="Hostel UUID (optional)">
+              <Input id="campaign-hostel" name="hostelId" className="h-11 min-h-11" />
+            </FormField>
+          ) : null}
+          {scope === 'route' ? (
+            <FormField id="campaign-route" label="Route UUID (optional)">
+              <Input id="campaign-route" name="routeId" className="h-11 min-h-11" />
+            </FormField>
+          ) : null}
           <FormField id="campaign-body" label="Message body">
             <Textarea
               id="campaign-body"
@@ -120,18 +194,27 @@ export function NewCampaignForm({ createdBy }: { createdBy?: string }) {
               className="min-h-28"
             />
           </FormField>
+          {previewText ? (
+            <p className="text-sm text-foreground" role="status" data-testid="audience-preview">
+              {previewText}
+            </p>
+          ) : null}
+          {honestyNote ? <p className="text-xs text-muted-foreground">{honestyNote}</p> : null}
           {error ? (
             <p className="text-sm text-destructive" role="alert">
               {error}
             </p>
           ) : null}
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-wrap justify-end gap-3 pt-2">
             <Button asChild variant="outline" type="button">
               <Link href="/communication/campaigns">Cancel</Link>
             </Button>
+            <Button type="button" variant="outline" disabled={pending} onClick={onPreview}>
+              Preview audience
+            </Button>
             <Button type="submit" disabled={pending}>
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
-              {pending ? 'Creating…' : 'Create campaign'}
+              {pending ? 'Saving…' : 'Create campaign'}
             </Button>
           </div>
         </form>

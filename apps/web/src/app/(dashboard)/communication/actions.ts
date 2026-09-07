@@ -7,6 +7,7 @@ import {
   confirmEmergencyBlast,
   createCampaign,
   createEmergencyBlast,
+  previewCampaignAudience,
   type CreateCampaignInput,
   type CreateEmergencyBlastInput,
 } from '@/lib/api/communication';
@@ -15,6 +16,8 @@ export interface CommunicationActionState {
   status: 'idle' | 'success' | 'error';
   message?: string;
   id?: string;
+  estimatedRecipients?: number;
+  honestyNote?: string;
 }
 
 export async function createCampaignAction(
@@ -34,6 +37,30 @@ export async function createCampaignAction(
           : error instanceof Error
             ? error.message
             : 'Failed to create campaign',
+    };
+  }
+}
+
+export async function previewAudienceAction(
+  audienceJson: Record<string, unknown>,
+): Promise<CommunicationActionState> {
+  try {
+    const preview = await previewCampaignAudience(audienceJson);
+    return {
+      status: 'success',
+      message: `Estimated ${preview.estimatedRecipients} recipients.`,
+      estimatedRecipients: preview.estimatedRecipients,
+      honestyNote: preview.honestyNote,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Audience preview failed',
     };
   }
 }

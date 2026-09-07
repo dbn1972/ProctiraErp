@@ -50,3 +50,9 @@ export const ConfirmEmergencySchema = Type.Object({
 });
 
 export type ConfirmEmergencyInput = Static<typeof ConfirmEmergencySchema>;
+
+export const AudiencePreviewSchema = Type.Object({
+  audienceJson: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+});
+
+export type AudiencePreviewInput = Static<typeof AudiencePreviewSchema>;

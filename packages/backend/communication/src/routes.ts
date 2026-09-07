@@ -7,11 +7,13 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { CommunicationService } from './communication-service.js';
 import {
+  AudiencePreviewSchema,
   CampaignParamsSchema,
   ConfirmEmergencySchema,
   CreateCampaignSchema,
   CreateEmergencyBlastSchema,
   EmergencyParamsSchema,
+  type AudiencePreviewInput,
   type CampaignParams,
   type ConfirmEmergencyInput,
   type CreateCampaignInput,
@@ -91,6 +93,38 @@ export async function registerCommunicationRoutes(
   options: CommunicationRoutesOptions,
 ): Promise<void> {
   const { communicationService, prefix = '/communication' } = options;
+
+  fastify.post(
+    `${prefix}/audience/preview`,
+    async function audiencePreviewHandler(
+      request: FastifyRequest<{ Body: AudiencePreviewInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(AudiencePreviewSchema, request.body ?? {});
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const preview = communicationService.previewAudience(
+        (result.data.audienceJson as Record<string, unknown> | undefined) ?? {},
+      );
+      return reply.status(200).send(preview);
+    },
+  );
 
   fastify.get(
     `${prefix}/campaigns`,

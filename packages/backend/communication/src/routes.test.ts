@@ -119,4 +119,28 @@ describe('Communication Routes', () => {
       expect(second.json().confirmActor2).toBe(ACTOR_2);
     });
   });
+
+  describe('POST /communication/audience/preview', () => {
+    it('should return an estimated recipient count', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/communication/audience/preview',
+        payload: { audienceJson: { scope: 'hostel', hostelId: TENANT_ID } },
+      });
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.estimatedRecipients).toBeGreaterThan(0);
+      expect(body.scope).toBe('hostel');
+    });
+
+    it('should estimate all-tenant scope', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/communication/audience/preview',
+        payload: { audienceJson: { scope: 'all' } },
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().estimatedRecipients).toBe(500);
+    });
+  });
 });
