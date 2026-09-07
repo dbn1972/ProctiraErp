@@ -207,6 +207,23 @@ const SCREENS = {
     ['vehicles', '/transport/vehicles'],
     ['assignments', '/transport/assignments'],
   ],
+  communication: [
+    ['overview', '/communication'],
+    ['campaigns', '/communication/campaigns'],
+    ['campaign-new', '/communication/campaigns/new'],
+    ['emergency', '/communication/emergency'],
+  ],
+  hostel: [
+    ['overview', '/hostel'],
+    ['assignments', '/hostel/assignments'],
+    ['leaves', '/hostel/leaves'],
+    ['visitors', '/hostel/visitors'],
+  ],
+  library: [
+    ['catalog', '/library'],
+    ['circulation', '/library/circulation'],
+    ['overdues', '/library/overdues'],
+  ],
   'data-warehouse': [
     ['overview', '/data-warehouse'],
     ['import', '/data-warehouse/import'],
