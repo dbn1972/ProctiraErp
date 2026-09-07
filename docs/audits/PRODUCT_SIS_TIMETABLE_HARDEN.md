@@ -10,11 +10,11 @@ Registrar/scheduler can CRUD bell schedules, periods, meetings, and substitution
 
 ## Scope
 
-| In | Out |
-| --- | --- |
+| In                                       | Out                        |
+| ---------------------------------------- | -------------------------- |
 | Mutation audit (bell/period/meeting/sub) | iCal / calendar federation |
-| Cross-tenant unit proof for bells/subs | Live IdP E2E |
-| Document attendance wire | Device-farm · LMS |
+| Cross-tenant unit proof for bells/subs   | Live IdP E2E               |
+| Document attendance wire                 | Device-farm · LMS          |
 
 ## DoD
 
