@@ -1,7 +1,7 @@
 /**
  * Hostel service — occupancy shell operations.
  */
-import { NotFoundError } from '@proctira/common';
+import { ConflictError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type { HostelRepository } from './hostel-repository.js';
@@ -43,7 +43,15 @@ export class HostelService {
   }
 
   async createAssignment(tenantId: string, input: CreateAssignmentInput) {
-    return this.repository.createAssignment({
+    const bed = await this.repository.findBedById(input.bedId, tenantId);
+    if (!bed) {
+      throw new NotFoundError(`Bed with id '${input.bedId}' not found`);
+    }
+    if (!bed.isAvailable && (input.isActive ?? true)) {
+      throw new ConflictError('Bed is not available for assignment');
+    }
+
+    const assignment = await this.repository.createAssignment({
       id: uuidv4(),
       tenantId,
       studentId: input.studentId,
@@ -52,6 +60,12 @@ export class HostelService {
       endDate: input.endDate ?? null,
       isActive: input.isActive ?? true,
     });
+
+    if (assignment.isActive) {
+      await this.repository.updateBed(input.bedId, tenantId, { isAvailable: false });
+    }
+
+    return assignment;
   }
 
   async listAssignments(tenantId: string) {

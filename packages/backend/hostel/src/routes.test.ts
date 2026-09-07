@@ -9,7 +9,6 @@ import { InMemoryHostelRepository } from './in-memory-repository.js';
 
 const TENANT_ID = '550e8400-e29b-41d4-a716-446655440000';
 const STUDENT_ID = '33333333-3333-4333-8333-333333333333';
-const BED_ID = '44444444-4444-4444-8444-444444444444';
 
 describe('Hostel Routes', () => {
   let app: FastifyInstance;
@@ -59,19 +58,60 @@ describe('Hostel Routes', () => {
   });
 
   describe('POST /hostel/assignments', () => {
-    it('should create an assignment', async () => {
+    it('should create an assignment and mark the bed unavailable', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Assign Hall', code: 'AH-01' },
+      });
+      const hostelId = hostel.json().id as string;
+      const block = await app.inject({
+        method: 'POST',
+        url: '/hostel/blocks',
+        payload: { hostelId, name: 'A', floor: 1 },
+      });
+      const room = await app.inject({
+        method: 'POST',
+        url: '/hostel/rooms',
+        payload: { blockId: block.json().id, roomNumber: '101', capacity: 2 },
+      });
+      const bed = await app.inject({
+        method: 'POST',
+        url: '/hostel/beds',
+        payload: { roomId: room.json().id, bedLabel: 'A' },
+      });
+      const bedId = bed.json().id as string;
+
       const response = await app.inject({
         method: 'POST',
         url: '/hostel/assignments',
         payload: {
           studentId: STUDENT_ID,
-          bedId: BED_ID,
+          bedId,
           startDate: '2026-01-15',
         },
       });
 
       expect(response.statusCode).toBe(201);
       expect(response.json().studentId).toBe(STUDENT_ID);
+
+      const beds = await app.inject({
+        method: 'GET',
+        url: `/hostel/beds?roomId=${room.json().id}`,
+      });
+      const updated = beds.json().data.find((b: { id: string }) => b.id === bedId);
+      expect(updated.isAvailable).toBe(false);
+
+      const conflict = await app.inject({
+        method: 'POST',
+        url: '/hostel/assignments',
+        payload: {
+          studentId: '55555555-5555-4555-8555-555555555555',
+          bedId,
+          startDate: '2026-01-16',
+        },
+      });
+      expect(conflict.statusCode).toBe(409);
     });
   });
 

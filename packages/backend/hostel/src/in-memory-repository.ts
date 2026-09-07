@@ -119,4 +119,24 @@ export class InMemoryHostelRepository implements HostelRepository {
       (b) => b.tenantId === tenantId && (roomId === undefined || b.roomId === roomId),
     );
   }
+
+  async findBedById(id: string, tenantId: string): Promise<HostelBedEntity | null> {
+    return this.beds.find((b) => b.id === id && b.tenantId === tenantId) ?? null;
+  }
+
+  async updateBed(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<HostelBedEntity, 'isAvailable'>>,
+  ): Promise<HostelBedEntity | null> {
+    const index = this.beds.findIndex((b) => b.id === id && b.tenantId === tenantId);
+    if (index === -1) return null;
+    const updated: HostelBedEntity = {
+      ...this.beds[index]!,
+      ...data,
+      updatedAt: new Date(),
+    };
+    this.beds[index] = updated;
+    return updated;
+  }
 }

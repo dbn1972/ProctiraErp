@@ -111,4 +111,10 @@ export interface HostelRepository {
 
   createBed(data: Omit<HostelBedEntity, 'createdAt' | 'updatedAt'>): Promise<HostelBedEntity>;
   listBeds(tenantId: string, roomId?: string): Promise<HostelBedEntity[]>;
+  findBedById(id: string, tenantId: string): Promise<HostelBedEntity | null>;
+  updateBed(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<HostelBedEntity, 'isAvailable'>>,
+  ): Promise<HostelBedEntity | null>;
 }

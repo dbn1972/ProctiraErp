@@ -390,6 +390,36 @@ export class PgHostelRepository implements HostelRepository {
     );
     return result.rows.map((row) => mapBed(row as Record<string, unknown>));
   }
+
+  async findBedById(id: string, tenantId: string): Promise<HostelBedEntity | null> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM hostel_beds WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapBed(result.rows[0] as Record<string, unknown>);
+  }
+
+  async updateBed(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<HostelBedEntity, 'isAvailable'>>,
+  ): Promise<HostelBedEntity | null> {
+    await this.ensureSchema();
+    if (data.isAvailable === undefined) {
+      return this.findBedById(id, tenantId);
+    }
+    const result = await this.pool.query(
+      `UPDATE hostel_beds
+       SET is_available = $1, updated_at = now()
+       WHERE id = $2 AND tenant_id = $3
+       RETURNING *`,
+      [data.isAvailable, id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapBed(result.rows[0] as Record<string, unknown>);
+  }
 }
 
 export function createPgHostelRepository(): PgHostelRepository | null {
