@@ -40,6 +40,18 @@ export const CreateLeaveSchema = Type.Object({
 
 export type CreateLeaveInput = Static<typeof CreateLeaveSchema>;
 
+export const LeaveParamsSchema = Type.Object({
+  id: Type.String({ pattern: UUID_PATTERN }),
+});
+
+export type LeaveParams = Static<typeof LeaveParamsSchema>;
+
+export const DecideLeaveSchema = Type.Object({
+  status: Type.Union([Type.Literal('approved'), Type.Literal('rejected')]),
+});
+
+export type DecideLeaveInput = Static<typeof DecideLeaveSchema>;
+
 export const CreateVisitorSchema = Type.Object({
   hostelId: Type.String({ pattern: UUID_PATTERN }),
   visitorName: Type.String({ minLength: 1, maxLength: 255 }),

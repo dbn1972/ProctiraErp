@@ -140,6 +140,24 @@ export async function createHostelLeave(input: {
   return result.data;
 }
 
+export async function decideHostelLeave(
+  id: string,
+  status: 'approved' | 'rejected',
+): Promise<HostelLeave> {
+  const result = await gatewayFetch<HostelLeave>(`/hostel/leaves/${id}/decide`, {
+    method: 'POST',
+    json: { status },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'DECIDE_FAILED',
+      message: result.error?.message ?? 'Failed to decide leave',
+    });
+  }
+  return result.data;
+}
+
 export async function listHostelVisitors(): Promise<HostelVisitor[]> {
   const result = await gatewayFetch<{ data: HostelVisitor[] }>('/hostel/visitors', {
     throwOnError: false,

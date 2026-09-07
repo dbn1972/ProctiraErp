@@ -37,6 +37,8 @@ export {
   CreateRoomSchema,
   CreateBedSchema,
   HostelParamsSchema,
+  LeaveParamsSchema,
+  DecideLeaveSchema,
 } from './schemas.js';
 export type {
   CreateHostelInput,
@@ -46,6 +48,7 @@ export type {
   CreateBlockInput,
   CreateRoomInput,
   CreateBedInput,
+  DecideLeaveInput,
 } from './schemas.js';
 
 export { registerHostelRoutes } from './routes.js';

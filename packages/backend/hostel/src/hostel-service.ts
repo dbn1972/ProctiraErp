@@ -1,10 +1,10 @@
 /**
  * Hostel service — occupancy shell operations.
  */
-import { ConflictError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { HostelRepository } from './hostel-repository.js';
+import type { HostelRepository, LeaveStatus } from './hostel-repository.js';
 import type {
   CreateAssignmentInput,
   CreateBedInput,
@@ -87,6 +87,23 @@ export class HostelService {
 
   async listLeaves(tenantId: string) {
     return this.repository.listLeaves(tenantId);
+  }
+
+  async decideLeave(tenantId: string, leaveId: string, status: 'approved' | 'rejected') {
+    const leave = await this.repository.findLeaveById(leaveId, tenantId);
+    if (!leave) {
+      throw new NotFoundError(`Leave with id '${leaveId}' not found`);
+    }
+    if (leave.status !== 'pending') {
+      throw new ConflictError(`Leave is already ${leave.status}`);
+    }
+    if (status !== 'approved' && status !== 'rejected') {
+      throw new BusinessRuleError('Leave decision must be approved or rejected');
+    }
+    const updated = await this.repository.updateLeave(leaveId, tenantId, {
+      status: status as LeaveStatus,
+    });
+    return updated!;
   }
 
   async createVisitor(tenantId: string, input: CreateVisitorInput) {

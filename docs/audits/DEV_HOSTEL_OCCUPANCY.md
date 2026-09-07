@@ -38,6 +38,7 @@
 | Block/room/bed admin UI                  | ☑    | `/hostel/structure` + create forms  |
 | Demo SQL seed                            | ☑    | `db/sql/008b_hostel_seed.sql`       |
 | Assignment marks bed unavailable         | ☑    | conflict on second active assign    |
+| Leave approve/reject                     | ☑    | `POST /leaves/:id/decide` + UI      |
 
 ## Residual
 

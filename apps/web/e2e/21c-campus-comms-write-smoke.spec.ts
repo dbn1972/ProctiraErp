@@ -8,11 +8,9 @@ import { expect, test } from '@playwright/test';
 import { setupGatewayTenantSession } from './fixtures/fake-session';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
-const HAS_JWT_SECRET = !!process.env.JWT_SECRET?.trim();
 
 test.describe('Communication — client validation (ungated)', () => {
   test.beforeEach(async ({ page }) => {
-    test.skip(!HAS_JWT_SECRET, 'JWT_SECRET required to open authenticated campaign form');
     await setupGatewayTenantSession(page);
   });
 
@@ -29,8 +27,8 @@ test.describe('Communication — client validation (ungated)', () => {
 
 test.describe('Communication — live campaign create (E2E_BACKEND_READY)', () => {
   test.skip(
-    !BACKEND_READY || !HAS_JWT_SECRET,
-    'Requires E2E_BACKEND_READY=1, live gateway, and JWT_SECRET matching api-gateway',
+    !BACKEND_READY,
+    'Requires E2E_BACKEND_READY=1 and live gateway (JWT uses JWT_SECRET or gateway default)',
   );
 
   test.beforeEach(async ({ page }) => {

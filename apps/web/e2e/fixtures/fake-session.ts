@@ -25,12 +25,8 @@ export function createSignedJwt(
     audience?: string;
   } = {},
 ): string {
-  const secret = options.secret ?? process.env.JWT_SECRET?.trim();
-  if (!secret) {
-    throw new Error(
-      'createSignedJwt requires JWT_SECRET (same secret the api-gateway uses for jwtVerify)',
-    );
-  }
+  const secret =
+    options.secret ?? process.env.JWT_SECRET?.trim() ?? 'dev-secret-change-in-production';
   const now = Math.floor(Date.now() / 1000);
   const body = {
     iss: options.issuer ?? process.env.JWT_ISSUER ?? 'proctira-platform',

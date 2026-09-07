@@ -141,6 +141,42 @@ describe('Hostel Routes', () => {
     });
   });
 
+  describe('POST /hostel/leaves/:id/decide', () => {
+    it('should approve a pending leave', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Decide Hall', code: 'DH-01' },
+      });
+      const createLeave = await app.inject({
+        method: 'POST',
+        url: '/hostel/leaves',
+        payload: {
+          studentId: STUDENT_ID,
+          hostelId: hostel.json().id,
+          startDate: '2026-03-01',
+          endDate: '2026-03-03',
+        },
+      });
+      const leaveId = createLeave.json().id as string;
+
+      const approved = await app.inject({
+        method: 'POST',
+        url: `/hostel/leaves/${leaveId}/decide`,
+        payload: { status: 'approved' },
+      });
+      expect(approved.statusCode).toBe(200);
+      expect(approved.json().status).toBe('approved');
+
+      const conflict = await app.inject({
+        method: 'POST',
+        url: `/hostel/leaves/${leaveId}/decide`,
+        payload: { status: 'rejected' },
+      });
+      expect(conflict.statusCode).toBe(409);
+    });
+  });
+
   describe('POST /hostel/visitors', () => {
     it('should create a visitor entry', async () => {
       const hostel = await app.inject({

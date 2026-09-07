@@ -13,6 +13,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listHostelLeaves, listHostels } from '@/lib/api/hostel';
+import { LeaveDecisionButtons } from '../_components/leave-decision-buttons';
 import { NewLeaveForm } from '../_components/new-leave-form';
 
 export const dynamic = 'force-dynamic';
@@ -27,7 +28,7 @@ export default async function HostelLeavesPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Leaves</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Leave requests via GET/POST `/hostel/leaves`.
+            Leave requests via GET/POST `/hostel/leaves` · decide via `/hostel/leaves/:id/decide`.
           </p>
         </div>
         <Button asChild variant="outline">
@@ -62,6 +63,7 @@ export default async function HostelLeavesPage() {
                     {row.startDate} → {row.endDate}
                     {row.reason ? ` · ${row.reason}` : ''}
                   </p>
+                  <LeaveDecisionButtons leaveId={row.id} status={row.status} />
                 </li>
               ))}
             </ul>

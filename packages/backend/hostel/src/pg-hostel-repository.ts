@@ -277,6 +277,36 @@ export class PgHostelRepository implements HostelRepository {
     return result.rows.map((row) => mapLeave(row as Record<string, unknown>));
   }
 
+  async findLeaveById(id: string, tenantId: string): Promise<HostelLeaveEntity | null> {
+    await this.ensureSchema();
+    const result = await this.pool.query(
+      `SELECT * FROM hostel_leaves WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapLeave(result.rows[0] as Record<string, unknown>);
+  }
+
+  async updateLeave(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<HostelLeaveEntity, 'status'>>,
+  ): Promise<HostelLeaveEntity | null> {
+    await this.ensureSchema();
+    if (data.status === undefined) {
+      return this.findLeaveById(id, tenantId);
+    }
+    const result = await this.pool.query(
+      `UPDATE hostel_leaves
+       SET status = $1, updated_at = now()
+       WHERE id = $2 AND tenant_id = $3
+       RETURNING *`,
+      [data.status, id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapLeave(result.rows[0] as Record<string, unknown>);
+  }
+
   async createVisitor(
     data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelVisitorEntity> {

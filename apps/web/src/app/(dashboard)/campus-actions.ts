@@ -11,6 +11,7 @@ import {
   createHostelLeave,
   createHostelRoom,
   createHostelVisitor,
+  decideHostelLeave,
   type CreateHostelInput,
 } from '@/lib/api/hostel';
 import {
@@ -209,6 +210,31 @@ export async function createHostelLeaveAction(input: {
           : error instanceof Error
             ? error.message
             : 'Failed to create leave',
+    };
+  }
+}
+
+export async function decideHostelLeaveAction(
+  id: string,
+  status: 'approved' | 'rejected',
+): Promise<CampusActionState> {
+  try {
+    const row = await decideHostelLeave(id, status);
+    revalidatePath('/hostel/leaves');
+    return {
+      status: 'success',
+      message: status === 'approved' ? 'Leave approved.' : 'Leave rejected.',
+      id: row.id,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to decide leave',
     };
   }
 }

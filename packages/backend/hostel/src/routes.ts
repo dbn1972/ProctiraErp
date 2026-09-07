@@ -14,7 +14,9 @@ import {
   CreateLeaveSchema,
   CreateRoomSchema,
   CreateVisitorSchema,
+  DecideLeaveSchema,
   HostelParamsSchema,
+  LeaveParamsSchema,
   type CreateAssignmentInput,
   type CreateBedInput,
   type CreateBlockInput,
@@ -22,7 +24,9 @@ import {
   type CreateLeaveInput,
   type CreateRoomInput,
   type CreateVisitorInput,
+  type DecideLeaveInput,
   type HostelParams,
+  type LeaveParams,
 } from './schemas.js';
 
 export interface HostelRoutesOptions {
@@ -471,6 +475,57 @@ export async function registerHostelRoutes(
       try {
         const leave = await hostelService.createLeave(tenantId, result.data);
         return reply.status(201).send(formatLeave(leave));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/leaves/:id/decide`,
+    async function decideLeaveHandler(
+      request: FastifyRequest<{ Params: LeaveParams; Body: DecideLeaveInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(LeaveParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid leave ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const bodyResult = validate(DecideLeaveSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const leave = await hostelService.decideLeave(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data.status,
+        );
+        return reply.status(200).send(formatLeave(leave));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

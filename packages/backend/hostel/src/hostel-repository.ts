@@ -97,6 +97,12 @@ export interface HostelRepository {
 
   createLeave(data: Omit<HostelLeaveEntity, 'createdAt' | 'updatedAt'>): Promise<HostelLeaveEntity>;
   listLeaves(tenantId: string): Promise<HostelLeaveEntity[]>;
+  findLeaveById(id: string, tenantId: string): Promise<HostelLeaveEntity | null>;
+  updateLeave(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<HostelLeaveEntity, 'status'>>,
+  ): Promise<HostelLeaveEntity | null>;
 
   createVisitor(
     data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
