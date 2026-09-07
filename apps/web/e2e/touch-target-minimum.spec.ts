@@ -105,6 +105,7 @@ const STANDARD_ROUTES = [
   '/communication/campaigns/new',
   '/communication/emergency',
   '/hostel',
+  '/hostel/structure',
   '/hostel/assignments',
   '/hostel/leaves',
   '/hostel/visitors',

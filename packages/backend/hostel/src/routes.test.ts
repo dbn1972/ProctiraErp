@@ -125,4 +125,98 @@ describe('Hostel Routes', () => {
       expect(response.json().visitorName).toBe('Parent One');
     });
   });
+
+  describe('block → room → bed chain', () => {
+    it('should create block, room, and bed in sequence', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Structure Hall', code: 'SH-01' },
+      });
+      const hostelId = hostel.json().id as string;
+
+      const blockRes = await app.inject({
+        method: 'POST',
+        url: '/hostel/blocks',
+        payload: { hostelId, name: 'Block A', floor: 1 },
+      });
+      expect(blockRes.statusCode).toBe(201);
+      const block = blockRes.json();
+      expect(block.name).toBe('Block A');
+      expect(block.floor).toBe(1);
+      expect(block.hostelId).toBe(hostelId);
+
+      const roomRes = await app.inject({
+        method: 'POST',
+        url: '/hostel/rooms',
+        payload: { blockId: block.id, roomNumber: '101', capacity: 2 },
+      });
+      expect(roomRes.statusCode).toBe(201);
+      const room = roomRes.json();
+      expect(room.roomNumber).toBe('101');
+      expect(room.capacity).toBe(2);
+      expect(room.blockId).toBe(block.id);
+
+      const bedRes = await app.inject({
+        method: 'POST',
+        url: '/hostel/beds',
+        payload: { roomId: room.id, bedLabel: 'A', isAvailable: true },
+      });
+      expect(bedRes.statusCode).toBe(201);
+      const bed = bedRes.json();
+      expect(bed.bedLabel).toBe('A');
+      expect(bed.isAvailable).toBe(true);
+      expect(bed.roomId).toBe(room.id);
+    });
+  });
+
+  describe('GET /hostel/beds', () => {
+    it('should list all beds for tenant when roomId is omitted', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Bed List Hall', code: 'BL-01' },
+      });
+      const hostelId = hostel.json().id as string;
+
+      const block = await app.inject({
+        method: 'POST',
+        url: '/hostel/blocks',
+        payload: { hostelId, name: 'Block B' },
+      });
+      const blockId = block.json().id as string;
+
+      const room = await app.inject({
+        method: 'POST',
+        url: '/hostel/rooms',
+        payload: { blockId, roomNumber: '201' },
+      });
+      const roomId = room.json().id as string;
+
+      await app.inject({
+        method: 'POST',
+        url: '/hostel/beds',
+        payload: { roomId, bedLabel: 'B1' },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/hostel/beds',
+        payload: { roomId, bedLabel: 'B2' },
+      });
+
+      const response = await app.inject({ method: 'GET', url: '/hostel/beds' });
+      expect(response.statusCode).toBe(200);
+      const beds = response.json().data as Array<{ bedLabel: string }>;
+      expect(beds.length).toBeGreaterThanOrEqual(2);
+      expect(beds.some((b) => b.bedLabel === 'B1')).toBe(true);
+      expect(beds.some((b) => b.bedLabel === 'B2')).toBe(true);
+
+      const filtered = await app.inject({
+        method: 'GET',
+        url: `/hostel/beds?roomId=${roomId}`,
+      });
+      expect(filtered.statusCode).toBe(200);
+      expect(filtered.json().data).toHaveLength(2);
+    });
+  });
 });

@@ -55,6 +55,36 @@ export interface HostelVisitorEntity {
   updatedAt: Date;
 }
 
+export interface HostelBlockEntity {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  name: string;
+  floor: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface HostelRoomEntity {
+  id: string;
+  tenantId: string;
+  blockId: string;
+  roomNumber: string;
+  capacity: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface HostelBedEntity {
+  id: string;
+  tenantId: string;
+  roomId: string;
+  bedLabel: string;
+  isAvailable: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface HostelRepository {
   createHostel(data: Omit<HostelEntity, 'createdAt' | 'updatedAt'>): Promise<HostelEntity>;
   listHostels(tenantId: string): Promise<HostelEntity[]>;
@@ -72,4 +102,13 @@ export interface HostelRepository {
     data: Omit<HostelVisitorEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<HostelVisitorEntity>;
   listVisitors(tenantId: string): Promise<HostelVisitorEntity[]>;
+
+  createBlock(data: Omit<HostelBlockEntity, 'createdAt' | 'updatedAt'>): Promise<HostelBlockEntity>;
+  listBlocks(tenantId: string, hostelId?: string): Promise<HostelBlockEntity[]>;
+
+  createRoom(data: Omit<HostelRoomEntity, 'createdAt' | 'updatedAt'>): Promise<HostelRoomEntity>;
+  listRooms(tenantId: string, blockId?: string): Promise<HostelRoomEntity[]>;
+
+  createBed(data: Omit<HostelBedEntity, 'createdAt' | 'updatedAt'>): Promise<HostelBedEntity>;
+  listBeds(tenantId: string, roomId?: string): Promise<HostelBedEntity[]>;
 }

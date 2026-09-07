@@ -48,3 +48,27 @@ export const CreateVisitorSchema = Type.Object({
 });
 
 export type CreateVisitorInput = Static<typeof CreateVisitorSchema>;
+
+export const CreateBlockSchema = Type.Object({
+  hostelId: Type.String({ pattern: UUID_PATTERN }),
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  floor: Type.Optional(Type.Number()),
+});
+
+export type CreateBlockInput = Static<typeof CreateBlockSchema>;
+
+export const CreateRoomSchema = Type.Object({
+  blockId: Type.String({ pattern: UUID_PATTERN }),
+  roomNumber: Type.String({ minLength: 1, maxLength: 32 }),
+  capacity: Type.Optional(Type.Number({ minimum: 1 })),
+});
+
+export type CreateRoomInput = Static<typeof CreateRoomSchema>;
+
+export const CreateBedSchema = Type.Object({
+  roomId: Type.String({ pattern: UUID_PATTERN }),
+  bedLabel: Type.String({ minLength: 1, maxLength: 32 }),
+  isAvailable: Type.Optional(Type.Boolean()),
+});
+
+export type CreateBedInput = Static<typeof CreateBedSchema>;

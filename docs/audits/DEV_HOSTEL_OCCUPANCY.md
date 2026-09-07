@@ -12,30 +12,31 @@
 | -------------------- | ------------------------------------------------------------------------------------ |
 | Capability statement | Wardens manage hostel inventory, assignments, leaves, and visitors.                  |
 | In scope             | SQL schema, gateway mount (in-memory repo), App Router hubs, sidebar, ungated smokes |
-| Explicit non-goals   | Block/room/bed CRUD UI; overlap enforcement in this tip                              |
+| Explicit non-goals   | Overlap enforcement in this tip                                                      |
 | Roles                | Hostel warden / tenant admin                                                         |
 
-| Nav         | Route                 | API                   | Tables               |
-| ----------- | --------------------- | --------------------- | -------------------- |
-| Overview    | `/hostel`             | `/hostel/*`           | `hostel_*`           |
-| Assignments | `/hostel/assignments` | `/hostel/assignments` | `hostel_assignments` |
-| Leaves      | `/hostel/leaves`      | `/hostel/leaves`      | `hostel_leaves`      |
-| Visitors    | `/hostel/visitors`    | `/hostel/visitors`    | `hostel_visitors`    |
+| Nav         | Route                 | API                                               | Tables                                         |
+| ----------- | --------------------- | ------------------------------------------------- | ---------------------------------------------- |
+| Overview    | `/hostel`             | `/hostel/*`                                       | `hostel_*`                                     |
+| Structure   | `/hostel/structure`   | `/hostel/blocks`, `/hostel/rooms`, `/hostel/beds` | `hostel_blocks`, `hostel_rooms`, `hostel_beds` |
+| Assignments | `/hostel/assignments` | `/hostel/assignments`                             | `hostel_assignments`                           |
+| Leaves      | `/hostel/leaves`      | `/hostel/leaves`                                  | `hostel_leaves`                                |
+| Visitors    | `/hostel/visitors`    | `/hostel/visitors`                                | `hostel_visitors`                              |
 
 ## Build status
 
-| Check                                  | Done | Evidence                          |
-| -------------------------------------- | ---- | --------------------------------- |
-| SQL `db/sql/008_hostel_schema.sql`     | ☑    |                                   |
-| Gateway mount InMemoryHostelRepository | ☑    | domain-plugins                    |
-| Web shells + sidebar                   | ☑    |                                   |
-| Live hostel create + list              | ☑    | `NewHostelForm` + `/hostel`       |
-| Assignments list from API              | ☑    | `/hostel/assignments`             |
-| Assignment create form                 | ☑    | `NewHostelAssignmentForm`         |
-| Leaves + visitors create/list          | ☑    | `NewLeaveForm` / `NewVisitorForm` |
-| PgHostelStore                          | ☐    | follow-up                         |
-| Block/room/bed admin UI                | ☐    | follow-up                         |
+| Check                                  | Done | Evidence                           |
+| -------------------------------------- | ---- | ---------------------------------- |
+| SQL `db/sql/008_hostel_schema.sql`     | ☑    |                                    |
+| Gateway mount InMemoryHostelRepository | ☑    | domain-plugins                     |
+| Web shells + sidebar                   | ☑    |                                    |
+| Live hostel create + list              | ☑    | `NewHostelForm` + `/hostel`        |
+| Assignments list from API              | ☑    | `/hostel/assignments`              |
+| Assignment create form                 | ☑    | `NewHostelAssignmentForm`          |
+| Leaves + visitors create/list          | ☑    | `NewLeaveForm` / `NewVisitorForm`  |
+| PgHostelStore                          | ☐    | follow-up                          |
+| Block/room/bed admin UI                | ☑    | `/hostel/structure` + create forms |
 
 ## Residual
 
-Wire block/room/bed CRUD + Pg store; seed demo occupancy per cert school.
+Wire Pg store; seed demo occupancy per cert school.

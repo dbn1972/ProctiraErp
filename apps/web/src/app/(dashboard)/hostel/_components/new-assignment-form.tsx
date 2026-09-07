@@ -16,10 +16,11 @@ import {
 } from '@proctira/ui/components';
 
 import { createHostelAssignmentAction } from '../../campus-actions';
+import type { HostelBed } from '@/lib/api/hostel';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export function NewHostelAssignmentForm() {
+export function NewHostelAssignmentForm({ beds }: { beds: HostelBed[] }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -36,8 +37,12 @@ export function NewHostelAssignmentForm() {
     const bedId = String(fd.get('bedId') ?? '').trim();
     const startDate = String(fd.get('startDate') ?? '').trim();
     const endDate = String(fd.get('endDate') ?? '').trim();
-    if (!UUID_RE.test(studentId) || !UUID_RE.test(bedId)) {
-      setError('Student and bed must be UUID v4 values.');
+    if (!UUID_RE.test(studentId)) {
+      setError('Student must be a UUID v4 value.');
+      return;
+    }
+    if (!bedId) {
+      setError('Select a bed.');
       return;
     }
     if (!startDate) {
@@ -80,8 +85,32 @@ export function NewHostelAssignmentForm() {
           <FormField id="assign-student" label="Student UUID" required>
             <Input id="assign-student" name="studentId" className="h-11 min-h-11" />
           </FormField>
-          <FormField id="assign-bed" label="Bed UUID" required>
-            <Input id="assign-bed" name="bedId" className="h-11 min-h-11" />
+          <FormField id="assign-bed" label="Bed" required>
+            {beds.length > 0 ? (
+              <select
+                id="assign-bed"
+                name="bedId"
+                className="flex h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
+                defaultValue=""
+              >
+                <option value="" disabled>
+                  Select bed…
+                </option>
+                {beds.map((bed) => (
+                  <option key={bed.id} value={bed.id}>
+                    {bed.bedLabel}
+                    {bed.isAvailable ? '' : ' (unavailable)'}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                id="assign-bed"
+                name="bedId"
+                className="h-11 min-h-11"
+                placeholder="Bed UUID"
+              />
+            )}
           </FormField>
           <div className="grid gap-4 md:grid-cols-2">
             <FormField id="assign-start" label="Start date" required>

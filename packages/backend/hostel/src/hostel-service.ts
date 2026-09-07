@@ -7,8 +7,11 @@ import { v4 as uuidv4 } from 'uuid';
 import type { HostelRepository } from './hostel-repository.js';
 import type {
   CreateAssignmentInput,
+  CreateBedInput,
+  CreateBlockInput,
   CreateHostelInput,
   CreateLeaveInput,
+  CreateRoomInput,
   CreateVisitorInput,
 } from './schemas.js';
 
@@ -86,5 +89,47 @@ export class HostelService {
 
   async listVisitors(tenantId: string) {
     return this.repository.listVisitors(tenantId);
+  }
+
+  async createBlock(tenantId: string, input: CreateBlockInput) {
+    return this.repository.createBlock({
+      id: uuidv4(),
+      tenantId,
+      hostelId: input.hostelId,
+      name: input.name,
+      floor: input.floor ?? 0,
+    });
+  }
+
+  async listBlocks(tenantId: string, hostelId?: string) {
+    return this.repository.listBlocks(tenantId, hostelId);
+  }
+
+  async createRoom(tenantId: string, input: CreateRoomInput) {
+    return this.repository.createRoom({
+      id: uuidv4(),
+      tenantId,
+      blockId: input.blockId,
+      roomNumber: input.roomNumber,
+      capacity: input.capacity ?? 1,
+    });
+  }
+
+  async listRooms(tenantId: string, blockId?: string) {
+    return this.repository.listRooms(tenantId, blockId);
+  }
+
+  async createBed(tenantId: string, input: CreateBedInput) {
+    return this.repository.createBed({
+      id: uuidv4(),
+      tenantId,
+      roomId: input.roomId,
+      bedLabel: input.bedLabel,
+      isAvailable: input.isAvailable ?? true,
+    });
+  }
+
+  async listBeds(tenantId: string, roomId?: string) {
+    return this.repository.listBeds(tenantId, roomId);
   }
 }

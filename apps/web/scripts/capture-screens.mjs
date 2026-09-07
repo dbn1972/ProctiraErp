@@ -215,6 +215,7 @@ const SCREENS = {
   ],
   hostel: [
     ['overview', '/hostel'],
+    ['structure', '/hostel/structure'],
     ['assignments', '/hostel/assignments'],
     ['leaves', '/hostel/leaves'],
     ['visitors', '/hostel/visitors'],

@@ -3,9 +3,12 @@
  */
 import type {
   HostelAssignmentEntity,
+  HostelBedEntity,
+  HostelBlockEntity,
   HostelEntity,
   HostelLeaveEntity,
   HostelRepository,
+  HostelRoomEntity,
   HostelVisitorEntity,
 } from './hostel-repository.js';
 
@@ -14,6 +17,9 @@ export class InMemoryHostelRepository implements HostelRepository {
   private assignments: HostelAssignmentEntity[] = [];
   private leaves: HostelLeaveEntity[] = [];
   private visitors: HostelVisitorEntity[] = [];
+  private blocks: HostelBlockEntity[] = [];
+  private rooms: HostelRoomEntity[] = [];
+  private beds: HostelBedEntity[] = [];
 
   async createHostel(data: Omit<HostelEntity, 'createdAt' | 'updatedAt'>): Promise<HostelEntity> {
     const now = new Date();
@@ -67,5 +73,50 @@ export class InMemoryHostelRepository implements HostelRepository {
 
   async listVisitors(tenantId: string): Promise<HostelVisitorEntity[]> {
     return this.visitors.filter((v) => v.tenantId === tenantId);
+  }
+
+  async createBlock(
+    data: Omit<HostelBlockEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HostelBlockEntity> {
+    const now = new Date();
+    const entity: HostelBlockEntity = { ...data, createdAt: now, updatedAt: now };
+    this.blocks.push(entity);
+    return entity;
+  }
+
+  async listBlocks(tenantId: string, hostelId?: string): Promise<HostelBlockEntity[]> {
+    return this.blocks.filter(
+      (b) => b.tenantId === tenantId && (hostelId === undefined || b.hostelId === hostelId),
+    );
+  }
+
+  async createRoom(
+    data: Omit<HostelRoomEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HostelRoomEntity> {
+    const now = new Date();
+    const entity: HostelRoomEntity = { ...data, createdAt: now, updatedAt: now };
+    this.rooms.push(entity);
+    return entity;
+  }
+
+  async listRooms(tenantId: string, blockId?: string): Promise<HostelRoomEntity[]> {
+    return this.rooms.filter(
+      (r) => r.tenantId === tenantId && (blockId === undefined || r.blockId === blockId),
+    );
+  }
+
+  async createBed(
+    data: Omit<HostelBedEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HostelBedEntity> {
+    const now = new Date();
+    const entity: HostelBedEntity = { ...data, createdAt: now, updatedAt: now };
+    this.beds.push(entity);
+    return entity;
+  }
+
+  async listBeds(tenantId: string, roomId?: string): Promise<HostelBedEntity[]> {
+    return this.beds.filter(
+      (b) => b.tenantId === tenantId && (roomId === undefined || b.roomId === roomId),
+    );
   }
 }

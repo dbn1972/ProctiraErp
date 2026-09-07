@@ -167,3 +167,117 @@ export async function createHostelVisitor(input: {
   }
   return result.data;
 }
+
+export interface HostelBlock {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  name: string;
+  floor: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HostelRoom {
+  id: string;
+  tenantId: string;
+  blockId: string;
+  roomNumber: string;
+  capacity: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HostelBed {
+  id: string;
+  tenantId: string;
+  roomId: string;
+  bedLabel: string;
+  isAvailable: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listHostelBlocks(hostelId?: string): Promise<HostelBlock[]> {
+  const query = hostelId ? `?hostelId=${encodeURIComponent(hostelId)}` : '';
+  const result = await gatewayFetch<{ data: HostelBlock[] }>(`/hostel/blocks${query}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createHostelBlock(input: {
+  hostelId: string;
+  name: string;
+  floor?: number;
+}): Promise<HostelBlock> {
+  const result = await gatewayFetch<HostelBlock>('/hostel/blocks', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create block',
+    });
+  }
+  return result.data;
+}
+
+export async function listHostelRooms(blockId?: string): Promise<HostelRoom[]> {
+  const query = blockId ? `?blockId=${encodeURIComponent(blockId)}` : '';
+  const result = await gatewayFetch<{ data: HostelRoom[] }>(`/hostel/rooms${query}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createHostelRoom(input: {
+  blockId: string;
+  roomNumber: string;
+  capacity?: number;
+}): Promise<HostelRoom> {
+  const result = await gatewayFetch<HostelRoom>('/hostel/rooms', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create room',
+    });
+  }
+  return result.data;
+}
+
+export async function listHostelBeds(roomId?: string): Promise<HostelBed[]> {
+  const query = roomId ? `?roomId=${encodeURIComponent(roomId)}` : '';
+  const result = await gatewayFetch<{ data: HostelBed[] }>(`/hostel/beds${query}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createHostelBed(input: {
+  roomId: string;
+  bedLabel: string;
+  isAvailable?: boolean;
+}): Promise<HostelBed> {
+  const result = await gatewayFetch<HostelBed>('/hostel/beds', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: result.error?.code ?? 'CREATE_FAILED',
+      message: result.error?.message ?? 'Failed to create bed',
+    });
+  }
+  return result.data;
+}

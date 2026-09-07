@@ -59,6 +59,7 @@ const DASHBOARD_ROUTES = [
   { path: '/communication/campaigns', label: 'communication-campaigns' },
   { path: '/communication/emergency', label: 'communication-emergency' },
   { path: '/hostel', label: 'hostel' },
+  { path: '/hostel/structure', label: 'hostel-structure' },
   { path: '/hostel/assignments', label: 'hostel-assignments' },
   { path: '/library', label: 'library' },
   { path: '/library/circulation', label: 'library-circulation' },

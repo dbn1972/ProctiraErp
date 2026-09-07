@@ -6,7 +6,10 @@ import { GatewayError } from '@/lib/api/gateway';
 import {
   createHostel,
   createHostelAssignment,
+  createHostelBed,
+  createHostelBlock,
   createHostelLeave,
+  createHostelRoom,
   createHostelVisitor,
   type CreateHostelInput,
 } from '@/lib/api/hostel';
@@ -174,6 +177,76 @@ export async function createHostelVisitorAction(input: {
           : error instanceof Error
             ? error.message
             : 'Failed to create visitor',
+    };
+  }
+}
+
+export async function createHostelBlockAction(input: {
+  hostelId: string;
+  name: string;
+  floor?: number;
+}): Promise<CampusActionState> {
+  try {
+    const row = await createHostelBlock(input);
+    revalidatePath('/hostel');
+    revalidatePath('/hostel/structure');
+    return { status: 'success', message: 'Block created.', id: row.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create block',
+    };
+  }
+}
+
+export async function createHostelRoomAction(input: {
+  blockId: string;
+  roomNumber: string;
+  capacity?: number;
+}): Promise<CampusActionState> {
+  try {
+    const row = await createHostelRoom(input);
+    revalidatePath('/hostel');
+    revalidatePath('/hostel/structure');
+    return { status: 'success', message: 'Room created.', id: row.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create room',
+    };
+  }
+}
+
+export async function createHostelBedAction(input: {
+  roomId: string;
+  bedLabel: string;
+  isAvailable?: boolean;
+}): Promise<CampusActionState> {
+  try {
+    const row = await createHostelBed(input);
+    revalidatePath('/hostel');
+    revalidatePath('/hostel/structure');
+    revalidatePath('/hostel/assignments');
+    return { status: 'success', message: 'Bed created.', id: row.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create bed',
     };
   }
 }

@@ -2,7 +2,7 @@
  * Hostel overview (Server Component).
  */
 import Link from 'next/link';
-import { BedDouble, CalendarDays, Users } from 'lucide-react';
+import { BedDouble, Building2, CalendarDays, Users } from 'lucide-react';
 
 import {
   Button,
@@ -65,7 +65,21 @@ export default async function HostelOverviewPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Building2 className="h-4 w-4" aria-hidden="true" />
+              Structure
+            </CardTitle>
+            <CardDescription>Blocks, rooms, and beds</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/hostel/structure">Manage structure</Link>
+            </Button>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">

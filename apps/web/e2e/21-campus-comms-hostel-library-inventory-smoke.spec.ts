@@ -12,6 +12,7 @@ const COMMUNICATION_ROUTES = [
 
 const HOSTEL_ROUTES = [
   { id: 'overview', path: '/hostel', heading: /hostel/i },
+  { id: 'structure', path: '/hostel/structure', heading: /structure|block|hostel/i },
   { id: 'assignments', path: '/hostel/assignments', heading: /assignment/i },
   { id: 'leaves', path: '/hostel/leaves', heading: /leave/i },
   { id: 'visitors', path: '/hostel/visitors', heading: /visitor/i },

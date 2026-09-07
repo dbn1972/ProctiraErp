@@ -8,13 +8,19 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { HostelService } from './hostel-service.js';
 import {
   CreateAssignmentSchema,
+  CreateBedSchema,
+  CreateBlockSchema,
   CreateHostelSchema,
   CreateLeaveSchema,
+  CreateRoomSchema,
   CreateVisitorSchema,
   HostelParamsSchema,
   type CreateAssignmentInput,
+  type CreateBedInput,
+  type CreateBlockInput,
   type CreateHostelInput,
   type CreateLeaveInput,
+  type CreateRoomInput,
   type CreateVisitorInput,
   type HostelParams,
 } from './schemas.js';
@@ -126,11 +132,245 @@ function formatVisitor(entity: {
   };
 }
 
+function formatBlock(entity: {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  name: string;
+  floor: number;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    hostelId: entity.hostelId,
+    name: entity.name,
+    floor: entity.floor,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatRoom(entity: {
+  id: string;
+  tenantId: string;
+  blockId: string;
+  roomNumber: string;
+  capacity: number;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    blockId: entity.blockId,
+    roomNumber: entity.roomNumber,
+    capacity: entity.capacity,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
+function formatBed(entity: {
+  id: string;
+  tenantId: string;
+  roomId: string;
+  bedLabel: string;
+  isAvailable: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: entity.id,
+    tenantId: entity.tenantId,
+    roomId: entity.roomId,
+    bedLabel: entity.bedLabel,
+    isAvailable: entity.isAvailable,
+    createdAt: entity.createdAt.toISOString(),
+    updatedAt: entity.updatedAt.toISOString(),
+  };
+}
+
 export async function registerHostelRoutes(
   fastify: FastifyInstance,
   options: HostelRoutesOptions,
 ): Promise<void> {
   const { hostelService, prefix = '/hostel' } = options;
+
+  fastify.get(
+    `${prefix}/blocks`,
+    async function listBlocksHandler(
+      request: FastifyRequest<{ Querystring: { hostelId?: string } }>,
+      reply: FastifyReply,
+    ) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const hostelId = request.query.hostelId;
+      const blocks = await hostelService.listBlocks(tenantId, hostelId);
+      return reply.status(200).send({ data: blocks.map(formatBlock) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/blocks`,
+    async function createBlockHandler(
+      request: FastifyRequest<{ Body: CreateBlockInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateBlockSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const block = await hostelService.createBlock(tenantId, result.data);
+        return reply.status(201).send(formatBlock(block));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/rooms`,
+    async function listRoomsHandler(
+      request: FastifyRequest<{ Querystring: { blockId?: string } }>,
+      reply: FastifyReply,
+    ) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const blockId = request.query.blockId;
+      const rooms = await hostelService.listRooms(tenantId, blockId);
+      return reply.status(200).send({ data: rooms.map(formatRoom) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/rooms`,
+    async function createRoomHandler(
+      request: FastifyRequest<{ Body: CreateRoomInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateRoomSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const room = await hostelService.createRoom(tenantId, result.data);
+        return reply.status(201).send(formatRoom(room));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/beds`,
+    async function listBedsHandler(
+      request: FastifyRequest<{ Querystring: { roomId?: string } }>,
+      reply: FastifyReply,
+    ) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const roomId = request.query.roomId;
+      const beds = await hostelService.listBeds(tenantId, roomId);
+      return reply.status(200).send({ data: beds.map(formatBed) });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/beds`,
+    async function createBedHandler(
+      request: FastifyRequest<{ Body: CreateBedInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateBedSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const bed = await hostelService.createBed(tenantId, result.data);
+        return reply.status(201).send(formatBed(bed));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
 
   fastify.get(
     `${prefix}/assignments`,

@@ -12,6 +12,9 @@ export type {
   HostelAssignmentEntity,
   HostelLeaveEntity,
   HostelVisitorEntity,
+  HostelBlockEntity,
+  HostelRoomEntity,
+  HostelBedEntity,
   HostelRepository,
 } from './hostel-repository.js';
 
@@ -22,6 +25,9 @@ export {
   CreateAssignmentSchema,
   CreateLeaveSchema,
   CreateVisitorSchema,
+  CreateBlockSchema,
+  CreateRoomSchema,
+  CreateBedSchema,
   HostelParamsSchema,
 } from './schemas.js';
 export type {
@@ -29,6 +35,9 @@ export type {
   CreateAssignmentInput,
   CreateLeaveInput,
   CreateVisitorInput,
+  CreateBlockInput,
+  CreateRoomInput,
+  CreateBedInput,
 } from './schemas.js';
 
 export { registerHostelRoutes } from './routes.js';

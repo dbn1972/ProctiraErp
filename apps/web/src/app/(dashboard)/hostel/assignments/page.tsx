@@ -12,14 +12,14 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listHostelAssignments } from '@/lib/api/hostel';
+import { listHostelAssignments, listHostelBeds } from '@/lib/api/hostel';
 import { NewHostelAssignmentForm } from '../_components/new-assignment-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HostelAssignmentsPage() {
   await requireSession();
-  const assignments = await listHostelAssignments();
+  const [assignments, beds] = await Promise.all([listHostelAssignments(), listHostelBeds()]);
 
   return (
     <div className="space-y-6 p-6">
@@ -35,7 +35,7 @@ export default async function HostelAssignmentsPage() {
         </Button>
       </div>
 
-      <NewHostelAssignmentForm />
+      <NewHostelAssignmentForm beds={beds} />
 
       <Card>
         <CardHeader>

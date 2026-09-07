@@ -142,6 +142,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/communication/campaigns',
     '/communication/emergency',
     '/hostel',
+    '/hostel/structure',
     '/hostel/assignments',
     '/library',
     '/library/circulation',
