@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url';
 
 import pg from 'pg';
 
+import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import type {
   StaffLeaveEntity,
   StaffLeaveRepository,
   StaffLeaveStatus,
   StaffLeaveType,
 } from './leave-repository.js';
-import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 
 const { Pool } = pg;
 

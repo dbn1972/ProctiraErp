@@ -5,7 +5,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import type { StaffLeaveService } from './leave-service.js';
 import {
   CreateStaffLeaveSchema,
   DecideStaffLeaveSchema,
@@ -14,6 +13,7 @@ import {
   type DecideStaffLeaveInput,
   type StaffLeaveParams,
 } from './leave-schemas.js';
+import type { StaffLeaveService } from './leave-service.js';
 
 export interface StaffLeaveRoutesOptions {
   leaveService: StaffLeaveService;

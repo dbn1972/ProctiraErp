@@ -7,16 +7,16 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { StaffRepository } from './staff-repository.js';
 import type { StaffAssignmentRepository } from './assignment-repository.js';
-import type { StaffLeaveRepository } from './leave-repository.js';
-import { StaffService } from './staff-service.js';
-import { StaffAssignmentService } from './assignment-service.js';
-import { StaffLeaveService } from './leave-service.js';
-import { registerStaffRoutes } from './routes.js';
 import { registerAssignmentRoutes } from './assignment-routes.js';
+import { StaffAssignmentService } from './assignment-service.js';
+import type { StaffLeaveRepository } from './leave-repository.js';
 import { registerStaffLeaveRoutes } from './leave-routes.js';
+import { StaffLeaveService } from './leave-service.js';
 import { createStaffLeaveRepository } from './pg-leave-repository.js';
+import { registerStaffRoutes } from './routes.js';
+import type { StaffRepository } from './staff-repository.js';
+import { StaffService } from './staff-service.js';
 
 /**
  * Options for the staff plugin.
