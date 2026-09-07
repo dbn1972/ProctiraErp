@@ -92,17 +92,17 @@ Evidence: `ACADEMICS_*.md` · `DEV_SIS_BOARD_EXPORTS.md` · `/opt/cursor/artifac
 
 ### Web App — Services (**9.5**)
 
-| Screen                                        | Score | Status           | Gap to 9.5                                 |
-| --------------------------------------------- | ----: | ---------------- | ------------------------------------------ |
-| Scholarships · (6)                            |   9.5 | Ready w/ waivers | Live IdP; finance engine residual thin     |
-| Health · screenings / profile / special needs |   9.3 | Ready w/ waivers | Non-counselling PHI still in-memory        |
-| Health · counselling                          |   9.5 | Ready w/ waivers | PG-backed create + list sync; IdP residual |
-| Workflows · (5)                               |   9.5 | Ready w/ waivers | Domain engine mount residual               |
-| Notifications · inbox / prefs / devices       |   9.5 | Ready w/ waivers | Live SMTP/FCM/Twilio (sandbox)             |
-| Communication · campaigns / emergency         |   9.5 | Ready w/ waivers | Live provider adapters (sandbox)           |
-| Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | GPS non-goal                               |
-| Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Mess fees non-goal                         |
-| Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | OPAC non-goal                              |
+| Screen                                        | Score | Status           | Gap to 9.5                                      |
+| --------------------------------------------- | ----: | ---------------- | ----------------------------------------------- |
+| Scholarships · (6)                            |   9.5 | Ready w/ waivers | Live IdP; finance engine residual thin          |
+| Health · screenings / profile / special needs |   9.3 | Ready w/ waivers | Non-counselling PHI still in-memory             |
+| Health · counselling                          |   9.5 | Ready w/ waivers | PG-backed create + list sync; IdP residual      |
+| Workflows · (5)                               |   9.5 | Ready w/ waivers | Domain engine mount residual                    |
+| Notifications · inbox / prefs / devices       |   9.5 | Ready w/ waivers | Live SMTP/FCM/Twilio (sandbox)                  |
+| Communication · campaigns / emergency         |   9.5 | Ready w/ waivers | Live provider adapters (sandbox)                |
+| Transport · routes / vehicles / assignments   |   9.5 | Ready w/ waivers | GPS non-goal                                    |
+| Hostel · occupancy / leave / visitors         |   9.5 | Ready w/ waivers | Mess fees non-goal                              |
+| Library · catalog / circulation / clearance   |   9.5 | Ready w/ waivers | OPAC non-goal                                   |
 | Parent portal · messages / consents / fees    |   8.5 | Ready w/ waivers | Live PSP; Flutter API clients thin; multidevice |
 
 ### Web App — Insights & System (**9.5**)

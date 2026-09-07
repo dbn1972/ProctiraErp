@@ -17,14 +17,14 @@
 
 ## Evidence
 
-| Pillar              | Status | Evidence                                                            |
-| ------------------- | ------ | ------------------------------------------------------------------- |
-| Inventory smoke     | ☑      | `e2e/22-parent-portal-smoke.spec.ts` (ungated)                      |
-| UX route lists      | ☑      | dark/touch/a11y/capture include `/parent*`                          |
-| Backend unit        | ☑      | `@proctira/backend-parent-portal` 10 tests                          |
-| Gated writes        | ☑      | link/message/consent/pay + cross-tenant empty list                  |
-| Dedicated shell     | ☑      | `ParentPortalShell` (`data-shell="parent"`) — not staff MobileShell |
-| Flutter parent mode | ☑      | `/parent` routes; staff shells unchanged                            |
+| Pillar              | Status | Evidence                                                                                                                                                                  |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inventory smoke     | ☑      | `e2e/22-parent-portal-smoke.spec.ts` (ungated)                                                                                                                            |
+| UX route lists      | ☑      | dark/touch/a11y/capture include `/parent*`                                                                                                                                |
+| Backend unit        | ☑      | `@proctira/backend-parent-portal` 10 tests                                                                                                                                |
+| Gated writes        | ☑      | link/message/consent/pay + cross-tenant empty list                                                                                                                        |
+| Dedicated shell     | ☑      | `ParentPortalShell` (`data-shell="parent"`) — not staff MobileShell                                                                                                       |
+| Flutter parent mode | ☑      | `/parent` routes; staff shells unchanged                                                                                                                                  |
 | Tip CI              | ☑      | PR #25 @ `7656860` — 13/13 SUCCESS ([CI](https://github.com/dbn1972/ProctiraErp/actions/runs/34121340677)); `docs/audits/evidence/parent-portal-ws4-tip-ci-evidence.json` |
 
 ## Waivers

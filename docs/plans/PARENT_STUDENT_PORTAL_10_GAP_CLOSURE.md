@@ -43,13 +43,13 @@ WS4  Enterprise test packs + tip CI
 
 ## Status
 
-| WS  | Status                                                                       |
-| --- | ---------------------------------------------------------------------------- |
-| WS0 | **Done**                                                                     |
-| WS1 | **Done**                                                                     |
-| WS2 | **Done**                                                                     |
-| WS3 | **Done**                                                                     |
-| WS4 | **Done\*** — tip CI ☑ on `7656860` / PR #25 (13/13); evidence JSON below     |
+| WS  | Status                                                                   |
+| --- | ------------------------------------------------------------------------ |
+| WS0 | **Done**                                                                 |
+| WS1 | **Done**                                                                 |
+| WS2 | **Done**                                                                 |
+| WS3 | **Done**                                                                 |
+| WS4 | **Done\*** — tip CI ☑ on `7656860` / PR #25 (13/13); evidence JSON below |
 
 ## Evidence
 
