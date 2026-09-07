@@ -1,19 +1,21 @@
 # Enterprise production-ready — Hostel occupancy
 
 **Module:** Hostel  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `638e3fb+`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `d150224`  
 **Date (UTC):** 2026-09-07  
 **Paired build audit:** `docs/audits/DEV_HOSTEL_OCCUPANCY.md`
 
 ## Evidence (in progress)
 
-| Pillar           | Status | Evidence                                                     |
-| ---------------- | ------ | ------------------------------------------------------------ |
-| Inventory smoke  | ☑      | `e2e/21-campus-comms-hostel-library-inventory-smoke.spec.ts` |
-| UX route lists   | ☑      | dark/touch/a11y/capture                                      |
-| Backend unit     | ☑      | `@proctira/backend-hostel` 3 tests                           |
-| Multidevice PNGs | ☑      | `/opt/cursor/artifacts/campus-audit/hostel/`                 |
-| Tip CI           | ☐      | billing block                                                |
+| Pillar             | Status | Evidence                                                     |
+| ------------------ | ------ | ------------------------------------------------------------ |
+| Inventory smoke    | ☑      | `e2e/21-campus-comms-hostel-library-inventory-smoke.spec.ts` |
+| UX route lists     | ☑      | dark/touch/a11y/capture                                      |
+| Backend unit       | ☑      | `@proctira/backend-hostel` 8 tests (incl. Pg + bed lock)     |
+| Bed occupancy lock | ☑      | active assignment → bed unavailable; 409 conflict            |
+| Multidevice PNGs   | ☑      | `/opt/cursor/artifacts/campus-audit/hostel/`                 |
+| Tip CI             | ☐      | billing block                                                |
+| Auth write E2E     | ☐      | pending                                                      |
 
 ## Waivers
 
