@@ -24,6 +24,7 @@
 | Pg persistence           | ☑      | `createTransportRepository()` when `DATABASE_URL`        |
 | Multidevice PNGs         | ☑      | `/opt/cursor/artifacts/campus-audit/transport/`          |
 | Live authenticated write | ☑      | `e2e/21d-…` route + vehicle create (gated)               |
+| Student overlap deny     | ☑      | second active assignment → 422 BUSINESS_RULE_ERROR       |
 | Cross-tenant deny        | ☑      | tenant B cannot GET tenant A route (404)                 |
 | Tip CI                   | ☐      | billing block                                            |
 

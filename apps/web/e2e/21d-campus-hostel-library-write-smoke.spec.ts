@@ -234,4 +234,47 @@ test.describe('Transport — live writes (E2E_BACKEND_READY)', () => {
     });
     expect(cross.status()).toBe(404);
   });
+
+  test('rejects overlapping active student route assignment', async ({ request }) => {
+    const studentId = '00000000-0000-4000-8000-000000000096';
+    const routeA = await request.post(`${GATEWAY_URL}/api/v1/transport/routes`, {
+      headers: gatewayAuthHeaders('transport-a'),
+      data: {
+        name: `Overlap A ${Date.now()}`,
+        startLocation: 'North',
+        endLocation: 'Campus',
+        operatingDays: ['monday'],
+      },
+    });
+    const routeB = await request.post(`${GATEWAY_URL}/api/v1/transport/routes`, {
+      headers: gatewayAuthHeaders('transport-a'),
+      data: {
+        name: `Overlap B ${Date.now()}`,
+        startLocation: 'South',
+        endLocation: 'Campus',
+        operatingDays: ['wednesday'],
+      },
+    });
+    expect(routeA.status()).toBe(201);
+    expect(routeB.status()).toBe(201);
+    const a = await routeA.json();
+    const b = await routeB.json();
+
+    const first = await request.post(`${GATEWAY_URL}/api/v1/transport/student-assignments`, {
+      headers: gatewayAuthHeaders('transport-a'),
+      data: { studentId, routeId: a.id, startDate: '2026-09-08' },
+    });
+    // Prior runs may already have an active assignment for this student.
+    if (first.status() !== 201) {
+      expect(first.status()).toBe(422);
+    }
+
+    const second = await request.post(`${GATEWAY_URL}/api/v1/transport/student-assignments`, {
+      headers: gatewayAuthHeaders('transport-a'),
+      data: { studentId, routeId: b.id, startDate: '2026-09-09' },
+    });
+    const body = await second.json();
+    expect(second.status(), JSON.stringify(body)).toBe(422);
+    expect(String(body.code)).toMatch(/BUSINESS_RULE/i);
+  });
 });
