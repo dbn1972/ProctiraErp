@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { SiteHeader } from '@/components/layout/site-header';
+
 /**
  * Developer Portal landing/home page (v2.0 redesign).
  *
@@ -160,41 +162,7 @@ const steps = [
 export default function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-6">
-          <Link href="/" className="flex items-center gap-2.5 text-gray-900">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary-500 to-primary-700 text-base font-extrabold text-white shadow-inner">
-              P
-            </span>
-            <span className="text-base font-bold tracking-tight">
-              Proctira<span className="text-primary-600">ERP</span>
-            </span>
-            <span className="ml-0.5 rounded-md border border-gray-200 bg-primary-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-700">
-              Developers
-            </span>
-          </Link>
-          <nav className="hidden gap-1 md:flex" aria-label="Main">
-            <Link href="/docs" className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900">
-              Docs
-            </Link>
-            <Link href="/docs" className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900">
-              API Reference
-            </Link>
-            <Link href="/marketplace" className="rounded-md px-3 py-2 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900">
-              Plugins
-            </Link>
-          </nav>
-          <div className="ml-auto flex items-center gap-2.5">
-            <Link
-              href="/dashboard"
-              className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-700"
-            >
-              Get API key
-            </Link>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1">
         {/* Hero */}
@@ -242,7 +210,11 @@ export default function HomePage() {
                 <span className="ml-2 font-mono text-[11px] text-gray-400">quickstart.sh</span>
                 <span className="ml-auto text-[11px] font-bold uppercase tracking-wider text-gray-400">curl</span>
               </div>
-              <pre className="overflow-x-auto px-5 py-4 font-mono text-xs leading-relaxed text-[#C6D0E8]" aria-label="Example API request">
+              <pre
+                tabIndex={0}
+                className="overflow-x-auto px-5 py-4 font-mono text-xs leading-relaxed text-[#C6D0E8]"
+                aria-label="Example API request"
+              >
 {`# List students enrolled this week in your sandbox tenant
 curl "https://api.proctira.dev/v3/students" \\
   -H "Authorization: Bearer $PROCTIRA_API_KEY" \\

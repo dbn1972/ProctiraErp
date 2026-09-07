@@ -58,6 +58,7 @@ export default function DocsPage() {
       </ul>
 
       <pre
+        tabIndex={0}
         className="mt-8 overflow-x-auto rounded-xl bg-gray-950 p-4 text-xs leading-relaxed text-gray-100"
         data-testid="docs-sample-curl"
       >

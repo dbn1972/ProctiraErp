@@ -27,6 +27,11 @@ test.describe('Developer Portal — public surfaces', () => {
 
   test('primary nav links are wired (no 404 stubs)', async ({ page }) => {
     await page.goto('/');
+    const menuButton = page.getByRole('button', { name: /open menu/i });
+    if (await menuButton.isVisible()) {
+      await menuButton.click();
+      await expect(page.getByRole('button', { name: /close menu/i })).toBeVisible();
+    }
     const expected: ReadonlyArray<{ name: RegExp; href: RegExp }> = [
       { name: /^Docs$/i, href: /\/docs/ },
       { name: /^API Reference$/i, href: /\/docs/ },
