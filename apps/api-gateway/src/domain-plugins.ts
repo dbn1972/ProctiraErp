@@ -207,8 +207,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'health',
     proxyPrefixes: ['/health'],
     register: async (scope) => {
-      // Postgres counselling overlay when DATABASE_URL is set (raw pg, no Prisma).
-      // Other health entities stay in-memory until their SQL schemas land.
+      // Postgres counselling + profile/screening PHI when DATABASE_URL is set
+      // (raw pg, no Prisma — SQL 002 + 012). Special-needs stays in-memory.
       // UI aggregates merge seed + live counselling writes for list sync.
       const repository = createHealthRepository();
       await scope.register(healthUiPlugin, {

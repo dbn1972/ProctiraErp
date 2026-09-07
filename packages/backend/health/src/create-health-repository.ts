@@ -1,19 +1,29 @@
 /**
  * Health repository factory.
  *
- * Prefer Postgres-backed counselling sessions when DATABASE_URL is set
- * (raw `pg`, no Prisma). Other health entities stay in-memory until their
- * SQL schemas land.
+ * Prefer Postgres-backed counselling + profile/screening PHI when DATABASE_URL
+ * is set (raw `pg`, no Prisma). Special-needs entities stay in-memory until
+ * their SQL schemas land.
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type { HealthRepository, CounsellingSessionEntity } from './health-repository.js';
+import type {
+  AllergyEntity,
+  CounsellingSessionEntity,
+  HealthConditionEntity,
+  HealthMeasurementEntity,
+  HealthRepository,
+  InsuranceEntity,
+  ScreeningProgramEntity,
+  VaccinationEntity,
+} from './health-repository.js';
 import { InMemoryHealthRepository } from './in-memory-repository.js';
 import {
   createPgCounsellingStore,
   isPgCounsellingEnabled,
   type PgCounsellingStore,
 } from './pg-counselling-store.js';
+import { createPgPhiStore, isPgPhiEnabled, type PgPhiStore } from './pg-phi-store.js';
 
 function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult<T> {
   const totalItems = items.length;
@@ -32,44 +42,10 @@ function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult
 }
 
 /**
- * Overlay that delegates most methods to in-memory, but persists counselling
- * sessions through the Postgres store when available.
- *
- * Bound delegates are assigned in the constructor body (not class fields)
- * because TypeScript parameter properties are not yet initialized when field
- * initializers run — `this.memory` would otherwise be undefined.
+ * Overlay that persists counselling + profile/screening PHI through Postgres
+ * when available; special-needs stays on the in-memory maps.
  */
 export class HybridHealthRepository implements HealthRepository {
-  readonly createMeasurement: HealthRepository['createMeasurement'];
-  readonly updateMeasurement: HealthRepository['updateMeasurement'];
-  readonly findMeasurementById: HealthRepository['findMeasurementById'];
-  readonly listMeasurementsByStudent: HealthRepository['listMeasurementsByStudent'];
-  readonly deleteMeasurement: HealthRepository['deleteMeasurement'];
-
-  readonly createAllergy: HealthRepository['createAllergy'];
-  readonly updateAllergy: HealthRepository['updateAllergy'];
-  readonly findAllergyById: HealthRepository['findAllergyById'];
-  readonly listAllergiesByStudent: HealthRepository['listAllergiesByStudent'];
-  readonly deleteAllergy: HealthRepository['deleteAllergy'];
-
-  readonly createCondition: HealthRepository['createCondition'];
-  readonly updateCondition: HealthRepository['updateCondition'];
-  readonly findConditionById: HealthRepository['findConditionById'];
-  readonly listConditionsByStudent: HealthRepository['listConditionsByStudent'];
-  readonly deleteCondition: HealthRepository['deleteCondition'];
-
-  readonly createVaccination: HealthRepository['createVaccination'];
-  readonly updateVaccination: HealthRepository['updateVaccination'];
-  readonly findVaccinationById: HealthRepository['findVaccinationById'];
-  readonly listVaccinationsByStudent: HealthRepository['listVaccinationsByStudent'];
-  readonly deleteVaccination: HealthRepository['deleteVaccination'];
-
-  readonly createInsurance: HealthRepository['createInsurance'];
-  readonly updateInsurance: HealthRepository['updateInsurance'];
-  readonly findInsuranceById: HealthRepository['findInsuranceById'];
-  readonly listInsuranceByStudent: HealthRepository['listInsuranceByStudent'];
-  readonly deleteInsurance: HealthRepository['deleteInsurance'];
-
   readonly createAssessment: HealthRepository['createAssessment'];
   readonly findAssessmentById: HealthRepository['findAssessmentById'];
   readonly listAssessmentsByStudent: HealthRepository['listAssessmentsByStudent'];
@@ -85,46 +61,11 @@ export class HybridHealthRepository implements HealthRepository {
   readonly findAccommodationPlanById: HealthRepository['findAccommodationPlanById'];
   readonly listAccommodationPlansByStudent: HealthRepository['listAccommodationPlansByStudent'];
 
-  readonly createScreeningProgram: HealthRepository['createScreeningProgram'];
-  readonly updateScreeningProgram: HealthRepository['updateScreeningProgram'];
-  readonly findScreeningProgramById: HealthRepository['findScreeningProgramById'];
-  readonly listScreeningPrograms: HealthRepository['listScreeningPrograms'];
-  readonly listScreeningProgramsByGrade: HealthRepository['listScreeningProgramsByGrade'];
-
   constructor(
     private readonly memory: InMemoryHealthRepository,
     private readonly counselling: PgCounsellingStore | null,
+    private readonly phi: PgPhiStore | null,
   ) {
-    this.createMeasurement = this.memory.createMeasurement.bind(this.memory);
-    this.updateMeasurement = this.memory.updateMeasurement.bind(this.memory);
-    this.findMeasurementById = this.memory.findMeasurementById.bind(this.memory);
-    this.listMeasurementsByStudent = this.memory.listMeasurementsByStudent.bind(this.memory);
-    this.deleteMeasurement = this.memory.deleteMeasurement.bind(this.memory);
-
-    this.createAllergy = this.memory.createAllergy.bind(this.memory);
-    this.updateAllergy = this.memory.updateAllergy.bind(this.memory);
-    this.findAllergyById = this.memory.findAllergyById.bind(this.memory);
-    this.listAllergiesByStudent = this.memory.listAllergiesByStudent.bind(this.memory);
-    this.deleteAllergy = this.memory.deleteAllergy.bind(this.memory);
-
-    this.createCondition = this.memory.createCondition.bind(this.memory);
-    this.updateCondition = this.memory.updateCondition.bind(this.memory);
-    this.findConditionById = this.memory.findConditionById.bind(this.memory);
-    this.listConditionsByStudent = this.memory.listConditionsByStudent.bind(this.memory);
-    this.deleteCondition = this.memory.deleteCondition.bind(this.memory);
-
-    this.createVaccination = this.memory.createVaccination.bind(this.memory);
-    this.updateVaccination = this.memory.updateVaccination.bind(this.memory);
-    this.findVaccinationById = this.memory.findVaccinationById.bind(this.memory);
-    this.listVaccinationsByStudent = this.memory.listVaccinationsByStudent.bind(this.memory);
-    this.deleteVaccination = this.memory.deleteVaccination.bind(this.memory);
-
-    this.createInsurance = this.memory.createInsurance.bind(this.memory);
-    this.updateInsurance = this.memory.updateInsurance.bind(this.memory);
-    this.findInsuranceById = this.memory.findInsuranceById.bind(this.memory);
-    this.listInsuranceByStudent = this.memory.listInsuranceByStudent.bind(this.memory);
-    this.deleteInsurance = this.memory.deleteInsurance.bind(this.memory);
-
     this.createAssessment = this.memory.createAssessment.bind(this.memory);
     this.findAssessmentById = this.memory.findAssessmentById.bind(this.memory);
     this.listAssessmentsByStudent = this.memory.listAssessmentsByStudent.bind(this.memory);
@@ -138,21 +79,239 @@ export class HybridHealthRepository implements HealthRepository {
     this.createAccommodationPlan = this.memory.createAccommodationPlan.bind(this.memory);
     this.updateAccommodationPlan = this.memory.updateAccommodationPlan.bind(this.memory);
     this.findAccommodationPlanById = this.memory.findAccommodationPlanById.bind(this.memory);
-    this.listAccommodationPlansByStudent =
-      this.memory.listAccommodationPlansByStudent.bind(this.memory);
-
-    this.createScreeningProgram = this.memory.createScreeningProgram.bind(this.memory);
-    this.updateScreeningProgram = this.memory.updateScreeningProgram.bind(this.memory);
-    this.findScreeningProgramById = this.memory.findScreeningProgramById.bind(this.memory);
-    this.listScreeningPrograms = this.memory.listScreeningPrograms.bind(this.memory);
-    this.listScreeningProgramsByGrade = this.memory.listScreeningProgramsByGrade.bind(this.memory);
+    this.listAccommodationPlansByStudent = this.memory.listAccommodationPlansByStudent.bind(
+      this.memory,
+    );
   }
 
-  get persistence(): 'postgres-counselling' | 'memory' {
-    return this.counselling ? 'postgres-counselling' : 'memory';
+  get persistence(): 'postgres-phi' | 'postgres-counselling' | 'memory' {
+    if (this.phi && this.counselling) return 'postgres-phi';
+    if (this.counselling) return 'postgres-counselling';
+    return 'memory';
   }
 
-  // Counselling — PG when available
+  // ─── Profile PHI ──────────────────────────────────────────────────────────
+
+  async createMeasurement(
+    data: Omit<HealthMeasurementEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HealthMeasurementEntity> {
+    if (this.phi) return this.phi.createMeasurement(data);
+    return this.memory.createMeasurement(data);
+  }
+
+  async updateMeasurement(
+    id: string,
+    tenantId: string,
+    data: Partial<HealthMeasurementEntity>,
+  ): Promise<HealthMeasurementEntity | null> {
+    if (this.phi) return this.phi.updateMeasurement(id, tenantId, data);
+    return this.memory.updateMeasurement(id, tenantId, data);
+  }
+
+  async findMeasurementById(id: string, tenantId: string): Promise<HealthMeasurementEntity | null> {
+    if (this.phi) return this.phi.findMeasurementById(id, tenantId);
+    return this.memory.findMeasurementById(id, tenantId);
+  }
+
+  async listMeasurementsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HealthMeasurementEntity>> {
+    if (this.phi) return this.phi.listMeasurementsByStudent(tenantId, studentId, pagination);
+    return this.memory.listMeasurementsByStudent(tenantId, studentId, pagination);
+  }
+
+  async deleteMeasurement(id: string, tenantId: string): Promise<boolean> {
+    if (this.phi) return this.phi.deleteMeasurement(id, tenantId);
+    return this.memory.deleteMeasurement(id, tenantId);
+  }
+
+  async createAllergy(
+    data: Omit<AllergyEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AllergyEntity> {
+    if (this.phi) return this.phi.createAllergy(data);
+    return this.memory.createAllergy(data);
+  }
+
+  async updateAllergy(
+    id: string,
+    tenantId: string,
+    data: Partial<AllergyEntity>,
+  ): Promise<AllergyEntity | null> {
+    if (this.phi) return this.phi.updateAllergy(id, tenantId, data);
+    return this.memory.updateAllergy(id, tenantId, data);
+  }
+
+  async findAllergyById(id: string, tenantId: string): Promise<AllergyEntity | null> {
+    if (this.phi) return this.phi.findAllergyById(id, tenantId);
+    return this.memory.findAllergyById(id, tenantId);
+  }
+
+  async listAllergiesByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<AllergyEntity>> {
+    if (this.phi) return this.phi.listAllergiesByStudent(tenantId, studentId, pagination);
+    return this.memory.listAllergiesByStudent(tenantId, studentId, pagination);
+  }
+
+  async deleteAllergy(id: string, tenantId: string): Promise<boolean> {
+    if (this.phi) return this.phi.deleteAllergy(id, tenantId);
+    return this.memory.deleteAllergy(id, tenantId);
+  }
+
+  async createCondition(
+    data: Omit<HealthConditionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<HealthConditionEntity> {
+    if (this.phi) return this.phi.createCondition(data);
+    return this.memory.createCondition(data);
+  }
+
+  async updateCondition(
+    id: string,
+    tenantId: string,
+    data: Partial<HealthConditionEntity>,
+  ): Promise<HealthConditionEntity | null> {
+    if (this.phi) return this.phi.updateCondition(id, tenantId, data);
+    return this.memory.updateCondition(id, tenantId, data);
+  }
+
+  async findConditionById(id: string, tenantId: string): Promise<HealthConditionEntity | null> {
+    if (this.phi) return this.phi.findConditionById(id, tenantId);
+    return this.memory.findConditionById(id, tenantId);
+  }
+
+  async listConditionsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<HealthConditionEntity>> {
+    if (this.phi) return this.phi.listConditionsByStudent(tenantId, studentId, pagination);
+    return this.memory.listConditionsByStudent(tenantId, studentId, pagination);
+  }
+
+  async deleteCondition(id: string, tenantId: string): Promise<boolean> {
+    if (this.phi) return this.phi.deleteCondition(id, tenantId);
+    return this.memory.deleteCondition(id, tenantId);
+  }
+
+  async createVaccination(
+    data: Omit<VaccinationEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<VaccinationEntity> {
+    if (this.phi) return this.phi.createVaccination(data);
+    return this.memory.createVaccination(data);
+  }
+
+  async updateVaccination(
+    id: string,
+    tenantId: string,
+    data: Partial<VaccinationEntity>,
+  ): Promise<VaccinationEntity | null> {
+    if (this.phi) return this.phi.updateVaccination(id, tenantId, data);
+    return this.memory.updateVaccination(id, tenantId, data);
+  }
+
+  async findVaccinationById(id: string, tenantId: string): Promise<VaccinationEntity | null> {
+    if (this.phi) return this.phi.findVaccinationById(id, tenantId);
+    return this.memory.findVaccinationById(id, tenantId);
+  }
+
+  async listVaccinationsByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<VaccinationEntity>> {
+    if (this.phi) return this.phi.listVaccinationsByStudent(tenantId, studentId, pagination);
+    return this.memory.listVaccinationsByStudent(tenantId, studentId, pagination);
+  }
+
+  async deleteVaccination(id: string, tenantId: string): Promise<boolean> {
+    if (this.phi) return this.phi.deleteVaccination(id, tenantId);
+    return this.memory.deleteVaccination(id, tenantId);
+  }
+
+  async createInsurance(
+    data: Omit<InsuranceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<InsuranceEntity> {
+    if (this.phi) return this.phi.createInsurance(data);
+    return this.memory.createInsurance(data);
+  }
+
+  async updateInsurance(
+    id: string,
+    tenantId: string,
+    data: Partial<InsuranceEntity>,
+  ): Promise<InsuranceEntity | null> {
+    if (this.phi) return this.phi.updateInsurance(id, tenantId, data);
+    return this.memory.updateInsurance(id, tenantId, data);
+  }
+
+  async findInsuranceById(id: string, tenantId: string): Promise<InsuranceEntity | null> {
+    if (this.phi) return this.phi.findInsuranceById(id, tenantId);
+    return this.memory.findInsuranceById(id, tenantId);
+  }
+
+  async listInsuranceByStudent(
+    tenantId: string,
+    studentId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<InsuranceEntity>> {
+    if (this.phi) return this.phi.listInsuranceByStudent(tenantId, studentId, pagination);
+    return this.memory.listInsuranceByStudent(tenantId, studentId, pagination);
+  }
+
+  async deleteInsurance(id: string, tenantId: string): Promise<boolean> {
+    if (this.phi) return this.phi.deleteInsurance(id, tenantId);
+    return this.memory.deleteInsurance(id, tenantId);
+  }
+
+  // ─── Screenings ───────────────────────────────────────────────────────────
+
+  async createScreeningProgram(
+    data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ScreeningProgramEntity> {
+    if (this.phi) return this.phi.createScreeningProgram(data);
+    return this.memory.createScreeningProgram(data);
+  }
+
+  async updateScreeningProgram(
+    id: string,
+    tenantId: string,
+    data: Partial<ScreeningProgramEntity>,
+  ): Promise<ScreeningProgramEntity | null> {
+    if (this.phi) return this.phi.updateScreeningProgram(id, tenantId, data);
+    return this.memory.updateScreeningProgram(id, tenantId, data);
+  }
+
+  async findScreeningProgramById(
+    id: string,
+    tenantId: string,
+  ): Promise<ScreeningProgramEntity | null> {
+    if (this.phi) return this.phi.findScreeningProgramById(id, tenantId);
+    return this.memory.findScreeningProgramById(id, tenantId);
+  }
+
+  async listScreeningPrograms(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScreeningProgramEntity>> {
+    if (this.phi) return this.phi.listScreeningPrograms(tenantId, pagination);
+    return this.memory.listScreeningPrograms(tenantId, pagination);
+  }
+
+  async listScreeningProgramsByGrade(
+    tenantId: string,
+    gradeLevel: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScreeningProgramEntity>> {
+    if (this.phi) return this.phi.listScreeningProgramsByGrade(tenantId, gradeLevel, pagination);
+    return this.memory.listScreeningProgramsByGrade(tenantId, gradeLevel, pagination);
+  }
+
+  // ─── Counselling ──────────────────────────────────────────────────────────
+
   async createCounsellingSession(
     data: Omit<CounsellingSessionEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<CounsellingSessionEntity> {
@@ -205,8 +364,10 @@ export class HybridHealthRepository implements HealthRepository {
 
 export function createHealthRepository(): HybridHealthRepository {
   const memory = new InMemoryHealthRepository();
-  const counselling = isPgCounsellingEnabled() ? createPgCounsellingStore() : null;
-  return new HybridHealthRepository(memory, counselling);
+  const enabled = isPgCounsellingEnabled() || isPgPhiEnabled();
+  const counselling = enabled ? createPgCounsellingStore() : null;
+  const phi = enabled ? createPgPhiStore() : null;
+  return new HybridHealthRepository(memory, counselling, phi);
 }
 
-export type { PgCounsellingStore };
+export type { PgCounsellingStore, PgPhiStore };

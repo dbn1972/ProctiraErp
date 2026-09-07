@@ -44,16 +44,14 @@ export type {
 export { InMemoryHealthRepository } from './in-memory-repository.js';
 
 // Factory — Postgres counselling overlay when DATABASE_URL is set (no Prisma)
-export {
-  createHealthRepository,
-  HybridHealthRepository,
-} from './create-health-repository.js';
+export { createHealthRepository, HybridHealthRepository } from './create-health-repository.js';
 export {
   createPgCounsellingStore,
   ensureCounsellingSchema,
   isPgCounsellingEnabled,
   PgCounsellingStore,
 } from './pg-counselling-store.js';
+export { createPgPhiStore, ensurePhiSchema, isPgPhiEnabled, PgPhiStore } from './pg-phi-store.js';
 
 // Routes
 export { registerHealthRoutes } from './routes.js';
