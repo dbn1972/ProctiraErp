@@ -1,7 +1,7 @@
 # Enterprise production-ready — Library circulation
 
 **Module:** Library  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `d150224`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ tip  
 **Date (UTC):** 2026-09-07  
 **Paired build audit:** `docs/audits/DEV_LIBRARY_CIRCULATION.md`
 
@@ -14,8 +14,8 @@
 | Backend unit       | ☑      | `@proctira/backend-library` 5 tests (incl. clearance)        |
 | Transfer clearance | ☑      | `GET /library/patrons/:studentId/clearance` + catalog UI     |
 | Multidevice PNGs   | ☑      | `/opt/cursor/artifacts/campus-audit/library/`                |
+| Auth write E2E     | ☑      | `e2e/21d-…` renew + checkout/return (gated)                  |
 | Tip CI             | ☐      | billing block                                                |
-| Auth write E2E     | ☐      | pending                                                      |
 
 ## Waivers
 

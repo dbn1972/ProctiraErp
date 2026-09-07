@@ -1,7 +1,7 @@
 # Enterprise production-ready — Transport routes / vehicles / assignments
 
 **Module:** Transport  
-**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ `d150224`  
+**Branch / tip:** `cursor/enterprise-score-uplift-56c3` @ tip  
 **Date (UTC):** 2026-09-07  
 **Paired build audit:** `docs/audits/DEV_TRANSPORT_ROUTES_FLEET.md`
 
@@ -23,7 +23,8 @@
 | Backend unit             | ☑      | `@proctira/backend-transport` 38 tests                   |
 | Pg persistence           | ☑      | `createTransportRepository()` when `DATABASE_URL`        |
 | Multidevice PNGs         | ☑      | `/opt/cursor/artifacts/campus-audit/transport/`          |
-| Live authenticated write | ☐      | needs session + gateway                                  |
+| Live authenticated write | ☑      | `e2e/21d-…` route + vehicle create (gated)               |
+| Cross-tenant deny        | ☑      | tenant B cannot GET tenant A route (404)                 |
 | Tip CI                   | ☐      | billing block                                            |
 
 ## Waivers
