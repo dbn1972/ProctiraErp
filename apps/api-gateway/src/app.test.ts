@@ -416,6 +416,62 @@ describe('API Gateway', () => {
       expect(body.code).toBe('NOT_FOUND');
       expect(body.statusCode).toBe(404);
     });
+
+    it('accepts bodyless POST with Content-Type application/json', async () => {
+      const token = app.jwt.sign(createTestJwtPayload());
+      const tenantId = '550e8400-e29b-41d4-a716-446655440000';
+
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/communication/emergency',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': tenantId,
+          'content-type': 'application/json',
+        },
+        payload: { reason: 'Empty-body dispatch probe', channels: ['sms'] },
+      });
+      expect(createRes.statusCode).toBe(201);
+      const blast = createRes.json() as { id: string };
+
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/communication/emergency/${blast.id}/confirm`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': tenantId,
+          'content-type': 'application/json',
+        },
+        payload: { actorId: 'actor-1' },
+      });
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/communication/emergency/${blast.id}/confirm`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': tenantId,
+          'content-type': 'application/json',
+        },
+        payload: { actorId: 'actor-2' },
+      });
+
+      const dispatch = await app.inject({
+        method: 'POST',
+        url: `/api/v1/communication/emergency/${blast.id}/dispatch`,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': tenantId,
+          'content-type': 'application/json',
+        },
+        // Explicit empty string body — reproduces FST_ERR_CTP_EMPTY_JSON_BODY
+        // without the empty→{} content-type parser.
+        payload: '',
+      });
+
+      expect(dispatch.statusCode).toBe(200);
+      expect(dispatch.json().status).toBe('sent');
+      expect(dispatch.json().delivery.mode).toBe('sandbox');
+    });
   });
 
   describe('OpenAPI Documentation', () => {

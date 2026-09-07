@@ -5,9 +5,27 @@
  */
 import { expect, test } from '@playwright/test';
 
-import { setupGatewayTenantSession } from './fixtures/fake-session';
+import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+const GATEWAY_URL =
+  process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
+const TENANT_ID = '00000000-0000-4000-8000-000000000001';
+
+function gatewayAuthHeaders(sub: string): Record<string, string> {
+  const token = createSignedJwt({
+    sub,
+    email: `${sub}@tenant-a.test`,
+    displayName: sub,
+    tenantId: TENANT_ID,
+    roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
+  });
+  return {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+    'X-Tenant-ID': TENANT_ID,
+  };
+}
 
 test.describe('Communication — client validation (ungated)', () => {
   test.beforeEach(async ({ page }) => {
@@ -70,5 +88,48 @@ test.describe('Communication — live emergency dual-confirm (E2E_BACKEND_READY)
 
     await expect(page.getByText(reason)).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/pending_confirm/i).first()).toBeVisible();
+  });
+
+  test('dual-confirms then sandbox-dispatches via gateway API', async ({ request }) => {
+    const createRes = await request.post(`${GATEWAY_URL}/api/v1/communication/emergency`, {
+      headers: gatewayAuthHeaders('officer-a'),
+      data: {
+        reason: `API dual-confirm ${Date.now()}`,
+        channels: ['sms', 'push'],
+        createdBy: 'officer-a',
+      },
+    });
+    expect(createRes.status()).toBe(201);
+    const blast = await createRes.json();
+
+    const first = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/confirm`,
+      {
+        headers: gatewayAuthHeaders('officer-a'),
+        data: { actorId: 'officer-a' },
+      },
+    );
+    expect(first.status()).toBe(200);
+    expect((await first.json()).status).toBe('pending_confirm');
+
+    const second = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/confirm`,
+      {
+        headers: gatewayAuthHeaders('officer-b'),
+        data: { actorId: 'officer-b' },
+      },
+    );
+    expect(second.status()).toBe(200);
+    expect((await second.json()).status).toBe('confirmed');
+
+    // Bodyless POST with Content-Type: application/json (gateway must accept empty → {}).
+    const dispatch = await request.post(
+      `${GATEWAY_URL}/api/v1/communication/emergency/${blast.id}/dispatch`,
+      { headers: gatewayAuthHeaders('officer-a') },
+    );
+    const dispatchBody = await dispatch.json();
+    expect(dispatch.status(), JSON.stringify(dispatchBody)).toBe(200);
+    expect(dispatchBody.status).toBe('sent');
+    expect(dispatchBody.delivery.mode).toBe('sandbox');
   });
 });
