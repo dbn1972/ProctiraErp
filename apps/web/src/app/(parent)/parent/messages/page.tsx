@@ -1,6 +1,8 @@
 /**
  * Parent messages list (Server Component).
  */
+import Link from 'next/link';
+
 import {
   Card,
   CardContent,
