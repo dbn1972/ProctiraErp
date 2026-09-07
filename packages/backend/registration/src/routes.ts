@@ -20,10 +20,18 @@ import {
   TrackingNumberParamsSchema,
   LanguageSelectionSchema,
   SchoolFinderQuerySchema,
+  UpdateApplicationStatusSchema,
+  ApplicationParamsSchema,
+  CreateInterviewSlotSchema,
+  BookInterviewSchema,
   type SubmitRegistrationInput,
   type TrackingNumberParams,
   type InstitutionMapQuery,
   type LanguageSelection,
+  type UpdateApplicationStatusInput,
+  type ApplicationParams,
+  type CreateInterviewSlotInput,
+  type BookInterviewInput,
 } from './schemas.js';
 
 /**
@@ -354,6 +362,202 @@ export async function registerRegistrationRoutes(
       const language = session?.language ?? 'en';
 
       return reply.status(200).send({ language, sessionId });
+    },
+  );
+
+  // ─── Staff CRM (waitlist + interviews) ───────────────────────────────────
+
+  fastify.get(
+    `${prefix}/applications`,
+    async function listApplicationsHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = resolveTenantId(request, defaultTenantId);
+      const applications = await registrationService.listApplications(tenantId);
+      return reply.status(200).send({
+        data: applications.map((row) => ({
+          id: row.id,
+          tenantId: row.tenantId,
+          trackingNumber: row.trackingNumber,
+          institutionId: row.institutionId,
+          institutionName: row.institutionName,
+          status: row.status,
+          firstName: row.firstName,
+          lastName: row.lastName,
+          submittedAt: row.submittedAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+          remarks: row.remarks,
+        })),
+      });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/applications/:id/status`,
+    async function updateStatusHandler(
+      request: FastifyRequest<{ Params: ApplicationParams; Body: UpdateApplicationStatusInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ApplicationParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid application ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const bodyResult = validate(UpdateApplicationStatusSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+
+      const tenantId = resolveTenantId(request, defaultTenantId);
+      try {
+        const result = await registrationService.updateApplicationStatus(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data.status,
+          bodyResult.data.remarks,
+        );
+        return reply.status(200).send({
+          application: {
+            id: result.application.id,
+            status: result.application.status,
+            remarks: result.application.remarks,
+            updatedAt: result.application.updatedAt.toISOString(),
+          },
+          waitlistEntry: result.waitlistEntry
+            ? {
+                id: result.waitlistEntry.id,
+                position: result.waitlistEntry.position,
+                institutionId: result.waitlistEntry.institutionId,
+              }
+            : null,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.get(
+    `${prefix}/waitlist`,
+    async function listWaitlistHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = resolveTenantId(request, defaultTenantId);
+      const institutionId =
+        typeof (request.query as { institutionId?: string }).institutionId === 'string'
+          ? (request.query as { institutionId?: string }).institutionId
+          : undefined;
+      const entries = await registrationService.listWaitlist(tenantId, institutionId);
+      return reply.status(200).send({
+        data: entries.map((row) => ({
+          id: row.id,
+          applicationId: row.applicationId,
+          institutionId: row.institutionId,
+          position: row.position,
+          notes: row.notes,
+          createdAt: row.createdAt.toISOString(),
+        })),
+      });
+    },
+  );
+
+  fastify.get(
+    `${prefix}/interview-slots`,
+    async function listSlotsHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = resolveTenantId(request, defaultTenantId);
+      const institutionId =
+        typeof (request.query as { institutionId?: string }).institutionId === 'string'
+          ? (request.query as { institutionId?: string }).institutionId
+          : undefined;
+      const slots = await registrationService.listInterviewSlots(tenantId, institutionId);
+      return reply.status(200).send({
+        data: slots.map((row) => ({
+          id: row.id,
+          institutionId: row.institutionId,
+          startsAt: row.startsAt.toISOString(),
+          endsAt: row.endsAt.toISOString(),
+          capacity: row.capacity,
+          location: row.location,
+          status: row.status,
+        })),
+      });
+    },
+  );
+
+  fastify.post(
+    `${prefix}/interview-slots`,
+    async function createSlotHandler(
+      request: FastifyRequest<{ Body: CreateInterviewSlotInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(CreateInterviewSlotSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+      const tenantId = resolveTenantId(request, defaultTenantId);
+      try {
+        const slot = await registrationService.createInterviewSlot(tenantId, result.data);
+        return reply.status(201).send({
+          id: slot.id,
+          institutionId: slot.institutionId,
+          startsAt: slot.startsAt.toISOString(),
+          endsAt: slot.endsAt.toISOString(),
+          capacity: slot.capacity,
+          location: slot.location,
+          status: slot.status,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  fastify.post(
+    `${prefix}/interview-bookings`,
+    async function bookInterviewHandler(
+      request: FastifyRequest<{ Body: BookInterviewInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(BookInterviewSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+      const tenantId = resolveTenantId(request, defaultTenantId);
+      try {
+        const booking = await registrationService.bookInterview(tenantId, result.data);
+        return reply.status(201).send({
+          id: booking.id,
+          slotId: booking.slotId,
+          applicationId: booking.applicationId,
+          status: booking.status,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 }

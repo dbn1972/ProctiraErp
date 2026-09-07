@@ -34,6 +34,7 @@ vi.mock('next-intl', () => ({
       institutions: 'Institutions',
       academicPeriods: 'Academic periods',
       students: 'Students',
+      admissions: 'Admissions',
       staff: 'Staff',
       assessments: 'Assessments',
       attendance: 'Attendance',

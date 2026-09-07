@@ -115,7 +115,11 @@ export const SubmitRegistrationSchema = Type.Object({
   ),
   /** Preferred language for communication */
   preferredLanguage: Type.Optional(
-    Type.String({ minLength: 2, maxLength: 10, description: 'Preferred language code (e.g., en, ar, fr)' }),
+    Type.String({
+      minLength: 2,
+      maxLength: 10,
+      description: 'Preferred language code (e.g., en, ar, fr)',
+    }),
   ),
 });
 
@@ -154,7 +158,9 @@ export const InstitutionMapQuerySchema = Type.Object({
   /** Page number */
   page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number' })),
   /** Page size */
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 200, default: 50, description: 'Items per page' })),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 200, default: 50, description: 'Items per page' }),
+  ),
 });
 
 export type InstitutionMapQuery = Static<typeof InstitutionMapQuerySchema>;
@@ -213,13 +219,9 @@ export const SchoolFinderQuerySchema = Type.Object({
     }),
   ),
   /** Search by institution name (case-insensitive substring). */
-  search: Type.Optional(
-    Type.String({ maxLength: 200, description: 'Search by institution name' }),
-  ),
+  search: Type.Optional(Type.String({ maxLength: 200, description: 'Search by institution name' })),
   /** Page number (1-based). */
-  page: Type.Optional(
-    Type.Number({ minimum: 1, default: 1, description: 'Page number' }),
-  ),
+  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number' })),
   /** Page size (capped to keep the network payload small). */
   pageSize: Type.Optional(
     Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
@@ -368,9 +370,63 @@ export const RegistrationStatusResponseSchema = Type.Object({
   submittedAt: Type.String({ description: 'Submission timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
   remarks: Type.Optional(Type.String({ description: 'Reviewer remarks' })),
+  waitlistPosition: Type.Optional(Type.Number({ minimum: 1 })),
+  interviewBookings: Type.Optional(
+    Type.Array(
+      Type.Object({
+        id: Type.String(),
+        slotId: Type.String(),
+        status: Type.String(),
+      }),
+    ),
+  ),
 });
 
 export type RegistrationStatusResponse = Static<typeof RegistrationStatusResponseSchema>;
+
+export const UpdateApplicationStatusSchema = Type.Object({
+  status: Type.Union([
+    Type.Literal('pending'),
+    Type.Literal('under_review'),
+    Type.Literal('approved'),
+    Type.Literal('rejected'),
+    Type.Literal('waitlisted'),
+  ]),
+  remarks: Type.Optional(Type.String({ maxLength: 2000 })),
+});
+
+export type UpdateApplicationStatusInput = Static<typeof UpdateApplicationStatusSchema>;
+
+export const ApplicationParamsSchema = Type.Object({
+  id: Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+  }),
+});
+
+export type ApplicationParams = Static<typeof ApplicationParamsSchema>;
+
+export const CreateInterviewSlotSchema = Type.Object({
+  institutionId: Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+  }),
+  startsAt: Type.String({ minLength: 10 }),
+  endsAt: Type.String({ minLength: 10 }),
+  capacity: Type.Optional(Type.Number({ minimum: 1 })),
+  location: Type.Optional(Type.String({ maxLength: 500 })),
+});
+
+export type CreateInterviewSlotInput = Static<typeof CreateInterviewSlotSchema>;
+
+export const BookInterviewSchema = Type.Object({
+  slotId: Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+  }),
+  applicationId: Type.String({
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+  }),
+});
+
+export type BookInterviewInput = Static<typeof BookInterviewSchema>;
 
 /**
  * Institution map location entry.

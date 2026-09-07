@@ -10,7 +10,12 @@ import type { FormConfiguration, InstitutionLocation } from './schemas.js';
 /**
  * Registration application status values.
  */
-export type RegistrationStatus = 'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted';
+export type RegistrationStatus =
+  | 'pending'
+  | 'under_review'
+  | 'approved'
+  | 'rejected'
+  | 'waitlisted';
 
 /**
  * Stored registration application entity.
@@ -94,7 +99,9 @@ export interface SchoolFinderResultRow {
  */
 export interface RegistrationRepository {
   /** Create a new registration application */
-  create(entity: Omit<RegistrationEntity, 'submittedAt' | 'updatedAt'>): Promise<RegistrationEntity>;
+  create(
+    entity: Omit<RegistrationEntity, 'submittedAt' | 'updatedAt'>,
+  ): Promise<RegistrationEntity>;
 
   /** Find a registration by tracking number */
   findByTrackingNumber(trackingNumber: string): Promise<RegistrationEntity | null>;
@@ -102,8 +109,15 @@ export interface RegistrationRepository {
   /** Find a registration by ID */
   findById(id: string): Promise<RegistrationEntity | null>;
 
+  /** List registrations for a tenant (staff CRM) */
+  listByTenant(tenantId: string): Promise<RegistrationEntity[]>;
+
   /** Update registration status */
-  updateStatus(id: string, status: RegistrationStatus, remarks?: string): Promise<RegistrationEntity | null>;
+  updateStatus(
+    id: string,
+    status: RegistrationStatus,
+    remarks?: string,
+  ): Promise<RegistrationEntity | null>;
 
   /** Get form configuration for an institution type */
   getFormConfiguration(institutionTypeId: string): Promise<FormConfiguration | null>;

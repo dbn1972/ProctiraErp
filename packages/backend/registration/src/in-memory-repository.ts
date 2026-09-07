@@ -40,21 +40,14 @@ export interface InMemoryInstitution {
  * Exported so the production repository implementation (and tests)
  * can reuse the same maths the in-memory store uses.
  */
-export function haversineKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
+export function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Earth's mean radius (km)
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLon = toRad(lon2 - lon1);
   const sinLat = Math.sin(dLat / 2);
   const sinLon = Math.sin(dLon / 2);
-  const a =
-    sinLat * sinLat +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * sinLon * sinLon;
+  const a = sinLat * sinLat + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * sinLon * sinLon;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
@@ -108,6 +101,12 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     return this.registrations.find((r) => r.id === id) ?? null;
   }
 
+  async listByTenant(tenantId: string): Promise<RegistrationEntity[]> {
+    return this.registrations
+      .filter((r) => r.tenantId === tenantId)
+      .sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+  }
+
   async updateStatus(
     id: string,
     status: RegistrationStatus,
@@ -134,7 +133,9 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     filter: InstitutionLocationFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<InstitutionLocation>> {
-    let filtered = this.institutions.filter((i) => i.tenantId === tenantId && i.status === 'ACTIVE');
+    let filtered = this.institutions.filter(
+      (i) => i.tenantId === tenantId && i.status === 'ACTIVE',
+    );
 
     if (filter.areaId) {
       filtered = filtered.filter((i) => i.areaId === filter.areaId);
@@ -264,10 +265,7 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
     };
   }
 
-  private toResultRow(
-    inst: InMemoryInstitution,
-    distanceKm?: number,
-  ): SchoolFinderResultRow {
+  private toResultRow(inst: InMemoryInstitution, distanceKm?: number): SchoolFinderResultRow {
     const row: SchoolFinderResultRow = {
       id: inst.id,
       name: inst.name,
