@@ -17,8 +17,10 @@
 | Multidevice PNGs      | ☑      | `/opt/cursor/artifacts/campus-audit/communication/`          |
 | Signed JWT e2e helper | ☑      | `setupGatewayTenantSession` (HS256, no gateway weaken)       |
 | Campus write smoke    | ☑      | `e2e/21c-campus-comms-write-smoke.spec.ts` (gated)           |
+| Live campaign create  | ☑      | local chromium + `E2E_BACKEND_READY=1` + signed JWT          |
+| Live emergency draft  | ☑      | local chromium dual-confirm draft smoke                      |
 | Tip CI                | ☐      | billing block (jobs never start)                             |
-| Dual-confirm live E2E | ☐      | run with `E2E_BACKEND_READY=1` + matching `JWT_SECRET`       |
+| Dual-confirm 2-actor  | ☐      | second distinct actor confirm still manual/follow-up         |
 
 ## Waivers
 
