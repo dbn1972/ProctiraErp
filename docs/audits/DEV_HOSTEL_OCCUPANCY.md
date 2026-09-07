@@ -24,13 +24,15 @@
 
 ## Build status
 
-| Check                                  | Done | Evidence       |
-| -------------------------------------- | ---- | -------------- |
-| SQL `db/sql/008_hostel_schema.sql`     | ☑    |                |
-| Gateway mount InMemoryHostelRepository | ☑    | domain-plugins |
-| Web shells + sidebar                   | ☑    |                |
-| PgHostelStore                          | ☐    | follow-up      |
-| Block/room/bed admin UI                | ☐    | follow-up      |
+| Check                                  | Done | Evidence                       |
+| -------------------------------------- | ---- | ------------------------------ |
+| SQL `db/sql/008_hostel_schema.sql`     | ☑    |                                |
+| Gateway mount InMemoryHostelRepository | ☑    | domain-plugins                 |
+| Web shells + sidebar                   | ☑    |                                |
+| Live hostel create + list              | ☑    | `NewHostelForm` + `/hostel`    |
+| Assignments list from API              | ☑    | `/hostel/assignments`          |
+| PgHostelStore                          | ☐    | follow-up                      |
+| Block/room/bed admin UI                | ☐    | follow-up                      |
 
 ## Residual
 

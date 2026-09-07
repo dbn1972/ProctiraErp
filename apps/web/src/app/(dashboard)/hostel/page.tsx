@@ -13,11 +13,14 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { listHostels } from '@/lib/api/hostel';
+import { NewHostelForm } from './_components/new-hostel-form';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HostelOverviewPage() {
   await requireSession();
+  const hostels = await listHostels();
 
   return (
     <div className="space-y-6 p-6">
@@ -27,6 +30,40 @@ export default async function HostelOverviewPage() {
           Occupancy, assignments, leaves, and visitors. Gateway plugin: `/api/v1/hostel`.
         </p>
       </div>
+
+      <NewHostelForm />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Hostels</CardTitle>
+          <CardDescription>
+            {hostels.length === 0
+              ? 'No hostels yet.'
+              : `${hostels.length} hostel${hostels.length === 1 ? '' : 's'}.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {hostels.length === 0 ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              No hostels yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border" role="list">
+              {hostels.map((hostel) => (
+                <li key={hostel.id} className="py-3 first:pt-0 last:pb-0" data-testid="hostel-row">
+                  <p className="text-sm font-medium text-foreground">
+                    {hostel.name}{' '}
+                    <span className="font-normal text-muted-foreground">({hostel.code})</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    capacity {hostel.capacity} · {hostel.status}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>

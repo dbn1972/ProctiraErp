@@ -1,8 +1,7 @@
 /**
- * Library overview (Server Component).
+ * Library catalog (Server Component).
  */
 import Link from 'next/link';
-import { BookOpen, RefreshCw } from 'lucide-react';
 
 import {
   Button,
@@ -13,51 +12,70 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { listLibraryItems } from '@/lib/api/library';
+import { NewLibraryItemForm } from './_components/new-item-form';
 
 export const dynamic = 'force-dynamic';
 
-export default async function LibraryOverviewPage() {
+export default async function LibraryCatalogPage() {
   await requireSession();
+  const items = await listLibraryItems();
 
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Library</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Catalog and circulation. Gateway plugin: `/api/v1/library`.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Library</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Catalog and circulation. Gateway plugin: `/api/v1/library`.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/library/circulation">Circulation</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href="/library/overdues">Overdues</Link>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Circulation
-            </CardTitle>
-            <CardDescription>Checkout and return loans</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild>
-              <Link href="/library/circulation">Open circulation</Link>
-            </Button>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <BookOpen className="h-4 w-4" aria-hidden="true" />
-              Overdues
-            </CardTitle>
-            <CardDescription>Past-due loans</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button asChild variant="outline">
-              <Link href="/library/overdues">Open overdues</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      <NewLibraryItemForm />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Catalog</CardTitle>
+          <CardDescription>
+            {items.length === 0
+              ? 'No holdings yet.'
+              : `${items.length} item${items.length === 1 ? '' : 's'}.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {items.length === 0 ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              No holdings yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border" role="list">
+              {items.map((item) => (
+                <li
+                  key={item.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="library-item-row"
+                >
+                  <p className="text-sm font-medium text-foreground">{item.title}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {item.author ?? 'Unknown author'}
+                    {item.isbn ? ` · ISBN ${item.isbn}` : ''} · {item.available}/{item.copies}{' '}
+                    available
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

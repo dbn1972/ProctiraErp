@@ -1,15 +1,22 @@
-/**
- * Communication campaigns list (Server Component shell).
- */
 import Link from 'next/link';
+import { Plus } from 'lucide-react';
 
-import { Button } from '@proctira/ui/components';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { listCampaigns } from '@/lib/api/communication';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CommunicationCampaignsPage() {
   await requireSession();
+  const campaigns = await listCampaigns();
 
   return (
     <div className="space-y-6 p-6">
@@ -17,13 +24,48 @@ export default async function CommunicationCampaignsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Campaigns</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            List and manage communication campaigns via GET/POST `/communication/campaigns`.
+            Live list from `/api/v1/communication/campaigns`.
           </p>
         </div>
         <Button asChild>
-          <Link href="/communication/campaigns/new">New campaign</Link>
+          <Link href="/communication/campaigns/new">
+            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+            New campaign
+          </Link>
         </Button>
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Campaigns</CardTitle>
+          <CardDescription>
+            {campaigns.length === 0
+              ? 'No campaigns yet.'
+              : `${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'}.`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {campaigns.length === 0 ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              No campaigns yet.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border" role="list">
+              {campaigns.map((campaign) => (
+                <li
+                  key={campaign.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="communication-campaign-row"
+                >
+                  <p className="text-sm font-medium text-foreground">{campaign.name}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {campaign.status} · {campaign.channels.join(', ') || 'no channels'}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

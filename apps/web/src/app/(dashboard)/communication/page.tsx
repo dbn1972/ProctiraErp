@@ -22,12 +22,9 @@ export default async function CommunicationOverviewPage() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Communication
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Communication</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Campaigns and dual-confirm emergency blasts. Gateway plugin:
-          `/api/v1/communication`.
+          Campaigns and dual-confirm emergency blasts. Gateway plugin: `/api/v1/communication`.
         </p>
       </div>
 

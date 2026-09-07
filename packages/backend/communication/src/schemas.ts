@@ -19,7 +19,8 @@ export const CreateCampaignSchema = Type.Object({
   body: Type.Optional(Type.String()),
   audienceJson: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
   scheduledAt: Type.Optional(Type.String()),
-  createdBy: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  /** Actor id from session (UUID preferred; opaque string accepted for local auth). */
+  createdBy: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
 });
 
 export type CreateCampaignInput = Static<typeof CreateCampaignSchema>;
@@ -33,7 +34,7 @@ export type CampaignParams = Static<typeof CampaignParamsSchema>;
 export const CreateEmergencyBlastSchema = Type.Object({
   reason: Type.String({ minLength: 1, maxLength: 2000 }),
   channels: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
-  createdBy: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  createdBy: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
 });
 
 export type CreateEmergencyBlastInput = Static<typeof CreateEmergencyBlastSchema>;
@@ -45,7 +46,7 @@ export const EmergencyParamsSchema = Type.Object({
 export type EmergencyParams = Static<typeof EmergencyParamsSchema>;
 
 export const ConfirmEmergencySchema = Type.Object({
-  actorId: Type.String({ pattern: UUID_PATTERN }),
+  actorId: Type.String({ minLength: 1, maxLength: 128 }),
 });
 
 export type ConfirmEmergencyInput = Static<typeof ConfirmEmergencySchema>;
