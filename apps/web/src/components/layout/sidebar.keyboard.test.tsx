@@ -40,6 +40,11 @@ vi.mock('next-intl', () => ({
       examinations: 'Examinations',
       scholarships: 'Scholarships',
       health: 'Health',
+      notifications: 'Notifications',
+      transport: 'Transport',
+      communication: 'Communication',
+      hostel: 'Hostel',
+      library: 'Library',
       workflows: 'Workflows',
       dataWarehouse: 'Data warehouse',
       reports: 'Reports',
@@ -55,14 +60,18 @@ vi.mock('next/navigation', () => ({
 
 vi.mock('next/link', () => ({
   // Stub <Link> with a real <a> so href/click semantics are preserved.
-  default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+  default: ({
+    href,
+    children,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
     <a href={href} {...props}>
       {children}
     </a>
   ),
 }));
 
-import { Sidebar } from './sidebar';
+import { Sidebar, navItems } from './sidebar';
 
 // ─── Setup ───────────────────────────────────────────────────────────────────
 
@@ -87,8 +96,8 @@ describe('<Sidebar> keyboard contract — Task 56.6 / Req 37 AC 6', () => {
     render(<Sidebar />);
     const links = screen.getAllByRole('link');
 
-    // 14 nav items + 1 brand link in the header => 15 anchors.
-    expect(links.length).toBe(15);
+    // Every nav item + 1 brand link in the header.
+    expect(links.length).toBe(navItems.length + 1);
 
     // None of the anchors install a roving tabindex — every link is
     // independently focusable. tabindex is either unset (=> 0 by
