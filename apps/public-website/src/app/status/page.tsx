@@ -3,6 +3,12 @@ import Link from 'next/link';
 import { Activity, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import {
+  loadStatusSnapshot,
+  readStatusProbeUrlsFromEnv,
+  type ProbeState,
+  type StatusSnapshot,
+} from '@/lib/status-probes';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,57 +43,8 @@ const SERVICES = [
   },
 ];
 
-type ProbeState = 'ok' | 'degraded' | 'unreachable' | 'unmonitored';
-
-interface StatusSnapshot {
-  mode: 'probed' | 'prelaunch';
-  probedAt: string | null;
-  probes: Partial<Record<'web' | 'api' | 'auth', ProbeState>>;
-}
-
-async function probeUrl(url: string | undefined): Promise<ProbeState> {
-  if (!url) return 'unmonitored';
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      cache: 'no-store',
-      signal: AbortSignal.timeout(3_000),
-      headers: { Accept: 'application/json, text/plain, */*' },
-    });
-    if (response.ok) return 'ok';
-    if (response.status >= 500) return 'degraded';
-    // Reachable but not healthy (auth walls, redirects, etc.)
-    return 'degraded';
-  } catch {
-    return 'unreachable';
-  }
-}
-
-async function loadStatusSnapshot(): Promise<StatusSnapshot> {
-  const web = process.env.STATUS_PROBE_WEB_URL?.trim();
-  const api = process.env.STATUS_PROBE_API_URL?.trim();
-  const auth = process.env.STATUS_PROBE_AUTH_URL?.trim();
-  const hasAnyProbe = Boolean(web || api || auth);
-
-  if (!hasAnyProbe) {
-    return { mode: 'prelaunch', probedAt: null, probes: {} };
-  }
-
-  const [webState, apiState, authState] = await Promise.all([
-    probeUrl(web),
-    probeUrl(api),
-    probeUrl(auth),
-  ]);
-
-  return {
-    mode: 'probed',
-    probedAt: new Date().toISOString(),
-    probes: {
-      web: webState,
-      api: apiState,
-      auth: authState,
-    },
-  };
+async function loadPageStatusSnapshot(): Promise<StatusSnapshot> {
+  return loadStatusSnapshot(readStatusProbeUrlsFromEnv());
 }
 
 function serviceState(
@@ -143,7 +100,7 @@ function overallLabel(snapshot: StatusSnapshot): {
  * Never paints every row green unless a real probe succeeded.
  */
 export default async function StatusPage() {
-  const snapshot = await loadStatusSnapshot();
+  const snapshot = await loadPageStatusSnapshot();
   const overall = overallLabel(snapshot);
 
   return (
