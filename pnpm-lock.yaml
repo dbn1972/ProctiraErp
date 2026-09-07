@@ -218,6 +218,9 @@ importers:
       '@proctira/observability':
         specifier: workspace:*
         version: link:../../packages/shared/observability
+      '@proctira/storage':
+        specifier: workspace:*
+        version: link:../../packages/shared/storage
       '@proctira/tenant':
         specifier: workspace:*
         version: link:../../packages/shared/tenant
