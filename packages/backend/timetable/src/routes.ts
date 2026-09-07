@@ -23,10 +23,8 @@ import {
   EnrollStudentSchema,
   CreateRoomSchema,
 } from './schemas.js';
-import {
-  isTimetableClashError,
-  isTimetableSchemaMissingError,
-} from './timetable-errors.js';
+import { assertTimetableAccess, type TimetableAction } from './timetable-access.js';
+import { isTimetableClashError, isTimetableSchemaMissingError } from './timetable-errors.js';
 import type { TimetableService } from './timetable-service.js';
 
 export interface TimetableRoutesOptions {
@@ -49,6 +47,32 @@ function tenantIdOf(request: FastifyRequest, reply: FastifyReply): string | unde
     return undefined;
   }
   return tenantId;
+}
+
+function requestRoles(request: FastifyRequest): unknown {
+  const user = (
+    request as FastifyRequest & {
+      user?: { roles?: unknown };
+    }
+  ).user;
+  return user?.roles ?? [];
+}
+
+function requireAction(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  action: TimetableAction,
+): boolean {
+  try {
+    assertTimetableAccess(requestRoles(request), action);
+    return true;
+  } catch (error) {
+    if (error instanceof AppError) {
+      reply.status(error.statusCode).send(error.toJSON());
+      return false;
+    }
+    throw error;
+  }
 }
 
 function sendDomainError(reply: FastifyReply, error: unknown) {
@@ -97,7 +121,10 @@ export async function registerTimetableRoutes(
     try {
       const { id } = request.params as { id: string };
       const row = await service.getBellSchedule(tenantId, id);
-      if (!row) return reply.status(404).send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
+      if (!row)
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
       const periods = await service.listPeriods(tenantId, id);
       return reply.send({ ...row, periods });
     } catch (error) {
@@ -108,6 +135,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/bell-schedules`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(CreateBellScheduleSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -135,6 +163,7 @@ export async function registerTimetableRoutes(
   fastify.put(`${prefix}/bell-schedules/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(UpdateBellScheduleSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -148,7 +177,9 @@ export async function registerTimetableRoutes(
       const { id } = request.params as { id: string };
       const row = await service.updateBellSchedule(tenantId, id, validated.data);
       if (!row) {
-        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
       }
       return reply.send(row);
     } catch (error) {
@@ -159,11 +190,14 @@ export async function registerTimetableRoutes(
   fastify.delete(`${prefix}/bell-schedules/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
       const ok = await service.deleteBellSchedule(tenantId, id);
       if (!ok) {
-        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
       }
       return reply.status(204).send();
     } catch (error) {
@@ -180,7 +214,9 @@ export async function registerTimetableRoutes(
       const { bellScheduleId } = request.params as { bellScheduleId: string };
       const schedule = await service.getBellSchedule(tenantId, bellScheduleId);
       if (!schedule) {
-        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Bell schedule not found', statusCode: 404 });
       }
       const rows = await service.listPeriods(tenantId, bellScheduleId);
       return reply.send({ data: rows });
@@ -192,6 +228,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/bell-schedules/:bellScheduleId/periods`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(CreatePeriodSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -216,6 +253,7 @@ export async function registerTimetableRoutes(
   fastify.put(`${prefix}/periods/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(UpdatePeriodSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -229,7 +267,9 @@ export async function registerTimetableRoutes(
       const { id } = request.params as { id: string };
       const row = await service.updatePeriod(tenantId, id, validated.data);
       if (!row) {
-        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Period not found', statusCode: 404 });
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Period not found', statusCode: 404 });
       }
       return reply.send(row);
     } catch (error) {
@@ -240,11 +280,14 @@ export async function registerTimetableRoutes(
   fastify.delete(`${prefix}/periods/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
       const ok = await service.deletePeriod(tenantId, id);
       if (!ok) {
-        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Period not found', statusCode: 404 });
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Period not found', statusCode: 404 });
       }
       return reply.status(204).send();
     } catch (error) {
@@ -274,6 +317,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/meetings`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(CreateMeetingSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -304,6 +348,7 @@ export async function registerTimetableRoutes(
   fastify.put(`${prefix}/meetings/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(UpdateMeetingSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -317,7 +362,9 @@ export async function registerTimetableRoutes(
       const { id } = request.params as { id: string };
       const row = await service.updateMeeting(tenantId, id, validated.data);
       if (!row) {
-        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Meeting not found', statusCode: 404 });
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Meeting not found', statusCode: 404 });
       }
       return reply.send(row);
     } catch (error) {
@@ -328,11 +375,14 @@ export async function registerTimetableRoutes(
   fastify.delete(`${prefix}/meetings/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
       const ok = await service.deleteMeeting(tenantId, id);
       if (!ok) {
-        return reply.status(404).send({ code: 'NOT_FOUND', message: 'Meeting not found', statusCode: 404 });
+        return reply
+          .status(404)
+          .send({ code: 'NOT_FOUND', message: 'Meeting not found', statusCode: 404 });
       }
       return reply.status(204).send();
     } catch (error) {
@@ -361,6 +411,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/substitutions`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(CreateSubstitutionSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -397,6 +448,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/rooms`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(CreateRoomSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -465,6 +517,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/sections`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(CreateSectionSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -494,6 +547,7 @@ export async function registerTimetableRoutes(
   fastify.put(`${prefix}/sections/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(UpdateSectionSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -522,6 +576,7 @@ export async function registerTimetableRoutes(
   fastify.delete(`${prefix}/sections/:id`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id } = request.params as { id: string };
       const ok = await service.deleteSection(tenantId, id);
@@ -561,6 +616,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/sections/:id/enrollments`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     const validated = validate(EnrollStudentSchema, request.body);
     if (!validated.success) {
       return reply.status(400).send({
@@ -582,6 +638,7 @@ export async function registerTimetableRoutes(
   fastify.delete(`${prefix}/sections/:id/enrollments/:studentId`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.write')) return;
     try {
       const { id, studentId } = request.params as { id: string; studentId: string };
       const row = await service.withdrawStudent(tenantId, id, studentId);
@@ -594,6 +651,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/sections/:id/publish`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.publish')) return;
     try {
       const { id } = request.params as { id: string };
       const row = await service.publishSection(tenantId, id);
@@ -606,6 +664,7 @@ export async function registerTimetableRoutes(
   fastify.post(`${prefix}/sections/:id/unpublish`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
+    if (!requireAction(request, reply, 'schedule.publish')) return;
     try {
       const { id } = request.params as { id: string };
       const row = await service.unpublishSection(tenantId, id);

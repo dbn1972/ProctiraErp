@@ -16,10 +16,7 @@ export {
   type MeetingSlot,
 } from './clash-detection.js';
 
-export {
-  detectMeetingClashes,
-  detectSubstituteClashes,
-} from './clash-helper.js';
+export { detectMeetingClashes, detectSubstituteClashes } from './clash-helper.js';
 export type {
   ClashConflict,
   ClashReason,
@@ -35,6 +32,13 @@ export {
 } from './timetable-errors.js';
 
 export { TimetableService } from './timetable-service.js';
+export type { TimetableAuditEntry } from './timetable-service.js';
+export {
+  assertTimetableAccess,
+  hasTimetableAccess,
+  normalizeTimetableRoles,
+  type TimetableAction,
+} from './timetable-access.js';
 export { timetablePlugin } from './timetable-plugin.js';
 export type { TimetablePluginOptions } from './timetable-plugin.js';
 export { registerTimetableRoutes } from './routes.js';

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { assertTimetableAccess, hasTimetableAccess } from './timetable-access.js';
 import { InMemoryTimetableRepository } from './in-memory-repository.js';
 import { TimetableClashError } from './timetable-errors.js';
 import { TimetableService } from './timetable-service.js';
@@ -321,5 +322,57 @@ describe('TimetableService', () => {
         status: 'active',
       }),
     ).rejects.toBeInstanceOf(TimetableClashError);
+  });
+
+  it('isolates sections across tenants and audits publish', async () => {
+    const tenantB = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const service = new TimetableService(new InMemoryTimetableRepository());
+    const section = await service.createSection(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Iso',
+      code: 'ISO-1',
+      capacity: 10,
+    });
+    expect(await service.listSections(tenantB)).toEqual([]);
+
+    const schedule = await service.createBellSchedule(tenantId, {
+      institutionId,
+      academicPeriodId,
+      name: 'Day',
+      code: 'ISO-DAY',
+      dayPattern: '1,2,3,4,5',
+      status: 'active',
+    });
+    const period = await service.createPeriod(tenantId, {
+      bellScheduleId: schedule.id,
+      name: 'P1',
+      periodOrder: 1,
+      startTime: '08:00',
+      endTime: '08:45',
+    });
+    await service.createMeeting(tenantId, {
+      institutionId,
+      academicPeriodId,
+      sectionId: section.id,
+      subjectId: null,
+      staffId: staffB,
+      periodId: period.id,
+      roomId: null,
+      dayOfWeek: 1,
+      status: 'active',
+    });
+    await service.publishSection(tenantId, section.id);
+    expect(service.listAudits(tenantId).some((a) => a.action === 'section.publish')).toBe(true);
+    expect(service.listAudits(tenantB)).toEqual([]);
+  });
+});
+
+describe('timetable access', () => {
+  it('allows registrar write/publish and denies teacher publish', () => {
+    expect(hasTimetableAccess(['registrar'], 'schedule.write')).toBe(true);
+    expect(hasTimetableAccess(['registrar'], 'schedule.publish')).toBe(true);
+    expect(hasTimetableAccess(['teacher'], 'schedule.publish')).toBe(false);
+    expect(() => assertTimetableAccess(['teacher'], 'schedule.write')).toThrow(/Forbidden/);
   });
 });

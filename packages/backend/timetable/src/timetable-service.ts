@@ -21,6 +21,17 @@ import type {
   ListSubstitutionsFilter,
 } from './timetable-repository.js';
 
+export interface TimetableAuditEntry {
+  id: string;
+  tenantId: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  actorId: string | null;
+  at: string;
+  details: Record<string, unknown>;
+}
+
 type BellScheduleInput = Omit<
   BellScheduleEntity,
   'id' | 'tenantId' | 'createdAt' | 'updatedAt' | 'code'
@@ -62,7 +73,21 @@ function slugCode(name: string, fallback: string): string {
 }
 
 export class TimetableService {
+  private readonly auditLog: TimetableAuditEntry[] = [];
+
   constructor(private readonly repo: TimetableRepository) {}
+
+  listAudits(tenantId: string): TimetableAuditEntry[] {
+    return this.auditLog.filter((row) => row.tenantId === tenantId);
+  }
+
+  private recordAudit(entry: Omit<TimetableAuditEntry, 'id' | 'at'>): void {
+    this.auditLog.push({
+      id: randomUUID(),
+      at: nowIso(),
+      ...entry,
+    });
+  }
 
   listBellSchedules(tenantId: string, filter?: ListBellSchedulesFilter) {
     return this.repo.listBellSchedules(tenantId, filter);
@@ -294,6 +319,14 @@ export class TimetableService {
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
+    this.recordAudit({
+      tenantId,
+      action: 'section.publish',
+      entityType: 'section',
+      entityId: sectionId,
+      actorId: null,
+      details: { code: section.code, meetingCount: sectionMeetings.length },
+    });
     return updated;
   }
 
@@ -312,6 +345,14 @@ export class TimetableService {
     if (!updated) {
       throw new NotFoundError(`Section ${sectionId} not found`);
     }
+    this.recordAudit({
+      tenantId,
+      action: 'section.unpublish',
+      entityType: 'section',
+      entityId: sectionId,
+      actorId: null,
+      details: { code: section.code },
+    });
     return updated;
   }
 
@@ -441,10 +482,7 @@ export class TimetableService {
     });
   }
 
-  listAttendancePeriods(
-    tenantId: string,
-    filter: { institutionId: string; dayOfWeek?: number },
-  ) {
+  listAttendancePeriods(tenantId: string, filter: { institutionId: string; dayOfWeek?: number }) {
     return this.repo.listAttendancePeriods(tenantId, filter);
   }
 
