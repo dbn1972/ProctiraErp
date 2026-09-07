@@ -66,7 +66,7 @@ test.describe('Insights & System — write validation (ungated)', () => {
   test('/reports/new requires a template before generate', async ({ page }) => {
     await page.goto('/reports/new');
     // Mobile shell also renders an h1 brand title — target the page heading by name.
-    await expect(page.getByRole('heading', { name: /new report/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'New report', exact: true })).toBeVisible();
     await expect(page.getByTestId('scaffold-mode-banner')).toBeVisible();
     await expect(page.getByTestId('report-builder-form')).toBeVisible();
 
@@ -78,7 +78,7 @@ test.describe('Insights & System — write validation (ungated)', () => {
 
   test('/data-warehouse/field-mapping requires at least one mapped column', async ({ page }) => {
     await page.goto('/data-warehouse/field-mapping');
-    await expect(page.getByRole('heading', { name: /field mapping/i })).toBeVisible();
+    await expect(page.locator('#dw-mapping-heading')).toHaveText(/field mapping/i);
     await expect(page.getByTestId('scaffold-mode-banner')).toBeVisible();
 
     await page.getByRole('button', { name: /continue to validate/i }).click();
