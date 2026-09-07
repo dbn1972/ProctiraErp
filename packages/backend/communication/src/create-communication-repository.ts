@@ -1,12 +1,12 @@
 /**
  * Communication repository factory — Postgres when DATABASE_URL is set, else in-memory.
  */
+import type { CommunicationRepository } from './communication-repository.js';
 import { InMemoryCommunicationRepository } from './in-memory-repository.js';
 import {
   getSharedCommunicationPool,
   PgCommunicationRepository,
 } from './pg-communication-repository.js';
-import type { CommunicationRepository } from './communication-repository.js';
 
 export function isPgCommunicationEnabled(): boolean {
   const url = process.env.DATABASE_URL?.trim();

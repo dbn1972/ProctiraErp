@@ -50,7 +50,9 @@ function studentName(c: BoardExportCandidate): string {
   return `${c.firstName} ${c.lastName}`.trim();
 }
 
-function subjectMap(c: BoardExportCandidate): Record<string, { marks: number | null; grade: string | null }> {
+function subjectMap(
+  c: BoardExportCandidate,
+): Record<string, { marks: number | null; grade: string | null }> {
   const out: Record<string, { marks: number | null; grade: string | null }> = {};
   for (const g of c.grades) {
     const code = (g.assessmentCode ?? 'UNK').toUpperCase();
@@ -125,7 +127,7 @@ export function buildMarksheetCsv(ctx: BoardExportContext): string {
       csvEscape(ctx.affiliationCode),
       csvEscape(ctx.centreCode),
       ...pack.requiredSubjects.flatMap((s) => [
-        map[s]?.marks != null ? String(map[s]!.marks) : '',
+        map[s]?.marks != null ? String(map[s].marks) : '',
         csvEscape(map[s]?.grade ?? deriveBandLabel(pack, c)),
       ]),
       csvEscape(deriveResult(pack, c)),
@@ -149,8 +151,7 @@ export function buildExamResultsJson(ctx: BoardExportContext): unknown {
         [ctx.pack.examResultFields.find((f) => f.source === 'centreCode')!.exportKey]:
           ctx.centreCode,
         [ctx.pack.examResultFields.find((f) => f.source === 'subjectCode')!.exportKey]: subj,
-        [ctx.pack.examResultFields.find((f) => f.source === 'marksObtained')!.exportKey]:
-          g.marks,
+        [ctx.pack.examResultFields.find((f) => f.source === 'marksObtained')!.exportKey]: g.marks,
         [ctx.pack.examResultFields.find((f) => f.source === 'grade')!.exportKey]:
           g.grade ?? deriveBandLabel(ctx.pack, c),
         transcriptVersion: c.latestTranscript?.version ?? null,

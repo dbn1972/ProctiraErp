@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 
 /** Navigation items for the sidebar */
-const navItems = [
+export const navItems = [
   { key: 'dashboard', href: '/', icon: 'HomeIcon' },
   { key: 'institutions', href: '/institutions', icon: 'BuildingIcon' },
   { key: 'academicPeriods', href: '/academic-periods', icon: 'CalendarIcon' },

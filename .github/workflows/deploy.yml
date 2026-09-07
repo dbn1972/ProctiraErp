@@ -47,6 +47,7 @@ jobs:
       environment: ${{ steps.env.outputs.environment }}
       services: ${{ steps.affected.outputs.services }}
       image-tag: ${{ steps.meta.outputs.tag }}
+      can-deploy: ${{ steps.registry.outputs.can_deploy }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -69,6 +70,19 @@ jobs:
           SHA_SHORT=$(git rev-parse --short HEAD)
           TIMESTAMP=$(date +%Y%m%d%H%M%S)
           echo "tag=${SHA_SHORT}-${TIMESTAMP}" >> "$GITHUB_OUTPUT"
+
+      - name: Check registry credentials
+        id: registry
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          if [ -n "$REGISTRY_USERNAME" ] && [ -n "$REGISTRY_PASSWORD" ]; then
+            echo "can_deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "can_deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::REGISTRY_USERNAME/REGISTRY_PASSWORD not configured — skipping image build/push and deploy."
+          fi
 
       - name: Detect affected services
         id: affected
@@ -125,7 +139,7 @@ jobs:
     name: Prepare Matrix
     runs-on: ubuntu-latest
     needs: prepare
-    if: needs.prepare.outputs.services != ''
+    if: needs.prepare.outputs.services != '' && needs.prepare.outputs.can-deploy == 'true'
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -223,6 +237,7 @@ jobs:
     name: Deploy to ${{ needs.prepare.outputs.environment }}
     runs-on: ubuntu-latest
     needs: [prepare, build-images]
+    if: needs.prepare.outputs.can-deploy == 'true'
     environment: ${{ needs.prepare.outputs.environment }}
     steps:
       - uses: actions/checkout@v4

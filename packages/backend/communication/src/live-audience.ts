@@ -47,7 +47,7 @@ export async function fetchLiveAudienceCounts(
            WHERE a.tenant_id = $1 AND a.is_active = true AND bl.hostel_id = $2`,
           [tenantId, hostelId],
         );
-        hostelActiveAssignments = Number(result.rows[0]?.c ?? 0);
+        hostelActiveAssignments = Number((result.rows[0] as { c?: number } | undefined)?.c ?? 0);
       } else {
         const result = await db.query(
           `SELECT COUNT(*)::int AS c
@@ -55,7 +55,7 @@ export async function fetchLiveAudienceCounts(
            WHERE tenant_id = $1 AND is_active = true`,
           [tenantId],
         );
-        hostelActiveAssignments = Number(result.rows[0]?.c ?? 0);
+        hostelActiveAssignments = Number((result.rows[0] as { c?: number } | undefined)?.c ?? 0);
       }
     }
 
@@ -68,7 +68,7 @@ export async function fetchLiveAudienceCounts(
            WHERE tenant_id = $1 AND is_active = true AND route_id = $2`,
           [tenantId, routeId],
         );
-        routeActiveAssignments = Number(result.rows[0]?.c ?? 0);
+        routeActiveAssignments = Number((result.rows[0] as { c?: number } | undefined)?.c ?? 0);
       } else {
         const result = await db.query(
           `SELECT COUNT(*)::int AS c
@@ -76,7 +76,7 @@ export async function fetchLiveAudienceCounts(
            WHERE tenant_id = $1 AND is_active = true`,
           [tenantId],
         );
-        routeActiveAssignments = Number(result.rows[0]?.c ?? 0);
+        routeActiveAssignments = Number((result.rows[0] as { c?: number } | undefined)?.c ?? 0);
       }
     }
   } catch {

@@ -10,6 +10,15 @@
  */
 
 import { v4 as uuid } from 'uuid';
+
+import {
+  CdnValidator,
+  DatabaseValidator,
+  StorageValidator,
+  CacheValidator,
+  QueueValidator,
+} from './adapter-validators';
+import type { BootstrapStore } from './bootstrap-store';
 import type {
   InstallService,
   BootstrapStatus,
@@ -27,14 +36,6 @@ import type {
   QueueConfigInput,
 } from './types';
 import { BOOTSTRAP_STEPS } from './types';
-import type { BootstrapStore } from './bootstrap-store';
-import {
-  CdnValidator,
-  DatabaseValidator,
-  StorageValidator,
-  CacheValidator,
-  QueueValidator,
-} from './adapter-validators';
 
 /**
  * Minimal logger interface compatible with Pino.
@@ -67,11 +68,21 @@ export interface InstallServiceDependencies {
  * Can be overridden in tests to avoid real network calls.
  */
 export interface ConnectivityTester {
-  testCdn?(config: CdnConfigInput): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
-  testDatabase?(config: DatabaseConfigInput): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
-  testStorage?(config: StorageConfigInput): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
-  testCache?(config: CacheConfigInput): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
-  testQueue?(config: QueueConfigInput): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
+  testCdn?(
+    config: CdnConfigInput,
+  ): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
+  testDatabase?(
+    config: DatabaseConfigInput,
+  ): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
+  testStorage?(
+    config: StorageConfigInput,
+  ): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
+  testCache?(
+    config: CacheConfigInput,
+  ): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
+  testQueue?(
+    config: QueueConfigInput,
+  ): Promise<{ healthy: boolean; latencyMs: number; error?: string }>;
 }
 
 /**
@@ -228,7 +239,10 @@ export class InstallServiceImpl implements InstallService {
     this.adapterConfigs['database'] = config;
     await this.persistStepCompletion('database');
 
-    this.logger.info({ provider: config.provider, latencyMs: result.latencyMs }, 'Database configured');
+    this.logger.info(
+      { provider: config.provider, latencyMs: result.latencyMs },
+      'Database configured',
+    );
     return result;
   }
 
@@ -270,7 +284,10 @@ export class InstallServiceImpl implements InstallService {
     this.adapterConfigs['storage'] = config;
     await this.persistStepCompletion('storage');
 
-    this.logger.info({ adapter: config.adapter, latencyMs: result.latencyMs }, 'Storage configured');
+    this.logger.info(
+      { adapter: config.adapter, latencyMs: result.latencyMs },
+      'Storage configured',
+    );
     return result;
   }
 
@@ -545,7 +562,7 @@ export class InstallServiceImpl implements InstallService {
   /**
    * Persists the completion of a step to the store.
    */
-  private async persistStepCompletion(step: BootstrapStep): Promise<void> {
+  private async persistStepCompletion(_step: BootstrapStep): Promise<void> {
     if (!this.currentRunId) return;
 
     await this.store.updateRun(this.currentRunId, {
@@ -578,12 +595,16 @@ export class InstallServiceImpl implements InstallService {
         }
         case 'database': {
           if (this.connectivityTester.testDatabase) {
-            const result = await this.connectivityTester.testDatabase(config as DatabaseConfigInput);
+            const result = await this.connectivityTester.testDatabase(
+              config as DatabaseConfigInput,
+            );
             return {
               healthy: result.healthy,
               adapter: 'database',
               latencyMs: result.latencyMs,
-              message: result.healthy ? 'Database is connected' : (result.error ?? 'Database unreachable'),
+              message: result.healthy
+                ? 'Database is connected'
+                : (result.error ?? 'Database unreachable'),
               checkedAt,
             };
           }
@@ -596,7 +617,9 @@ export class InstallServiceImpl implements InstallService {
               healthy: result.healthy,
               adapter: 'storage',
               latencyMs: result.latencyMs,
-              message: result.healthy ? 'Storage is accessible' : (result.error ?? 'Storage unreachable'),
+              message: result.healthy
+                ? 'Storage is accessible'
+                : (result.error ?? 'Storage unreachable'),
               checkedAt,
             };
           }
@@ -609,7 +632,9 @@ export class InstallServiceImpl implements InstallService {
               healthy: result.healthy,
               adapter: 'cache',
               latencyMs: result.latencyMs,
-              message: result.healthy ? 'Cache is responding' : (result.error ?? 'Cache unreachable'),
+              message: result.healthy
+                ? 'Cache is responding'
+                : (result.error ?? 'Cache unreachable'),
               checkedAt,
             };
           }
@@ -622,7 +647,9 @@ export class InstallServiceImpl implements InstallService {
               healthy: result.healthy,
               adapter: 'queue',
               latencyMs: result.latencyMs,
-              message: result.healthy ? 'Queue is connected' : (result.error ?? 'Queue unreachable'),
+              message: result.healthy
+                ? 'Queue is connected'
+                : (result.error ?? 'Queue unreachable'),
               checkedAt,
             };
           }

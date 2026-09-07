@@ -32,7 +32,6 @@ import type {
   CreateNotificationTemplateInput,
   DeliveryChannel,
   DeliveryStatus,
-  RecipientQuery,
 } from './schemas.js';
 
 // ─── Channel Delivery Interfaces ─────────────────────────────────────────────

@@ -4,10 +4,10 @@
 import { ConflictError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { CommunicationRepository } from './communication-repository.js';
-import type { CreateCampaignInput, CreateEmergencyBlastInput } from './schemas.js';
 import { estimateAudience } from './audience.js';
+import type { CommunicationRepository } from './communication-repository.js';
 import { fetchLiveAudienceCounts } from './live-audience.js';
+import type { CreateCampaignInput, CreateEmergencyBlastInput } from './schemas.js';
 
 export class CommunicationService {
   constructor(private readonly repository: CommunicationRepository) {}

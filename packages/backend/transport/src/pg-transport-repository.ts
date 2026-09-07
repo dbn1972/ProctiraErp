@@ -7,9 +7,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import pg from 'pg';
-
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import pg from 'pg';
 
 import type {
   DriverAssignmentEntity,
@@ -65,7 +64,9 @@ function schemaSqlPath(): string {
   return candidates[0]!;
 }
 
-export async function ensureTransportSchema(pool: PgPoolLike = getSharedTransportPool()!): Promise<void> {
+export async function ensureTransportSchema(
+  pool: PgPoolLike = getSharedTransportPool()!,
+): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for transport schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {

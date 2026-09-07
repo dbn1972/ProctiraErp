@@ -39,13 +39,20 @@ import {
 } from '@proctira/backend-assessment';
 import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
 import {
+  communicationPlugin,
+  createCommunicationRepository,
+} from '@proctira/backend-communication';
+import {
   createDocumentRepository,
   createExaminationRepository,
   createResultRepository,
   examinationPlugin,
 } from '@proctira/backend-examination';
+import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import { healthPlugin, createHealthRepository } from '@proctira/backend-health';
+import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
+import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
@@ -54,15 +61,8 @@ import {
   staffPlugin,
 } from '@proctira/backend-staff';
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
-import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
-import {
-  communicationPlugin,
-  createCommunicationRepository,
-} from '@proctira/backend-communication';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
-import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
-import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';

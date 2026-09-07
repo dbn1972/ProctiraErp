@@ -7,10 +7,9 @@
  *  - onRequest hook that maps JWT roles → request.healthAccessContext
  *  - Counselling list merges UI seed with live domain/PG writes
  */
+import type { CounsellingSessionEntity, HealthRepository } from '@proctira/backend-health';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
-
-import type { CounsellingSessionEntity, HealthRepository } from '@proctira/backend-health';
 
 import {
   HEALTH_DEMO_TENANT_ID,

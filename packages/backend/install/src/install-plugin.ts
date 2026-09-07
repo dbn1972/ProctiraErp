@@ -15,13 +15,19 @@
  * After finalize, configure/finalize return 409 (bootstrap lock).
  */
 
+import { createLogger } from '@proctira/logging';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
-import { createLogger } from '@proctira/logging';
-import { InstallServiceImpl } from './install-service';
-import type { ConnectivityTester } from './install-service';
+
 import { InMemoryBootstrapStore } from './bootstrap-store';
 import type { BootstrapStore } from './bootstrap-store';
+import {
+  enforceInstallToken,
+  resolveInstallToken,
+  statusForInstallResult,
+} from './install-security';
+import { InstallServiceImpl } from './install-service';
+import type { ConnectivityTester } from './install-service';
 import type {
   CdnConfigInput,
   DatabaseConfigInput,
@@ -36,11 +42,6 @@ import {
   CacheConfigSchema,
   QueueConfigSchema,
 } from './types';
-import {
-  enforceInstallToken,
-  resolveInstallToken,
-  statusForInstallResult,
-} from './install-security';
 
 /**
  * Options for the install plugin.
@@ -72,10 +73,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the Install/Bootstrap Service routes.
  */
 export const installPlugin = fp(
-  async function installPluginImpl(
-    fastify: FastifyInstance,
-    options: InstallPluginOptions,
-  ) {
+  async function installPluginImpl(fastify: FastifyInstance, options: InstallPluginOptions) {
     const {
       prefix = '/install',
       store = new InMemoryBootstrapStore(),
@@ -117,6 +115,7 @@ export const installPlugin = fp(
             schema: {
               body: CdnConfigSchema,
             },
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
             preHandler: requireToken,
           },
           async (request, reply) => {
@@ -132,6 +131,7 @@ export const installPlugin = fp(
             schema: {
               body: DatabaseConfigSchema,
             },
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
             preHandler: requireToken,
           },
           async (request, reply) => {
@@ -147,6 +147,7 @@ export const installPlugin = fp(
             schema: {
               body: StorageConfigSchema,
             },
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
             preHandler: requireToken,
           },
           async (request, reply) => {
@@ -162,6 +163,7 @@ export const installPlugin = fp(
             schema: {
               body: CacheConfigSchema,
             },
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
             preHandler: requireToken,
           },
           async (request, reply) => {
@@ -177,6 +179,7 @@ export const installPlugin = fp(
             schema: {
               body: QueueConfigSchema,
             },
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
             preHandler: requireToken,
           },
           async (request, reply) => {
@@ -189,6 +192,7 @@ export const installPlugin = fp(
         app.post(
           '/finalize',
           {
+            // eslint-disable-next-line @typescript-eslint/no-misused-promises -- Fastify async preHandler
             preHandler: requireToken,
           },
           async (_request: FastifyRequest, reply: FastifyReply) => {
