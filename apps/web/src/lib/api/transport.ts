@@ -160,3 +160,39 @@ export async function createTransportVehicle(
   }
   return mapVehicle(result.data);
 }
+
+export interface DriverAssignment {
+  id: string;
+  vehicleId: string;
+  driverId: string;
+  routeId?: string | null;
+  startDate: string;
+  endDate?: string | null;
+  isActive: boolean;
+}
+
+export interface StudentAssignment {
+  id: string;
+  studentId: string;
+  routeId: string;
+  stopId?: string | null;
+  startDate: string;
+  endDate?: string | null;
+  isActive: boolean;
+}
+
+export async function listDriverAssignments(): Promise<DriverAssignment[]> {
+  const result = await gatewayFetch<{ data: DriverAssignment[] }>('/transport/driver-assignments', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function listStudentAssignments(): Promise<StudentAssignment[]> {
+  const result = await gatewayFetch<{ data: StudentAssignment[] }>(
+    '/transport/student-assignments',
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}

@@ -1,10 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
+import { listDriverAssignments, listStudentAssignments } from '@/lib/api/transport';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransportAssignmentsPage() {
   await requireSession();
+  const [drivers, students] = await Promise.all([
+    listDriverAssignments(),
+    listStudentAssignments(),
+  ]);
 
   return (
     <div className="space-y-6 p-6">
@@ -14,17 +19,72 @@ export default async function TransportAssignmentsPage() {
           Driver and student assignments via `/api/v1/transport/*-assignments`.
         </p>
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Active assignments</CardTitle>
-          <CardDescription>No assignments loaded yet.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground" role="status">
-            Empty assignments list.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Driver assignments</CardTitle>
+            <CardDescription>
+              {drivers.length === 0
+                ? 'No driver assignments yet.'
+                : `${drivers.length} assignment${drivers.length === 1 ? '' : 's'}.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {drivers.length === 0 ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                Empty driver list.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border" role="list">
+                {drivers.map((row) => (
+                  <li key={row.id} className="py-3 first:pt-0 last:pb-0">
+                    <p className="text-sm font-medium text-foreground">
+                      Driver {row.driverId.slice(0, 8)} · vehicle {row.vehicleId.slice(0, 8)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      from {row.startDate}
+                      {row.endDate ? ` to ${row.endDate}` : ''} ·{' '}
+                      {row.isActive ? 'active' : 'inactive'}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Student assignments</CardTitle>
+            <CardDescription>
+              {students.length === 0
+                ? 'No student assignments yet.'
+                : `${students.length} assignment${students.length === 1 ? '' : 's'}.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {students.length === 0 ? (
+              <p className="text-sm text-muted-foreground" role="status">
+                Empty student list.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border" role="list">
+                {students.map((row) => (
+                  <li key={row.id} className="py-3 first:pt-0 last:pb-0">
+                    <p className="text-sm font-medium text-foreground">
+                      Student {row.studentId.slice(0, 8)} · route {row.routeId.slice(0, 8)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      from {row.startDate}
+                      {row.endDate ? ` to ${row.endDate}` : ''} ·{' '}
+                      {row.isActive ? 'active' : 'inactive'}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

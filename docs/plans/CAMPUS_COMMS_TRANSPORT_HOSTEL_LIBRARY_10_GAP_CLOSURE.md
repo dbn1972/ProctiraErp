@@ -394,3 +394,9 @@ Prefer **B→C** and **D** in parallel after WS0; **E** after B; **F/G** paralle
 - Existing code: `packages/backend/notification/`, `packages/backend/transport/`, `apps/web/src/features/settings/pages/NotificationPreferences.tsx`, `apps/mobile/lib/features/notifications/`
 - Redesign mocks: `redesign/web/notifications-center.html`, `redesign/web/admin-notification-rules.html`, `redesign/web/transport-*.html`
 - SIS plan (orthogonal): `docs/plans/SIS_WORLD_CLASS_10_GAP_CLOSURE.md`
+
+## Progress log (agent)
+
+| Tip | Notes |
+| --- | --- |
+| `834090d` / later | WS1–WS5 foundations: gateway mounts, SQL 005–009, live create/list UIs for notifications inbox, transport routes/vehicles, communication campaigns/emergency, hostel, library catalog/circulation. Local ungated Playwright inventory smokes **18/18** (`e2e/20-*`, `e2e/21-*`). Tip GitHub Actions jobs fail to start (account spending limit). WS6 full enterprise packs still open. |
