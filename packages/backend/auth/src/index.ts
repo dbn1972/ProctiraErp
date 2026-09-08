@@ -146,6 +146,8 @@ export type { KeycloakAccessClaims, KeycloakAuthConfig } from './keycloak/verify
 
 // Invites (in-memory by default)
 export {
+  InviteUserInputSchema,
+  InviteUserResponseSchema,
   validateInviteUserInput,
   createUserInviteRepository,
   InviteService,

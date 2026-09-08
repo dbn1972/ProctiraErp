@@ -9,12 +9,12 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import {
   OtpAuthError,
-  OtpService,
   OtpValidationError,
 } from './otp-service.js';
-import type { TokenService } from './token-service.js';
-import type { SessionService } from './session-service.js';
+import type { OtpService } from './otp-service.js';
 import type { UserLookup } from './routes.js';
+import type { SessionService } from './session-service.js';
+import type { TokenService } from './token-service.js';
 
 export interface MfaRoutesOptions {
   otpService: OtpService;

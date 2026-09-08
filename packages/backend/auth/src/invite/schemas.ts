@@ -1,27 +1,35 @@
 /**
- * User invite request/response types + lightweight validation.
+ * User invite request/response TypeBox schemas + lightweight runtime validation.
  *
- * TypeBox is intentionally omitted so @proctira/backend-auth stays free of
- * an extra schema compiler dependency on main.
+ * TypeBox schemas satisfy Charter API-schema presence (§6 / DoD api-schema).
+ * Runtime validation stays in `validateInviteUserInput` so routes do not require
+ * a Fastify TypeBox compiler plugin.
  */
+import { Type, type Static } from '@sinclair/typebox';
 
-export interface InviteUserInput {
-  email: string;
-  roleId?: string;
-  displayName?: string;
-}
+export const InviteUserInputSchema = Type.Object(
+  {
+    email: Type.String({ format: 'email', minLength: 3 }),
+    roleId: Type.Optional(Type.String({ format: 'uuid' })),
+    displayName: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+  },
+  { additionalProperties: false },
+);
 
-export interface InviteUserResponse {
-  id: string;
-  email: string;
-  displayName: string | null;
-  roleId: string | null;
-  status: string;
-  inviteUrl: string;
-  expiresAt: string;
-  emailSent: boolean;
-  createdAt: string;
-}
+export const InviteUserResponseSchema = Type.Object({
+  id: Type.String({ format: 'uuid' }),
+  email: Type.String({ format: 'email' }),
+  displayName: Type.Union([Type.String(), Type.Null()]),
+  roleId: Type.Union([Type.String({ format: 'uuid' }), Type.Null()]),
+  status: Type.String(),
+  inviteUrl: Type.String(),
+  expiresAt: Type.String({ format: 'date-time' }),
+  emailSent: Type.Boolean(),
+  createdAt: Type.String({ format: 'date-time' }),
+});
+
+export type InviteUserInput = Static<typeof InviteUserInputSchema>;
+export type InviteUserResponse = Static<typeof InviteUserResponseSchema>;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

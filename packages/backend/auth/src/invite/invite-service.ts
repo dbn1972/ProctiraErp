@@ -4,8 +4,9 @@
  * Persistence is in-memory by default. Prisma User / UserInvite models are not
  * on main; do not auto-select Prisma when DATABASE_URL is set.
  */
-import { ConflictError, ValidationError } from '@proctira/common';
 import { randomBytes } from 'node:crypto';
+
+import { ConflictError, ValidationError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { InMemoryUserInviteRepository } from './in-memory-invite-repository.js';
@@ -65,7 +66,7 @@ export class InviteService {
 
     const existing = await this.repository.findPendingByEmail(tenantId, email);
     if (existing && existing.expiresAt > new Date()) {
-      throw new ConflictError(`A pending invite already exists for ${email}`);
+      throw new ConflictError(`A pending invite already exists for ${String(email)}`);
     }
 
     const displayName = input.displayName?.trim() || email.split('@')[0] || email;
