@@ -65,6 +65,17 @@ export interface LmsActor {
 
 export const ANONYMOUS_ACTOR: LmsActor = { userId: null, roles: [], institutions: [] };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `created_by` / `graded_by` are UUID columns; IdP subjects are not guaranteed
+ * to be UUIDs (Keycloak yes, service accounts / legacy IdPs no). Non-UUID
+ * subjects are stored as NULL rather than failing the write.
+ */
+export function uuidOrNull(value: string | null | undefined): string | null {
+  return value && UUID_RE.test(value) ? value : null;
+}
+
 const TENANT_ADMIN_ROLES = new Set(['admin', 'platform_admin', 'super-admin', 'board_admin']);
 const AUTHOR_ROLES = new Set([...TENANT_ADMIN_ROLES, 'principal', 'teacher', 'staff']);
 const LEARNER_ROLES = new Set(['student']);
@@ -270,7 +281,7 @@ export class LmsService {
       timeLimitMinutes: input.timeLimitMinutes ?? null,
       allowLate: input.allowLate ?? true,
       status: publish ? 'published' : 'draft',
-      createdBy: actor.userId,
+      createdBy: uuidOrNull(actor.userId),
       publishedAt: publish ? now : null,
     });
     const savedQuestions =
@@ -538,7 +549,7 @@ export class LmsService {
       feedback: input.feedback ?? null,
       status: input.returnToStudent ? 'returned' : 'graded',
       gradedAt: now,
-      gradedBy: actor.userId,
+      gradedBy: uuidOrNull(actor.userId),
       autoGraded: false,
     });
     if (!updated) throw new NotFoundError('Submission not found');

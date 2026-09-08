@@ -1,7 +1,7 @@
 import { Type } from '@sinclair/typebox';
 import { describe, it, expect } from 'vitest';
 
-import { validate } from './validator';
+import { validate, validateQuery } from './validator';
 
 describe('validate', () => {
   describe('successful validation', () => {
@@ -283,5 +283,30 @@ describe('validate', () => {
       expect(result.success).toBe(true);
       if (result.success) expect(result.data.pageSize).toBe(20);
     });
+  });
+});
+
+describe('validateQuery — query-string coercion (Wave 8)', () => {
+  const Query = Type.Object({
+    pageSize: Type.Optional(Type.Integer({ minimum: 1, maximum: 100, default: 20 })),
+    includeClosed: Type.Optional(Type.Boolean()),
+    search: Type.Optional(Type.String()),
+  });
+
+  it('coerces numeric and boolean strings from a query string', () => {
+    const result = validateQuery(Query, { pageSize: '100', includeClosed: 'true', search: 'x' });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).toEqual({ pageSize: 100, includeClosed: true, search: 'x' });
+    }
+  });
+
+  it('still rejects out-of-range and non-numeric values after coercion', () => {
+    expect(validateQuery(Query, { pageSize: '500' }).success).toBe(false);
+    expect(validateQuery(Query, { pageSize: 'lots' }).success).toBe(false);
+  });
+
+  it('plain validate does not coerce JSON body strings into numbers', () => {
+    expect(validate(Query, { pageSize: '100' }).success).toBe(false);
   });
 });

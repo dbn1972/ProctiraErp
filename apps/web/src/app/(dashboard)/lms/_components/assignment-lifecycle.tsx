@@ -6,6 +6,7 @@ import { useState, useTransition } from 'react';
 import { Lock, Send } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { AssignmentStatus } from '@/lib/api/lms';
 
 import { closeAssignmentAction, publishAssignmentAction } from '../actions';
@@ -13,6 +14,7 @@ import { closeAssignmentAction, publishAssignmentAction } from '../actions';
 export function AssignmentLifecycle({ id, status }: { id: string; status: AssignmentStatus }) {
   const t = useTranslations('lms');
   const router = useRouter();
+  const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -32,7 +34,11 @@ export function AssignmentLifecycle({ id, status }: { id: string; status: Assign
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div
+      className="flex flex-col items-end gap-2"
+      data-testid="lms-lifecycle"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <div className="flex gap-2">
         {status === 'draft' ? (
           <Button

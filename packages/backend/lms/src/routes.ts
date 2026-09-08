@@ -28,7 +28,7 @@
  *   POST   /lms/pal/students/:studentId/attempts    - Record a practice attempt
  */
 import { AppError } from '@proctira/common';
-import { validate } from '@proctira/validation';
+import { validate, validateQuery } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import type { LmsActor, LmsService } from './lms-service.js';
@@ -153,7 +153,7 @@ export async function registerLmsRoutes(
   });
 
   fastify.get(`${prefix}/skills`, async (request, reply) => {
-    const query = validate(SkillListQuerySchema, plainQuery(request));
+    const query = validateQuery(SkillListQuerySchema, plainQuery(request));
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
@@ -187,7 +187,7 @@ export async function registerLmsRoutes(
   });
 
   fastify.get(`${prefix}/assignments`, async (request, reply) => {
-    const query = validate(AssignmentListQuerySchema, plainQuery(request));
+    const query = validateQuery(AssignmentListQuerySchema, plainQuery(request));
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
@@ -300,7 +300,7 @@ export async function registerLmsRoutes(
   fastify.get(`${prefix}/assignments/:id/submissions`, async (request, reply) => {
     const params = validate(IdParamsSchema, plainParams(request));
     if (!params.success) return validationFailed(reply, params.errors, 'Invalid ID');
-    const query = validate(SubmissionListQuerySchema, plainQuery(request));
+    const query = validateQuery(SubmissionListQuerySchema, plainQuery(request));
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
@@ -321,7 +321,7 @@ export async function registerLmsRoutes(
   // ─── Submissions ───────────────────────────────────────────────────────
 
   fastify.get(`${prefix}/submissions`, async (request, reply) => {
-    const query = validate(SubmissionListQuerySchema, plainQuery(request));
+    const query = validateQuery(SubmissionListQuerySchema, plainQuery(request));
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
@@ -381,7 +381,7 @@ export async function registerLmsRoutes(
   fastify.get(`${prefix}/pal/students/:studentId/plan`, async (request, reply) => {
     const params = validate(StudentParamsSchema, plainParams(request));
     if (!params.success) return validationFailed(reply, params.errors, 'Invalid student ID');
-    const query = validate(PlanQuerySchema, plainQuery(request));
+    const query = validateQuery(PlanQuerySchema, plainQuery(request));
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
@@ -407,7 +407,7 @@ export async function registerLmsRoutes(
   fastify.get(`${prefix}/pal/students/:studentId/progress`, async (request, reply) => {
     const params = validate(StudentParamsSchema, plainParams(request));
     if (!params.success) return validationFailed(reply, params.errors, 'Invalid student ID');
-    const query = validate(PlanQuerySchema, plainQuery(request));
+    const query = validateQuery(PlanQuerySchema, plainQuery(request));
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
@@ -434,7 +434,7 @@ export async function registerLmsRoutes(
   fastify.get(`${prefix}/pal/students/:studentId/attempts`, async (request, reply) => {
     const params = validate(StudentParamsSchema, plainParams(request));
     if (!params.success) return validationFailed(reply, params.errors, 'Invalid student ID');
-    const query = validate(SubmissionListQuerySchema, plainQuery(request));
+    const query = validateQuery(SubmissionListQuerySchema, plainQuery(request));
     if (!query.success) return validationFailed(reply, query.errors, 'Invalid query');
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);

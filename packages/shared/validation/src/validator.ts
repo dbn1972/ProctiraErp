@@ -140,9 +140,27 @@ function normaliseForClone(data: unknown): unknown {
  * @param data - The data to validate
  * @returns ValidationResult with either validated data or field-level errors
  */
-export function validate<T extends TSchema>(schema: T, data: unknown): ValidationResult<T> {
+export interface ValidateOptions {
+  /**
+   * Coerce string scalars ("42", "true") into the schema's declared primitive
+   * before validating. Intended for query strings / path params, where every
+   * value arrives as a string. Never use for JSON bodies — a client must not
+   * be able to satisfy `Type.Number()` with `"42"` there.
+   */
+  convert?: boolean;
+}
+
+export function validate<T extends TSchema>(
+  schema: T,
+  data: unknown,
+  options: ValidateOptions = {},
+): ValidationResult<T> {
   // Apply defaults first, then validate
-  const withDefaults = Value.Default(schema, Value.Clone(normaliseForClone(data)));
+  const cloned = Value.Clone(normaliseForClone(data));
+  const withDefaults = Value.Default(
+    schema,
+    options.convert ? Value.Convert(schema, cloned) : cloned,
+  );
   const errors = [...Value.Errors(schema, withDefaults)];
 
   if (errors.length === 0) {
@@ -156,4 +174,9 @@ export function validate<T extends TSchema>(schema: T, data: unknown): Validatio
   }));
 
   return { success: false, errors: fieldErrors };
+}
+
+/** `validate` with `convert: true` — for query strings and path params. */
+export function validateQuery<T extends TSchema>(schema: T, data: unknown): ValidationResult<T> {
+  return validate(schema, data, { convert: true });
 }

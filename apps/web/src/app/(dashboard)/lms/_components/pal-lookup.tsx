@@ -5,6 +5,7 @@ import { useId, useState, useTransition } from 'react';
 import { Search } from 'lucide-react';
 
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@proctira/ui/components';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { SpiralPlanItem } from '@/lib/api/lms';
 import { cn } from '@/lib/utils';
 
@@ -46,6 +47,7 @@ function MasteryBar({ value, label }: { value: number; label: string }) {
 export function PalLookup({ students }: { students: Array<{ id: string; name: string }> }) {
   const t = useTranslations('lms');
   const id = useId();
+  const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [studentId, setStudentId] = useState(students[0]?.id ?? '');
   const [state, setState] = useState<PalLookupState>({ status: 'idle' });
@@ -71,7 +73,12 @@ export function PalLookup({ students }: { students: Array<{ id: string; name: st
         <CardTitle className="text-base">{t('learnerPlan')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
-        <form onSubmit={lookup} className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <form
+          onSubmit={lookup}
+          className="flex flex-col gap-2 sm:flex-row sm:items-end"
+          data-testid="pal-lookup-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
+        >
           <div className="flex-1">
             <label htmlFor={`${id}-student`} className="mb-1 block text-sm font-medium">
               {t('fieldStudent')}

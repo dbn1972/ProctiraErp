@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useId, useState, useTransition } from 'react';
 
 import { Button, Input } from '@proctira/ui/components';
+import { useHydrated } from '@/hooks/useHydrated';
 
 import { gradeSubmissionAction } from '../actions';
 
@@ -24,6 +25,7 @@ export function GradeSubmissionForm({
   const t = useTranslations('lms');
   const router = useRouter();
   const id = useId();
+  const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [score, setScore] = useState(initialScore === null ? '' : String(initialScore));
   const [feedback, setFeedback] = useState(initialFeedback ?? '');
@@ -57,6 +59,8 @@ export function GradeSubmissionForm({
       onSubmit={submit}
       className="flex flex-wrap items-center gap-2"
       aria-label={t('gradeSubmission')}
+      data-testid="lms-grade-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
     >
       <label htmlFor={`${id}-score`} className="sr-only">
         {t('colScore')}

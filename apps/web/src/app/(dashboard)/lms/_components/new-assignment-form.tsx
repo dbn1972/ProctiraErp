@@ -17,6 +17,7 @@ import {
   Label,
   Textarea,
 } from '@proctira/ui/components';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { AssignmentKind, LmsScope, QuizQuestionInput } from '@/lib/api/lms';
 import { cn } from '@/lib/utils';
 
@@ -69,6 +70,7 @@ export function NewAssignmentForm({
   const tc = useTranslations('common');
   const router = useRouter();
   const formId = useId();
+  const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
 
   const [kind, setKind] = useState<AssignmentKind>(initialKind);
@@ -166,6 +168,8 @@ export function NewAssignmentForm({
       onSubmit={onSubmit}
       noValidate
       className="space-y-6"
+      data-testid="lms-assignment-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
       aria-describedby={serverError ? `${formId}-err` : undefined}
     >
       {serverError ? (

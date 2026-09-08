@@ -22,7 +22,7 @@ import {
 } from '@/lib/institutions/lookups';
 
 interface InstitutionLayoutProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
   children: React.ReactNode;
 }
 
@@ -41,7 +41,8 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
 }
 
 export default async function InstitutionLayout({ params, children }: InstitutionLayoutProps) {
-  const institution = await loadInstitution(params.id);
+  const { id } = await params;
+  const institution = await loadInstitution(id);
 
   if (!institution) {
     notFound();

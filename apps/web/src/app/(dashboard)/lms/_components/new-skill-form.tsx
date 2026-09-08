@@ -13,6 +13,7 @@ import {
   FormField,
   Input,
 } from '@proctira/ui/components';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { LmsScope } from '@/lib/api/lms';
 
 import { createSkillAction } from '../actions';
@@ -39,6 +40,7 @@ export function NewSkillForm({
   const tc = useTranslations('common');
   const router = useRouter();
   const id = useId();
+  const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [scope, setScope] = useState<LmsScope>('board');
   const [institutionId, setInstitutionId] = useState(institutions[0]?.id ?? '');
@@ -92,7 +94,13 @@ export function NewSkillForm({
         <CardTitle className="text-base">{t('newSkill')}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={submit} noValidate className="space-y-4">
+        <form
+          onSubmit={submit}
+          noValidate
+          className="space-y-4"
+          data-testid="lms-skill-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
+        >
           <FormField id={`${id}-scope`} label={t('sectionScope')}>
             <select
               id={`${id}-scope`}

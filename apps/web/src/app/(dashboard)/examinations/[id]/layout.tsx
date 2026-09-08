@@ -15,7 +15,7 @@ import { getExamination } from '@/lib/api/examinations';
 import { ExamTabs } from './exam-tabs';
 
 interface LayoutProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
   children: React.ReactNode;
 }
 
@@ -35,7 +35,8 @@ function formatDate(d: string): string {
 }
 
 export default async function ExaminationDetailLayout({ params, children }: LayoutProps) {
-  const examination = await getExamination(params.id);
+  const { id } = await params;
+  const examination = await getExamination(id);
   if (!examination) notFound();
 
   return (
@@ -81,7 +82,7 @@ export default async function ExaminationDetailLayout({ params, children }: Layo
         </div>
 
         {/* ── Tabs ── */}
-        <ExamTabs examId={params.id} candidateCount={examination.candidateCount} />
+        <ExamTabs examId={id} candidateCount={examination.candidateCount} />
       </div>
 
       {children}
