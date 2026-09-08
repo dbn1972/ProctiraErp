@@ -118,6 +118,25 @@ jobs:
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
 
+      - name: Multi-board 3×2×500 certification (G-408)
+        run: |
+          mkdir -p /opt/cursor/artifacts/multi-board-onboard
+          # Schema already applied above; re-run seed + verify via onboard script.
+          # apply-sql is idempotent; seed tears down prior cert tenant.
+          bash tools/scripts/setup-live-db-and-onboard.sh
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          ARTIFACT_DIR: /opt/cursor/artifacts/multi-board-onboard
+
+      - name: Upload multi-board certify artifacts (G-408)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-board-onboard
+          path: /opt/cursor/artifacts/multi-board-onboard/
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Install Playwright Chromium
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_stack != true }}
         run: pnpm --filter @proctira/web exec playwright install --with-deps chromium

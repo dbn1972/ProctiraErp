@@ -310,6 +310,39 @@ describe('G-301 campus module RBAC deny matrix', () => {
       deniedRole: 'teacher',
       allowedRole: 'admin',
     },
+    {
+      id: 'hostel',
+      method: 'POST',
+      url: '/api/v1/hostel/leaves',
+      payload: {
+        studentId: '33333333-3333-4333-8333-333333333333',
+        hostelId: 'b1000000-0000-4000-8000-000000000001',
+        startDate: '2026-09-10',
+        endDate: '2026-09-12',
+        reason: 'RBAC deny matrix',
+      },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'transport',
+      method: 'POST',
+      url: '/api/v1/transport/vehicles',
+      payload: { plateNumber: 'TEST-1', capacity: 20 },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'library',
+      method: 'POST',
+      url: '/api/v1/library/circulation/checkout',
+      payload: {
+        itemId: 'd1000000-0000-4000-8000-000000000001',
+        borrowerId: '33333333-3333-4333-8333-333333333333',
+      },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
   ];
 
   function bearer(roleId: string) {
@@ -375,6 +408,9 @@ describe('G-301 campus module RBAC deny matrix', () => {
     expect(resourceForApiPath('/api/v1/fees/invoices')).toBe('fees');
     expect(resourceForApiPath('/api/v1/scholarships/programs')).toBe('scholarship');
     expect(resourceForApiPath('/api/v1/parent-portal/messages')).toBe('parent');
+    expect(resourceForApiPath('/api/v1/hostel/leaves')).toBe('hostel');
+    expect(resourceForApiPath('/api/v1/transport/vehicles')).toBe('transport');
+    expect(resourceForApiPath('/api/v1/library/circulation/checkout')).toBe('library');
   });
 });
 

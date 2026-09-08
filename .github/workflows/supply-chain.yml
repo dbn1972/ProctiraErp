@@ -1,0 +1,116 @@
+# G-508 — Supply chain (SBOM / pnpm audit / cosign stub)
+name: Supply Chain
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 5 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supply-chain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  supply-chain:
+    name: Audit + SBOM + cosign stub
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.33.2'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit (prod, high+)
+        continue-on-error: true
+        id: pnpm_audit
+        run: |
+          set +e
+          pnpm audit --prod --audit-level=high > /tmp/pnpm-audit.txt 2>&1
+          code=$?
+          set -e
+          cat /tmp/pnpm-audit.txt
+          mkdir -p /opt/cursor/artifacts/supply-chain
+          cp /tmp/pnpm-audit.txt /opt/cursor/artifacts/supply-chain/pnpm-audit.txt
+          echo "exit_code=$code" | tee /opt/cursor/artifacts/supply-chain/pnpm-audit-status.txt
+          exit $code
+
+      - name: Generate CycloneDX-ish SBOM stub
+        if: always()
+        run: |
+          mkdir -p /opt/cursor/artifacts/supply-chain
+          node <<'NODE'
+          const { execSync } = require('node:child_process');
+          const fs = require('node:fs');
+          const outDir = '/opt/cursor/artifacts/supply-chain';
+          let packages = [];
+          try {
+            const raw = execSync('pnpm list -r --json --depth 0', { encoding: 'utf8', maxBuffer: 20_000_000 });
+            const parsed = JSON.parse(raw);
+            const list = Array.isArray(parsed) ? parsed : [parsed];
+            for (const pkg of list) {
+              packages.push({
+                name: pkg.name,
+                version: pkg.version,
+                path: pkg.path,
+              });
+            }
+          } catch (err) {
+            packages = [{ name: 'proctira-erp', version: '0.1.0', note: String(err) }];
+          }
+          const sbom = {
+            bomFormat: 'CycloneDX',
+            specVersion: '1.5',
+            version: 1,
+            metadata: {
+              timestamp: new Date().toISOString(),
+              component: { type: 'application', name: 'proctira-erp', version: '0.1.0' },
+              tools: [{ name: 'proctira-sbom-stub', version: '0.1.0' }],
+            },
+            components: packages.map((p) => ({
+              type: 'library',
+              name: p.name,
+              version: p.version || '0.0.0',
+            })),
+          };
+          fs.writeFileSync(`${outDir}/sbom.cdx.json`, JSON.stringify(sbom, null, 2));
+          console.log(`Wrote ${outDir}/sbom.cdx.json (${sbom.components.length} components)`);
+          NODE
+
+      - name: Cosign stub (CLI presence + digest placeholder)
+        if: always()
+        run: |
+          mkdir -p /opt/cursor/artifacts/supply-chain
+          DIGEST_PLACEHOLDER="sha256:$(echo -n "proctira-erp:${GITHUB_SHA:-local}" | sha256sum | awk '{print $1}')"
+          echo "$DIGEST_PLACEHOLDER" > /opt/cursor/artifacts/supply-chain/image-digest.txt
+          if command -v cosign >/dev/null 2>&1; then
+            cosign version | tee /opt/cursor/artifacts/supply-chain/cosign-version.txt
+            echo "cosign_present=true" >> /opt/cursor/artifacts/supply-chain/cosign-stub.txt
+          else
+            echo "cosign not installed in runner — stub records digest only" | tee /opt/cursor/artifacts/supply-chain/cosign-stub.txt
+            echo "cosign_present=false" >> /opt/cursor/artifacts/supply-chain/cosign-stub.txt
+          fi
+          echo "image_digest=$DIGEST_PLACEHOLDER" >> /opt/cursor/artifacts/supply-chain/cosign-stub.txt
+          # Job stays green when SBOM + cosign stub succeed; audit findings are
+          # tracked in the artifact (continue-on-error above).
+          echo "supply_chain_gate=wired" | tee /opt/cursor/artifacts/supply-chain/summary.txt
+
+      - name: Upload supply-chain artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain
+          path: /opt/cursor/artifacts/supply-chain/
+          retention-days: 30
+          if-no-files-found: warn

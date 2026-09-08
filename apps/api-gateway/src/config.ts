@@ -54,8 +54,13 @@ export const GatewayConfigSchema = Type.Object({
   }),
   /** JWT configuration */
   jwt: Type.Object({
-    /** JWT signing secret */
+    /** JWT signing secret (current / kid=current) */
     secret: Type.String(),
+    /**
+     * Previous JWT signing secret accepted during rotation (G-504).
+     * Set JWT_SECRET_PREVIOUS while old tokens remain valid, then clear.
+     */
+    previousSecret: Type.Optional(Type.String()),
     /** Token issuer */
     issuer: Type.String({ default: 'proctira-platform' }),
     /** Token audience */
@@ -153,6 +158,7 @@ export function loadConfig(): GatewayConfig {
     },
     jwt: {
       secret: process.env['JWT_SECRET'] || 'dev-secret-change-in-production',
+      previousSecret: process.env['JWT_SECRET_PREVIOUS']?.trim() || undefined,
       issuer: process.env['JWT_ISSUER'] || 'proctira-platform',
       audience: process.env['JWT_AUDIENCE'] || 'proctira-api',
       accessTokenExpiresIn: process.env['JWT_ACCESS_TOKEN_EXPIRES_IN'] || '15m',

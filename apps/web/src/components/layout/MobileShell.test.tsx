@@ -45,7 +45,7 @@ vi.mock('@/components/PageErrorBoundary', () => ({
   PageErrorBoundary: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-let currentPathname = '/app/dashboard';
+let currentPathname = '/';
 
 vi.mock('next/navigation', () => ({
   usePathname: () => currentPathname,
@@ -118,7 +118,7 @@ function renderShell(node: React.ReactNode = <div data-testid="page">page-conten
 // ─── Setup / teardown ────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  currentPathname = '/app/dashboard';
+  currentPathname = '/';
 });
 
 afterEach(() => {
@@ -137,10 +137,10 @@ describe('<MobileShell> — bottom-tab navigation (Task 53.2 / Req 41 AC 3)', ()
     const students = screen.getByTestId('mobile-shell-tab-students');
     const profile = screen.getByTestId('mobile-shell-tab-profile');
 
-    expect(home.getAttribute('href')).toBe('/app/dashboard');
-    expect(attendance.getAttribute('href')).toBe('/app/attendance');
-    expect(students.getAttribute('href')).toBe('/app/students');
-    expect(profile.getAttribute('href')).toBe('/app/me/profile');
+    expect(home.getAttribute('href')).toBe('/');
+    expect(attendance.getAttribute('href')).toBe('/attendance');
+    expect(students.getAttribute('href')).toBe('/students');
+    expect(profile.getAttribute('href')).toBe('/admin/users');
 
     expect(home.textContent).toContain('Home');
     expect(attendance.textContent).toContain('Attendance');
@@ -168,8 +168,8 @@ describe('<MobileShell> — bottom-tab navigation (Task 53.2 / Req 41 AC 3)', ()
 });
 
 describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
-  it('flags the Home tab when the pathname is /app/dashboard', () => {
-    currentPathname = '/app/dashboard';
+  it('flags the Home tab when the pathname is /', () => {
+    currentPathname = '/';
     renderShell();
     const home = screen.getByTestId('mobile-shell-tab-home');
     expect(home.getAttribute('aria-current')).toBe('page');
@@ -177,7 +177,7 @@ describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
   });
 
   it('flags the Students tab when the pathname is a Students sub-route', () => {
-    currentPathname = '/app/students/abc-123/edit';
+    currentPathname = '/students/abc-123/edit';
     renderShell();
     const students = screen.getByTestId('mobile-shell-tab-students');
     expect(students.getAttribute('aria-current')).toBe('page');
@@ -189,7 +189,7 @@ describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
   });
 
   it('flags no tab as active when the pathname does not match any tab prefix', () => {
-    currentPathname = '/app/settings';
+    currentPathname = '/admin';
     renderShell();
     for (const key of ['home', 'attendance', 'students', 'profile'] as const) {
       expect(screen.getByTestId(`mobile-shell-tab-${key}`).getAttribute('data-active')).toBe('false');
@@ -197,10 +197,10 @@ describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
   });
 
   it('exposes a pure helper `getActiveMobileTab` for callers outside the shell', () => {
-    expect(getActiveMobileTab('/app/attendance')?.key).toBe('attendance');
-    expect(getActiveMobileTab('/app/me/profile')?.key).toBe('profile');
-    expect(getActiveMobileTab('/app/me/profile/edit')?.key).toBe('profile');
-    expect(getActiveMobileTab('/app/settings')).toBeNull();
+    expect(getActiveMobileTab('/attendance')?.key).toBe('attendance');
+    expect(getActiveMobileTab('/admin/users')?.key).toBe('profile');
+    expect(getActiveMobileTab('/admin/users/edit')?.key).toBe('profile');
+    expect(getActiveMobileTab('/admin')).toBeNull();
     expect(getActiveMobileTab(null)).toBeNull();
     expect(getActiveMobileTab(undefined)).toBeNull();
   });
@@ -236,13 +236,13 @@ describe('<MobileShell> — hamburger drawer (Task 53.2 / Design §K)', () => {
     });
 
     expect(screen.getByTestId('mobile-shell-drawer-link-settings').getAttribute('href')).toBe(
-      '/app/settings',
+      '/admin',
     );
     expect(screen.getByTestId('mobile-shell-drawer-link-reports').getAttribute('href')).toBe(
-      '/app/reports',
+      '/reports',
     );
     expect(screen.getByTestId('mobile-shell-drawer-link-help').getAttribute('href')).toBe(
-      '/app/help',
+      '/help',
     );
     expect(screen.getByTestId('mobile-shell-drawer-link-signout').getAttribute('href')).toBe(
       '/api/auth/signout',

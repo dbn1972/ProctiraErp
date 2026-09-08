@@ -11,13 +11,13 @@
 
 ProctiraERP stores data across multiple systems that must be backed up in coordination:
 
-| Data Store | Contents | Criticality |
-|-----------|----------|-------------|
-| PostgreSQL | All application data, tenant configs, user accounts | Critical |
-| Object Storage (S3/MinIO) | File uploads, attachments, documents | Critical |
-| Redis | Session cache, rate-limit counters | Low (ephemeral) |
-| Message Queue | In-flight messages | Low (transient) |
-| Configuration | Environment variables, secrets | Critical |
+| Data Store                | Contents                                            | Criticality     |
+| ------------------------- | --------------------------------------------------- | --------------- |
+| PostgreSQL                | All application data, tenant configs, user accounts | Critical        |
+| Object Storage (S3/MinIO) | File uploads, attachments, documents                | Critical        |
+| Redis                     | Session cache, rate-limit counters                  | Low (ephemeral) |
+| Message Queue             | In-flight messages                                  | Low (transient) |
+| Configuration             | Environment variables, secrets                      | Critical        |
 
 ---
 
@@ -25,30 +25,30 @@ ProctiraERP stores data across multiple systems that must be backed up in coordi
 
 ### 2.1 Single-Node (Docker Compose)
 
-| Metric | Target | Strategy |
-|--------|--------|----------|
-| **RPO** (Recovery Point Objective) | ≤ 24 hours | Daily automated backups |
-| **RTO** (Recovery Time Objective) | ≤ 4 hours | Restore from backup + redeploy |
-| Backup Frequency | Daily at 02:00 UTC | Cron job |
-| Retention | 30 days | Local + offsite |
+| Metric                             | Target             | Strategy                       |
+| ---------------------------------- | ------------------ | ------------------------------ |
+| **RPO** (Recovery Point Objective) | ≤ 24 hours         | Daily automated backups        |
+| **RTO** (Recovery Time Objective)  | ≤ 4 hours          | Restore from backup + redeploy |
+| Backup Frequency                   | Daily at 02:00 UTC | Cron job                       |
+| Retention                          | 30 days            | Local + offsite                |
 
 ### 2.2 Kubernetes (Helm)
 
-| Metric | Target | Strategy |
-|--------|--------|----------|
-| **RPO** | ≤ 1 hour | Continuous WAL archiving + hourly snapshots |
-| **RTO** | ≤ 30 minutes | Automated failover + PVC restore |
-| Backup Frequency | Continuous (WAL) + hourly snapshots | Velero + pg_basebackup |
-| Retention | 90 days | Object storage lifecycle |
+| Metric           | Target                              | Strategy                                    |
+| ---------------- | ----------------------------------- | ------------------------------------------- |
+| **RPO**          | ≤ 1 hour                            | Continuous WAL archiving + hourly snapshots |
+| **RTO**          | ≤ 30 minutes                        | Automated failover + PVC restore            |
+| Backup Frequency | Continuous (WAL) + hourly snapshots | Velero + pg_basebackup                      |
+| Retention        | 90 days                             | Object storage lifecycle                    |
 
 ### 2.3 Managed Cloud (RDS/Aurora + S3)
 
-| Metric | Target | Strategy |
-|--------|--------|----------|
-| **RPO** | ≤ 5 minutes | Point-in-time recovery (PITR) |
-| **RTO** | ≤ 15 minutes | Automated failover + read replica promotion |
-| Backup Frequency | Continuous | AWS/GCP managed |
-| Retention | 35 days (automated) + indefinite (manual snapshots) | Cloud provider |
+| Metric           | Target                                              | Strategy                                    |
+| ---------------- | --------------------------------------------------- | ------------------------------------------- |
+| **RPO**          | ≤ 5 minutes                                         | Point-in-time recovery (PITR)               |
+| **RTO**          | ≤ 15 minutes                                        | Automated failover + read replica promotion |
+| Backup Frequency | Continuous                                          | AWS/GCP managed                             |
+| Retention        | 35 days (automated) + indefinite (manual snapshots) | Cloud provider                              |
 
 ---
 
@@ -153,12 +153,14 @@ For AWS S3 deployments, enable cross-region replication:
 ```json
 {
   "Role": "arn:aws:iam::ACCOUNT:role/replication-role",
-  "Rules": [{
-    "Status": "Enabled",
-    "Destination": {
-      "Bucket": "arn:aws:s3:::proctira-backup-region2"
+  "Rules": [
+    {
+      "Status": "Enabled",
+      "Destination": {
+        "Bucket": "arn:aws:s3:::proctira-backup-region2"
+      }
     }
-  }]
+  ]
 }
 ```
 
@@ -359,6 +361,7 @@ echo "Restore verification passed: ${LATEST_BACKUP}"
 ### 7.2 Backup Monitoring Alerts
 
 Configure alerts for:
+
 - Backup job failure
 - Backup age > 25 hours (for daily backups)
 - Backup size anomaly (> 50% change)
@@ -370,91 +373,103 @@ Configure alerts for:
 
 ### Scenario A: Single Service Failure
 
-| Step | Action | Expected RTO |
-|------|--------|-------------|
-| 1 | Kubernetes auto-restarts pod | < 1 minute |
-| 2 | Health check detects failure | < 30 seconds |
-| 3 | Load balancer routes to healthy replica | Immediate |
+| Step | Action                                  | Expected RTO |
+| ---- | --------------------------------------- | ------------ |
+| 1    | Kubernetes auto-restarts pod            | < 1 minute   |
+| 2    | Health check detects failure            | < 30 seconds |
+| 3    | Load balancer routes to healthy replica | Immediate    |
 
 ### Scenario B: Database Corruption
 
-| Step | Action | Expected RTO |
-|------|--------|-------------|
-| 1 | Detect via monitoring alert | < 5 minutes |
-| 2 | Failover to read replica (if configured) | < 2 minutes |
-| 3 | Or: PITR to last known good state | 15–30 minutes |
-| 4 | Verify data integrity | 5–10 minutes |
-| 5 | Resume normal operations | Total: 15–45 minutes |
+| Step | Action                                   | Expected RTO         |
+| ---- | ---------------------------------------- | -------------------- |
+| 1    | Detect via monitoring alert              | < 5 minutes          |
+| 2    | Failover to read replica (if configured) | < 2 minutes          |
+| 3    | Or: PITR to last known good state        | 15–30 minutes        |
+| 4    | Verify data integrity                    | 5–10 minutes         |
+| 5    | Resume normal operations                 | Total: 15–45 minutes |
 
 ### Scenario C: Complete Infrastructure Loss
 
-| Step | Action | Expected RTO |
-|------|--------|-------------|
-| 1 | Provision new infrastructure (Terraform) | 10–20 minutes |
-| 2 | Deploy platform (Helm/Docker Compose) | 5–10 minutes |
-| 3 | Restore database from backup | 15–60 minutes |
-| 4 | Restore object storage | 10–30 minutes |
-| 5 | Verify and resume | 10 minutes |
-| | **Total** | **50 minutes – 2 hours** |
+| Step | Action                                   | Expected RTO             |
+| ---- | ---------------------------------------- | ------------------------ |
+| 1    | Provision new infrastructure (Terraform) | 10–20 minutes            |
+| 2    | Deploy platform (Helm/Docker Compose)    | 5–10 minutes             |
+| 3    | Restore database from backup             | 15–60 minutes            |
+| 4    | Restore object storage                   | 10–30 minutes            |
+| 5    | Verify and resume                        | 10 minutes               |
+|      | **Total**                                | **50 minutes – 2 hours** |
 
 ### Scenario D: Ransomware/Security Breach
 
-| Step | Action | Expected RTO |
-|------|--------|-------------|
-| 1 | Isolate affected systems | Immediate |
-| 2 | Assess scope of compromise | 1–4 hours |
-| 3 | Provision clean infrastructure | 20 minutes |
-| 4 | Restore from verified clean backup | 30–60 minutes |
-| 5 | Rotate all secrets and credentials | 30 minutes |
-| 6 | Verify integrity and resume | 1 hour |
-| | **Total** | **3–7 hours** |
+| Step | Action                             | Expected RTO  |
+| ---- | ---------------------------------- | ------------- |
+| 1    | Isolate affected systems           | Immediate     |
+| 2    | Assess scope of compromise         | 1–4 hours     |
+| 3    | Provision clean infrastructure     | 20 minutes    |
+| 4    | Restore from verified clean backup | 30–60 minutes |
+| 5    | Rotate all secrets and credentials | 30 minutes    |
+| 6    | Verify integrity and resume        | 1 hour        |
+|      | **Total**                          | **3–7 hours** |
 
 ---
 
 ## 9. Backup Retention Policy
 
-| Backup Type | Retention | Storage Class |
-|-------------|-----------|---------------|
-| Hourly WAL archives | 7 days | Standard |
-| Daily full backups | 30 days | Standard-IA |
-| Weekly full backups | 90 days | Standard-IA |
-| Monthly full backups | 1 year | Glacier/Archive |
-| Pre-upgrade snapshots | Until next successful upgrade | Standard |
-| Compliance archives | 7 years | Glacier Deep Archive |
+| Backup Type           | Retention                     | Storage Class        |
+| --------------------- | ----------------------------- | -------------------- |
+| Hourly WAL archives   | 7 days                        | Standard             |
+| Daily full backups    | 30 days                       | Standard-IA          |
+| Weekly full backups   | 90 days                       | Standard-IA          |
+| Monthly full backups  | 1 year                        | Glacier/Archive      |
+| Pre-upgrade snapshots | Until next successful upgrade | Standard             |
+| Compliance archives   | 7 years                       | Glacier Deep Archive |
 
 ---
 
 ## 10. Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DB_BACKUP_ENABLED` | Enable automated backups | `false` |
-| `DB_BACKUP_SCHEDULE` | Cron expression for backup timing | `0 2 * * *` |
-| `DB_BACKUP_RETENTION_DAYS` | Days to retain local backups | `30` |
-| `BACKUP_S3_BUCKET` | S3 bucket for offsite backup storage | — |
-| `BACKUP_ENCRYPTION_KEY` | GPG key ID for backup encryption | — |
-| `LAST_BACKUP_TIMESTAMP` | Set by backup script after success | — |
-| `BACKUP_ALERT_WEBHOOK` | Webhook URL for backup failure alerts | — |
+| Variable                   | Description                           | Default     |
+| -------------------------- | ------------------------------------- | ----------- |
+| `DB_BACKUP_ENABLED`        | Enable automated backups              | `false`     |
+| `DB_BACKUP_SCHEDULE`       | Cron expression for backup timing     | `0 2 * * *` |
+| `DB_BACKUP_RETENTION_DAYS` | Days to retain local backups          | `30`        |
+| `BACKUP_S3_BUCKET`         | S3 bucket for offsite backup storage  | —           |
+| `BACKUP_ENCRYPTION_KEY`    | GPG key ID for backup encryption      | —           |
+| `LAST_BACKUP_TIMESTAMP`    | Set by backup script after success    | —           |
+| `BACKUP_ALERT_WEBHOOK`     | Webhook URL for backup failure alerts | —           |
 
 ---
 
-## 11. Quick Reference Commands
+## 11. Scripted drill (G-503)
+
+```bash
+# Backup + restore into disposable DB + verify artifact
+DATABASE_URL=postgresql://proctira:.../proctira \
+  ARTIFACT_DIR=/opt/cursor/artifacts/restore-drill \
+  bash tools/scripts/restore-drill.sh
+
+# PHI / minor retention dry-run
+DATABASE_URL=postgresql://proctira:.../proctira \
+  ARTIFACT_DIR=/opt/cursor/artifacts/phi-retention \
+  node tools/scripts/phi-retention-job.mjs
+```
+
+Policy details: `docs/DATA_RETENTION.md`.
+
+---
+
+## 12. Quick Reference Commands
 
 ```bash
 # Create immediate backup
-pg_dump --format=custom --compress=9 \
-  --file="emergency-$(date +%Y%m%d-%H%M%S).dump" \
-  "${DATABASE_URL}"
+bash tools/scripts/pg-backup.sh
 
 # List available backups
-ls -la /backups/proctira/ | tail -20
+ls -la .backups/ | tail -20
 
 # Check backup integrity
 pg_restore --list backup.dump | head -20
-
-# Estimate restore time
-pg_restore --list backup.dump | wc -l
-# Rule of thumb: ~1 minute per 1000 objects
 
 # Verify current backup status
 npx proctira-install readiness | jq '.categories[] | select(.name == "db-backup")'
@@ -462,5 +477,5 @@ npx proctira-install readiness | jq '.categories[] | select(.name == "db-backup"
 
 ---
 
-*Last updated: 2025-01-01*
-*Spec reference: Volume 11 — Enterprise Installation, Deployment Automation, and Readiness*
+_Last updated: 2026-09-08 (G-503 scripts + retention job)_
+_Spec reference: Volume 11 — Enterprise Installation, Deployment Automation, and Readiness_

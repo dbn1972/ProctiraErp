@@ -63,6 +63,11 @@ import { useBrand } from '@/providers/BrandConfigProvider';
 import { PageErrorBoundary } from '@/components/PageErrorBoundary';
 import { CommandPalette } from '@/components/CommandPalette';
 import { cn } from '@/lib/utils';
+import {
+  availableDestinations,
+  MOBILE_DRAWER_DESTINATIONS,
+  MOBILE_TAB_DESTINATIONS,
+} from './mobile-shell-routes';
 
 // ─── Tab configuration ────────────────────────────────────────────────────────
 
@@ -71,18 +76,27 @@ interface MobileTab {
   key: 'home' | 'attendance' | 'students' | 'profile';
   /** Visible label shown beneath the icon. */
   label: string;
-  /** Route the tab links to (Design §H — same routes as the desktop shell). */
+  /** Route the tab links to (App Router — G-404). */
   href: string;
   /** lucide-react icon component. */
   Icon: LucideIcon;
 }
 
-const MOBILE_TABS: readonly MobileTab[] = [
-  { key: 'home', label: 'Home', href: '/app/dashboard', Icon: Home },
-  { key: 'attendance', label: 'Attendance', href: '/app/attendance', Icon: ClipboardCheck },
-  { key: 'students', label: 'Students', href: '/app/students', Icon: Users },
-  { key: 'profile', label: 'Profile', href: '/app/me/profile', Icon: User },
-] as const;
+const TAB_ICONS: Record<MobileTab['key'], LucideIcon> = {
+  home: Home,
+  attendance: ClipboardCheck,
+  students: Users,
+  profile: User,
+};
+
+const MOBILE_TABS: readonly MobileTab[] = availableDestinations(MOBILE_TAB_DESTINATIONS).map(
+  (d) => ({
+    key: d.key as MobileTab['key'],
+    label: d.label,
+    href: d.href,
+    Icon: TAB_ICONS[d.key as MobileTab['key']],
+  }),
+);
 
 // ─── Drawer configuration ─────────────────────────────────────────────────────
 
@@ -93,12 +107,21 @@ interface DrawerLink {
   Icon: LucideIcon;
 }
 
-const DRAWER_LINKS: readonly DrawerLink[] = [
-  { key: 'settings', label: 'Settings', href: '/app/settings', Icon: Settings },
-  { key: 'reports', label: 'Reports', href: '/app/reports', Icon: FileBarChart },
-  { key: 'help', label: 'Help', href: '/app/help', Icon: HelpCircle },
-  { key: 'signout', label: 'Sign out', href: '/api/auth/signout', Icon: LogOut },
-] as const;
+const DRAWER_ICONS: Record<DrawerLink['key'], LucideIcon> = {
+  settings: Settings,
+  reports: FileBarChart,
+  help: HelpCircle,
+  signout: LogOut,
+};
+
+const DRAWER_LINKS: readonly DrawerLink[] = availableDestinations(
+  MOBILE_DRAWER_DESTINATIONS,
+).map((d) => ({
+  key: d.key as DrawerLink['key'],
+  label: d.label,
+  href: d.href,
+  Icon: DRAWER_ICONS[d.key as DrawerLink['key']],
+}));
 
 // ─── Active-tab helper ────────────────────────────────────────────────────────
 
@@ -161,7 +184,7 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
             the tenant brand name so screen readers announce the
             correct organization. */}
         <Link
-          href="/app/dashboard"
+          href="/"
           className="inline-flex min-h-12 min-w-12 shrink-0 items-center justify-center"
           aria-label={`${name} home`}
         >

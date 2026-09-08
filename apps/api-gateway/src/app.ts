@@ -60,7 +60,9 @@ import {
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
 } from './rbac-registry.js';
+import { verifySecretCandidates } from './jwt-secrets.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
+import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -145,13 +147,30 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     ],
   });
 
-  // 4. Register rate limiting (per tenant/client/IP)
+  // 4. Register rate limiting (per tenant/client/IP).
+  // G-505: max is plan-tier aware when tenant context is present; otherwise
+  // falls back to gateway config.rateLimiting.maxRequests.
+  // Use preHandler so JWT + tenant resolution (onRequest) have already run.
   await app.register(rateLimit, {
-    max: config.rateLimiting.maxRequests,
+    hook: 'preHandler',
+    max: (request) => {
+      const headerTenant = request.headers['x-tenant-id'];
+      const tenantId =
+        request.tenantId ??
+        (typeof headerTenant === 'string' ? headerTenant : undefined);
+      const user = (request as unknown as {
+        user?: { planTier?: string; tier?: string };
+      }).user;
+      return maxRequestsForTenant(tenantId, user, config.rateLimiting.maxRequests);
+    },
     timeWindow: config.rateLimiting.windowMs,
     keyGenerator: (request) => {
       // Rate limit key priority: tenant ID > authenticated user > IP
-      const tenantId = request.tenantId;
+      // Tenant-scoped keys keep free-tier and enterprise quotas isolated (G-505).
+      const headerTenant = request.headers['x-tenant-id'];
+      const tenantId =
+        request.tenantId ??
+        (typeof headerTenant === 'string' ? headerTenant : undefined);
       const userId = (request as unknown as { user?: { sub?: string } }).user?.sub;
 
       if (tenantId && userId) {
@@ -293,6 +312,14 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     excludePaths: authExcludePaths,
   });
 
+  // G-504 — secrets accepted during rotation (current first, then previous).
+  const jwtVerifySecrets = verifySecretCandidates({
+    current: config.jwt.secret,
+    previous: config.jwt.previousSecret,
+    currentKid: 'current',
+    previousKid: 'previous',
+  });
+
   // 7b. Global auth enforcement via onRequest hook
   // This ensures JWT is verified before tenant resolution can read JWT claims
   app.addHook('onRequest', async (request, reply) => {
@@ -307,16 +334,43 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
     if (isExcluded) return;
 
-    // Verify JWT token
-    try {
-      await request.jwtVerify();
-    } catch {
+    // Verify JWT — try current secret, then previous (rotation window).
+    // Use app.jwt.verify (not request.jwtVerify) so the previous key is not
+    // overwritten by the plugin's secret callback (G-504).
+    const authHeader = request.headers.authorization;
+    const bearer =
+      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+        ? authHeader.slice('Bearer '.length).trim()
+        : undefined;
+    if (!bearer) {
       return reply.status(401).send({
         code: 'UNAUTHORIZED',
         message: 'Invalid or expired access token',
         statusCode: 401,
       });
     }
+
+    let payload: unknown;
+    for (const secret of jwtVerifySecrets) {
+      try {
+        payload = app.jwt.verify(bearer, {
+          key: secret,
+          allowedIss: config.jwt.issuer,
+          allowedAud: config.jwt.audience,
+        });
+        break;
+      } catch {
+        // try next secret
+      }
+    }
+    if (!payload) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Invalid or expired access token',
+        statusCode: 401,
+      });
+    }
+    request.user = payload as typeof request.user;
   });
 
   // 7c. Strip forgeable actor headers AFTER auth (G-102).

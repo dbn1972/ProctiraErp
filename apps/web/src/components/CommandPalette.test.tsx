@@ -223,7 +223,7 @@ describe('CommandPalette', () => {
       fireEvent.click(item);
     });
 
-    expect(mockPush).toHaveBeenCalledWith('/app/institutions');
+    expect(mockPush).toHaveBeenCalledWith('/institutions');
   });
 
   it('closes the dialog after navigation', () => {
@@ -239,6 +239,19 @@ describe('CommandPalette', () => {
     });
 
     expect(screen.queryByTestId('command-dialog')).toBeNull();
+  });
+
+  it('includes campus deep links (G-406)', () => {
+    render(<CommandPalette />);
+
+    act(() => {
+      fireEvent.keyDown(document, { key: 'k', ctrlKey: true });
+    });
+
+    expect(screen.queryByTestId('command-palette-item-hostel')).not.toBeNull();
+    expect(screen.queryByTestId('command-palette-item-transport')).not.toBeNull();
+    expect(screen.queryByTestId('command-palette-item-library')).not.toBeNull();
+    expect(screen.queryByTestId('command-palette-item-fees')).not.toBeNull();
   });
 
   it('does not open on plain K key without modifier', () => {

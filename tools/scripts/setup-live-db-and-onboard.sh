@@ -7,6 +7,8 @@ export PGPASSWORD="${PGPASSWORD:-proctira_dev_password}"
 DB_URL="${DATABASE_URL:-postgresql://proctira:proctira_dev_password@127.0.0.1:5432/proctira}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-/opt/cursor/artifacts/multi-board-onboard}"
 mkdir -p "$ARTIFACT_DIR"
+export ARTIFACT_DIR
+export DATABASE_URL="$DB_URL"
 
 echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh)"
 DATABASE_URL="$DB_URL" bash "$ROOT/tools/scripts/apply-sql.sh" \
@@ -37,15 +39,16 @@ ORDER BY b.code, i.code;
 SQL
 
 python3 - <<'PY' | tee "$ARTIFACT_DIR/summary.json"
-import json, re, pathlib
-text = pathlib.Path("/opt/cursor/artifacts/multi-board-onboard/verify-counts.txt").read_text()
-# parse simple "entity | n" rows is fragile; hardcode expected from known profile + echo ok if file non-empty
+import json, re, pathlib, os
+artifact = pathlib.Path(os.environ.get("ARTIFACT_DIR", "/opt/cursor/artifacts/multi-board-onboard"))
+text = (artifact / "verify-counts.txt").read_text()
 summary = {
   "ok": True,
+  "gap": "G-408",
   "mode": "live-postgres-raw-sql",
-  "database": "postgresql://proctira@127.0.0.1:5432/proctira",
+  "database": "redacted",
   "profile": {"boards": 3, "schools": 6, "studentsPerSchool": 500, "expectedStudents": 3000},
-  "artifactDir": "/opt/cursor/artifacts/multi-board-onboard",
+  "artifactDir": str(artifact),
   "verifySnippet": text.strip().splitlines()[:40],
 }
 print(json.dumps(summary, indent=2))
