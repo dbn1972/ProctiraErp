@@ -1,8 +1,9 @@
 # =============================================================================
-# G-403 — Visual regression (Playwright toHaveScreenshot)
+# G-403 / G-723 — Visual regression (Playwright toHaveScreenshot)
 # =============================================================================
-# Runs desktop Chromium screenshot baselines for top ungated screens.
-# Does not require E2E_BACKEND_READY (login / redirect shells only).
+# Runs Chromium desktop + iPad tablet + Pixel 5 mobile screenshot baselines
+# for top ungated screens. Does not require E2E_BACKEND_READY (login / redirect
+# shells only).
 # =============================================================================
 
 name: Visual Regression
@@ -32,7 +33,7 @@ permissions:
 
 jobs:
   visual-regression:
-    name: Playwright screenshot baselines (G-403)
+    name: Playwright screenshot baselines (G-403 / G-723)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -53,11 +54,13 @@ jobs:
       - name: Install Playwright Chromium
         run: pnpm --filter @proctira/web exec playwright install --with-deps chromium
 
-      - name: Run visual regression specs
+      - name: Run visual regression specs (desktop + tablet + mobile)
         run: |
           pnpm --filter @proctira/web exec playwright test \
             e2e/24-visual-regression.spec.ts \
-            --project=chromium
+            --project=chromium \
+            --project=tablet \
+            --project=mobile-chrome
         env:
           CI: '1'
           PLAYWRIGHT_ALL_BROWSERS: ''

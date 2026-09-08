@@ -54,10 +54,11 @@ export default defineConfig({
           name: 'mobile-safari',
           use: { ...devices['iPhone 13'] },
         },
-        // Tablet (Volume 12 §3.2 — iPad-size)
+        // Tablet (Volume 12 §3.2 — iPad-size). Force Chromium so CI does not
+        // need a WebKit install (device preset defaults to webkit).
         {
           name: 'tablet',
-          use: { ...devices['iPad (gen 7)'] },
+          use: { ...devices['iPad (gen 7)'], defaultBrowserType: 'chromium', browserName: 'chromium' },
         },
       ]
     : [
@@ -65,9 +66,15 @@ export default defineConfig({
           name: 'chromium',
           use: { ...devices['Desktop Chrome'] },
         },
+        // G-723 — always register tablet + Pixel so visual-regression.yml can
+        // capture iPad / phone baselines without PLAYWRIGHT_ALL_BROWSERS.
         {
           name: 'mobile-chrome',
           use: { ...devices['Pixel 5'] },
+        },
+        {
+          name: 'tablet',
+          use: { ...devices['iPad (gen 7)'], defaultBrowserType: 'chromium', browserName: 'chromium' },
         },
       ],
   webServer: process.env.PLAYWRIGHT_BASE_URL
