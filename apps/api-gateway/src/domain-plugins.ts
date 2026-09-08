@@ -350,6 +350,14 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
 ];
 
 /**
+ * Logical names of in-process domain registrars (G-003 mount matrix).
+ * Keep in sync with `mount-matrix.ts` / `docs/audits/GATEWAY_MOUNT_MATRIX.md`.
+ */
+export const DOMAIN_REGISTRAR_NAMES: readonly string[] = DOMAIN_REGISTRARS.map(
+  (domain) => domain.name,
+);
+
+/**
  * Registers all in-process domain plugins and returns the proxy prefixes
  * handled, so the caller can exclude them from the proxy router.
  */
