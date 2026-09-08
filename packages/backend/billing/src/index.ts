@@ -30,6 +30,9 @@ export type {
 
 // In-memory repository (for testing)
 export { InMemoryBillingRepository } from './in-memory-repository.js';
+// Postgres repository + factory (G-704)
+export { PgBillingRepository } from './pg-billing-repository.js';
+export { createBillingRepository } from './create-billing-repository.js';
 
 // Schemas
 export {

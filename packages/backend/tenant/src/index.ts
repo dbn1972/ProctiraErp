@@ -33,6 +33,10 @@ export type {
 
 // In-memory repository (for testing)
 export { InMemoryTenantRepository } from './in-memory-repository.js';
+// Postgres repository + factory (G-704)
+export { PgTenantRepository } from './pg-tenant-repository.js';
+export { createTenantRepository } from './create-tenant-repository.js';
+export type { TenantPersistence } from './create-tenant-repository.js';
 
 // Schemas
 export {

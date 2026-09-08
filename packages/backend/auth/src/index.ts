@@ -136,6 +136,8 @@ export type {
   KeycloakIdentityStore,
   LinkedKeycloakUser,
 } from './keycloak/identity.js';
+export { PgKeycloakIdentityStore, createKeycloakIdentityStore } from './keycloak/pg-identity-store.js';
+export type { PgKeycloakIdentityStoreOptions } from './keycloak/pg-identity-store.js';
 export {
   KEYCLOAK_REALM_ROLES,
   extractKeycloakRoleNames,
@@ -176,7 +178,8 @@ export type {
   InviteEmailSender,
 } from './invite/index.js';
 
-// MFA OTP (in-memory store; Twilio SMS when TWILIO_* set — not claimed live without secrets)
+// MFA OTP (Postgres store when DATABASE_URL is set; Twilio SMS when TWILIO_* set)
+export { PgOtpChallengeStore, createOtpChallengeStore } from './pg-otp-store.js';
 export {
   OtpService,
   InMemoryOtpChallengeStore,

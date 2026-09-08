@@ -144,11 +144,16 @@ DO $$
 DECLARE
   t TEXT;
 BEGIN
+  -- insights_ui_templates / indicators / geo_features are platform reference
+  -- data without tenant_id; only the per-tenant runs / import jobs get RLS.
   FOREACH t IN ARRAY ARRAY[
-    'insights_ui_templates', 'insights_ui_indicators', 'insights_ui_geo_features'
+    'insights_ui_runs', 'insights_ui_import_jobs'
   ]
   LOOP
-    IF to_regclass(t) IS NOT NULL THEN
+    IF to_regclass(t) IS NOT NULL AND EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = t AND column_name = 'tenant_id'
+    ) THEN
       EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
       EXECUTE format(

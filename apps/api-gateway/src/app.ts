@@ -17,15 +17,15 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { auditPlugin, InMemoryAuditRepository } from '@proctira/backend-audit';
+import { auditPlugin, createAuditRepository } from '@proctira/backend-audit';
 import {
   authPlugin,
+  createKeycloakIdentityStore,
+  createOtpChallengeStore,
   createSmsProviderFromEnv,
   createUserInviteRepository,
   evaluatePermission,
   InMemoryAreaHierarchyResolver,
-  InMemoryKeycloakIdentityStore,
-  InMemoryOtpChallengeStore,
   InviteService,
   keycloakAuthPlugin,
   loadKeycloakAuthConfig,
@@ -35,8 +35,8 @@ import {
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
 } from '@proctira/backend-auth';
-import { billingPlugin, InMemoryBillingRepository } from '@proctira/backend-billing';
-import { InMemoryTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
+import { billingPlugin, createBillingRepository } from '@proctira/backend-billing';
+import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -310,7 +310,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   ];
 
   if (keycloak) {
-    const identityStore = new InMemoryKeycloakIdentityStore();
+    // G-704: identities persist in Postgres when DATABASE_URL is set.
+    const identityStore = createKeycloakIdentityStore();
     await app.register(keycloakAuthPlugin, {
       config: keycloak,
       excludePaths: authExcludePaths,
@@ -353,17 +354,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     });
   }
 
-  // MFA OTP endpoints (in-memory challenges; console SMS unless TWILIO_* is set).
-  // Registered in both modes so clients can exercise SMS OTP without Keycloak.
+  // MFA OTP endpoints (Postgres challenges when DATABASE_URL is set — G-704;
+  // console SMS unless TWILIO_* is set). Registered in both modes so clients
+  // can exercise SMS OTP without Keycloak.
   const otpService = new OtpService({
-    store: new InMemoryOtpChallengeStore(),
+    store: createOtpChallengeStore(),
     sms: createSmsProviderFromEnv(),
     exposeCodeInResponse: process.env['MFA_EXPOSE_OTP'] === 'true',
   });
   await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { otpService, prefix: '/auth' });
 
-  // Admin invites (in-memory). Only useful when Keycloak (or another IdP) is on.
+  // Admin invites (Postgres when DATABASE_URL is set — G-704). Only useful when Keycloak (or another IdP) is on.
   if (keycloak) {
     const inviteService = new InviteService({
       repository: createUserInviteRepository(),
@@ -517,9 +519,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     areaResolver,
   });
 
-  // 8d. Mount audit trail (G-105) — in-memory by default; swap for Postgres in prod.
+  // 8d. Mount audit trail (G-105) — Postgres when DATABASE_URL is set (G-704).
   // Prefix avoids clash with platform-admin UI stub at GET /api/v1/audit.
-  const auditRepository = new InMemoryAuditRepository();
+  const { repository: auditRepository, persistence: auditPersistence } = createAuditRepository();
+  app.log.info({ persistence: auditPersistence }, 'audit repository ready');
   await app.register(auditPlugin, {
     repository: auditRepository,
     prefix: '/api/v1/audit-logs',
@@ -528,11 +531,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 8e. Mount billing + tenant lifecycle (G-106). Tenant routes use a non-clashing
   // prefix because platform-admin UI owns `/api/v1/tenants`.
   await app.register(billingPlugin, {
-    repository: new InMemoryBillingRepository(),
+    repository: createBillingRepository(),
     prefix: '/api/v1/billing',
   });
   await app.register(tenantLifecyclePlugin, {
-    repository: new InMemoryTenantRepository(),
+    repository: createTenantRepository().repository,
     prefix: '/api/v1/tenant-lifecycle',
     branding: { disabled: true },
   });

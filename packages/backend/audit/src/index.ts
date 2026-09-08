@@ -39,6 +39,11 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryAuditRepository } from './in-memory-repository.js';
 
+// Postgres repository + factory (G-704)
+export { PgAuditRepository } from './pg-audit-repository.js';
+export { createAuditRepository } from './create-audit-repository.js';
+export type { AuditPersistence } from './create-audit-repository.js';
+
 // Schemas
 export {
   RecordAuditSchema,

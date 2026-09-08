@@ -51,6 +51,12 @@ export type { TenantTransactionClient, TenantTransactionOptions } from './tenant
 export { withPgTenant } from './pg-tenant';
 export type { PgQueryable, PgPoolWithConnect, PgClient } from './pg-tenant';
 
+// G-704: shared node-pg pool + JSONB document collection for control-plane stores
+export { getSharedPgPool, closeSharedPgPools, resolveDatabaseUrl } from './pg-pool';
+export type { PgPool } from './pg-pool';
+export { PgDocumentCollection, withPlatformScope, reviveDates } from './pg-document-store';
+export type { DocumentRow } from './pg-document-store';
+
 // G-714: in-memory fallback policy shared by repository factories
 export {
   assertInMemoryFallbackAllowed,

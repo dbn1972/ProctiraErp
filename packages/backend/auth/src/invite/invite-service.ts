@@ -1,12 +1,13 @@
 /**
  * Invite repository factory + invite service.
  *
- * Persistence is in-memory by default. Prisma User / UserInvite models are not
- * on main; do not auto-select Prisma when DATABASE_URL is set.
+ * G-704: Postgres (`control_plane_documents`) when DATABASE_URL is set,
+ * otherwise in-memory — which the persistence policy refuses in production.
  */
 import { randomBytes } from 'node:crypto';
 
 import { ConflictError, ValidationError } from '@proctira/common';
+import { assertInMemoryFallbackAllowed, getSharedPgPool } from '@proctira/database';
 import { v4 as uuidv4 } from 'uuid';
 
 import { InMemoryUserInviteRepository } from './in-memory-invite-repository.js';
@@ -15,17 +16,24 @@ import type {
   UserInviteEntity,
   UserInviteRepository,
 } from './invite-repository.js';
+import { PgUserInviteRepository } from './pg-invite-repository.js';
 import type { InviteUserInput, InviteUserResponse } from './schemas.js';
 
 export interface InviteRepositoryConfig {
   /** Optional explicit repository (tests). */
   repository?: UserInviteRepository;
+  /** Override DATABASE_URL resolution (tests). */
+  databaseUrl?: string;
 }
 
 export function createUserInviteRepository(
   config: InviteRepositoryConfig = {},
 ): UserInviteRepository {
-  return config.repository ?? new InMemoryUserInviteRepository();
+  if (config.repository) return config.repository;
+  const pool = getSharedPgPool(config.databaseUrl);
+  if (pool) return new PgUserInviteRepository(pool);
+  assertInMemoryFallbackAllowed('auth-invites');
+  return new InMemoryUserInviteRepository();
 }
 
 export interface InviteServiceOptions {
