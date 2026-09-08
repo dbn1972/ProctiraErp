@@ -496,6 +496,19 @@ jobs:
           # G-705: demo seed files are opt-in; CI wants them, production never sets this.
           APPLY_SEEDS: '1'
 
+      # G-807: backend packages only define `test`, so `test:e2e` below never
+      # reached them and every pg-*-repository / *.live.test.ts suite silently
+      # skipped in CI (they self-skip without DATABASE_URL). Run the backend
+      # suites here against the migrated database so Postgres persistence,
+      # RLS and tenant binding are verified on every PR.
+      - name: Run backend Postgres repository suites
+        run: pnpm turbo run test --filter='./packages/backend/*' --force --continue
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          REDIS_URL: redis://localhost:6379
+          NODE_ENV: test
+          CI: true
+
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
         env:
