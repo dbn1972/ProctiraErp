@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  extractKeycloakRoleNames,
-  keycloakRoleCatalog,
-  mapKeycloakRoles,
-} from './roles.js';
+import { extractKeycloakRoleNames, keycloakRoleCatalog, mapKeycloakRoles } from './roles.js';
 
 describe('mapKeycloakRoles', () => {
   it('maps known Keycloak realm roles onto platform assignments', () => {

@@ -6,14 +6,14 @@
 
 ## What landed
 
-| Stream | Result |
-|--------|--------|
-| Keycloak verify / roles / routes / plugin | In `@proctira/backend-auth` under `src/keycloak/` |
-| Gateway wiring | Env-gated: `KEYCLOAK_ISSUER` + `KEYCLOAK_CLIENT_ID` → Keycloak RS256; otherwise local HS JWT unchanged |
-| Identity / invites / OTP | **In-memory by default** (no Prisma `User` / `UserIdentity` / `UserInvite` / `OtpChallenge` on main) |
-| SMS OTP | Console provider by default; Twilio when `TWILIO_*` set (not claimed live without secrets) |
-| Web BFF | `GET /api/auth/keycloak` + `GET /api/auth/callback` ticket redeem |
-| Realm export | `infra/keycloak/proctira-realm.json` (ops artifact) |
+| Stream                                    | Result                                                                                                 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Keycloak verify / roles / routes / plugin | In `@proctira/backend-auth` under `src/keycloak/`                                                      |
+| Gateway wiring                            | Env-gated: `KEYCLOAK_ISSUER` + `KEYCLOAK_CLIENT_ID` → Keycloak RS256; otherwise local HS JWT unchanged |
+| Identity / invites / OTP                  | **In-memory by default** (no Prisma `User` / `UserIdentity` / `UserInvite` / `OtpChallenge` on main)   |
+| SMS OTP                                   | Console provider by default; Twilio when `TWILIO_*` set (not claimed live without secrets)             |
+| Web BFF                                   | `GET /api/auth/keycloak` + `GET /api/auth/callback` ticket redeem                                      |
+| Realm export                              | `infra/keycloak/proctira-realm.json` (ops artifact)                                                    |
 
 ## Explicit waivers / non-claims
 

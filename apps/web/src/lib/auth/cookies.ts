@@ -30,9 +30,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
  * for flows that still need to send the cookie on top-level navigations
  * triggered by OAuth callbacks.
  */
-export function accessTokenCookieOptions(
-  maxAge: number = ACCESS_TOKEN_MAX_AGE,
-): AuthCookieOptions {
+export function accessTokenCookieOptions(maxAge: number = ACCESS_TOKEN_MAX_AGE): AuthCookieOptions {
   return {
     httpOnly: true,
     secure: IS_PRODUCTION,

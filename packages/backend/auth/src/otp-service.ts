@@ -160,10 +160,7 @@ export class OtpService {
     return result;
   }
 
-  async verifyChallenge(input: {
-    mfaToken: string;
-    code: string;
-  }): Promise<VerifyOtpResult> {
+  async verifyChallenge(input: { mfaToken: string; code: string }): Promise<VerifyOtpResult> {
     const record = await this.store.findByToken(input.mfaToken);
     if (!record) {
       throw new OtpAuthError('Invalid or expired verification challenge');

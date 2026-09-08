@@ -66,9 +66,7 @@ export class TwilioSmsProvider implements SmsProvider {
  * Uses Twilio when TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM_NUMBER
  * are all set; otherwise falls back to the console provider.
  */
-export function createSmsProviderFromEnv(
-  env: NodeJS.ProcessEnv = process.env,
-): SmsProvider {
+export function createSmsProviderFromEnv(env: NodeJS.ProcessEnv = process.env): SmsProvider {
   const accountSid = env['TWILIO_ACCOUNT_SID']?.trim();
   const authToken = env['TWILIO_AUTH_TOKEN']?.trim();
   const fromNumber = env['TWILIO_FROM_NUMBER']?.trim();

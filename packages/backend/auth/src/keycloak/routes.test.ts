@@ -46,12 +46,14 @@ describe('Keycloak auth routes', () => {
 
   it('projects the Keycloak user onto the local identity store after callback', async () => {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({
-      sub: 'kc-admin',
-      email: 'admin@proctira.in',
-      name: 'India Admin',
-      tenant_slug: 'india',
-    })).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: 'kc-admin',
+        email: 'admin@proctira.in',
+        name: 'India Admin',
+        tenant_slug: 'india',
+      }),
+    ).toString('base64url');
     const accessToken = `${header}.${payload}.sig`;
 
     const identityStore = {
@@ -71,11 +73,14 @@ describe('Keycloak auth routes', () => {
     };
 
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({
-        access_token: accessToken,
-        token_type: 'Bearer',
-        expires_in: 300,
-      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+      new Response(
+        JSON.stringify({
+          access_token: accessToken,
+          token_type: 'Bearer',
+          expires_in: 300,
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
     );
 
     const app = Fastify();
@@ -108,19 +113,24 @@ describe('Keycloak auth routes', () => {
 
   it('accepts password login without leaving the Proctira UI', async () => {
     const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({
-      sub: 'kc-admin',
-      email: 'admin@proctira.in',
-      tenant_slug: 'india',
-    })).toString('base64url');
+    const payload = Buffer.from(
+      JSON.stringify({
+        sub: 'kc-admin',
+        email: 'admin@proctira.in',
+        tenant_slug: 'india',
+      }),
+    ).toString('base64url');
     const accessToken = `${header}.${payload}.sig`;
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({
-        access_token: accessToken,
-        refresh_token: 'refresh-1',
-        token_type: 'Bearer',
-        expires_in: 300,
-      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+      new Response(
+        JSON.stringify({
+          access_token: accessToken,
+          refresh_token: 'refresh-1',
+          token_type: 'Bearer',
+          expires_in: 300,
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
     );
 
     const app = Fastify();
@@ -153,12 +163,15 @@ describe('Keycloak auth routes', () => {
     const payload = Buffer.from(JSON.stringify({ sub: 'kc-admin' })).toString('base64url');
     const accessToken = `${header}.${payload}.sig`;
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({
-        access_token: accessToken,
-        refresh_token: 'refresh-1',
-        token_type: 'Bearer',
-        expires_in: 300,
-      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+      new Response(
+        JSON.stringify({
+          access_token: accessToken,
+          refresh_token: 'refresh-1',
+          token_type: 'Bearer',
+          expires_in: 300,
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
     );
 
     const app = Fastify();

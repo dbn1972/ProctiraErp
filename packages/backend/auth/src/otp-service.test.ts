@@ -3,12 +3,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  InMemoryOtpChallengeStore,
-  OtpAuthError,
-  OtpService,
-  hashOtpCode,
-} from './otp-service.js';
+import { InMemoryOtpChallengeStore, OtpAuthError, OtpService, hashOtpCode } from './otp-service.js';
 import { ConsoleSmsProvider, type SmsProvider } from './sms-provider.js';
 
 describe('hashOtpCode', () => {

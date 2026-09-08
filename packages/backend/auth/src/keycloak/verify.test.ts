@@ -2,12 +2,7 @@ import { generateKeyPairSync, sign } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  KeycloakJwksClient,
-  decodeJwt,
-  verifyKeycloakAccessToken,
-  verifyRs256,
-} from './verify.js';
+import { KeycloakJwksClient, decodeJwt, verifyKeycloakAccessToken, verifyRs256 } from './verify.js';
 
 function toBase64Url(value: Buffer | string): string {
   return Buffer.from(value).toString('base64url');
@@ -51,8 +46,9 @@ describe('Keycloak token verify', () => {
       privateKey.export({ type: 'pkcs1', format: 'pem' }).toString(),
     );
 
-    const jwks = new KeycloakJwksClient(config.jwksUri, async () =>
-      new Response(JSON.stringify({ keys: [{ ...jwk, kid: 'test-kid', kty: 'RSA' }] })),
+    const jwks = new KeycloakJwksClient(
+      config.jwksUri,
+      async () => new Response(JSON.stringify({ keys: [{ ...jwk, kid: 'test-kid', kty: 'RSA' }] })),
     );
 
     const payload = await verifyKeycloakAccessToken(token, config, jwks, now);
@@ -67,8 +63,9 @@ describe('Keycloak token verify', () => {
       { sub: 'x', iss: 'http://evil', exp: now - 1, iat: now - 10 },
       privateKey.export({ type: 'pkcs1', format: 'pem' }).toString(),
     );
-    const jwks = new KeycloakJwksClient(config.jwksUri, async () =>
-      new Response(JSON.stringify({ keys: [{ ...jwk, kid: 'test-kid', kty: 'RSA' }] })),
+    const jwks = new KeycloakJwksClient(
+      config.jwksUri,
+      async () => new Response(JSON.stringify({ keys: [{ ...jwk, kid: 'test-kid', kty: 'RSA' }] })),
     );
 
     await expect(verifyKeycloakAccessToken(token, config, jwks, now)).rejects.toThrow(

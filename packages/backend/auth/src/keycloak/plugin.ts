@@ -63,7 +63,8 @@ export const keycloakAuthPlugin = fp(
           const payload = await hydrateKeycloakUser(token, options, jwks, request);
           (request as FastifyRequest & { user: JwtPayload }).user = payload;
         } catch (error) {
-          const message = error instanceof KeycloakTokenError ? error.message : 'Invalid Keycloak token';
+          const message =
+            error instanceof KeycloakTokenError ? error.message : 'Invalid Keycloak token';
           return reply.status(401).send({
             code: 'UNAUTHORIZED',
             message,

@@ -23,10 +23,7 @@ export class InMemoryUserInviteRepository implements UserInviteRepository {
     const normalized = email.trim().toLowerCase();
     return (
       this.invites.find(
-        (i) =>
-          i.tenantId === tenantId &&
-          i.email === normalized &&
-          i.status === 'pending',
+        (i) => i.tenantId === tenantId && i.email === normalized && i.status === 'pending',
       ) ?? null
     );
   }

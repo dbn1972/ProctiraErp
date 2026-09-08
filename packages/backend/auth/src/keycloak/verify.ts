@@ -90,7 +90,12 @@ export class KeycloakJwksClient {
   }
 }
 
-export function decodeJwt(token: string): { header: JwtHeader; payload: KeycloakAccessClaims; signed: string; signature: string } {
+export function decodeJwt(token: string): {
+  header: JwtHeader;
+  payload: KeycloakAccessClaims;
+  signed: string;
+  signature: string;
+} {
   const parts = token.split('.');
   if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
     throw new KeycloakTokenError('Malformed access token');
@@ -132,7 +137,11 @@ export async function verifyKeycloakAccessToken(
   if (typeof claims.exp !== 'number' || claims.exp <= nowSeconds) {
     throw new KeycloakTokenError('Keycloak token expired');
   }
-  if (config.audience && !audienceIncludes(claims.aud, config.audience) && claims.azp !== config.clientId) {
+  if (
+    config.audience &&
+    !audienceIncludes(claims.aud, config.audience) &&
+    claims.azp !== config.clientId
+  ) {
     throw new KeycloakTokenError('Keycloak audience mismatch');
   }
 
@@ -182,6 +191,7 @@ export function loadKeycloakAuthConfig(
     clientId,
     realm,
     audience: env['KEYCLOAK_AUDIENCE'],
-    jwksUri: env['KEYCLOAK_JWKS_URI'] ?? `${issuer.replace(/\/$/, '')}/protocol/openid-connect/certs`,
+    jwksUri:
+      env['KEYCLOAK_JWKS_URI'] ?? `${issuer.replace(/\/$/, '')}/protocol/openid-connect/certs`,
   };
 }

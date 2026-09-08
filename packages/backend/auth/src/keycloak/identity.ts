@@ -180,7 +180,10 @@ export function identityInputFromClaims(
  * Tenant id/slug claims are trusted (claim-driven); seed via seedTenant for tests.
  */
 export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
-  private readonly identitiesByExternalId = new Map<string, StoredIdentity & { lastUsedAt?: Date }>();
+  private readonly identitiesByExternalId = new Map<
+    string,
+    StoredIdentity & { lastUsedAt?: Date }
+  >();
   private readonly usersByKey = new Map<string, StoredUser>();
   private readonly tenantsById = new Map<string, { id: string; slug?: string }>();
 
@@ -193,7 +196,9 @@ export class InMemoryKeycloakIdentityStore implements KeycloakIdentityStore {
 
   async findIdentity(externalId: string): Promise<StoredIdentity | null> {
     const row = this.identitiesByExternalId.get(externalId);
-    return row ? { id: row.id, userId: row.userId, tenantId: row.tenantId, email: row.email } : null;
+    return row
+      ? { id: row.id, userId: row.userId, tenantId: row.tenantId, email: row.email }
+      : null;
   }
 
   async touchIdentity(id: string): Promise<void> {

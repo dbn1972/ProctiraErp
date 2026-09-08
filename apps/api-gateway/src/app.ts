@@ -17,6 +17,7 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
+import { auditPlugin, InMemoryAuditRepository } from '@proctira/backend-audit';
 import {
   authPlugin,
   createSmsProviderFromEnv,
@@ -34,18 +35,8 @@ import {
   registerKeycloakAuthRoutes,
   registerMfaRoutes,
 } from '@proctira/backend-auth';
-import {
-  auditPlugin,
-  InMemoryAuditRepository,
-} from '@proctira/backend-audit';
-import {
-  billingPlugin,
-  InMemoryBillingRepository,
-} from '@proctira/backend-billing';
-import {
-  InMemoryTenantRepository,
-  tenantLifecyclePlugin,
-} from '@proctira/backend-tenant';
+import { billingPlugin, InMemoryBillingRepository } from '@proctira/backend-billing';
+import { InMemoryTenantRepository, tenantLifecyclePlugin } from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -53,6 +44,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
+import { verifySecretCandidates } from './jwt-secrets.js';
 import {
   buildAuditValues,
   entityIdFromPath,
@@ -71,7 +63,6 @@ import {
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
 } from './rbac-registry.js';
-import { verifySecretCandidates } from './jwt-secrets.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 
@@ -167,11 +158,12 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     max: (request) => {
       const headerTenant = request.headers['x-tenant-id'];
       const tenantId =
-        request.tenantId ??
-        (typeof headerTenant === 'string' ? headerTenant : undefined);
-      const user = (request as unknown as {
-        user?: { planTier?: string; tier?: string };
-      }).user;
+        request.tenantId ?? (typeof headerTenant === 'string' ? headerTenant : undefined);
+      const user = (
+        request as unknown as {
+          user?: { planTier?: string; tier?: string };
+        }
+      ).user;
       return maxRequestsForTenant(tenantId, user, config.rateLimiting.maxRequests);
     },
     timeWindow: config.rateLimiting.windowMs,
@@ -180,8 +172,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       // Tenant-scoped keys keep free-tier and enterprise quotas isolated (G-505).
       const headerTenant = request.headers['x-tenant-id'];
       const tenantId =
-        request.tenantId ??
-        (typeof headerTenant === 'string' ? headerTenant : undefined);
+        request.tenantId ?? (typeof headerTenant === 'string' ? headerTenant : undefined);
       const userId = (request as unknown as { user?: { sub?: string } }).user?.sub;
 
       if (tenantId && userId) {
@@ -452,12 +443,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 7c. Strip forgeable actor headers AFTER auth (G-102).
   // Clients must not be able to spoof identity via x-user-id / x-actor*.
   // Actor identity comes only from the verified JWT (request.user / getActor).
-  const FORGEABLE_ACTOR_HEADERS = new Set([
-    'x-user-id',
-    'x-actor',
-    'x-actor-id',
-    'x-userid',
-  ]);
+  const FORGEABLE_ACTOR_HEADERS = new Set(['x-user-id', 'x-actor', 'x-actor-id', 'x-userid']);
   app.addHook('onRequest', async (request) => {
     for (const key of Object.keys(request.headers)) {
       if (FORGEABLE_ACTOR_HEADERS.has(key.toLowerCase())) {
@@ -624,7 +610,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
-
   const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
   app.addHook('onRequest', async (request, reply) => {
@@ -669,13 +654,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       institutions: user.institutions,
     };
 
-    const result = await evaluatePermission(
-      authUser,
-      resource,
-      action,
-      rbacRegistry,
-      areaResolver,
-    );
+    const result = await evaluatePermission(authUser, resource, action, rbacRegistry, areaResolver);
 
     if (!result.granted) {
       return reply.status(403).send({

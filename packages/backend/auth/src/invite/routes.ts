@@ -106,7 +106,11 @@ async function handleInvite(
   if (!tenantId) return;
 
   try {
-    const invite = await inviteService.inviteUser(tenantId, result.data, getUserId(request) ?? null);
+    const invite = await inviteService.inviteUser(
+      tenantId,
+      result.data,
+      getUserId(request) ?? null,
+    );
     reply.status(201).send(invite);
   } catch (error: unknown) {
     if (error instanceof AppError) {
@@ -131,12 +135,9 @@ async function listMyTenants(request: FastifyRequest, reply: FastifyReply): Prom
     return;
   }
 
-  const tenantId =
-    user.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
+  const tenantId = user.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId;
   reply.status(200).send({
-    data: tenantId
-      ? [{ id: tenantId, name: tenantId, slug: tenantId, status: 'active' }]
-      : [],
+    data: tenantId ? [{ id: tenantId, name: tenantId, slug: tenantId, status: 'active' }] : [],
   });
 }
 
