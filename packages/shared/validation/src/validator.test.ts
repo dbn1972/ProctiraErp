@@ -247,4 +247,41 @@ describe('validate', () => {
       }
     });
   });
+
+  describe('Fastify 5 null-prototype inputs (Wave 8 regression)', () => {
+    it('validates request.query / request.params style objects without throwing', () => {
+      const schema = Type.Object({
+        page: Type.Optional(Type.Integer({ default: 1 })),
+        tags: Type.Optional(Type.Array(Type.Object({ id: Type.String() }))),
+      });
+      const query = Object.create(null) as Record<string, unknown>;
+      query.page = 3;
+      const nested = Object.create(null) as Record<string, unknown>;
+      nested.id = 'a';
+      query.tags = [nested];
+
+      const result = validate(schema, query);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({ page: 3, tags: [{ id: 'a' }] });
+        expect(Object.getPrototypeOf(result.data)).toBe(Object.prototype);
+      }
+    });
+
+    it('validates objects inheriting from a custom prototype (find-my-way params)', () => {
+      const schema = Type.Object({ id: Type.String() });
+      const params = Object.create({ inherited: true }) as Record<string, unknown>;
+      params.id = 'abc';
+      const result = validate(schema, params);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data).toEqual({ id: 'abc' });
+    });
+
+    it('still applies defaults to an empty null-prototype object', () => {
+      const schema = Type.Object({ pageSize: Type.Optional(Type.Integer({ default: 20 })) });
+      const result = validate(schema, Object.create(null));
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.pageSize).toBe(20);
+    });
+  });
 });

@@ -14,11 +14,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@fastify/cors": "^9.0.0",
-    "@fastify/rate-limit": "^9.1.0",
+    "@fastify/cors": "^10.1.0",
+    "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^10.1.3",
-    "@fastify/swagger": "^8.14.0",
-    "@fastify/swagger-ui": "^3.0.0",
+    "@fastify/swagger": "^9.5.0",
+    "@fastify/swagger-ui": "^5.2.0",
     "@proctira/auth": "workspace:*",
     "@proctira/backend-assessment": "workspace:*",
     "@proctira/backend-attendance": "workspace:*",
@@ -37,6 +37,7 @@
     "@proctira/backend-notification": "workspace:*",
     "@proctira/backend-parent-portal": "workspace:*",
     "@proctira/backend-registration": "workspace:*",
+    "@proctira/backend-lms": "workspace:*",
     "@proctira/backend-scholarship": "workspace:*",
     "@proctira/backend-staff": "workspace:*",
     "@proctira/backend-student": "workspace:*",

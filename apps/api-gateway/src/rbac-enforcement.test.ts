@@ -77,6 +77,7 @@ describe('rbac-registry helpers', () => {
     expect(resourceForApiPath('/api/v1/students/abc')).toBe('student');
     expect(resourceForApiPath('/api/v1/health/screenings')).toBe('health');
     expect(resourceForApiPath('/api/v1/scholarships')).toBe('scholarship');
+    expect(resourceForApiPath('/api/v1/lms/assignments')).toBe('lms');
     expect(resourceForApiPath('/api/v1/parent-portal/children')).toBe('parent');
     expect(resourceForApiPath('/api/v1/tenants')).toBe('platform');
     expect(resourceForApiPath('/api/v1/auth/login')).toBeUndefined();
@@ -95,6 +96,11 @@ describe('rbac-registry helpers', () => {
     const registry = createGatewayRbacRegistry();
     expect(registry.roleHasPermission('admin', 'health', 'manage')).toBe(true);
     expect(registry.roleHasPermission('admin', 'scholarship', 'create')).toBe(true);
+    expect(registry.roleHasPermission('teacher', 'lms', 'create')).toBe(true);
+    expect(registry.roleHasPermission('student', 'lms', 'create')).toBe(true);
+    expect(registry.roleHasPermission('student', 'lms', 'update')).toBe(false);
+    expect(registry.roleHasPermission('parent', 'lms', 'read')).toBe(true);
+    expect(registry.roleHasPermission('parent', 'lms', 'create')).toBe(false);
     expect(registry.roleHasPermission('admin', 'communication', 'create')).toBe(true);
     expect(registry.roleHasPermission('teacher', 'student', 'create')).toBe(false);
     expect(registry.roleHasPermission('nurse', 'health', 'manage')).toBe(true);
@@ -376,6 +382,14 @@ describe('G-301 campus module RBAC deny matrix', () => {
       payload: { name: 'Merit' },
       deniedRole: 'teacher',
       allowedRole: 'admin',
+    },
+    {
+      id: 'lms',
+      method: 'PUT',
+      url: '/api/v1/lms/assignments/44444444-4444-4444-8444-444444444444',
+      payload: { title: 'Renamed' },
+      deniedRole: 'parent',
+      allowedRole: 'teacher',
     },
     {
       id: 'parent-portal',

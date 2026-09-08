@@ -27,6 +27,7 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `backend/assessment`          | Yes      | `/assessments`, `/grading-schemes`, `/assessment-items`, `/outcomes`, `/results`, `/report-cards` | Prisma + RLS (else in-memory); report-cards in-memory      | No          | G-210 report-card routes enabled (in-memory). Durable HTML also via `/gradebook/report-cards`.       |
 | `backend/timetable`           | Yes      | `/timetable`                                                                                      | Raw pg `003` (else in-memory)                              | No          | No Prisma on this path.                                                                              |
 | `backend/gradebook`           | Yes      | `/gradebook`                                                                                      | Raw pg `003`/`004` (else in-memory)                        | No          |                                                                                                      |
+| `backend/lms`                 | Yes      | `/lms`                                                                                            | Raw pg `026` (else in-memory)                              | No          | G-801/G-802: board/school-scoped assignments · homework · quizzes · Spiral PAL.                      |
 | `backend/scholarship`         | Yes      | `/scholarships`                                                                                   | Raw pg `016` (else in-memory + demo seed)                  | No          | G-204.                                                                                               |
 | `backend/health`              | Yes      | `/health`                                                                                         | Mixed (pg counselling/PHI/special-needs when DATABASE_URL) | No          | Also mounts `healthUiPlugin` (G-203).                                                                |
 | `backend/notification`        | Yes      | `/notifications`                                                                                  | Mixed (PG deliveries when DATABASE_URL; prefs/devices pg)  | No          | G-207; providers sandbox/WAIVED.                                                                     |
@@ -75,6 +76,7 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `assessment`             | `backend/assessment`                             |
 | `timetable`              | `backend/timetable`                              |
 | `gradebook`              | `backend/gradebook`                              |
+| `lms`                    | `backend/lms`                                    |
 | `scholarship`            | `backend/scholarship`                            |
 | `health`                 | `backend/health` (+ `healthUiPlugin`)            |
 | `insights`               | `(gateway) insights-ui`                          |

@@ -56,6 +56,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'hostel',
   'institution',
   'library',
+  'lms',
   'notification',
   'parent-portal',
   'registration',
@@ -185,6 +186,16 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     rbacWired: false,
     notes: 'Raw pg (003/004) when DATABASE_URL set; else in-memory.',
     registrarName: 'gradebook',
+  },
+  {
+    package: 'lms',
+    mounted: true,
+    prefixes: ['/lms'],
+    persistence: 'raw-pg',
+    rbacWired: false,
+    notes:
+      'Raw pg (026_lms_schema.sql) when DATABASE_URL set; else in-memory. Board/school scoped assignments · homework · quizzes · Spiral PAL (G-801/G-802).',
+    registrarName: 'lms',
   },
   {
     package: 'scholarship',

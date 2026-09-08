@@ -9,6 +9,7 @@ import { DEFAULT_ROLES, RbacPermissionRegistry } from '@proctira/backend-auth';
 const CAMPUS_MANAGE_RESOURCES = [
   'health',
   'scholarship',
+  'lms',
   'fees',
   'parent',
   'timetable',
@@ -45,6 +46,7 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   timetable: 'timetable',
   gradebook: 'gradebook',
   scholarships: 'scholarship',
+  lms: 'lms',
   health: 'health',
   workflows: 'workflow',
   notifications: 'notification',
@@ -231,13 +233,23 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       { resource: 'health', action: 'read' },
       { resource: 'workflow', action: 'create' },
       { resource: 'workflow', action: 'update' },
+      // G-801: teachers author school-scoped assignments / homework / quizzes and grade.
+      { resource: 'lms', action: 'create' },
+      { resource: 'lms', action: 'read' },
+      { resource: 'lms', action: 'update' },
+      { resource: 'lms', action: 'delete' },
+      { resource: 'lms', action: 'list' },
     ];
     teacher.permissions.push(...teacherExtras);
   }
 
   const staffRole = roles.find((r) => r.roleId === 'staff');
   if (staffRole) {
-    staffRole.permissions.push(...STAFF_READS, { resource: 'gradebook', action: 'read' });
+    staffRole.permissions.push(
+      ...STAFF_READS,
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'lms', action: 'read' },
+    );
   }
 
   const guardian = roles.find((r) => r.roleId === 'guardian');
@@ -274,6 +286,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       { resource: 'health', action: 'read' },
       { resource: 'fees', action: 'read' },
       { resource: 'communication', action: 'read' },
+      { resource: 'lms', action: 'read' },
     ],
   });
 
@@ -296,6 +309,10 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       { resource: 'transport', action: 'read' },
       { resource: 'communication', action: 'read' },
       { resource: 'scholarship', action: 'read' },
+      // G-801/G-802: learners read published work, submit, and practise;
+      // `@proctira/backend-lms` binds every write to the JWT `sub`.
+      { resource: 'lms', action: 'read' },
+      { resource: 'lms', action: 'create' },
     ],
   });
 

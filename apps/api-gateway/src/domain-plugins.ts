@@ -79,6 +79,7 @@ import {
   createRegistrationRepository,
   registrationPlugin,
 } from '@proctira/backend-registration';
+import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -218,6 +219,17 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(gradebookPlugin, {
         repository: createGradebookRepository(),
         prefix: '/gradebook',
+      });
+    },
+  },
+  {
+    name: 'lms',
+    proxyPrefixes: ['/lms'],
+    register: async (scope) => {
+      // G-801/G-802: Pg when DATABASE_URL (db/sql/026_lms_schema.sql); else in-memory.
+      await scope.register(lmsPlugin, {
+        repository: createLmsRepository(),
+        prefix: '/lms',
       });
     },
   },

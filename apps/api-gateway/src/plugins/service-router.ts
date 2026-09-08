@@ -184,13 +184,13 @@ function buildForwardHeaders(request: FastifyRequest): Record<string, string> {
 }
 
 /** Serialize the (already-parsed) request body for forwarding. */
-function buildForwardBody(request: FastifyRequest): BodyInit | undefined {
+function buildForwardBody(request: FastifyRequest): string | Buffer | Uint8Array | undefined {
   const method = request.method.toUpperCase();
   if (method === 'GET' || method === 'HEAD') return undefined;
   const body = request.body;
   if (body === undefined || body === null) return undefined;
   if (typeof body === 'string' || body instanceof Buffer || body instanceof Uint8Array) {
-    return body as BodyInit;
+    return body;
   }
   return JSON.stringify(body);
 }

@@ -104,6 +104,33 @@ function formatMessage(error: {
 }
 
 /**
+ * Fastify 5 hands `request.query` / `request.params` to handlers as objects
+ * whose prototype is not `Object.prototype`; TypeBox's `Value.Clone` only
+ * accepts "standard" objects and otherwise throws "Unable to clone value".
+ * Re-home any record-like object (recursively) onto `Object.prototype`
+ * before cloning, leaving arrays, dates, buffers and other exotic values alone.
+ */
+function normaliseForClone(data: unknown): unknown {
+  if (Array.isArray(data)) return data.map(normaliseForClone);
+  if (data === null || typeof data !== 'object') return data;
+  if (
+    data instanceof Date ||
+    data instanceof RegExp ||
+    data instanceof Map ||
+    data instanceof Set ||
+    ArrayBuffer.isView(data) ||
+    data instanceof ArrayBuffer
+  ) {
+    return data;
+  }
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    out[key] = normaliseForClone(value);
+  }
+  return out;
+}
+
+/**
  * Validates data against a Typebox schema.
  *
  * Returns either the validated data (with defaults applied) or
@@ -115,7 +142,7 @@ function formatMessage(error: {
  */
 export function validate<T extends TSchema>(schema: T, data: unknown): ValidationResult<T> {
   // Apply defaults first, then validate
-  const withDefaults = Value.Default(schema, Value.Clone(data));
+  const withDefaults = Value.Default(schema, Value.Clone(normaliseForClone(data)));
   const errors = [...Value.Errors(schema, withDefaults)];
 
   if (errors.length === 0) {
