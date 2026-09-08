@@ -4,7 +4,7 @@
  *   - `DATABASE_URL` set → PrismaStaffRepository (Postgres + RLS)
  *   - otherwise          → InMemoryStaffRepository (dev / tests)
  */
-import { createPrismaClient } from '@proctira/database';
+import { assertInMemoryFallbackAllowed, createPrismaClient } from '@proctira/database';
 
 import type { StaffAssignmentRepository } from './assignment-repository.js';
 import { InMemoryAssignmentRepository } from './in-memory-assignment-repository.js';
@@ -17,16 +17,13 @@ export interface StaffRepositoryConfig {
   databaseUrl?: string;
 }
 
-export function createStaffRepository(
-  config: StaffRepositoryConfig = {},
-): StaffRepository {
+export function createStaffRepository(config: StaffRepositoryConfig = {}): StaffRepository {
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
   if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('staff');
     return new InMemoryStaffRepository();
   }
-  return new PrismaStaffRepository(
-    createPrismaClient({ datasourceUrl: databaseUrl }),
-  );
+  return new PrismaStaffRepository(createPrismaClient({ datasourceUrl: databaseUrl }));
 }
 
 export function createAssignmentRepository(
@@ -34,9 +31,8 @@ export function createAssignmentRepository(
 ): StaffAssignmentRepository {
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
   if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('staff.assignment');
     return new InMemoryAssignmentRepository();
   }
-  return new PrismaAssignmentRepository(
-    createPrismaClient({ datasourceUrl: databaseUrl }),
-  );
+  return new PrismaAssignmentRepository(createPrismaClient({ datasourceUrl: databaseUrl }));
 }

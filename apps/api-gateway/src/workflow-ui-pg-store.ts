@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
+import { shouldSeedDemoData } from './demo-seed-policy.js';
 import {
   createWorkflowUiSeed,
   type UiWorkflowApproval,
@@ -200,6 +201,8 @@ export class PgWorkflowUiStore implements WorkflowUiStore {
     await ensureSchema(this.pool);
     if (this.seeded) return;
     this.seeded = true;
+    // G-705: demo rows only when the seed policy allows (never in production).
+    if (!shouldSeedDemoData()) return;
     // Seed demo rows once per process if the demo tenant has no definitions yet.
     const seed = createWorkflowUiSeed();
     const demoTenant = seed.definitions[0]?.tenantId;

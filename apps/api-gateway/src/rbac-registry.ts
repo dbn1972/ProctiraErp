@@ -20,6 +20,10 @@ const CAMPUS_MANAGE_RESOURCES = [
   'notification',
   'registration',
   'developer',
+  'report',
+  'workflow',
+  'assessment',
+  'student',
 ] as const;
 
 const CAMPUS_MANAGE: Permission[] = CAMPUS_MANAGE_RESOURCES.map((resource) => ({
@@ -52,6 +56,21 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   registrations: 'registration',
   fees: 'fees',
   developer: 'developer',
+  // G-701 / G-702: native prefixes served by mounted packages
+  enrollments: 'student',
+  'grading-schemes': 'assessment',
+  'assessment-items': 'assessment',
+  outcomes: 'assessment',
+  results: 'assessment',
+  'report-cards': 'assessment',
+  reports: 'report',
+  'data-warehouse': 'report',
+  'workflow-engine': 'workflow',
+  // Platform control plane (billing / tenant lifecycle / audit log API)
+  billing: 'platform',
+  'tenant-lifecycle': 'platform',
+  'audit-logs': 'platform',
+  admin: 'platform',
   // Platform-admin console
   tenants: 'platform',
   plans: 'platform',
@@ -62,6 +81,24 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   themes: 'platform',
 };
 
+/**
+ * G-702: `/api/v1/<segment>` paths outside `/auth` that are NOT in
+ * {@link PATH_RESOURCE_MAP} are denied for every non-platform-admin caller.
+ * Adding a mounted prefix therefore requires an explicit RBAC mapping.
+ * The gateway test `gateway-mount-matrix.test.ts` enforces that every mounted
+ * prefix appears here.
+ */
+export const UNMAPPED_API_RESOURCE = '__unmapped__';
+
+/** Paths under /api/v1 that are gateway-owned utilities, not domain resources. */
+export const GATEWAY_UTILITY_SEGMENTS = new Set(['services', 'storage']);
+
+/**
+ * G-712: resources any authenticated principal may READ (own-scope filtering
+ * happens in the domain plugin) — notifications and the parent/student portal.
+ */
+export const SELF_SERVICE_READ_RESOURCES = new Set(['notification', 'parent']);
+
 export const PLATFORM_PATH_SEGMENTS = new Set([
   'tenants',
   'plans',
@@ -70,6 +107,10 @@ export const PLATFORM_PATH_SEGMENTS = new Set([
   'audit',
   'plugins',
   'themes',
+  'billing',
+  'tenant-lifecycle',
+  'audit-logs',
+  'admin',
 ]);
 
 /** Role IDs that may access the platform admin console (G-104). */
@@ -95,7 +136,9 @@ export function actionForMethod(method: string): PermissionAction {
 
 /**
  * Resolve RBAC resource from a request URL path under /api/v1.
- * Returns undefined when the path is outside /api/v1, is auth, or unmapped.
+ * Returns undefined when the path is outside /api/v1, is auth, or a gateway
+ * utility; returns {@link UNMAPPED_API_RESOURCE} for unknown segments so the
+ * gateway can default-deny (G-702).
  */
 export function resourceForApiPath(pathname: string): string | undefined {
   const path = pathname.split('?')[0] ?? pathname;
@@ -105,7 +148,8 @@ export function resourceForApiPath(pathname: string): string | undefined {
   const rest = path.slice('/api/v1/'.length);
   const segment = rest.split('/').filter(Boolean)[0];
   if (!segment) return undefined;
-  return PATH_RESOURCE_MAP[segment];
+  if (GATEWAY_UTILITY_SEGMENTS.has(segment)) return undefined;
+  return PATH_RESOURCE_MAP[segment] ?? UNMAPPED_API_RESOURCE;
 }
 
 function cloneRoles(roles: RoleDefinition[]): RoleDefinition[] {
@@ -133,20 +177,52 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
     }
   }
 
+  // Principal runs one institution: campus manage minus platform (G-712 reads).
+  const principal = roles.find((r) => r.roleId === 'principal');
+  if (principal) {
+    for (const perm of CAMPUS_MANAGE) {
+      if (
+        !principal.permissions.some((p) => p.resource === perm.resource && p.action === perm.action)
+      ) {
+        principal.permissions.push(perm);
+      }
+    }
+  }
+
+  // Campus reads shared by every school-staff role (G-712 GET enforcement).
+  const STAFF_READS: Permission[] = [
+    { resource: 'timetable', action: 'read' },
+    { resource: 'timetable', action: 'list' },
+    { resource: 'communication', action: 'read' },
+    { resource: 'library', action: 'read' },
+    { resource: 'hostel', action: 'read' },
+    { resource: 'transport', action: 'read' },
+    { resource: 'examination', action: 'read' },
+    { resource: 'report', action: 'read' },
+    { resource: 'workflow', action: 'read' },
+    { resource: 'fees', action: 'read' },
+    { resource: 'scholarship', action: 'read' },
+    { resource: 'registration', action: 'read' },
+  ];
+
   const teacher = roles.find((r) => r.roleId === 'teacher');
   if (teacher) {
     const teacherExtras: Permission[] = [
-      { resource: 'timetable', action: 'read' },
-      { resource: 'timetable', action: 'list' },
+      ...STAFF_READS,
       { resource: 'gradebook', action: 'create' },
       { resource: 'gradebook', action: 'read' },
       { resource: 'gradebook', action: 'update' },
       { resource: 'gradebook', action: 'list' },
-      { resource: 'communication', action: 'read' },
-      { resource: 'library', action: 'read' },
       { resource: 'health', action: 'read' },
+      { resource: 'workflow', action: 'create' },
+      { resource: 'workflow', action: 'update' },
     ];
     teacher.permissions.push(...teacherExtras);
+  }
+
+  const staffRole = roles.find((r) => r.roleId === 'staff');
+  if (staffRole) {
+    staffRole.permissions.push(...STAFF_READS, { resource: 'gradebook', action: 'read' });
   }
 
   const guardian = roles.find((r) => r.roleId === 'guardian');
@@ -181,6 +257,27 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       { resource: 'health', action: 'read' },
       { resource: 'fees', action: 'read' },
       { resource: 'communication', action: 'read' },
+    ],
+  });
+
+  roles.push({
+    roleId: 'student',
+    roleName: 'Student',
+    permissions: [
+      { resource: 'parent', action: 'read' },
+      { resource: 'parent', action: 'list' },
+      { resource: 'student', action: 'read' },
+      { resource: 'attendance', action: 'read' },
+      { resource: 'assessment', action: 'read' },
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'timetable', action: 'read' },
+      { resource: 'examination', action: 'read' },
+      { resource: 'fees', action: 'read' },
+      { resource: 'library', action: 'read' },
+      { resource: 'hostel', action: 'read' },
+      { resource: 'transport', action: 'read' },
+      { resource: 'communication', action: 'read' },
+      { resource: 'scholarship', action: 'read' },
     ],
   });
 

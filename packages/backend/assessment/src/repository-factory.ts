@@ -7,7 +7,7 @@
  * Mirrors the staff/attendance repository factories so the standalone
  * service and the API gateway compose persistence identically.
  */
-import { createPrismaClient } from '@proctira/database';
+import { assertInMemoryFallbackAllowed, createPrismaClient } from '@proctira/database';
 import type { PrismaClient } from '@proctira/database';
 
 import type {
@@ -51,7 +51,10 @@ export interface AssessmentRepositoryConfig {
 function resolvePrismaClient(config: AssessmentRepositoryConfig): PrismaClient | null {
   if (config.prismaClient) return config.prismaClient;
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
-  if (!databaseUrl) return null;
+  if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('assessment');
+    return null;
+  }
   return createPrismaClient({ datasourceUrl: databaseUrl });
 }
 

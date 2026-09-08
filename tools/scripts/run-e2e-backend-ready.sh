@@ -130,6 +130,7 @@ echo "==> Starting api-gateway (PORT=${GATEWAY_PORT}, JWT_SECRET set)"
   PORT="$GATEWAY_PORT" \
   HOST=0.0.0.0 \
   NODE_ENV=development \
+  SEED_DEMO_DATA="${SEED_DEMO_DATA:-1}" \
   DATABASE_URL="$DATABASE_URL" \
   REDIS_URL="${REDIS_URL:-}" \
   JWT_SECRET="$JWT_SECRET" \

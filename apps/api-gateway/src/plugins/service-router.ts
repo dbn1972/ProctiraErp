@@ -13,6 +13,7 @@ import type { FastifyInstance, FastifyPluginAsync, FastifyRequest, FastifyReply 
 import fp from 'fastify-plugin';
 
 import type { ServiceRoute } from '../config.js';
+import { PLATFORM_ADMIN_ROLE_IDS } from '../rbac-registry.js';
 
 export interface ServiceRouterOptions {
   /** Map of service name to route configuration */
@@ -121,7 +122,8 @@ const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
     );
   }
 
-  // Register a route listing all available services (no auth required)
+  // Register a route listing registered services. G-713: JWT required (gateway
+  // auth hook); upstream `target` URLs are shown only to platform admins.
   fastify.get(
     `${versionPrefix}/services`,
     {
@@ -148,12 +150,17 @@ const serviceRouterPlugin: FastifyPluginAsync<ServiceRouterOptions> = async (
         },
       },
     },
-    async (_request, _reply) => {
+    async (request, _reply) => {
+      const roles = (request as { user?: { roles?: Array<string | { roleId: string }> } }).user
+        ?.roles;
+      const revealTargets = Array.isArray(roles)
+        ? roles.some((r) => PLATFORM_ADMIN_ROLE_IDS.has(typeof r === 'string' ? r : r.roleId))
+        : false;
       return {
         services: Object.entries(services).map(([name, route]) => ({
           name,
           prefix: `${versionPrefix}${route.prefix}`,
-          target: route.target,
+          ...(revealTargets ? { target: route.target } : {}),
         })),
       };
     },

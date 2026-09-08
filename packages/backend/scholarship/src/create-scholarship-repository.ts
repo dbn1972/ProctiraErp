@@ -1,6 +1,8 @@
 /**
  * Scholarship repository factory — Postgres when DATABASE_URL is set, else in-memory.
  */
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
+
 import { InMemoryScholarshipRepository } from './in-memory-repository.js';
 import { getSharedScholarshipPool, PgScholarshipRepository } from './pg-scholarship-repository.js';
 import type { ScholarshipRepository } from './scholarship-repository.js';
@@ -15,5 +17,6 @@ export function createScholarshipRepository(): ScholarshipRepository {
     const pool = getSharedScholarshipPool();
     if (pool) return new PgScholarshipRepository(pool);
   }
+  assertInMemoryFallbackAllowed('scholarship');
   return new InMemoryScholarshipRepository();
 }

@@ -108,10 +108,11 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   {
     package: 'student',
     mounted: true,
-    prefixes: ['/students'],
+    prefixes: ['/students', '/enrollments'],
     persistence: 'prisma+rls',
     rbacWired: false,
-    notes: 'Prisma when DATABASE_URL set, else in-memory. JWT only (G-101).',
+    notes:
+      'Prisma when DATABASE_URL set, else in-memory. G-701: /enrollments + /students/import mounted (pg enrollment repo on 001/021).',
     registrarName: 'student',
   },
   {

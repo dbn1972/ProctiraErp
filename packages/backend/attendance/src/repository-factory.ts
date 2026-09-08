@@ -7,7 +7,7 @@
  * Mirrors the institution/student repository factories so the standalone
  * service and the API gateway compose persistence identically.
  */
-import { createPrismaClient } from '@proctira/database';
+import { assertInMemoryFallbackAllowed, createPrismaClient } from '@proctira/database';
 
 import type { AttendanceRepository } from './attendance-repository.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';
@@ -23,9 +23,8 @@ export function createAttendanceRepository(
 ): AttendanceRepository {
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
   if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('attendance');
     return new InMemoryAttendanceRepository();
   }
-  return new PrismaAttendanceRepository(
-    createPrismaClient({ datasourceUrl: databaseUrl }),
-  );
+  return new PrismaAttendanceRepository(createPrismaClient({ datasourceUrl: databaseUrl }));
 }

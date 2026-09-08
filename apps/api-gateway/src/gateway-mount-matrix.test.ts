@@ -23,6 +23,7 @@ import {
   MATRIX_REGISTRAR_NAMES,
   MOUNT_MATRIX,
 } from './mount-matrix.js';
+import { PATH_RESOURCE_MAP, resourceForApiPath, UNMAPPED_API_RESOURCE } from './rbac-registry.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '../../..');
@@ -151,5 +152,28 @@ describe('G-003 gateway mount matrix', () => {
     for (const row of MOUNT_MATRIX.filter((entry) => entry.mounted)) {
       expect(row.prefixes.length, `${row.package} mounted but has no prefixes`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('G-702 — every mounted prefix has an RBAC resource mapping (default-deny)', () => {
+  it('maps each mounted MOUNT_MATRIX prefix to a resource', () => {
+    const missing: string[] = [];
+    for (const entry of MOUNT_MATRIX) {
+      if (!entry.mounted) continue;
+      for (const prefix of entry.prefixes) {
+        if (prefix === '/auth') continue; // pre-login flows are excluded by design
+        const resolved = resourceForApiPath(`/api/v1${prefix}/x`);
+        if (!resolved || resolved === UNMAPPED_API_RESOURCE) {
+          missing.push(`${entry.package}:${prefix}`);
+        }
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it('returns the default-deny sentinel for unknown segments', () => {
+    expect(resourceForApiPath('/api/v1/definitely-not-mapped/1')).toBe(UNMAPPED_API_RESOURCE);
+    expect(resourceForApiPath('/api/v1/services')).toBeUndefined();
+    expect(Object.keys(PATH_RESOURCE_MAP).length).toBeGreaterThan(30);
   });
 });

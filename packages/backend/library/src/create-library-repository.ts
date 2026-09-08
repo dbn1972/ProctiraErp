@@ -1,6 +1,8 @@
 /**
  * Library repository factory — Postgres when DATABASE_URL is set, else in-memory.
  */
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
+
 import { InMemoryLibraryRepository } from './in-memory-repository.js';
 import type { LibraryRepository } from './library-repository.js';
 import { getSharedLibraryPool, PgLibraryRepository } from './pg-library-repository.js';
@@ -15,5 +17,6 @@ export function createLibraryRepository(): LibraryRepository {
     const pool = getSharedLibraryPool();
     if (pool) return new PgLibraryRepository(pool);
   }
+  assertInMemoryFallbackAllowed('library');
   return new InMemoryLibraryRepository();
 }

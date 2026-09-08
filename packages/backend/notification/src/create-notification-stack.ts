@@ -3,6 +3,8 @@
  * When DATABASE_URL is set, deliveries persist via HybridNotificationRepository (G-207).
  * Provider adapters remain sandbox / WAIVED.
  */
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
+
 import { InMemoryNotificationRepository } from './in-memory-repository.js';
 import type { NotificationRepository } from './notification-repository.js';
 import {
@@ -29,6 +31,7 @@ export function createNotificationStack(): NotificationStack {
       };
     }
   }
+  assertInMemoryFallbackAllowed('notification');
   return {
     repository: new InMemoryNotificationRepository(),
     prefsStore: createNotificationPrefsStore(),

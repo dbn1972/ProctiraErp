@@ -5,6 +5,7 @@
  * when DATABASE_URL is set (raw `pg`, no Prisma).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
 
 import type {
   AllergyEntity,
@@ -90,8 +91,12 @@ export class HybridHealthRepository implements HealthRepository {
     this.listDiagnosesByStudent = (
       sn?.listDiagnosesByStudent ?? this.memory.listDiagnosesByStudent
     ).bind(sn ?? this.memory);
-    this.createReferral = (sn?.createReferral ?? this.memory.createReferral).bind(sn ?? this.memory);
-    this.updateReferral = (sn?.updateReferral ?? this.memory.updateReferral).bind(sn ?? this.memory);
+    this.createReferral = (sn?.createReferral ?? this.memory.createReferral).bind(
+      sn ?? this.memory,
+    );
+    this.updateReferral = (sn?.updateReferral ?? this.memory.updateReferral).bind(
+      sn ?? this.memory,
+    );
     this.findReferralById = (sn?.findReferralById ?? this.memory.findReferralById).bind(
       sn ?? this.memory,
     );
@@ -399,6 +404,7 @@ export class HybridHealthRepository implements HealthRepository {
 export function createHealthRepository(): HybridHealthRepository {
   const memory = new InMemoryHealthRepository();
   const enabled = isPgCounsellingEnabled() || isPgPhiEnabled();
+  if (!enabled) assertInMemoryFallbackAllowed('health');
   const counselling = enabled ? createPgCounsellingStore() : null;
   const phi = enabled ? createPgPhiStore() : null;
   const specialNeeds = enabled ? createPgSpecialNeedsStore() : null;

@@ -7,7 +7,7 @@
  * The three factories share one Prisma client per database URL so wiring all
  * of them (examination + result + document) does not open three pools.
  */
-import { createPrismaClient } from '@proctira/database';
+import { assertInMemoryFallbackAllowed, createPrismaClient } from '@proctira/database';
 import type { PrismaClient } from '@proctira/database';
 
 import type { DocumentRepository } from './document-repository.js';
@@ -44,14 +44,13 @@ export function createExaminationRepository(
 ): ExaminationRepository {
   const databaseUrl = resolveDatabaseUrl(config);
   if (!databaseUrl) {
+    assertInMemoryFallbackAllowed('examination');
     return new InMemoryExaminationRepository();
   }
   return new PrismaExaminationRepository(getPrismaClient(databaseUrl));
 }
 
-export function createResultRepository(
-  config: ExaminationRepositoryConfig = {},
-): ResultRepository {
+export function createResultRepository(config: ExaminationRepositoryConfig = {}): ResultRepository {
   const databaseUrl = resolveDatabaseUrl(config);
   if (!databaseUrl) {
     return new InMemoryResultRepository();

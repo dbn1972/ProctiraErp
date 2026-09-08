@@ -62,6 +62,8 @@ import {
   createGatewayRbacRegistry,
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
+  SELF_SERVICE_READ_RESOURCES,
+  UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
@@ -266,31 +268,35 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     },
   });
 
-  // Register Swagger UI
-  await app.register(swaggerUi, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: true,
-    },
-  });
+  // Register Swagger UI. G-713: off in production unless DOCS_PUBLIC=1 so the
+  // full route inventory is not served anonymously from a live tenant host.
+  const docsEnabled = config.env !== 'production' || process.env['DOCS_PUBLIC'] === '1';
+  if (docsEnabled) {
+    await app.register(swaggerUi, {
+      routePrefix: '/docs',
+      uiConfig: {
+        docExpansion: 'list',
+        deepLinking: true,
+      },
+    });
+  }
 
   // 7. Register JWT authentication (local HS JWT) OR optional Keycloak RS256.
   // Keycloak activates only when KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set.
   // Without those env vars, local JWT auth is unchanged.
   const keycloak = loadKeycloakAuthConfig();
+  // G-713: the only anonymous surface is health probes, docs (non-prod), and the
+  // pre-login auth flows. `/api/v1/services` and `/api/v1/auth/roles` require a JWT.
   const authExcludePaths = [
     '/health',
     '/health/live',
     '/health/ready',
-    '/docs',
-    '/docs/*',
+    ...(docsEnabled ? ['/docs', '/docs/*'] : []),
     '/api/v1/auth/login',
     '/api/v1/auth/callback',
     '/api/v1/auth/password',
     '/api/v1/auth/ticket',
     '/api/v1/auth/logout',
-    '/api/v1/auth/roles',
     '/api/v1/auth/refresh',
     '/api/v1/auth/mfa/otp/send',
     '/api/v1/auth/mfa/otp/resend',
@@ -300,7 +306,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/auth/mfa/otp/resend',
     '/auth/mfa/resend',
     '/auth/mfa/verify',
-    '/api/v1/services',
     '/api/v1/storage/health',
   ];
 
@@ -456,30 +461,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(tenantPlugin, {
     baseDomain: config.tenant.baseDomain,
     headerName: config.tenant.headerName,
-    excludePaths: [
-      '/health',
-      '/health/live',
-      '/health/ready',
-      '/docs',
-      '/docs/*',
-      '/api/v1/auth/login',
-      '/api/v1/auth/callback',
-      '/api/v1/auth/password',
-      '/api/v1/auth/ticket',
-      '/api/v1/auth/logout',
-      '/api/v1/auth/roles',
-      '/api/v1/auth/refresh',
-      '/api/v1/auth/mfa/otp/send',
-      '/api/v1/auth/mfa/otp/resend',
-      '/api/v1/auth/mfa/resend',
-      '/api/v1/auth/mfa/verify',
-      '/auth/mfa/otp/send',
-      '/auth/mfa/otp/resend',
-      '/auth/mfa/resend',
-      '/auth/mfa/verify',
-      '/api/v1/services',
-      '/api/v1/storage/health',
-    ],
+    excludePaths: [...authExcludePaths, '/api/v1/services'],
     resolveSlugToId: false, // Gateway doesn't have direct DB access
   });
 
@@ -522,29 +504,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     redis: redisClient,
     ttlSeconds: parseInt(process.env['IDEMPOTENCY_TTL_SECONDS'] || '86400', 10),
     lockTtlSeconds: parseInt(process.env['IDEMPOTENCY_LOCK_TTL_SECONDS'] || '60', 10),
-    excludePaths: [
-      '/health',
-      '/health/live',
-      '/health/ready',
-      '/docs',
-      '/docs/*',
-      '/api/v1/auth/login',
-      '/api/v1/auth/callback',
-      '/api/v1/auth/password',
-      '/api/v1/auth/ticket',
-      '/api/v1/auth/logout',
-      '/api/v1/auth/roles',
-      '/api/v1/auth/refresh',
-      '/api/v1/auth/mfa/otp/send',
-      '/api/v1/auth/mfa/otp/resend',
-      '/api/v1/auth/mfa/resend',
-      '/api/v1/auth/mfa/verify',
-      '/auth/mfa/otp/send',
-      '/auth/mfa/otp/resend',
-      '/auth/mfa/resend',
-      '/auth/mfa/verify',
-      '/api/v1/storage/health',
-    ],
+    excludePaths: [...authExcludePaths, '/api/v1/services'],
   });
 
   // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
@@ -610,11 +570,11 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
-  const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-
+  // G-702 / G-712: every /api/v1 request (reads included) is evaluated against
+  // the RBAC registry. Unmapped segments are denied for non-platform-admins.
   app.addHook('onRequest', async (request, reply) => {
     const method = request.method.toUpperCase();
-    if (!MUTATING_METHODS.has(method)) return;
+    if (method === 'OPTIONS') return;
 
     const url = request.url.split('?')[0]!;
     if (!url.startsWith('/api/v1/')) return;
@@ -638,12 +598,29 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return PLATFORM_ADMIN_ROLE_IDS.has(id);
     });
 
-    // Platform console paths: platform_admin / super-admin role OR platform.* permission
-    if (resource === 'platform' && isPlatformAdmin) {
-      return;
+    // Platform control plane: platform_admin / super-admin role only (G-104/G-702).
+    if (resource === 'platform') {
+      if (isPlatformAdmin) return;
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'Platform administrator role required',
+        statusCode: 403,
+      });
+    }
+
+    if (resource === UNMAPPED_API_RESOURCE) {
+      if (isPlatformAdmin) return;
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'No RBAC resource is mapped for this path (default-deny)',
+        statusCode: 403,
+      });
     }
 
     const action = actionForMethod(method);
+    // Self-service resources every authenticated principal may read (own scope
+    // is enforced inside the domain plugin).
+    if (action === 'read' && SELF_SERVICE_READ_RESOURCES.has(resource)) return;
     const authUser = {
       userId: user.sub,
       tenantId: user.tenantId,

@@ -117,6 +117,7 @@ jobs:
         run: bash tools/scripts/apply-sql.sh
         env:
           DATABASE_URL: ${{ env.DATABASE_URL }}
+          APPLY_SEEDS: '1'
 
       - name: Multi-board 3×2×500 certification (G-408)
         run: |

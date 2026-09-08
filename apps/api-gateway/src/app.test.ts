@@ -32,7 +32,8 @@ function createTestJwtPayload(overrides?: Record<string, unknown>) {
     tenantId: '550e8400-e29b-41d4-a716-446655440000',
     email: 'test@example.com',
     displayName: 'Test User',
-    roles: [],
+    // G-712: reads are RBAC-gated; default test principal is a tenant admin.
+    roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
     areas: [],
     institutions: [],
     jti: 'test-jti-123',
@@ -154,16 +155,28 @@ describe('API Gateway', () => {
   });
 
   describe('Service Routing', () => {
-    it('GET /api/v1/services lists registered services', async () => {
+    it('GET /api/v1/services requires a JWT (G-713)', async () => {
       const response = await app.inject({
         method: 'GET',
         url: '/api/v1/services',
+      });
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('GET /api/v1/services lists registered services', async () => {
+      const token = app.jwt.sign(createTestJwtPayload());
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/v1/services',
+        headers: { authorization: `Bearer ${token}` },
       });
 
       expect(response.statusCode).toBe(200);
       const body = response.json();
       expect(body.services).toBeInstanceOf(Array);
       expect(body.services.length).toBe(3);
+      // Upstream targets are hidden from non-platform-admins (G-713).
+      expect(body.services[0]).not.toHaveProperty('target');
 
       const serviceNames = body.services.map((s: { name: string }) => s.name);
       expect(serviceNames).toContain('auth');
@@ -235,7 +248,13 @@ describe('API Gateway', () => {
     });
 
     it('returns 404 for unregistered service routes', async () => {
-      const token = app.jwt.sign(createTestJwtPayload());
+      // G-702: unmapped segments are default-denied for tenant roles; only a
+      // platform admin gets far enough to see the 404.
+      const token = app.jwt.sign(
+        createTestJwtPayload({
+          roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
+        }),
+      );
 
       const response = await app.inject({
         method: 'GET',

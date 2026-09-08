@@ -1,6 +1,8 @@
 /**
  * Registration repository factory — Postgres when DATABASE_URL is set, else in-memory.
  */
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
+
 import { InMemoryRegistrationRepository } from './in-memory-repository.js';
 import {
   getSharedRegistrationPool,
@@ -18,5 +20,6 @@ export function createRegistrationRepository(): RegistrationRepository {
     const pool = getSharedRegistrationPool();
     if (pool) return new PgRegistrationRepository(pool);
   }
+  assertInMemoryFallbackAllowed('registration');
   return new InMemoryRegistrationRepository();
 }

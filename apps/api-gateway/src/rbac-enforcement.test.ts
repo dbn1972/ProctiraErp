@@ -196,7 +196,7 @@ describe('G-101 gateway RBAC enforcement', () => {
     expect(response.statusCode).not.toBe(401);
   });
 
-  it('does not enforce RBAC on GET (mutating-only gate)', async () => {
+  it('G-712: enforces read permission on GET (no roles → 403)', async () => {
     const token = app.jwt.sign(createTestJwtPayload({ roles: [] }));
 
     const response = await app.inject({
@@ -208,7 +208,86 @@ describe('G-101 gateway RBAC enforcement', () => {
       },
     });
 
+    expect(response.statusCode).toBe(403);
+  });
+
+  it('G-712: teacher (student.read) can GET /api/v1/students', async () => {
+    const token = app.jwt.sign(
+      createTestJwtPayload({
+        roles: [{ roleId: 'teacher', roleName: 'Teacher', areaId: null }],
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/students',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+      },
+    });
+
     expect(response.statusCode).toBe(200);
+  });
+
+  it('G-712: any authenticated principal may read self-service notifications', async () => {
+    const token = app.jwt.sign(createTestJwtPayload({ roles: [] }));
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/notifications',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'x-tenant-id': '550e8400-e29b-41d4-a716-446655440000',
+      },
+    });
+
+    expect(response.statusCode).not.toBe(403);
+  });
+
+  it('G-702: unmapped /api/v1 segment is default-denied for non-platform-admins', async () => {
+    const admin = app.jwt.sign(
+      createTestJwtPayload({
+        roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
+      }),
+    );
+    const denied = await app.inject({
+      method: 'POST',
+      url: '/api/v1/not-a-mapped-prefix/things',
+      headers: { authorization: `Bearer ${admin}` },
+      payload: {},
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json().message).toMatch(/default-deny/);
+
+    const platform = app.jwt.sign(
+      createTestJwtPayload({
+        roles: [{ roleId: 'platform_admin', roleName: 'Platform Administrator', areaId: null }],
+      }),
+    );
+    const passed = await app.inject({
+      method: 'GET',
+      url: '/api/v1/not-a-mapped-prefix/things',
+      headers: { authorization: `Bearer ${platform}` },
+    });
+    expect(passed.statusCode).toBe(404);
+  });
+
+  it('G-702: control-plane prefixes (billing, tenant-lifecycle) require platform admin', async () => {
+    const admin = app.jwt.sign(
+      createTestJwtPayload({
+        roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
+      }),
+    );
+    for (const url of ['/api/v1/billing/plans', '/api/v1/tenant-lifecycle/tenants']) {
+      const res = await app.inject({
+        method: 'POST',
+        url,
+        headers: { authorization: `Bearer ${admin}` },
+        payload: {},
+      });
+      expect(res.statusCode, url).toBe(403);
+    }
   });
 
   it('excludes /api/v1/auth/* from RBAC mutating checks', async () => {

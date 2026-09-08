@@ -30,11 +30,7 @@ export type {
 export { BoardType, EnrollmentStatus } from '@prisma/client';
 
 // Export client utilities
-export {
-  createPrismaClient,
-  getPrismaClient,
-  disconnectPrisma,
-} from './client';
+export { createPrismaClient, getPrismaClient, disconnectPrisma } from './client';
 
 // Export batch insert utilities
 export { batchInsert, batchInsertRaw } from './batch-insert';
@@ -49,11 +45,16 @@ export {
 
 // Export tenant-scoped transaction helper (required for RLS-governed queries)
 export { withTenantTransaction } from './tenant-transaction';
-export type {
-  TenantTransactionClient,
-  TenantTransactionOptions,
-} from './tenant-transaction';
+export type { TenantTransactionClient, TenantTransactionOptions } from './tenant-transaction';
 
 // Export node-pg tenant binder for raw-SQL RLS (db/sql/015_rls_policies.sql)
 export { withPgTenant } from './pg-tenant';
 export type { PgQueryable, PgPoolWithConnect, PgClient } from './pg-tenant';
+
+// G-714: in-memory fallback policy shared by repository factories
+export {
+  assertInMemoryFallbackAllowed,
+  resolvePersistenceMode,
+  resetPersistenceWarnings,
+} from './persistence-policy';
+export type { PersistenceMode, PersistencePolicyEnv } from './persistence-policy';

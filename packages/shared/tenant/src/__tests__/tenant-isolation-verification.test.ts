@@ -49,9 +49,7 @@ const uuidV4Arb: fc.Arbitrary<string> = fc
     fc.hexaString({ minLength: 3, maxLength: 3 }),
     fc.hexaString({ minLength: 12, maxLength: 12 }),
   )
-  .map(([p1, p2, p3, variant, p4, p5]) =>
-    `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`,
-  );
+  .map(([p1, p2, p3, variant, p4, p5]) => `${p1}-${p2}-4${p3}-${variant}${p4}-${p5}`);
 
 /** Generates a pair of distinct tenant UUIDs */
 const distinctTenantPairArb: fc.Arbitrary<{ tenantA: string; tenantB: string }> = fc
@@ -60,10 +58,12 @@ const distinctTenantPairArb: fc.Arbitrary<{ tenantA: string; tenantB: string }> 
   .map(([tenantA, tenantB]) => ({ tenantA, tenantB }));
 
 /** Generates a valid tenant slug */
-const tenantSlugArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')),
-  { minLength: 3, maxLength: 20 },
-).filter((s) => /^[a-z]/.test(s));
+const tenantSlugArb: fc.Arbitrary<string> = fc
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), {
+    minLength: 3,
+    maxLength: 20,
+  })
+  .filter((s) => /^[a-z]/.test(s));
 
 /** Generates a non-empty entity name */
 const entityNameArb: fc.Arbitrary<string> = fc.stringOf(
@@ -78,9 +78,10 @@ const entityCodeArb: fc.Arbitrary<string> = fc.stringOf(
 );
 
 /** Generates a record with name and code */
-const entityRecordArb: fc.Arbitrary<{ id: string; name: string; code: string; tenantId: string }> = fc
-  .tuple(uuidV4Arb, entityNameArb, entityCodeArb, uuidV4Arb)
-  .map(([id, name, code, tenantId]) => ({ id, name, code, tenantId }));
+const entityRecordArb: fc.Arbitrary<{ id: string; name: string; code: string; tenantId: string }> =
+  fc
+    .tuple(uuidV4Arb, entityNameArb, entityCodeArb, uuidV4Arb)
+    .map(([id, name, code, tenantId]) => ({ id, name, code, tenantId }));
 
 /** Generates a Kafka/RabbitMQ event type */
 const eventTypeArb: fc.Arbitrary<string> = fc.constantFrom(
@@ -94,10 +95,12 @@ const eventTypeArb: fc.Arbitrary<string> = fc.constantFrom(
 );
 
 /** Generates a cache key suffix */
-const cacheKeyArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')),
-  { minLength: 5, maxLength: 50 },
-).filter((s) => /^[a-z]/.test(s));
+const cacheKeyArb: fc.Arbitrary<string> = fc
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')), {
+    minLength: 5,
+    maxLength: 50,
+  })
+  .filter((s) => /^[a-z]/.test(s));
 
 // =============================================================================
 // 1. UNIT TESTS — Tenant Scoping in Every Query
@@ -109,7 +112,8 @@ describe('1. Unit Tests: Tenant Scoping in Every Query', () => {
    * All queries are filtered by the current tenant session variable.
    */
   class TenantScopedQueryLayer {
-    private data: Map<string, Array<{ id: string; name: string; code: string; tenantId: string }>> = new Map();
+    private data: Map<string, Array<{ id: string; name: string; code: string; tenantId: string }>> =
+      new Map();
     private currentTenantId: string | null = null;
 
     setCurrentTenant(tenantId: string): void {
@@ -226,23 +230,19 @@ describe('1. Unit Tests: Tenant Scoping in Every Query', () => {
 
   it('findById returns null for records belonging to another tenant', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        entityRecordArb,
-        ({ tenantA, tenantB }, record) => {
-          queryLayer.clear();
+      fc.property(distinctTenantPairArb, entityRecordArb, ({ tenantA, tenantB }, record) => {
+        queryLayer.clear();
 
-          // Insert record for tenant A
-          const recordA = { ...record, tenantId: tenantA };
-          queryLayer.setCurrentTenant(tenantA);
-          queryLayer.insert(recordA);
+        // Insert record for tenant A
+        const recordA = { ...record, tenantId: tenantA };
+        queryLayer.setCurrentTenant(tenantA);
+        queryLayer.insert(recordA);
 
-          // Try to find it as tenant B — should return null
-          queryLayer.setCurrentTenant(tenantB);
-          const result = queryLayer.findById(recordA.id);
-          expect(result).toBeNull();
-        },
-      ),
+        // Try to find it as tenant B — should return null
+        queryLayer.setCurrentTenant(tenantB);
+        const result = queryLayer.findById(recordA.id);
+        expect(result).toBeNull();
+      }),
       { numRuns: 100 },
     );
   });
@@ -278,27 +278,23 @@ describe('1. Unit Tests: Tenant Scoping in Every Query', () => {
 
   it('DELETE operations cannot remove records of another tenant', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        entityRecordArb,
-        ({ tenantA, tenantB }, record) => {
-          queryLayer.clear();
+      fc.property(distinctTenantPairArb, entityRecordArb, ({ tenantA, tenantB }, record) => {
+        queryLayer.clear();
 
-          // Insert record for tenant A
-          const recordA = { ...record, tenantId: tenantA };
-          queryLayer.setCurrentTenant(tenantA);
-          queryLayer.insert(recordA);
+        // Insert record for tenant A
+        const recordA = { ...record, tenantId: tenantA };
+        queryLayer.setCurrentTenant(tenantA);
+        queryLayer.insert(recordA);
 
-          // Try to delete as tenant B — should fail
-          queryLayer.setCurrentTenant(tenantB);
-          const deleted = queryLayer.delete(recordA.id);
-          expect(deleted).toBe(false);
+        // Try to delete as tenant B — should fail
+        queryLayer.setCurrentTenant(tenantB);
+        const deleted = queryLayer.delete(recordA.id);
+        expect(deleted).toBe(false);
 
-          // Verify record still exists for tenant A
-          queryLayer.setCurrentTenant(tenantA);
-          expect(queryLayer.findById(recordA.id)).not.toBeNull();
-        },
-      ),
+        // Verify record still exists for tenant A
+        queryLayer.setCurrentTenant(tenantA);
+        expect(queryLayer.findById(recordA.id)).not.toBeNull();
+      }),
       { numRuns: 100 },
     );
   });
@@ -361,7 +357,6 @@ describe('1. Unit Tests: Tenant Scoping in Every Query', () => {
   });
 });
 
-
 // =============================================================================
 // 2. INTEGRATION TESTS — Auth/Authz Boundaries
 // =============================================================================
@@ -390,10 +385,7 @@ describe('2. Integration Tests: Auth/Authz Boundaries', () => {
     /**
      * Validates that a refresh token can only be used within its original tenant context.
      */
-    validateRefreshTokenTenant(
-      refreshTokenTenantId: string,
-      requestTenantId: string,
-    ): boolean {
+    validateRefreshTokenTenant(refreshTokenTenantId: string, requestTenantId: string): boolean {
       return refreshTokenTenantId === requestTenantId;
     }
 
@@ -427,47 +419,40 @@ describe('2. Integration Tests: Auth/Authz Boundaries', () => {
       minLength: 1,
       maxLength: 3,
     }),
-    exp: fc.integer({ min: Math.floor(Date.now() / 1000), max: Math.floor(Date.now() / 1000) + 86400 }),
+    exp: fc.integer({
+      min: Math.floor(Date.now() / 1000),
+      max: Math.floor(Date.now() / 1000) + 86400,
+    }),
   });
 
   it('JWT token for tenant A cannot access resources of tenant B', () => {
     fc.assert(
-      fc.property(
-        tokenPayloadArb,
-        uuidV4Arb,
-        (token, otherTenantId) => {
-          fc.pre(token.tenantId !== otherTenantId);
+      fc.property(tokenPayloadArb, uuidV4Arb, (token, otherTenantId) => {
+        fc.pre(token.tenantId !== otherTenantId);
 
-          const canAccess = authValidator.validateTenantAccess(token, otherTenantId);
-          expect(canAccess).toBe(false);
-        },
-      ),
+        const canAccess = authValidator.validateTenantAccess(token, otherTenantId);
+        expect(canAccess).toBe(false);
+      }),
       { numRuns: 100 },
     );
   });
 
   it('JWT token for tenant A can access resources of tenant A', () => {
     fc.assert(
-      fc.property(
-        tokenPayloadArb,
-        (token) => {
-          const canAccess = authValidator.validateTenantAccess(token, token.tenantId);
-          expect(canAccess).toBe(true);
-        },
-      ),
+      fc.property(tokenPayloadArb, (token) => {
+        const canAccess = authValidator.validateTenantAccess(token, token.tenantId);
+        expect(canAccess).toBe(true);
+      }),
       { numRuns: 100 },
     );
   });
 
   it('refresh token from tenant A cannot be used in tenant B context', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        ({ tenantA, tenantB }) => {
-          const isValid = authValidator.validateRefreshTokenTenant(tenantA, tenantB);
-          expect(isValid).toBe(false);
-        },
-      ),
+      fc.property(distinctTenantPairArb, ({ tenantA, tenantB }) => {
+        const isValid = authValidator.validateRefreshTokenTenant(tenantA, tenantB);
+        expect(isValid).toBe(false);
+      }),
       { numRuns: 100 },
     );
   });
@@ -515,7 +500,6 @@ describe('2. Integration Tests: Auth/Authz Boundaries', () => {
   });
 });
 
-
 // =============================================================================
 // 3. E2E TESTS — Cross-Tenant Access Prevention
 // =============================================================================
@@ -528,58 +512,56 @@ describe('3. E2E Tests: Cross-Tenant Access Prevention', () => {
 
   it('requests with tenant A header cannot access tenant B resources via plugin', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        distinctTenantPairArb,
-        async ({ tenantA, tenantB }) => {
-          const setConfigCalls: string[] = [];
-          const mockExecuteRawUnsafe = vi.fn().mockImplementation((query: string) => {
-            setConfigCalls.push(query);
+      fc.asyncProperty(distinctTenantPairArb, async ({ tenantA, tenantB }) => {
+        const setConfigCalls: string[] = [];
+        const mockExecuteRawUnsafe = vi
+          .fn()
+          .mockImplementation((_query: string, tenant: string) => {
+            // G-720: the tenant id is a bound parameter
+            setConfigCalls.push(tenant);
             return Promise.resolve(undefined);
           });
 
-          const app: FastifyInstance = Fastify();
-          await app.register(tenantPlugin, {
-            getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),
-          });
+        const app: FastifyInstance = Fastify();
+        await app.register(tenantPlugin, {
+          getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),
+        });
 
-          // Simulate a resource endpoint that returns data scoped to the resolved tenant
-          app.get('/api/v1/institutions', async (request) => {
-            return { tenantId: request.tenantId, data: [] };
-          });
+        // Simulate a resource endpoint that returns data scoped to the resolved tenant
+        app.get('/api/v1/institutions', async (request) => {
+          return { tenantId: request.tenantId, data: [] };
+        });
 
-          await app.ready();
+        await app.ready();
 
-          // Request as tenant A
-          const responseA = await app.inject({
-            method: 'GET',
-            url: '/api/v1/institutions',
-            headers: { 'x-tenant-id': tenantA },
-          });
+        // Request as tenant A
+        const responseA = await app.inject({
+          method: 'GET',
+          url: '/api/v1/institutions',
+          headers: { 'x-tenant-id': tenantA },
+        });
 
-          // Request as tenant B
-          const responseB = await app.inject({
-            method: 'GET',
-            url: '/api/v1/institutions',
-            headers: { 'x-tenant-id': tenantB },
-          });
+        // Request as tenant B
+        const responseB = await app.inject({
+          method: 'GET',
+          url: '/api/v1/institutions',
+          headers: { 'x-tenant-id': tenantB },
+        });
 
-          const bodyA = JSON.parse(responseA.body);
-          const bodyB = JSON.parse(responseB.body);
+        const bodyA = JSON.parse(responseA.body);
+        const bodyB = JSON.parse(responseB.body);
 
-          // Each request resolves to its own tenant — no cross-contamination
-          expect(bodyA.tenantId).toBe(tenantA);
-          expect(bodyB.tenantId).toBe(tenantB);
-          expect(bodyA.tenantId).not.toBe(bodyB.tenantId);
+        // Each request resolves to its own tenant — no cross-contamination
+        expect(bodyA.tenantId).toBe(tenantA);
+        expect(bodyB.tenantId).toBe(tenantB);
+        expect(bodyA.tenantId).not.toBe(bodyB.tenantId);
 
-          // Verify distinct session variables were set
-          const tenantAConfig = `SELECT set_config('app.current_tenant_id', '${tenantA}', true)`;
-          const tenantBConfig = `SELECT set_config('app.current_tenant_id', '${tenantB}', true)`;
-          expect(setConfigCalls).toContain(tenantAConfig);
-          expect(setConfigCalls).toContain(tenantBConfig);
+        // Verify distinct session variables were set
+        expect(setConfigCalls).toContain(tenantA);
+        expect(setConfigCalls).toContain(tenantB);
 
-          await app.close();
-        },
-      ),
+        await app.close();
+      }),
       { numRuns: 30 },
     );
   });
@@ -611,49 +593,49 @@ describe('3. E2E Tests: Cross-Tenant Access Prevention', () => {
 
   it('JWT tenant claim takes precedence over header, preventing header spoofing', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        distinctTenantPairArb,
-        async ({ tenantA, tenantB }) => {
-          const setConfigCalls: string[] = [];
-          const mockExecuteRawUnsafe = vi.fn().mockImplementation((query: string) => {
-            setConfigCalls.push(query);
+      fc.asyncProperty(distinctTenantPairArb, async ({ tenantA, tenantB }) => {
+        const setConfigCalls: string[] = [];
+        const mockExecuteRawUnsafe = vi
+          .fn()
+          .mockImplementation((_query: string, tenant: string) => {
+            // G-720: the tenant id is a bound parameter
+            setConfigCalls.push(tenant);
             return Promise.resolve(undefined);
           });
 
-          const app: FastifyInstance = Fastify();
+        const app: FastifyInstance = Fastify();
 
-          // Simulate JWT auth by decorating request with user before tenant plugin
-          app.addHook('onRequest', async (request) => {
-            // Simulate authenticated user with tenant A in JWT
-            (request as any).user = { tenantId: tenantA, sub: 'user-1' };
-          });
+        // Simulate JWT auth by decorating request with user before tenant plugin
+        app.addHook('onRequest', async (request) => {
+          // Simulate authenticated user with tenant A in JWT
+          (request as any).user = { tenantId: tenantA, sub: 'user-1' };
+        });
 
-          await app.register(tenantPlugin, {
-            getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),
-          });
+        await app.register(tenantPlugin, {
+          getDbClient: () => ({ $executeRawUnsafe: mockExecuteRawUnsafe }),
+        });
 
-          app.get('/api/v1/secure', async (request) => {
-            return { tenantId: request.tenantId };
-          });
+        app.get('/api/v1/secure', async (request) => {
+          return { tenantId: request.tenantId };
+        });
 
-          await app.ready();
+        await app.ready();
 
-          // Attacker tries to spoof tenant B via header while JWT says tenant A
-          const response = await app.inject({
-            method: 'GET',
-            url: '/api/v1/secure',
-            headers: { 'x-tenant-id': tenantB },
-          });
+        // Attacker tries to spoof tenant B via header while JWT says tenant A
+        const response = await app.inject({
+          method: 'GET',
+          url: '/api/v1/secure',
+          headers: { 'x-tenant-id': tenantB },
+        });
 
-          const body = JSON.parse(response.body);
+        const body = JSON.parse(response.body);
 
-          // JWT claim (tenant A) must take precedence — header spoofing prevented
-          expect(body.tenantId).toBe(tenantA);
-          expect(body.tenantId).not.toBe(tenantB);
+        // JWT claim (tenant A) must take precedence — header spoofing prevented
+        expect(body.tenantId).toBe(tenantA);
+        expect(body.tenantId).not.toBe(tenantB);
 
-          await app.close();
-        },
-      ),
+        await app.close();
+      }),
       { numRuns: 30 },
     );
   });
@@ -683,7 +665,6 @@ describe('3. E2E Tests: Cross-Tenant Access Prevention', () => {
   });
 });
 
-
 // =============================================================================
 // 4. QUEUE/EVENT ROUTING ISOLATION TESTS
 // =============================================================================
@@ -697,57 +678,45 @@ describe('4. Queue/Event Routing Isolation Tests', () => {
   describe('Kafka Topic Isolation', () => {
     it('distinct tenants produce distinct topic names for the same event type', () => {
       fc.assert(
-        fc.property(
-          distinctTenantPairArb,
-          eventTypeArb,
-          ({ tenantA, tenantB }, eventType) => {
-            const topicA = buildTenantTopic(tenantA, eventType);
-            const topicB = buildTenantTopic(tenantB, eventType);
+        fc.property(distinctTenantPairArb, eventTypeArb, ({ tenantA, tenantB }, eventType) => {
+          const topicA = buildTenantTopic(tenantA, eventType);
+          const topicB = buildTenantTopic(tenantB, eventType);
 
-            // Topics must be different for different tenants
-            expect(topicA).not.toBe(topicB);
+          // Topics must be different for different tenants
+          expect(topicA).not.toBe(topicB);
 
-            // Each topic must contain its respective tenant ID
-            expect(topicA).toContain(tenantA);
-            expect(topicB).toContain(tenantB);
+          // Each topic must contain its respective tenant ID
+          expect(topicA).toContain(tenantA);
+          expect(topicB).toContain(tenantB);
 
-            // Topics must not contain the other tenant's ID
-            expect(topicA).not.toContain(tenantB);
-            expect(topicB).not.toContain(tenantA);
-          },
-        ),
+          // Topics must not contain the other tenant's ID
+          expect(topicA).not.toContain(tenantB);
+          expect(topicB).not.toContain(tenantA);
+        }),
         { numRuns: 100 },
       );
     });
 
     it('topic format follows tenant.{tenantId}.{eventType} convention', () => {
       fc.assert(
-        fc.property(
-          uuidV4Arb,
-          eventTypeArb,
-          (tenantId, eventType) => {
-            const topic = buildTenantTopic(tenantId, eventType);
-            expect(topic).toBe(`tenant.${tenantId}.${eventType}`);
-          },
-        ),
+        fc.property(uuidV4Arb, eventTypeArb, (tenantId, eventType) => {
+          const topic = buildTenantTopic(tenantId, eventType);
+          expect(topic).toBe(`tenant.${tenantId}.${eventType}`);
+        }),
         { numRuns: 100 },
       );
     });
 
     it('event consumer for tenant A topic never receives tenant B events', () => {
       fc.assert(
-        fc.property(
-          distinctTenantPairArb,
-          eventTypeArb,
-          ({ tenantA, tenantB }, eventType) => {
-            // Simulate topic subscription
-            const subscribedTopic = buildTenantTopic(tenantA, eventType);
-            const publishedTopic = buildTenantTopic(tenantB, eventType);
+        fc.property(distinctTenantPairArb, eventTypeArb, ({ tenantA, tenantB }, eventType) => {
+          // Simulate topic subscription
+          const subscribedTopic = buildTenantTopic(tenantA, eventType);
+          const publishedTopic = buildTenantTopic(tenantB, eventType);
 
-            // A consumer subscribed to tenant A's topic should never match tenant B's topic
-            expect(subscribedTopic).not.toBe(publishedTopic);
-          },
-        ),
+          // A consumer subscribed to tenant A's topic should never match tenant B's topic
+          expect(subscribedTopic).not.toBe(publishedTopic);
+        }),
         { numRuns: 100 },
       );
     });
@@ -818,7 +787,6 @@ describe('4. Queue/Event Routing Isolation Tests', () => {
   });
 });
 
-
 // =============================================================================
 // 5. SEARCH RESULT TRIMMING TESTS
 // =============================================================================
@@ -830,7 +798,10 @@ describe('5. Search Result Trimming Tests', () => {
    */
 
   class TenantScopedSearchIndex {
-    private documents: Map<string, Array<{ id: string; tenantId: string; content: string; score: number }>> = new Map();
+    private documents: Map<
+      string,
+      Array<{ id: string; tenantId: string; content: string; score: number }>
+    > = new Map();
 
     index(tenantId: string, doc: { id: string; content: string }): void {
       const existing = this.documents.get(tenantId) ?? [];
@@ -909,20 +880,16 @@ describe('5. Search Result Trimming Tests', () => {
 
   it('search for a term that exists only in tenant B returns empty for tenant A', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        entityNameArb,
-        ({ tenantA, tenantB }, uniqueName) => {
-          searchIndex.clear();
+      fc.property(distinctTenantPairArb, entityNameArb, ({ tenantA, tenantB }, uniqueName) => {
+        searchIndex.clear();
 
-          // Only index in tenant B
-          searchIndex.index(tenantB, { id: 'b-unique', content: uniqueName });
+        // Only index in tenant B
+        searchIndex.index(tenantB, { id: 'b-unique', content: uniqueName });
 
-          // Search as tenant A — should find nothing
-          const results = searchIndex.search(tenantA, uniqueName);
-          expect(results).toHaveLength(0);
-        },
-      ),
+        // Search as tenant A — should find nothing
+        const results = searchIndex.search(tenantA, uniqueName);
+        expect(results).toHaveLength(0);
+      }),
       { numRuns: 100 },
     );
   });
@@ -960,7 +927,6 @@ describe('5. Search Result Trimming Tests', () => {
     );
   });
 });
-
 
 // =============================================================================
 // 6. CACHE NAMESPACE COLLISION TESTS
@@ -1139,35 +1105,30 @@ describe('6. Cache Namespace Collision Tests', () => {
 
   it('cache keys contain tenant ID ensuring no namespace collision', () => {
     fc.assert(
-      fc.property(
-        distinctTenantPairArb,
-        cacheKeyArb,
-        ({ tenantA, tenantB }, key) => {
-          cache.clear();
+      fc.property(distinctTenantPairArb, cacheKeyArb, ({ tenantA, tenantB }, key) => {
+        cache.clear();
 
-          cache.set(tenantA, key, 'a');
-          cache.set(tenantB, key, 'b');
+        cache.set(tenantA, key, 'a');
+        cache.set(tenantB, key, 'b');
 
-          const allKeys = cache.getAllKeys();
+        const allKeys = cache.getAllKeys();
 
-          // Both keys should exist and be distinct
-          expect(allKeys).toHaveLength(2);
-          expect(allKeys[0]).not.toBe(allKeys[1]);
+        // Both keys should exist and be distinct
+        expect(allKeys).toHaveLength(2);
+        expect(allKeys[0]).not.toBe(allKeys[1]);
 
-          // Each key should contain its tenant ID
-          const keyA = allKeys.find((k) => k.includes(tenantA));
-          const keyB = allKeys.find((k) => k.includes(tenantB));
-          expect(keyA).toBeDefined();
-          expect(keyB).toBeDefined();
-          expect(keyA).toContain(`tenant:${tenantA}:`);
-          expect(keyB).toContain(`tenant:${tenantB}:`);
-        },
-      ),
+        // Each key should contain its tenant ID
+        const keyA = allKeys.find((k) => k.includes(tenantA));
+        const keyB = allKeys.find((k) => k.includes(tenantB));
+        expect(keyA).toBeDefined();
+        expect(keyB).toBeDefined();
+        expect(keyA).toContain(`tenant:${tenantA}:`);
+        expect(keyB).toContain(`tenant:${tenantB}:`);
+      }),
       { numRuns: 100 },
     );
   });
 });
-
 
 // =============================================================================
 // 7. REPORT EXPORT ISOLATION TESTS
@@ -1195,7 +1156,8 @@ describe('7. Report Export Isolation Tests', () => {
   }
 
   class TenantScopedReportEngine {
-    private dataStore: Map<string, Array<{ id: string; name: string; tenantId: string }>> = new Map();
+    private dataStore: Map<string, Array<{ id: string; name: string; tenantId: string }>> =
+      new Map();
 
     seedData(tenantId: string, records: Array<{ id: string; name: string }>): void {
       const existing = this.dataStore.get(tenantId) ?? [];
@@ -1321,7 +1283,10 @@ describe('7. Report Export Isolation Tests', () => {
     fc.assert(
       fc.property(
         distinctTenantPairArb,
-        fc.array(fc.record({ id: uuidV4Arb, name: entityNameArb }), { minLength: 1, maxLength: 10 }),
+        fc.array(fc.record({ id: uuidV4Arb, name: entityNameArb }), {
+          minLength: 1,
+          maxLength: 10,
+        }),
         ({ tenantA, tenantB }, records) => {
           reportEngine.clear();
 

@@ -5,6 +5,7 @@ namespace: proctira-staging
 
 resources:
   - ../../base
+  - external-secret.yaml
 
 namePrefix: staging-
 

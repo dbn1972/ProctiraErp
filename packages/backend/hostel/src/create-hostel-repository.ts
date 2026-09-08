@@ -1,6 +1,8 @@
 /**
  * Hostel repository factory — Postgres when DATABASE_URL is set, else in-memory.
  */
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
+
 import type { HostelRepository } from './hostel-repository.js';
 import { InMemoryHostelRepository } from './in-memory-repository.js';
 import { getSharedHostelPool, PgHostelRepository } from './pg-hostel-repository.js';
@@ -15,5 +17,6 @@ export function createHostelRepository(): HostelRepository {
     const pool = getSharedHostelPool();
     if (pool) return new PgHostelRepository(pool);
   }
+  assertInMemoryFallbackAllowed('hostel');
   return new InMemoryHostelRepository();
 }

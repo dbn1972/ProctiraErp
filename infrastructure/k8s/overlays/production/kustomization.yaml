@@ -5,6 +5,7 @@ namespace: proctira
 
 resources:
   - ../../base
+  - external-secret.yaml
   - network-policy.yaml
   - pod-disruption-budget.yaml
 

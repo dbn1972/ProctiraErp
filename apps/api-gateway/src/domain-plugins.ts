@@ -83,6 +83,7 @@ import { createTransportRepository, transportPlugin } from '@proctira/backend-tr
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
+import { shouldSeedDemoData } from './demo-seed-policy.js';
 import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
@@ -107,10 +108,12 @@ interface DomainRegistrar {
 const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   {
     name: 'student',
-    proxyPrefixes: ['/students'],
+    proxyPrefixes: ['/students', '/enrollments'],
     register: async (scope) => {
       // Prisma (+ optional Redis cache) when DATABASE_URL is set, else in-memory.
       // Reads RLS-safely via withTenantTransaction using the request's tenantId.
+      // G-701: studentPlugin also mounts /enrollments and /students/import
+      // (Pg enrollment repository on db/sql/001 + 021 when DATABASE_URL set).
       const repository = createStudentRepository();
       await scope.register(studentPlugin, { repository, prefix: '/students' });
     },
@@ -215,7 +218,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // Pg when DATABASE_URL (db/sql/016_scholarships_schema.sql); else in-memory.
       const repository = createScholarshipRepository();
-      await seedScholarshipDemoData(repository);
+      // G-705: demo rows only when explicitly requested or in dev/test without
+      // a database; never seed into a production Postgres.
+      if (shouldSeedDemoData()) {
+        await seedScholarshipDemoData(repository);
+      }
       await scope.register(scholarshipPlugin, {
         repository,
         prefix: '/scholarships',
@@ -231,7 +238,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // UI aggregates merge seed + live counselling writes for list sync.
       const repository = createHealthRepository();
       await scope.register(healthUiPlugin, {
-        seed: createHealthUiSeed(),
+        // G-705: production serves only live repository rows; the demo seed is
+        // limited to dev/test or explicit SEED_DEMO_DATA=1.
+        seed: shouldSeedDemoData()
+          ? createHealthUiSeed()
+          : { records: [], specialNeeds: [], counselling: [], screenings: [] },
         repository,
       });
       await scope.register(healthPlugin, {

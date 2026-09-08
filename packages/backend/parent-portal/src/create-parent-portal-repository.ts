@@ -1,6 +1,8 @@
 /**
  * Parent portal repository factory — Postgres when DATABASE_URL is set, else in-memory.
  */
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
+
 import { InMemoryParentPortalRepository } from './in-memory-repository.js';
 import type { ParentPortalRepository } from './parent-portal-repository.js';
 import {
@@ -18,5 +20,6 @@ export function createParentPortalRepository(): ParentPortalRepository {
     const pool = getSharedParentPortalPool();
     if (pool) return new PgParentPortalRepository(pool);
   }
+  assertInMemoryFallbackAllowed('parent-portal');
   return new InMemoryParentPortalRepository();
 }

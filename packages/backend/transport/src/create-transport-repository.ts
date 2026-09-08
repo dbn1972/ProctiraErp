@@ -1,6 +1,8 @@
 /**
  * Transport repository factory — Postgres when DATABASE_URL is set, else in-memory.
  */
+import { assertInMemoryFallbackAllowed } from '@proctira/database';
+
 import { InMemoryTransportRepository } from './in-memory-repository.js';
 import { getSharedTransportPool, PgTransportRepository } from './pg-transport-repository.js';
 import type { TransportRepository } from './transport-repository.js';
@@ -15,5 +17,6 @@ export function createTransportRepository(): TransportRepository {
     const pool = getSharedTransportPool();
     if (pool) return new PgTransportRepository(pool);
   }
+  assertInMemoryFallbackAllowed('transport');
   return new InMemoryTransportRepository();
 }

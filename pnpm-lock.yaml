@@ -1098,6 +1098,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
@@ -1424,6 +1427,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/logging':
         specifier: workspace:*
         version: link:../../shared/logging
@@ -1522,6 +1528,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
@@ -1660,6 +1669,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
@@ -1752,6 +1764,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
@@ -2101,6 +2116,9 @@ importers:
       fastify-plugin:
         specifier: ^4.5.0
         version: 4.5.1
+      pg:
+        specifier: ^8.21.0
+        version: 8.21.0
       uuid:
         specifier: ^9.0.0
         version: 9.0.1
@@ -2108,6 +2126,9 @@ importers:
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.20.0
       '@types/uuid':
         specifier: ^9.0.8
         version: 9.0.8
@@ -2252,6 +2273,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/logging':
         specifier: workspace:*
         version: link:../../shared/logging

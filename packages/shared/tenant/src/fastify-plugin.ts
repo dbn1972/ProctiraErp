@@ -37,9 +37,11 @@ export interface TenantPluginOptions extends TenantResolutionOptions {
    * Custom function to get a database client for setting the session variable.
    * If not provided, the plugin will look for `fastify.prisma` or `request.server.prisma`.
    */
-  getDbClient?: (request: FastifyRequest) => {
-    $executeRawUnsafe: (query: string) => Promise<unknown>;
-  } | undefined;
+  getDbClient?: (request: FastifyRequest) =>
+    | {
+        $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
+      }
+    | undefined;
 
   /**
    * Whether to look up the tenant slug in the database to resolve to a UUID.
@@ -73,7 +75,7 @@ declare module 'fastify' {
 
   interface FastifyInstance {
     prisma?: {
-      $executeRawUnsafe: (query: string) => Promise<unknown>;
+      $executeRawUnsafe: (query: string, ...values: unknown[]) => Promise<unknown>;
       tenant?: {
         findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
       };
@@ -86,10 +88,7 @@ declare module 'fastify' {
  * the PostgreSQL session variable for Row-Level Security enforcement.
  */
 export const tenantPlugin = fp(
-  async function tenantPluginImpl(
-    fastify: FastifyInstance,
-    options: TenantPluginOptions,
-  ) {
+  async function tenantPluginImpl(fastify: FastifyInstance, options: TenantPluginOptions) {
     const {
       excludePaths = ['/health', '/healthz', '/ready', '/metrics'],
       getDbClient,
@@ -107,10 +106,7 @@ export const tenantPlugin = fp(
 
     fastify.addHook(
       'onRequest',
-      async function tenantResolutionHook(
-        request: FastifyRequest,
-        reply: FastifyReply,
-      ) {
+      async function tenantResolutionHook(request: FastifyRequest, reply: FastifyReply) {
         // Skip excluded paths
         if (isExcludedPath(request.url, excludePaths)) {
           return;
@@ -124,13 +120,15 @@ export const tenantPlugin = fp(
           if (resolution.source === 'subdomain' && resolveSlugToId) {
             const db = getDbClient?.(request) ?? fastify.prisma;
             if (db && 'tenant' in db && db.tenant) {
-              const tenant = await (db.tenant as { findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null> }).findUnique({
+              const tenant = await (
+                db.tenant as {
+                  findUnique: (args: { where: { slug: string } }) => Promise<{ id: string } | null>;
+                }
+              ).findUnique({
                 where: { slug: tenantId },
               });
               if (!tenant) {
-                throw new TenantResolutionError(
-                  `Tenant not found for subdomain: ${tenantId}`,
-                );
+                throw new TenantResolutionError(`Tenant not found for subdomain: ${tenantId}`);
               }
               tenantId = tenant.id;
             }
@@ -142,9 +140,12 @@ export const tenantPlugin = fp(
 
           // Set PostgreSQL session variable for RLS
           const db = getDbClient?.(request) ?? fastify.prisma;
+          // G-720: bind the tenant id as a parameter (never string-interpolate
+          // into SQL). Both GUC names are set so Prisma and raw-pg RLS agree.
           if (db) {
             await db.$executeRawUnsafe(
-              `SELECT set_config('app.current_tenant_id', '${tenantId}', true)`,
+              `SELECT set_config('app.current_tenant_id', $1, true), set_config('app.tenant_id', $1, true)`,
+              tenantId,
             );
           }
 
@@ -154,10 +155,7 @@ export const tenantPlugin = fp(
           );
         } catch (error) {
           if (error instanceof TenantResolutionError) {
-            logger.warn(
-              { path: request.url, error: error.message },
-              'Tenant resolution failed',
-            );
+            logger.warn({ path: request.url, error: error.message }, 'Tenant resolution failed');
             return reply.status(error.statusCode).send({
               code: error.code,
               message: error.message,

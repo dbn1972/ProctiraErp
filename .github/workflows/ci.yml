@@ -507,6 +507,8 @@ jobs:
         run: bash tools/scripts/apply-sql.sh
         env:
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+          # G-705: demo seed files are opt-in; CI wants them, production never sets this.
+          APPLY_SEEDS: '1'
 
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
