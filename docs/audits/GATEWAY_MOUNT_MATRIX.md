@@ -7,11 +7,11 @@
 
 Documents which `packages/backend/*` plugins are live on the api-gateway under `/api/v1`, how they persist, and whether fine-grained RBAC (`rbacPlugin`) is wired.
 
-**RBAC note:** As of this audit, `rbacPlugin` is **not** registered in `apps/api-gateway` (gap G-101). Mounted domains enforce JWT presence only.
+**RBAC note:** `rbacPlugin` is registered in `apps/api-gateway` (G-101). Mutating `/api/v1` routes are gated; G-105 records audit rows; G-106 suspends mutating access for suspended tenants.
 
 **Auth note:** `@proctira/backend-auth` is mounted in `app.ts`, not via `DOMAIN_REGISTRARS`.
 
-**Fees:** There is no `packages/backend/fees` package yet (gap G-201); parent-portal reads fees SQL when present.
+**Audit / billing / tenant:** Mounted in `app.ts` (G-105/G-106) — audit at `/audit-logs`, billing at `/billing`, tenant lifecycle at `/tenant-lifecycle` (platform-admin UI still owns `/tenants` and stub `/audit`).
 
 ## Mounted
 
@@ -34,9 +34,12 @@ Documents which `packages/backend/*` plugins are live on the api-gateway under `
 | `backend/library` | Yes | `/library` | Raw pg `009` (else in-memory) | No | |
 | `backend/parent-portal` | Yes | `/parent-portal` | Raw pg `010` (else in-memory) | No | |
 | `backend/registration` | Yes | `/registrations` | Raw pg `014` (else in-memory) | No | G-205. |
-| `backend/auth` | Yes | `/auth` | In-memory identity/session stores | No | Mounted in `app.ts` (not `DOMAIN_REGISTRARS`). `rbacPlugin` exported but unused. |
+| `backend/auth` | Yes | `/auth` | In-memory identity/session stores | Yes | Mounted in `app.ts` (not `DOMAIN_REGISTRARS`). |
+| `backend/audit` | Yes | `/audit-logs` | In-memory | Yes | Mounted in `app.ts` (G-105); mutating onResponse trail. |
+| `backend/billing` | Yes | `/billing` | In-memory | No | Mounted in `app.ts` (G-106). |
+| `backend/tenant` | Yes | `/tenant-lifecycle` | In-memory | No | Mounted in `app.ts` (G-106); UI stub still owns `/tenants`. |
 | `(gateway) insights-ui` | Yes | `/reports`, `/data-warehouse` | UI seed / in-process aggregates | No | Registrar `insights`. Real `report` / `data-warehouse` packages unmounted (G-209). |
-| `(gateway) platform-admin-ui` | Yes | `/tenants`, `/plugins`, `/break-glass`, `/plans`, `/themes`, `/platform`, `/audit` | UI seed / stubs | No | Registrar `platform-admin` (G-104). |
+| `(gateway) platform-admin-ui` | Yes | `/tenants`, `/plugins`, `/break-glass`, `/plans`, `/themes`, `/platform`, `/audit` | UI seed / stubs | Yes | Registrar `platform-admin` (G-104). |
 | `(gateway) workflow-ui` | Yes | `/workflows` | UI seed | No | Registrar `workflow`. Real `backend/workflow` unmounted (G-208). |
 
 ## Unmounted
@@ -44,8 +47,6 @@ Documents which `packages/backend/*` plugins are live on the api-gateway under `
 | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | Notes |
 | --- | --- | --- | --- | --- | --- |
 | `backend/admin-dashboard` | No | `/admin/scalability` | n/a | No | Plugin not registered. |
-| `backend/audit` | No | `/audit` | n/a | No | `/audit` owned by platform-admin UI stub (G-105). |
-| `backend/billing` | No | `/billing` | n/a | No | G-106. |
 | `backend/custom-field` | No | `/custom-fields` | n/a | No | G-605. |
 | `backend/dashboards` | No | `/dashboards` | n/a | No | G-605. |
 | `backend/data-warehouse` | No | `/warehouses` | n/a | No | Insights UI owns `/data-warehouse` (G-209). |
@@ -53,10 +54,9 @@ Documents which `packages/backend/*` plugins are live on the api-gateway under `
 | `backend/etl` | No | `/pipelines` | n/a | No | G-209. |
 | `backend/install` | No | `/install` | n/a | No | Portal/demo scoped. |
 | `backend/plugin` | No | `/plugins` | n/a | No | `/plugins` owned by platform-admin UI stub. |
-| `backend/policy` | No | `/policies` | n/a | No | G-106. |
+| `backend/policy` | No | `/policies` | n/a | No | Residual beyond G-106 suspend gate. |
 | `backend/report` | No | `/reports` | n/a | No | Insights UI owns `/reports` (G-209). |
 | `backend/survey` | No | `/surveys` | n/a | No | G-605. |
-| `backend/tenant` | No | `/tenants` | n/a | No | Lifecycle plugin unmounted; UI stub owns `/tenants`. Shared `@proctira/tenant` still resolves JWT tenant. |
 | `backend/theme` | No | `/themes` | n/a | No | G-605; UI stub owns `/themes`. |
 | `backend/workflow` | No | `/workflows` | n/a | No | Real plugin unmounted; `workflow-ui` seed is live (G-208). |
 
@@ -83,6 +83,7 @@ Documents which `packages/backend/*` plugins are live on the api-gateway under `
 | `hostel` | `backend/hostel` |
 | `library` | `backend/library` |
 | `parent-portal` | `backend/parent-portal` |
+| `fees` | `backend/fees` |
 | `registration` | `backend/registration` |
 
 ## Maintenance

@@ -170,12 +170,18 @@ importers:
       '@proctira/backend-auth':
         specifier: workspace:*
         version: link:../../packages/backend/auth
+      '@proctira/backend-billing':
+        specifier: workspace:*
+        version: link:../../packages/backend/billing
       '@proctira/backend-communication':
         specifier: workspace:*
         version: link:../../packages/backend/communication
       '@proctira/backend-examination':
         specifier: workspace:*
         version: link:../../packages/backend/examination
+      '@proctira/backend-fees':
+        specifier: workspace:*
+        version: link:../../packages/backend/fees
       '@proctira/backend-gradebook':
         specifier: workspace:*
         version: link:../../packages/backend/gradebook
@@ -209,6 +215,9 @@ importers:
       '@proctira/backend-student':
         specifier: workspace:*
         version: link:../../packages/backend/student
+      '@proctira/backend-tenant':
+        specifier: workspace:*
+        version: link:../../packages/backend/tenant
       '@proctira/backend-timetable':
         specifier: workspace:*
         version: link:../../packages/backend/timetable
@@ -1324,6 +1333,61 @@ importers:
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
+      '@types/uuid':
+        specifier: ^9.0.8
+        version: 9.0.8
+      fast-check:
+        specifier: ^3.17.0
+        version: 3.23.2
+      fastify:
+        specifier: ^4.26.0
+        version: 4.29.1
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@20.19.41)(jsdom@24.1.3)
+
+  packages/backend/fees:
+    dependencies:
+      '@prisma/client':
+        specifier: ^5.22.0
+        version: 5.22.0(prisma@5.22.0)
+      '@proctira/cache':
+        specifier: workspace:*
+        version: link:../../shared/cache
+      '@proctira/common':
+        specifier: workspace:*
+        version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
+      '@proctira/logging':
+        specifier: workspace:*
+        version: link:../../shared/logging
+      '@proctira/validation':
+        specifier: workspace:*
+        version: link:../../shared/validation
+      '@sinclair/typebox':
+        specifier: ^0.32.0
+        version: 0.32.35
+      fastify-plugin:
+        specifier: ^4.5.0
+        version: 4.5.1
+      pg:
+        specifier: ^8.21.0
+        version: 8.21.0
+      uuid:
+        specifier: ^9.0.0
+        version: 9.0.1
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.0
+        version: 20.19.41
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
       '@types/uuid':
         specifier: ^9.0.8
         version: 9.0.8

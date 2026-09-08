@@ -17,8 +17,8 @@
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
  *  - transport: raw SQL + `pg` when DATABASE_URL is set
  *    (db/sql/006_transport_schema.sql); else in-memory.
- *  - communication / hostel / library / parent-portal: raw SQL + `pg` when DATABASE_URL is set
- *    (db/sql/007–010_*.sql); else in-memory.
+ *  - communication / hostel / library / parent-portal / fees: raw SQL + `pg` when DATABASE_URL is set
+ *    (db/sql/007–011_*.sql); else in-memory.
  *  - scholarships: raw SQL + `pg` when DATABASE_URL is set (db/sql/016_scholarships_schema.sql);
  *    else in-memory (+ demo seed).
  *  - registration / admissions: raw SQL + `pg` when DATABASE_URL is set
@@ -58,6 +58,7 @@ import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
+import { createFeesRepository, feesPlugin } from '@proctira/backend-fees';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import { createRegistrationRepository, registrationPlugin } from '@proctira/backend-registration';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
@@ -334,6 +335,19 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(parentPortalPlugin, {
         repository,
         prefix: '/parent-portal',
+      });
+    },
+  },
+  {
+    name: 'fees',
+    proxyPrefixes: ['/fees'],
+    register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/010 + 011_fees_finance_schema.sql); else in-memory.
+      // Sandbox PaymentAdapter only — live PSP waived (G-202).
+      const repository = createFeesRepository();
+      await scope.register(feesPlugin, {
+        repository,
+        prefix: '/fees',
       });
     },
   },

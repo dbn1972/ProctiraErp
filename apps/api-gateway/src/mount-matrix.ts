@@ -6,8 +6,8 @@
  *   - `DOMAIN_REGISTRAR_NAMES` in `domain-plugins.ts`
  *   - `docs/audits/GATEWAY_MOUNT_MATRIX.md`
  *
- * RBAC: `rbacPlugin` is not registered on the gateway (see G-101). Domains
- * rely on JWT presence only unless noted otherwise.
+ * RBAC: `rbacPlugin` is registered on the gateway (G-101). Mutating routes are
+ * gated; see also G-105 audit trail and G-106 suspend gate in `app.ts`.
  */
 
 export type PersistenceKind =
@@ -43,9 +43,12 @@ export interface MountMatrixEntry {
 export const EXPECTED_MOUNTED: readonly string[] = [
   'assessment',
   'attendance',
+  'audit',
   'auth',
+  'billing',
   'communication',
   'examination',
+  'fees',
   'gradebook',
   'health',
   'hostel',
@@ -57,6 +60,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'scholarship',
   'staff',
   'student',
+  'tenant',
   'timetable',
   'transport',
 ] as const;
@@ -67,8 +71,6 @@ export const EXPECTED_MOUNTED: readonly string[] = [
  */
 export const EXPECTED_UNMOUNTED: readonly string[] = [
   'admin-dashboard',
-  'audit',
-  'billing',
   'custom-field',
   'dashboards',
   'data-warehouse',
@@ -79,7 +81,6 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
   'policy',
   'report',
   'survey',
-  'tenant',
   'theme',
   'workflow',
 ] as const;
@@ -258,9 +259,36 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     mounted: true,
     prefixes: ['/auth'],
     persistence: 'in-memory',
+    rbacWired: true,
+    notes:
+      'Registered directly in `app.ts` (not DOMAIN_REGISTRARS). JWT + sessions; `rbacPlugin` registered (G-101).',
+  },
+  {
+    package: 'audit',
+    mounted: true,
+    prefixes: ['/audit-logs'],
+    persistence: 'in-memory',
+    rbacWired: true,
+    notes:
+      'auditPlugin + mutating onResponse trail in `app.ts` (G-105). Prefix `/audit-logs` avoids clash with platform-admin GET `/audit` stub.',
+  },
+  {
+    package: 'billing',
+    mounted: true,
+    prefixes: ['/billing'],
+    persistence: 'in-memory',
     rbacWired: false,
     notes:
-      'Registered directly in `app.ts` (not DOMAIN_REGISTRARS). JWT + sessions; `rbacPlugin` exported but not registered (G-101).',
+      'billingPlugin mounted in `app.ts` (G-106). Suspend gate also checks JWT/in-memory store.',
+  },
+  {
+    package: 'tenant',
+    mounted: true,
+    prefixes: ['/tenant-lifecycle'],
+    persistence: 'in-memory',
+    rbacWired: false,
+    notes:
+      'tenantLifecyclePlugin at `/tenant-lifecycle` (G-106); platform-admin UI still owns `/tenants`. Suspend gate wired on mutating routes.',
   },
 
   // —— Gateway UI-only registrars (no packages/backend package) ——
@@ -287,9 +315,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
       '/audit',
     ],
     persistence: 'ui-seed',
-    rbacWired: false,
+    rbacWired: true,
     notes:
-      'platformAdminUiPlugin stub/scaffold APIs; real tenant/plugin/theme/audit packages unmounted (G-104).',
+      'platformAdminUiPlugin stub/scaffold APIs; real audit/billing/tenant lifecycle mounted separately in app.ts (G-104/G-105/G-106).',
     registrarName: 'platform-admin',
   },
   {
@@ -311,22 +339,6 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'n/a',
     rbacWired: false,
     notes: 'Plugin exists; not registered on gateway.',
-  },
-  {
-    package: 'audit',
-    mounted: false,
-    prefixes: ['/audit'],
-    persistence: 'n/a',
-    rbacWired: false,
-    notes: 'Unmounted; `/audit` served by platform-admin UI stub instead (G-105).',
-  },
-  {
-    package: 'billing',
-    mounted: false,
-    prefixes: ['/billing'],
-    persistence: 'n/a',
-    rbacWired: false,
-    notes: 'Unmounted (G-106).',
   },
   {
     package: 'custom-field',
@@ -359,6 +371,15 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'n/a',
     rbacWired: false,
     notes: 'Unmounted; Other Portals use honesty-demo paths.',
+  },
+  {
+    package: 'fees',
+    mounted: true,
+    prefixes: ['/fees'],
+    persistence: 'raw-pg',
+    rbacWired: false,
+    notes: 'feesPlugin (G-201); raw pg 011 when DATABASE_URL set.',
+    registrarName: 'fees',
   },
   {
     package: 'etl',
@@ -407,15 +428,6 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'n/a',
     rbacWired: false,
     notes: 'Unmounted (G-605).',
-  },
-  {
-    package: 'tenant',
-    mounted: false,
-    prefixes: ['/tenants'],
-    persistence: 'n/a',
-    rbacWired: false,
-    notes:
-      'tenantLifecyclePlugin unmounted; `/tenants` served by platform-admin UI (G-106). Shared `@proctira/tenant` package still resolves JWT tenant on the gateway.',
   },
   {
     package: 'theme',

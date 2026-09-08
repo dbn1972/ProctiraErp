@@ -217,4 +217,27 @@ describe('G-106 suspended-tenant entitlement gate', () => {
     expect(response.json()?.code).not.toBe('TENANT_SUSPENDED');
     expect(response.statusCode).not.toBe(401);
   });
+
+  it('returns 403 when JWT tenantStatus claim is suspended', async () => {
+    const token = app.jwt.sign(
+      createTestJwtPayload({
+        tenantId: ACTIVE_TENANT,
+        tenantStatus: 'suspended',
+      }),
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/students',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'x-tenant-id': ACTIVE_TENANT,
+        'content-type': 'application/json',
+      },
+      payload: { firstName: 'Blocked' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json().code).toBe('TENANT_SUSPENDED');
+  });
 });

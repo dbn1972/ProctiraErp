@@ -27,6 +27,14 @@ import {
   auditPlugin,
   InMemoryAuditRepository,
 } from '@proctira/backend-audit';
+import {
+  billingPlugin,
+  InMemoryBillingRepository,
+} from '@proctira/backend-billing';
+import {
+  InMemoryTenantRepository,
+  tenantLifecyclePlugin,
+} from '@proctira/backend-tenant';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -34,6 +42,13 @@ import Fastify, { type FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
+import {
+  buildAuditValues,
+  entityIdFromPath,
+  entityTypeForPath,
+  operationForMethod,
+  shouldAuditMutation,
+} from './mutation-audit.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
@@ -45,7 +60,7 @@ import {
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
 } from './rbac-registry.js';
-import { isTenantSuspended } from './tenant-entitlement.js';
+import { isRequestTenantSuspended } from './tenant-entitlement.js';
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -349,8 +364,9 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     if (!url.startsWith('/api/v1/')) return;
     if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
 
-    const tenantId = request.tenantId;
-    if (tenantId && isTenantSuspended(tenantId)) {
+    const tenantId = request.tenantId ?? request.user?.tenantId;
+    const userClaim = request.user as { tenantStatus?: string } | undefined;
+    if (isRequestTenantSuspended(tenantId, userClaim)) {
       return reply.status(403).send({
         code: 'TENANT_SUSPENDED',
         message: 'Tenant is suspended; mutating requests are not allowed',
@@ -400,41 +416,52 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   });
 
   // 8d. Mount audit trail (G-105) — in-memory by default; swap for Postgres in prod.
+  // Prefix avoids clash with platform-admin UI stub at GET /api/v1/audit.
   const auditRepository = new InMemoryAuditRepository();
   await app.register(auditPlugin, {
     repository: auditRepository,
     prefix: '/api/v1/audit-logs',
   });
 
+  // 8e. Mount billing + tenant lifecycle (G-106). Tenant routes use a non-clashing
+  // prefix because platform-admin UI owns `/api/v1/tenants`.
+  await app.register(billingPlugin, {
+    repository: new InMemoryBillingRepository(),
+    prefix: '/api/v1/billing',
+  });
+  await app.register(tenantLifecyclePlugin, {
+    repository: new InMemoryTenantRepository(),
+    prefix: '/api/v1/tenant-lifecycle',
+    branding: { disabled: true },
+  });
+
   // Record mutating API calls (best-effort; never fail the request).
   app.addHook('onResponse', async (request, reply) => {
-    const method = request.method.toUpperCase();
-    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return;
-    const url = request.url.split('?')[0]!;
-    if (!url.startsWith('/api/v1/')) return;
-    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
-    if (url.startsWith('/api/v1/audit-logs')) return;
-    if (reply.statusCode >= 400) return;
+    if (!shouldAuditMutation(request.method, request.url)) return;
+    // Skip unauthenticated / forbidden — still record validation failures (4xx)
+    // so mutating attempts that passed RBAC leave an audit trail.
+    if (reply.statusCode === 401 || reply.statusCode === 403) return;
+    if (reply.statusCode >= 500) return;
 
     const user = request.user;
     if (!user) return;
 
-    const operation =
-      method === 'POST' ? 'CREATE' : method === 'DELETE' ? 'DELETE' : 'UPDATE';
-    const parts = url.replace(/^\/api\/v1\//, '').split('/').filter(Boolean);
-    const entityType = parts[0] ?? 'unknown';
-    const entityId = parts[1] ?? 'collection';
+    const path = request.url.split('?')[0]!;
+    const operation = operationForMethod(request.method);
+    const { beforeValues, afterValues } = buildAuditValues(operation, request);
 
     try {
       await app.auditService.recordAudit({
         tenantId: user.tenantId,
-        entityType,
-        entityId,
+        entityType: entityTypeForPath(path),
+        entityId: entityIdFromPath(path),
         operation,
         userId: user.sub,
         userName: user.displayName ?? user.email ?? user.sub,
         ipAddress: request.ip,
-        metadata: { method, path: url, statusCode: reply.statusCode },
+        beforeValues,
+        afterValues,
+        metadata: { method: request.method, path, statusCode: reply.statusCode },
       });
     } catch {
       // Audit must not break the primary request path.

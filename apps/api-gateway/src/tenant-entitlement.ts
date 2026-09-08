@@ -2,8 +2,9 @@
  * G-106 — Tenant lifecycle / entitlement gate.
  *
  * Tracks suspended tenant IDs in-memory (bootstrap via TENANT_SUSPENDED_IDS).
+ * Also honors JWT `tenantStatus === 'suspended'` when present.
  * Mutating /api/v1 routes (except /auth) return 403 TENANT_SUSPENDED when the
- * resolved request.tenantId is in the set.
+ * resolved request.tenantId is suspended.
  */
 
 const suspendedTenantIds = new Set<string>();
@@ -21,6 +22,18 @@ bootstrapFromEnv();
 
 export function isTenantSuspended(tenantId: string): boolean {
   return suspendedTenantIds.has(tenantId);
+}
+
+/**
+ * Resolve suspension from in-memory store and/or JWT claim.
+ */
+export function isRequestTenantSuspended(
+  tenantId: string | undefined,
+  user?: { tenantStatus?: string } | null,
+): boolean {
+  if (user?.tenantStatus === 'suspended') return true;
+  if (tenantId && isTenantSuspended(tenantId)) return true;
+  return false;
 }
 
 /** Test helper: mark a tenant as suspended. */
