@@ -42,12 +42,21 @@ tests skip. **Ungated inventory smokes** (`15-…`, `16-…`) always run and ass
 unauthenticated redirects to `/login`. Verify the suite parses with
 `pnpm --filter @proctira/web exec playwright test --list`.
 
+**CI (G-401):** `.github/workflows/e2e-backend-ready.yml` (nightly +
+`workflow_dispatch`) runs Postgres/Redis → Prisma migrate → `apply-sql.sh` →
+`tools/scripts/run-e2e-backend-ready.sh` (api-gateway + a small HS256 write
+smoke). Seeded-password / IdP login journeys are still residual.
+
 ```bash
 # From the repo root
 pnpm --filter @proctira/web exec playwright install --with-deps chromium
 
 # Headless run against a locally running backend + web app
 E2E_BACKEND_READY=1 pnpm --filter @proctira/web test:e2e
+
+# G-401 harness (starts api-gateway; Playwright starts web unless PLAYWRIGHT_BASE_URL set)
+DATABASE_URL=postgresql://... JWT_SECRET=dev-secret-change-in-production \
+  bash tools/scripts/run-e2e-backend-ready.sh
 
 # Interactive UI mode for debugging
 E2E_BACKEND_READY=1 pnpm --filter @proctira/web test:e2e:ui

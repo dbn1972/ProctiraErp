@@ -18,6 +18,14 @@ Runs on every push and PR to `main`/`develop` branches.
 5. **Build** — Production build (affected packages only)
 6. **Integration Tests** — Tests requiring PostgreSQL/Redis (backend changes only)
 
+### `e2e-backend-ready.yml` — G-401 nightly / manual write-smoke
+
+Triggers on `workflow_dispatch` and a nightly cron. Spins Postgres + Redis,
+runs Prisma migrate + `tools/scripts/apply-sql.sh`, then
+`tools/scripts/run-e2e-backend-ready.sh` (api-gateway + small
+`E2E_BACKEND_READY=1` Playwright subset). No live IdP secrets; seeded-login
+journeys remain residual until admin seed lands.
+
 ### `release.yml` — Release (Container Image Build & Push)
 
 Gated on successful completion of the `CI` workflow. Builds and pushes container images for affected services to the configured OCI registry (GHCR by default).

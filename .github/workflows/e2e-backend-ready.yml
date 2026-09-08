@@ -1,0 +1,152 @@
+# =============================================================================
+# G-401 — E2E backend-ready (nightly + manual)
+# =============================================================================
+# Spins Postgres + Redis, applies Prisma migrations + db/sql domain schemas,
+# then invokes tools/scripts/run-e2e-backend-ready.sh which starts api-gateway
+# and runs a SMALL Playwright write-smoke subset with E2E_BACKEND_READY=1.
+#
+# Honest scope (no live IdP / Keycloak secrets):
+#   - migrate + apply-sql always run (hard fail)
+#   - gateway + HS256 cookie write smokes run when the stack comes up
+#   - loginAsTenantAdmin journeys (seeded admins) are NOT claimed here yet
+#   - if gateway health fails and E2E_REQUIRE_LIVE != 1, the harness prints a
+#     skip summary and exits 0 (scaffolding). Set E2E_REQUIRE_LIVE=1 via
+#     workflow_dispatch input to fail hard.
+# =============================================================================
+
+name: E2E Backend Ready
+
+on:
+  workflow_dispatch:
+    inputs:
+      require_live:
+        description: 'Fail if api-gateway does not become healthy (E2E_REQUIRE_LIVE=1)'
+        required: false
+        type: boolean
+        default: false
+      skip_stack:
+        description: 'Scaffolding only — migrate/SQL then skip gateway + Playwright'
+        required: false
+        type: boolean
+        default: false
+      specs:
+        description: 'Playwright specs relative to apps/web (space-separated)'
+        required: false
+        type: string
+        default: 'e2e/17b-health-counselling-write-smoke.spec.ts'
+  schedule:
+    # Nightly 04:15 UTC — keeps a standing signal without blocking every PR.
+    - cron: '15 4 * * *'
+
+concurrency:
+  group: e2e-backend-ready-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.33.2'
+  DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+  REDIS_URL: redis://localhost:6379
+  JWT_SECRET: dev-secret-change-in-production
+  E2E_GATEWAY_URL: http://127.0.0.1:3000
+  NEXT_PUBLIC_GATEWAY_URL: http://127.0.0.1:3000
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-backend-ready:
+    name: E2E backend-ready (G-401)
+    runs-on: ubuntu-latest
+    # Hard-fail Playwright when it actually runs (no continue-on-error).
+    # Scaffolding skip path exits 0 from the harness with a clear summary.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: proctira
+          POSTGRES_PASSWORD: proctira_test
+          POSTGRES_DB: proctira_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enable Postgres uuid-ossp extension
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+
+      - name: Run database migrations (Prisma)
+        run: pnpm --filter @proctira/database run prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Apply domain SQL schemas (G-002)
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+      - name: Install Playwright Chromium
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.skip_stack != true }}
+        run: pnpm --filter @proctira/web exec playwright install --with-deps chromium
+
+      - name: Run backend-ready E2E harness (G-401)
+        # continue-on-error: false — job fails if Playwright fails after gateway is up.
+        run: |
+          ARGS=()
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.skip_stack }}" == "true" ]]; then
+            ARGS+=(--skip-stack)
+          fi
+          bash tools/scripts/run-e2e-backend-ready.sh "${ARGS[@]}"
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+          REDIS_URL: ${{ env.REDIS_URL }}
+          JWT_SECRET: ${{ env.JWT_SECRET }}
+          E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
+          NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
+          E2E_SPECS: ${{ github.event.inputs.specs || 'e2e/17b-health-counselling-write-smoke.spec.ts' }}
+          E2E_REQUIRE_LIVE: ${{ inputs.require_live == true && '1' || '0' }}
+          CI: true
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-backend-ready-report
+          path: |
+            apps/web/playwright-report/
+            apps/web/test-results/
+            .e2e-gateway.log
+          retention-days: 14
+          if-no-files-found: ignore

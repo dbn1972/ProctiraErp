@@ -121,6 +121,8 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     await runAxe(page, { checkpointLabel: '/students' });
   });
 
+  // G-402: keep Health + Scholarships on the authenticated axe matrix so the
+  // G-401 backend-ready job (E2E_BACKEND_READY=1) covers those module routes.
   for (const path of [
     '/reports',
     '/data-warehouse',

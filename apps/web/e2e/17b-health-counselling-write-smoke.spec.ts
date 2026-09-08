@@ -1,48 +1,31 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { setupFakeTenantSession, setupGatewayTenantSession } from './fixtures/fake-session';
+
 /**
  * Health counselling — ungated write-validation smoke.
  * Asserts client UUID/date/required validation before any API call.
+ *
+ * Live create (E2E_BACKEND_READY) uses HS256 cookies so api-gateway jwtVerify
+ * accepts writes without seeded password login / IdP secrets (G-401).
  */
 
-function createFakeJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
-  return `${header}.${body}.sig`;
-}
-
 async function setupHealthSession(page: Page): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const token = createFakeJwt({
+  await setupFakeTenantSession(page, {
     sub: 'health-e2e-user',
     email: 'nurse@tenant-a.test',
     displayName: 'Health E2E',
     tenantId: '00000000-0000-4000-8000-0000000000aa',
-    roles: [{ roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null }],
-    iat: now,
-    exp: now + 60 * 60 * 8,
   });
+}
 
-  await page.context().addCookies([
-    {
-      name: 'access_token',
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-    {
-      name: 'refresh_token',
-      value: token,
-      domain: 'localhost',
-      path: '/',
-      httpOnly: true,
-      secure: false,
-      sameSite: 'Lax',
-    },
-  ]);
+async function setupHealthLiveSession(page: Page): Promise<void> {
+  await setupGatewayTenantSession(page, {
+    sub: 'health-e2e-user',
+    email: 'nurse@tenant-a.test',
+    displayName: 'Health E2E',
+    tenantId: '00000000-0000-4000-8000-0000000000aa',
+  });
 }
 
 test.describe('Health counselling — write validation (ungated)', () => {
@@ -82,7 +65,7 @@ test.describe('Health counselling — live create (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires live gateway + DATABASE_URL counselling store');
 
   test.beforeEach(async ({ page }) => {
-    await setupHealthSession(page);
+    await setupHealthLiveSession(page);
   });
 
   test('schedules a counselling session via live API', async ({ page }) => {

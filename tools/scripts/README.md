@@ -17,6 +17,8 @@ script is a single `.mjs` file with no compile step so it runs without
 | `pnpm dod:test`            | `definition-of-done-checks.test.mjs` | Unit tests for the DoD checks.                                                       |
 | (internal)                 | `gen-runbooks.mjs`                   | Generates runbook stubs from Charter sections.                                       |
 | (internal)                 | `validate-observability.mjs`         | Validates Grafana dashboards / Prometheus rules.                                     |
+| (CI / local)               | `apply-sql.sh`                       | Apply `db/sql/[0-9]*.sql` after Prisma migrate (G-002).                              |
+| (CI / local)               | `run-e2e-backend-ready.sh`           | G-401 harness: start api-gateway + `E2E_BACKEND_READY=1` Playwright write-smoke subset. |
 
 ## `check:brand-strings` (task 57.4 / Design M)
 
