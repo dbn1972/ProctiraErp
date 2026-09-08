@@ -2,6 +2,7 @@
  * Postgres-backed gradebook store (raw `pg` — no Prisma).
  * Aligns with db/sql/003_sis_timetable_schedule_schema.sql (+ 004 indexes).
  */
+import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type { GradeBand } from './gpa-engine.js';
@@ -27,7 +28,7 @@ import type {
 
 const { Pool } = pg;
 
-export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'>;
+export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
 let sharedPool: pg.Pool | null = null;
 
@@ -231,6 +232,13 @@ function mapBoardCode(row: Record<string, unknown>): BoardCodeEntity {
 export class PgGradebookRepository implements GradebookRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
+  /** G-710: every query runs with the tenant GUC bound so RLS applies. */
+  private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
+    return withPgTenant(this.pool, tenantId, (client) =>
+      client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    );
+  }
+
   listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter) {
     return withSchemaCheck(async () => {
       const clauses = ['tenant_id = $1'];
@@ -243,8 +251,7 @@ export class PgGradebookRepository implements GradebookRepository {
         params.push(filter.studentId);
         clauses.push(`student_id = $${params.length}`);
       }
-      const res = await this.pool.query(
-        `SELECT * FROM grade_entries WHERE ${clauses.join(' AND ')} ORDER BY entered_at DESC`,
+      const res = await this.query(tenantId, `SELECT * FROM grade_entries WHERE ${clauses.join(' AND ')} ORDER BY entered_at DESC`,
         params,
       );
       return (res.rows as Record<string, unknown>[]).map(mapEntry);
@@ -256,8 +263,7 @@ export class PgGradebookRepository implements GradebookRepository {
     keys: { studentId: string; sectionId?: string | null; assessmentCode?: string | null },
   ) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM grade_entries
+      const res = await this.query(tenantId, `SELECT * FROM grade_entries
          WHERE tenant_id = $1
            AND student_id = $2
            AND section_id IS NOT DISTINCT FROM $3
@@ -272,8 +278,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getGradeEntry(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM grade_entries WHERE tenant_id = $1 AND id = $2`,
+      const res = await this.query(tenantId, `SELECT * FROM grade_entries WHERE tenant_id = $1 AND id = $2`,
         [tenantId, id],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
@@ -283,8 +288,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   createGradeEntry(row: GradeEntryEntity) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `INSERT INTO grade_entries (
+      const res = await this.query(row.tenantId, `INSERT INTO grade_entries (
            id, tenant_id, section_id, student_id, assessment_code,
            numeric_score, letter_grade, entered_by, entered_at, locked_at,
            metadata, created_at, updated_at
@@ -316,8 +320,7 @@ export class PgGradebookRepository implements GradebookRepository {
       const cur = await this.getGradeEntry(tenantId, id);
       if (!cur) return null;
       const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId };
-      const res = await this.pool.query(
-        `UPDATE grade_entries SET
+      const res = await this.query(tenantId, `UPDATE grade_entries SET
            section_id = $3,
            assessment_code = $4,
            numeric_score = $5,
@@ -356,15 +359,14 @@ export class PgGradebookRepository implements GradebookRepository {
         sql += ` AND (board_id = $2 OR board_id IS NULL)`;
       }
       sql += ` ORDER BY code`;
-      const res = await this.pool.query(sql, params);
+      const res = await this.query(tenantId, sql, params);
       return (res.rows as Record<string, unknown>[]).map(mapCredit);
     });
   }
 
   getCreditRuleByCode(tenantId: string, code: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM credit_rules WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL`,
+      const res = await this.query(tenantId, `SELECT * FROM credit_rules WHERE tenant_id = $1 AND code = $2 AND deleted_at IS NULL`,
         [tenantId, code],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
@@ -374,8 +376,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   createCreditRule(row: CreditRuleEntity) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `INSERT INTO credit_rules (
+      const res = await this.query(row.tenantId, `INSERT INTO credit_rules (
            id, tenant_id, board_id, code, name, credits, metadata, created_at, updated_at
          ) VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9)
          RETURNING *`,
@@ -404,7 +405,7 @@ export class PgGradebookRepository implements GradebookRepository {
         sql += ` AND board_id = $2`;
       }
       sql += ` ORDER BY is_default DESC, code`;
-      const scalesRes = await this.pool.query(sql, params);
+      const scalesRes = await this.query(tenantId, sql, params);
       const scales: GradingScaleEntity[] = [];
       for (const raw of scalesRes.rows as Record<string, unknown>[]) {
         scales.push(await this.hydrateScale(raw));
@@ -415,8 +416,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getGradingScale(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM grading_scales WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      const res = await this.query(tenantId, `SELECT * FROM grading_scales WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
@@ -426,8 +426,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getDefaultGradingScale(tenantId: string, boardId: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM grading_scales
+      const res = await this.query(tenantId, `SELECT * FROM grading_scales
          WHERE tenant_id = $1 AND board_id = $2 AND deleted_at IS NULL
          ORDER BY is_default DESC, code
          LIMIT 1`,
@@ -439,8 +438,7 @@ export class PgGradebookRepository implements GradebookRepository {
   }
 
   private async hydrateScale(row: Record<string, unknown>): Promise<GradingScaleEntity> {
-    const bandsRes = await this.pool.query(
-      `SELECT label, min_percent, max_percent, grade_points, sort_order
+    const bandsRes = await this.query(String(row.tenant_id), `SELECT label, min_percent, max_percent, grade_points, sort_order
        FROM grading_scale_bands
        WHERE grading_scale_id = $1
        ORDER BY sort_order`,
@@ -468,8 +466,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   createGpaSnapshot(row: GpaSnapshotEntity) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `INSERT INTO gpa_snapshots (
+      const res = await this.query(row.tenantId, `INSERT INTO gpa_snapshots (
            id, tenant_id, student_id, academic_period_id,
            weighted_gpa, unweighted_gpa, credits_earned, computed_at, metadata, created_at
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
@@ -493,8 +490,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   listGpaSnapshots(tenantId: string, studentId: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM gpa_snapshots
+      const res = await this.query(tenantId, `SELECT * FROM gpa_snapshots
          WHERE tenant_id = $1 AND student_id = $2
          ORDER BY computed_at DESC`,
         [tenantId, studentId],
@@ -505,8 +501,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getGpaSnapshot(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM gpa_snapshots WHERE tenant_id = $1 AND id = $2`,
+      const res = await this.query(tenantId, `SELECT * FROM gpa_snapshots WHERE tenant_id = $1 AND id = $2`,
         [tenantId, id],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
@@ -523,15 +518,14 @@ export class PgGradebookRepository implements GradebookRepository {
         sql += ` AND student_id = $2`;
       }
       sql += ` ORDER BY version DESC`;
-      const res = await this.pool.query(sql, params);
+      const res = await this.query(tenantId, sql, params);
       return (res.rows as Record<string, unknown>[]).map(mapTranscript);
     });
   }
 
   getTranscript(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM transcript_issuances WHERE tenant_id = $1 AND id = $2`,
+      const res = await this.query(tenantId, `SELECT * FROM transcript_issuances WHERE tenant_id = $1 AND id = $2`,
         [tenantId, id],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
@@ -541,8 +535,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getLatestTranscriptVersion(tenantId: string, studentId: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT COALESCE(MAX(version), 0)::int AS max_version
+      const res = await this.query(tenantId, `SELECT COALESCE(MAX(version), 0)::int AS max_version
          FROM transcript_issuances
          WHERE tenant_id = $1 AND student_id = $2`,
         [tenantId, studentId],
@@ -553,8 +546,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   createTranscript(row: TranscriptIssuanceEntity) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `INSERT INTO transcript_issuances (
+      const res = await this.query(row.tenantId, `INSERT INTO transcript_issuances (
            id, tenant_id, student_id, version, status, issued_at, issued_by,
            artifact_uri, checksum_sha256, metadata, created_at, updated_at
          ) VALUES ($1,$2,$3,$4,$5::transcript_status,$6,$7,$8,$9,$10::jsonb,$11,$12)
@@ -580,8 +572,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   createExportJob(row: ExportJobEntity) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `INSERT INTO board_export_jobs (
+      const res = await this.query(row.tenantId, `INSERT INTO board_export_jobs (
            id, tenant_id, board_id, institution_id, job_type, status,
            requested_by, started_at, finished_at, artifact_uri, error_message,
            metadata, created_at, updated_at
@@ -610,8 +601,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getExportJob(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT * FROM board_export_jobs WHERE tenant_id = $1 AND id = $2`,
+      const res = await this.query(tenantId, `SELECT * FROM board_export_jobs WHERE tenant_id = $1 AND id = $2`,
         [tenantId, id],
       );
       const row = res.rows[0] as Record<string, unknown> | undefined;
@@ -624,8 +614,7 @@ export class PgGradebookRepository implements GradebookRepository {
       const cur = await this.getExportJob(tenantId, id);
       if (!cur) return null;
       const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId };
-      const res = await this.pool.query(
-        `UPDATE board_export_jobs SET
+      const res = await this.query(tenantId, `UPDATE board_export_jobs SET
            status = $3::export_job_status,
            started_at = $4,
            finished_at = $5,
@@ -660,7 +649,7 @@ export class PgGradebookRepository implements GradebookRepository {
         sql += ` AND job_type = $2`;
       }
       sql += ` ORDER BY created_at DESC`;
-      const res = await this.pool.query(sql, params);
+      const res = await this.query(tenantId, sql, params);
       return (res.rows as Record<string, unknown>[]).map(mapJob);
     });
   }
@@ -679,15 +668,14 @@ export class PgGradebookRepository implements GradebookRepository {
         sql += ` AND academic_period_id = $${params.length}`;
       }
       sql += ` ORDER BY code`;
-      const res = await this.pool.query(sql, params);
+      const res = await this.query(tenantId, sql, params);
       return (res.rows as Record<string, unknown>[]).map(mapSection);
     });
   }
 
   getSection(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT id, tenant_id, institution_id, academic_period_id, code, name, status
+      const res = await this.query(tenantId, `SELECT id, tenant_id, institution_id, academic_period_id, code, name, status
          FROM sections WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -698,8 +686,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getBoard(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT id, tenant_id, code, name FROM boards
+      const res = await this.query(tenantId, `SELECT id, tenant_id, code, name FROM boards
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -710,8 +697,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getBoardByCode(tenantId: string, code: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT id, tenant_id, code, name FROM boards
+      const res = await this.query(tenantId, `SELECT id, tenant_id, code, name FROM boards
          WHERE tenant_id = $1 AND UPPER(code) = UPPER($2) AND deleted_at IS NULL`,
         [tenantId, code],
       );
@@ -722,8 +708,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   listBoards(tenantId: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT id, tenant_id, code, name FROM boards
+      const res = await this.query(tenantId, `SELECT id, tenant_id, code, name FROM boards
          WHERE tenant_id = $1 AND deleted_at IS NULL ORDER BY code`,
         [tenantId],
       );
@@ -733,8 +718,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   getInstitution(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT id, tenant_id, board_id, code, name FROM institutions
+      const res = await this.query(tenantId, `SELECT id, tenant_id, board_id, code, name FROM institutions
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -745,8 +729,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   listInstitutionsByBoard(tenantId: string, boardId: string) {
     return withSchemaCheck(async () => {
-      const res = await this.pool.query(
-        `SELECT id, tenant_id, board_id, code, name FROM institutions
+      const res = await this.query(tenantId, `SELECT id, tenant_id, board_id, code, name FROM institutions
          WHERE tenant_id = $1 AND board_id = $2 AND deleted_at IS NULL
          ORDER BY code`,
         [tenantId, boardId],
@@ -769,7 +752,7 @@ export class PgGradebookRepository implements GradebookRepository {
         sql += ` AND board_id = $${params.length}`;
       }
       sql += ` ORDER BY code_type`;
-      const res = await this.pool.query(sql, params);
+      const res = await this.query(tenantId, sql, params);
       return (res.rows as Record<string, unknown>[]).map(mapBoardCode);
     });
   }
@@ -794,19 +777,17 @@ export class PgGradebookRepository implements GradebookRepository {
       sql += ` ORDER BY s.national_id NULLS LAST, s.last_name, s.first_name LIMIT $${params.length + 1}`;
       params.push(limit);
 
-      const studentsRes = await this.pool.query(sql, params);
+      const studentsRes = await this.query(tenantId, sql, params);
       const students = studentsRes.rows as Record<string, unknown>[];
       if (students.length === 0) return [];
 
       const studentIds = students.map((r) => String(r.student_id));
-      const gradesRes = await this.pool.query(
-        `SELECT student_id, assessment_code, numeric_score, letter_grade
+      const gradesRes = await this.query(tenantId, `SELECT student_id, assessment_code, numeric_score, letter_grade
          FROM grade_entries
          WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])`,
         [tenantId, studentIds],
       );
-      const transcriptsRes = await this.pool.query(
-        `SELECT DISTINCT ON (student_id)
+      const transcriptsRes = await this.query(tenantId, `SELECT DISTINCT ON (student_id)
            student_id, version, checksum_sha256, issued_at
          FROM transcript_issuances
          WHERE tenant_id = $1 AND student_id = ANY($2::uuid[]) AND status = 'ISSUED'

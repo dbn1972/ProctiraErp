@@ -66,5 +66,13 @@ describe('PgHostelRepository', () => {
 
     const assignments = await repo.listAssignments(tenantId);
     expect(assignments.some((a) => a.id === assignmentId)).toBe(true);
+
+    // G-710: FORCE RLS + tenant GUC — another tenant sees nothing, and a
+    // direct query without the GUC bound sees nothing either.
+    const otherTenant = randomUUID();
+    expect(await repo.listHostels(otherTenant)).toHaveLength(0);
+    expect(await repo.listAssignments(otherTenant)).toHaveLength(0);
+    const unscoped = await pool!.query('SELECT id FROM hostels WHERE id = $1', [hostelId]);
+    expect(unscoped.rowCount).toBe(0);
   });
 });

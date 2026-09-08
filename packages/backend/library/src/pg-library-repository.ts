@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type {
@@ -18,7 +19,7 @@ import type {
 
 const { Pool } = pg;
 
-export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'>;
+export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
 let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -105,6 +106,13 @@ function mapLoan(row: Record<string, unknown>): LibraryLoanEntity {
 export class PgLibraryRepository implements LibraryRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
+  /** G-710: every query runs with the tenant GUC bound so RLS applies. */
+  private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
+    return withPgTenant(this.pool, tenantId, (client) =>
+      client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    );
+  }
+
   async ensureSchema(): Promise<void> {
     await ensureLibrarySchema(this.pool);
   }
@@ -113,8 +121,7 @@ export class PgLibraryRepository implements LibraryRepository {
     data: Omit<LibraryItemEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<LibraryItemEntity> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `INSERT INTO library_items (id, tenant_id, isbn, title, author, copies, available)
+    const result = await this.query(data.tenantId, `INSERT INTO library_items (id, tenant_id, isbn, title, author, copies, available)
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
       [data.id, data.tenantId, data.isbn, data.title, data.author, data.copies, data.available],
     );
@@ -123,8 +130,7 @@ export class PgLibraryRepository implements LibraryRepository {
 
   async listItems(tenantId: string): Promise<LibraryItemEntity[]> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM library_items WHERE tenant_id = $1 ORDER BY title`,
+    const result = await this.query(tenantId, `SELECT * FROM library_items WHERE tenant_id = $1 ORDER BY title`,
       [tenantId],
     );
     return result.rows.map((row) => mapItem(row as Record<string, unknown>));
@@ -132,8 +138,7 @@ export class PgLibraryRepository implements LibraryRepository {
 
   async findItemById(id: string, tenantId: string): Promise<LibraryItemEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM library_items WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(tenantId, `SELECT * FROM library_items WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -149,8 +154,7 @@ export class PgLibraryRepository implements LibraryRepository {
     if (data.available === undefined) {
       return this.findItemById(id, tenantId);
     }
-    const result = await this.pool.query(
-      `UPDATE library_items
+    const result = await this.query(tenantId, `UPDATE library_items
        SET available = $1, updated_at = now()
        WHERE id = $2 AND tenant_id = $3
        RETURNING *`,
@@ -164,8 +168,7 @@ export class PgLibraryRepository implements LibraryRepository {
     data: Omit<LibraryLoanEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<LibraryLoanEntity> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `INSERT INTO library_loans (
+    const result = await this.query(data.tenantId, `INSERT INTO library_loans (
          id, tenant_id, item_id, patron_user_id, student_id,
          checkout_at, due_at, returned_at, status
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
@@ -186,8 +189,7 @@ export class PgLibraryRepository implements LibraryRepository {
 
   async findLoanById(id: string, tenantId: string): Promise<LibraryLoanEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM library_loans WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(tenantId, `SELECT * FROM library_loans WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -224,8 +226,7 @@ export class PgLibraryRepository implements LibraryRepository {
     sets.push(`updated_at = now()`);
     values.push(id, tenantId);
 
-    const result = await this.pool.query(
-      `UPDATE library_loans
+    const result = await this.query(tenantId, `UPDATE library_loans
        SET ${sets.join(', ')}
        WHERE id = $${i++} AND tenant_id = $${i}
        RETURNING *`,
@@ -237,8 +238,7 @@ export class PgLibraryRepository implements LibraryRepository {
 
   async listLoans(tenantId: string): Promise<LibraryLoanEntity[]> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM library_loans WHERE tenant_id = $1 ORDER BY checkout_at DESC`,
+    const result = await this.query(tenantId, `SELECT * FROM library_loans WHERE tenant_id = $1 ORDER BY checkout_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => mapLoan(row as Record<string, unknown>));

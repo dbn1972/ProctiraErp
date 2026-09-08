@@ -146,8 +146,10 @@ DECLARE
 BEGIN
   -- insights_ui_templates / indicators / geo_features are platform reference
   -- data without tenant_id; only the per-tenant runs / import jobs get RLS.
+  -- tenant_theme_* are Prisma-managed branding tables that had no policy.
   FOREACH t IN ARRAY ARRAY[
-    'insights_ui_runs', 'insights_ui_import_jobs'
+    'insights_ui_runs', 'insights_ui_import_jobs',
+    'tenant_theme_versions', 'tenant_theme_drafts'
   ]
   LOOP
     IF to_regclass(t) IS NOT NULL AND EXISTS (
@@ -156,10 +158,16 @@ BEGIN
     ) THEN
       EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
       EXECUTE format('DROP POLICY IF EXISTS tenant_isolation ON %I', t);
+      -- Accept both GUC names: raw-SQL repos bind app.tenant_id, Prisma
+      -- paths bind app.current_tenant_id (withPgTenant binds both).
       EXECUTE format(
         'CREATE POLICY tenant_isolation ON %I FOR ALL
-           USING (tenant_id::text = NULLIF(current_setting(''app.tenant_id'', true), ''''))
-           WITH CHECK (tenant_id::text = NULLIF(current_setting(''app.tenant_id'', true), ''''))',
+           USING (tenant_id::text = COALESCE(
+                    NULLIF(current_setting(''app.tenant_id'', true), ''''),
+                    NULLIF(current_setting(''app.current_tenant_id'', true), '''')))
+           WITH CHECK (tenant_id::text = COALESCE(
+                    NULLIF(current_setting(''app.tenant_id'', true), ''''),
+                    NULLIF(current_setting(''app.current_tenant_id'', true), '''')))',
         t
       );
     END IF;

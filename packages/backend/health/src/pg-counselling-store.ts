@@ -9,13 +9,14 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type { CounsellingSessionEntity } from './health-repository.js';
 
 const { Pool } = pg;
 
-export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'>;
+export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
 let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -98,6 +99,13 @@ function mapRow(row: Record<string, unknown>): CounsellingSessionEntity {
 export class PgCounsellingStore {
   constructor(private readonly pool: PgPoolLike) {}
 
+  /** G-710: every query runs with the tenant GUC bound so RLS applies. */
+  private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
+    return withPgTenant(this.pool, tenantId, (client) =>
+      client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    );
+  }
+
   async ensureSchema(): Promise<void> {
     await ensureCounsellingSchema(this.pool);
   }
@@ -107,8 +115,7 @@ export class PgCounsellingStore {
   ): Promise<CounsellingSessionEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.pool.query(
-      `INSERT INTO counselling_sessions (
+    const result = await this.query(data.tenantId, `INSERT INTO counselling_sessions (
         id, tenant_id, student_id, counsellor_id, session_date, session_type,
         reason, case_notes, outcome, follow_up_required, follow_up_date, status,
         created_at, updated_at
@@ -153,8 +160,7 @@ export class PgCounsellingStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.pool.query(
-      `UPDATE counselling_sessions SET
+    const result = await this.query(tenantId, `UPDATE counselling_sessions SET
         counsellor_id = $3,
         session_date = $4::date,
         session_type = $5,
@@ -188,8 +194,7 @@ export class PgCounsellingStore {
 
   async findById(id: string, tenantId: string): Promise<CounsellingSessionEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM counselling_sessions WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(tenantId, `SELECT * FROM counselling_sessions WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -198,8 +203,7 @@ export class PgCounsellingStore {
 
   async listByStudent(tenantId: string, studentId: string): Promise<CounsellingSessionEntity[]> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM counselling_sessions
+    const result = await this.query(tenantId, `SELECT * FROM counselling_sessions
        WHERE tenant_id = $1 AND student_id = $2
        ORDER BY session_date DESC`,
       [tenantId, studentId],
@@ -209,8 +213,7 @@ export class PgCounsellingStore {
 
   async listByTenant(tenantId: string): Promise<CounsellingSessionEntity[]> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM counselling_sessions
+    const result = await this.query(tenantId, `SELECT * FROM counselling_sessions
        WHERE tenant_id = $1
        ORDER BY session_date DESC`,
       [tenantId],
