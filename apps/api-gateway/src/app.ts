@@ -17,7 +17,20 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { authPlugin } from '@proctira/backend-auth';
+import {
+  authPlugin,
+  createSmsProviderFromEnv,
+  createUserInviteRepository,
+  InMemoryKeycloakIdentityStore,
+  InMemoryOtpChallengeStore,
+  InviteService,
+  keycloakAuthPlugin,
+  loadKeycloakAuthConfig,
+  OtpService,
+  registerInviteAndTenantDirectoryRoutes,
+  registerKeycloakAuthRoutes,
+  registerMfaRoutes,
+} from '@proctira/backend-auth';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -223,7 +236,10 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     },
   });
 
-  // 7. Register JWT authentication
+  // 7. Register JWT authentication (local HS JWT) OR optional Keycloak RS256.
+  // Keycloak activates only when KEYCLOAK_ISSUER + KEYCLOAK_CLIENT_ID are set.
+  // Without those env vars, local JWT auth is unchanged.
+  const keycloak = loadKeycloakAuthConfig();
   const authExcludePaths = [
     '/health',
     '/health/live',
@@ -231,41 +247,89 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     '/docs',
     '/docs/*',
     '/api/v1/auth/login',
+    '/api/v1/auth/callback',
+    '/api/v1/auth/password',
+    '/api/v1/auth/ticket',
+    '/api/v1/auth/logout',
+    '/api/v1/auth/roles',
     '/api/v1/auth/refresh',
+    '/api/v1/auth/mfa/otp/send',
+    '/api/v1/auth/mfa/otp/resend',
+    '/api/v1/auth/mfa/resend',
+    '/api/v1/auth/mfa/verify',
+    '/auth/mfa/otp/send',
+    '/auth/mfa/otp/resend',
+    '/auth/mfa/resend',
+    '/auth/mfa/verify',
     '/api/v1/services',
     '/api/v1/storage/health',
   ];
 
-  await app.register(authPlugin, {
-    config: {
-      jwt: {
-        secret: config.jwt.secret,
-        issuer: config.jwt.issuer,
-        audience: config.jwt.audience,
-        accessTokenExpiresIn: 900, // 15 minutes in seconds
+  if (keycloak) {
+    const identityStore = new InMemoryKeycloakIdentityStore();
+    await app.register(keycloakAuthPlugin, {
+      config: keycloak,
+      excludePaths: authExcludePaths,
+      identityStore,
+    });
+    await registerKeycloakAuthRoutes(app, {
+      ...keycloak,
+      identityStore,
+      clientSecret: process.env['KEYCLOAK_CLIENT_SECRET'],
+      redirectUri:
+        process.env['KEYCLOAK_REDIRECT_URI'] ??
+        `http://localhost:${config.port}/api/v1/auth/callback`,
+      webOrigin: process.env['NEXT_PUBLIC_WEB_URL'] ?? 'http://localhost:3201',
+    });
+  } else {
+    await app.register(authPlugin, {
+      config: {
+        jwt: {
+          secret: config.jwt.secret,
+          issuer: config.jwt.issuer,
+          audience: config.jwt.audience,
+          accessTokenExpiresIn: 900,
+        },
+        refreshToken: {
+          maxLifetime: 30 * 24 * 60 * 60,
+        },
+        session: {
+          duration: 8 * 60 * 60,
+        },
+        password: {
+          saltRounds: 12,
+        },
+        lockout: {
+          maxAttempts: 3,
+          windowSeconds: 900,
+          durationSeconds: 900,
+        },
       },
-      refreshToken: {
-        maxLifetime: 30 * 24 * 60 * 60, // 30 days in seconds
-      },
-      session: {
-        duration: 8 * 60 * 60, // 8 hours in seconds
-      },
-      password: {
-        saltRounds: 12,
-      },
-      lockout: {
-        maxAttempts: 3,
-        windowSeconds: 900,
-        durationSeconds: 900,
-      },
-    },
-    excludePaths: authExcludePaths,
+      excludePaths: authExcludePaths,
+    });
+  }
+
+  // MFA OTP endpoints (in-memory challenges; console SMS unless TWILIO_* is set).
+  // Registered in both modes so clients can exercise SMS OTP without Keycloak.
+  const otpService = new OtpService({
+    store: new InMemoryOtpChallengeStore(),
+    sms: createSmsProviderFromEnv(),
+    exposeCodeInResponse: process.env['MFA_EXPOSE_OTP'] === 'true',
   });
+  await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
+  await registerMfaRoutes(app, { otpService, prefix: '/auth' });
+
+  // Admin invites (in-memory). Only useful when Keycloak (or another IdP) is on.
+  if (keycloak) {
+    const inviteService = new InviteService({
+      repository: createUserInviteRepository(),
+    });
+    await registerInviteAndTenantDirectoryRoutes(app, { inviteService });
+  }
 
   // 7b. Global auth enforcement via onRequest hook
   // This ensures JWT is verified before tenant resolution can read JWT claims
   app.addHook('onRequest', async (request, reply) => {
-    // Check if path is excluded from auth
     const url = request.url.split('?')[0]!;
     const isExcluded = authExcludePaths.some((excluded) => {
       if (excluded.endsWith('/*')) {
@@ -276,7 +340,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
 
     if (isExcluded) return;
 
-    // Verify JWT token
     try {
       await request.jwtVerify();
     } catch {
@@ -299,7 +362,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/docs',
       '/docs/*',
       '/api/v1/auth/login',
+      '/api/v1/auth/callback',
+      '/api/v1/auth/password',
+      '/api/v1/auth/ticket',
+      '/api/v1/auth/logout',
+      '/api/v1/auth/roles',
       '/api/v1/auth/refresh',
+      '/api/v1/auth/mfa/otp/send',
+      '/api/v1/auth/mfa/otp/resend',
+      '/api/v1/auth/mfa/resend',
+      '/api/v1/auth/mfa/verify',
+      '/auth/mfa/otp/send',
+      '/auth/mfa/otp/resend',
+      '/auth/mfa/resend',
+      '/auth/mfa/verify',
       '/api/v1/services',
       '/api/v1/storage/health',
     ],
@@ -331,7 +407,20 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/docs',
       '/docs/*',
       '/api/v1/auth/login',
+      '/api/v1/auth/callback',
+      '/api/v1/auth/password',
+      '/api/v1/auth/ticket',
+      '/api/v1/auth/logout',
+      '/api/v1/auth/roles',
       '/api/v1/auth/refresh',
+      '/api/v1/auth/mfa/otp/send',
+      '/api/v1/auth/mfa/otp/resend',
+      '/api/v1/auth/mfa/resend',
+      '/api/v1/auth/mfa/verify',
+      '/auth/mfa/otp/send',
+      '/auth/mfa/otp/resend',
+      '/auth/mfa/resend',
+      '/auth/mfa/verify',
       '/api/v1/storage/health',
     ],
   });
@@ -346,7 +435,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(serviceRouterPlugin, {
     services: config.services,
     versionPrefix: '/api/v1',
-    excludePrefixes: inProcessPrefixes,
+    excludePrefixes: keycloak ? [...inProcessPrefixes, '/auth'] : inProcessPrefixes,
   });
 
   return app;
