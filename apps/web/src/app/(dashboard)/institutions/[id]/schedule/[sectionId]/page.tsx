@@ -12,7 +12,14 @@ import {
   SectionPublishControls,
   WithdrawStudentButton,
 } from '@/components/timetable/section-roster-controls';
-import { getSection } from '@/lib/api/timetable';
+import {
+  formatCodeNameLabel,
+  formatPersonLabel,
+  resolveEntityLabel,
+} from '@/lib/entity-label';
+import { listStaff } from '@/lib/api/staff';
+import { listStudents } from '@/lib/api/students';
+import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +56,44 @@ export default async function SectionRosterPage({ params }: PageProps) {
   const enrollments = section.enrollments ?? [];
   const meetings = section.meetings ?? [];
   const active = enrollments.filter((e) => e.status === 'ENROLLED');
+
+  const [studentsResult, staffResult, roomsResult, schedulesResult] = await Promise.all([
+    listStudents({ pageSize: 100 }),
+    listStaff({ pageSize: 100 }).catch(() => ({
+      data: [],
+      meta: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+    })),
+    listRooms({ institutionId }),
+    listBellSchedules({ institutionId }),
+  ]);
+
+  const studentOptions = (studentsResult.data ?? []).map((s) => ({
+    id: s.id,
+    label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
+    searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
+  }));
+  const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
+  const staffLabel = new Map(
+    (staffResult.data ?? []).map((s) => [
+      s.id,
+      formatPersonLabel(s.firstName, s.lastName, s.position),
+    ]),
+  );
+  const roomLabel = new Map(
+    (roomsResult.ok ? roomsResult.data : []).map((r) => [
+      r.id,
+      formatCodeNameLabel(r.code, r.name),
+    ]),
+  );
+
+  const periodLabel = new Map<string, string>();
+  for (const schedule of schedulesResult.ok ? schedulesResult.data : []) {
+    const periods = await listPeriods(schedule.id);
+    if (!periods.ok) continue;
+    for (const p of periods.data) {
+      periodLabel.set(p.id, `${schedule.name} · ${p.name}`);
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -92,9 +137,10 @@ export default async function SectionRosterPage({ params }: PageProps) {
           ) : (
             <ul className="space-y-1 text-sm">
               {meetings.map((m) => (
-                <li key={m.id} className="font-mono text-xs text-muted-foreground">
-                  day {m.dayOfWeek} · period {m.periodId.slice(0, 8)}… · room{' '}
-                  {m.roomId?.slice(0, 8) ?? '—'} · staff {m.staffId.slice(0, 8)}…
+                <li key={m.id} className="text-sm text-muted-foreground">
+                  day {m.dayOfWeek} · {resolveEntityLabel(m.periodId, periodLabel, 'Period')} ·{' '}
+                  {m.roomId ? resolveEntityLabel(m.roomId, roomLabel, 'Room') : 'no room'} ·{' '}
+                  {resolveEntityLabel(m.staffId, staffLabel, 'Staff')}
                 </li>
               ))}
             </ul>
@@ -110,7 +156,11 @@ export default async function SectionRosterPage({ params }: PageProps) {
               {active.length} / {section.capacity} enrolled
             </p>
           </div>
-          <SectionEnrollForm institutionId={institutionId} sectionId={section.id} />
+          <SectionEnrollForm
+            institutionId={institutionId}
+            sectionId={section.id}
+            studentOptions={studentOptions}
+          />
           {enrollments.length === 0 ? (
             <p className="text-sm text-muted-foreground">No enrollments yet.</p>
           ) : (
@@ -127,7 +177,9 @@ export default async function SectionRosterPage({ params }: PageProps) {
                 <tbody>
                   {enrollments.map((e) => (
                     <tr key={e.id} className="border-b border-border/60">
-                      <td className="py-2 font-mono text-xs">{e.studentId}</td>
+                      <td className="py-2 text-sm">
+                        {resolveEntityLabel(e.studentId, studentLabel, 'Student')}
+                      </td>
                       <td className="py-2 text-xs">{e.status}</td>
                       <td className="py-2 text-xs">{e.enrolledAt}</td>
                       <td className="py-2 text-right">

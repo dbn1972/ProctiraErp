@@ -24,12 +24,13 @@ export function MeetingCreateForm(props: {
   periodOptions: { id: string; label: string }[];
   sectionOptions?: { id: string; label: string }[];
   roomOptions?: { id: string; label: string }[];
+  staffOptions?: { id: string; label: string }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sectionId, setSectionId] = useState(props.sectionOptions?.[0]?.id ?? '');
-  const [staffId, setStaffId] = useState('');
+  const [staffId, setStaffId] = useState(props.staffOptions?.[0]?.id ?? '');
   const [periodId, setPeriodId] = useState(props.periodOptions[0]?.id ?? '');
   const [roomId, setRoomId] = useState(props.roomOptions?.[0]?.id ?? '');
   const [dayOfWeek, setDayOfWeek] = useState('1');
@@ -96,13 +97,29 @@ export function MeetingCreateForm(props: {
         )}
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Staff ID</span>
-        <input
-          className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
-          value={staffId}
-          onChange={(e) => setStaffId(e.target.value)}
-          required
-        />
+        <span className="font-medium">Staff</span>
+        {props.staffOptions && props.staffOptions.length > 0 ? (
+          <select
+            className="rounded-md border border-border bg-background px-3 py-2"
+            value={staffId}
+            onChange={(e) => setStaffId(e.target.value)}
+            required
+          >
+            {props.staffOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+            value={staffId}
+            onChange={(e) => setStaffId(e.target.value)}
+            required
+            placeholder="Search staff directory unavailable — enter id"
+          />
+        )}
       </label>
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Period</span>

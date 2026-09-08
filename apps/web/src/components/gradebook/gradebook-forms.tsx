@@ -7,16 +7,20 @@ import {
   createReportCardJobAction,
   upsertGradeEntryAction,
 } from '@/app/(dashboard)/gradebook-actions';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
 import { Button, Input, Label } from '@proctira/ui/components';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 export function GradeEntryForm({
   institutionId,
   sectionId,
   defaultStudentId = '',
+  studentOptions = [],
 }: {
   institutionId: string;
   sectionId: string;
   defaultStudentId?: string;
+  studentOptions?: EntityLabelOption[];
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -58,16 +62,14 @@ export function GradeEntryForm({
       }}
     >
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="studentId">Student ID</Label>
-          <Input
-            id="studentId"
-            name="studentId"
-            required
-            defaultValue={defaultStudentId}
-            autoComplete="off"
-          />
-        </div>
+        <EntitySearchSelect
+          id="studentId"
+          name="studentId"
+          label="Student"
+          options={studentOptions}
+          defaultValue={defaultStudentId}
+          required
+        />
         <div className="space-y-1.5">
           <Label htmlFor="assessmentCode">Assessment / course code</Label>
           <Input id="assessmentCode" name="assessmentCode" defaultValue="MATH" required />
@@ -106,10 +108,12 @@ export function ComputeGpaForm({
   institutionId,
   defaultStudentId = '',
   boardId,
+  studentOptions = [],
 }: {
   institutionId: string;
   defaultStudentId?: string;
   boardId?: string;
+  studentOptions?: EntityLabelOption[];
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -140,16 +144,15 @@ export function ComputeGpaForm({
         });
       }}
     >
-      <div className="space-y-1.5">
-        <Label htmlFor="gpaStudentId">Student ID</Label>
-        <Input
-          id="gpaStudentId"
-          name="studentId"
-          required
-          defaultValue={defaultStudentId}
-          className="min-w-[18rem]"
-        />
-      </div>
+      <EntitySearchSelect
+        id="gpaStudentId"
+        name="studentId"
+        label="Student"
+        options={studentOptions}
+        defaultValue={defaultStudentId}
+        required
+        className="min-w-[18rem] space-y-1.5"
+      />
       <Button type="submit" disabled={pending} variant="secondary">
         {pending ? 'Computing…' : 'Compute GPA'}
       </Button>
@@ -167,10 +170,12 @@ export function ReportCardTriggerForm({
   institutionId,
   defaultStudentId = '',
   boardId,
+  studentOptions = [],
 }: {
   institutionId: string;
   defaultStudentId?: string;
   boardId: string;
+  studentOptions?: EntityLabelOption[];
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
@@ -201,16 +206,15 @@ export function ReportCardTriggerForm({
         });
       }}
     >
-      <div className="space-y-1.5">
-        <Label htmlFor="rcStudentId">Student ID</Label>
-        <Input
-          id="rcStudentId"
-          name="studentId"
-          required
-          defaultValue={defaultStudentId}
-          className="min-w-[18rem]"
-        />
-      </div>
+      <EntitySearchSelect
+        id="rcStudentId"
+        name="studentId"
+        label="Student"
+        options={studentOptions}
+        defaultValue={defaultStudentId}
+        required
+        className="min-w-[18rem] space-y-1.5"
+      />
       <Button type="submit" disabled={pending} variant="secondary">
         {pending ? 'Queuing…' : 'Generate report card'}
       </Button>

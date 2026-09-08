@@ -9,6 +9,8 @@ import {
   ReportCardTriggerForm,
 } from '@/components/gradebook/gradebook-forms';
 import { Card, CardContent } from '@proctira/ui/components';
+import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
+import { listStudents } from '@/lib/api/students';
 import {
   listGradeEntries,
   listGradebookSections,
@@ -26,10 +28,11 @@ interface PageProps {
 export default async function InstitutionGradebookPage({ params, searchParams }: PageProps) {
   const institutionId = params.id;
 
-  const [sectionsResult, scalesResult, jobsResult] = await Promise.all([
+  const [sectionsResult, scalesResult, jobsResult, studentsResult] = await Promise.all([
     listGradebookSections({ institutionId }),
     listGradingScales(),
     listReportCardJobs(),
+    listStudents({ pageSize: 100 }),
   ]);
 
   const apiError = !sectionsResult.ok
@@ -41,11 +44,17 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
   const sections = sectionsResult.ok ? sectionsResult.data : [];
   const scales = scalesResult.ok ? scalesResult.data : [];
   const jobs = jobsResult.ok ? jobsResult.data : [];
+  const studentOptions = (studentsResult.data ?? []).map((s) => ({
+    id: s.id,
+    label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
+    searchText: `${s.firstName} ${s.lastName} ${s.nationalId ?? ''}`,
+  }));
+  const studentLabel = new Map(studentOptions.map((s) => [s.id, s.label]));
 
   const sectionId =
     searchParams?.sectionId && sections.some((s) => s.id === searchParams.sectionId)
       ? searchParams.sectionId
-      : sections[0]?.id ?? '';
+      : (sections[0]?.id ?? '');
 
   const entriesResult = sectionId
     ? await listGradeEntries({ sectionId })
@@ -54,7 +63,8 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
   const entryError = entriesResult.ok ? null : entriesResult.error;
 
   const boardId = scales.find((s) => s.isDefault)?.boardId ?? scales[0]?.boardId ?? '';
-  const defaultStudentId = entries[0]?.studentId ?? '';
+  const defaultStudentId = entries[0]?.studentId ?? studentOptions[0]?.id ?? '';
+  const activeSection = sections.find((s) => s.id === sectionId);
 
   return (
     <div className="space-y-6">
@@ -97,14 +107,16 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
               <div>
                 <h3 className="text-base font-semibold">Section</h3>
                 <p className="text-sm text-muted-foreground">
-                  {sections.find((s) => s.id === sectionId)?.name ?? sectionId} (
-                  {sections.find((s) => s.id === sectionId)?.code})
+                  {activeSection
+                    ? formatCodeNameLabel(activeSection.code, activeSection.name)
+                    : resolveEntityLabel(sectionId, new Map(), 'Section')}
                 </p>
               </div>
               <GradeEntryForm
                 institutionId={institutionId}
                 sectionId={sectionId}
                 defaultStudentId={defaultStudentId}
+                studentOptions={studentOptions}
               />
             </CardContent>
           </Card>
@@ -128,16 +140,27 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
                         <th className="py-2 pr-3 font-medium">Assessment</th>
                         <th className="py-2 pr-3 font-medium">Score</th>
                         <th className="py-2 pr-3 font-medium">Letter</th>
+                        <th className="py-2 pr-3 font-medium">Workflow</th>
                         <th className="py-2 font-medium">Entered</th>
                       </tr>
                     </thead>
                     <tbody>
                       {entries.map((row) => (
                         <tr key={row.id} className="border-b border-border/60">
-                          <td className="py-2 pr-3 font-mono text-xs">{row.studentId}</td>
+                          <td className="py-2 pr-3 text-sm">
+                            {resolveEntityLabel(row.studentId, studentLabel, 'Student')}
+                          </td>
                           <td className="py-2 pr-3">{row.assessmentCode ?? '—'}</td>
                           <td className="py-2 pr-3 tabular-nums">{row.numericScore ?? '—'}</td>
                           <td className="py-2 pr-3">{row.letterGrade ?? '—'}</td>
+                          <td className="py-2 pr-3 text-xs">
+                            {row.lockedAt
+                              ? 'LOCKED'
+                              : String(
+                                  (row.metadata as { workflowStatus?: string } | undefined)
+                                    ?.workflowStatus ?? 'DRAFT',
+                                )}
+                          </td>
                           <td className="py-2 text-muted-foreground">
                             {new Date(row.enteredAt).toLocaleString()}
                           </td>
@@ -157,6 +180,7 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
                 institutionId={institutionId}
                 defaultStudentId={defaultStudentId}
                 boardId={boardId || undefined}
+                studentOptions={studentOptions}
               />
             </CardContent>
           </Card>
@@ -169,6 +193,7 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
                   institutionId={institutionId}
                   defaultStudentId={defaultStudentId}
                   boardId={boardId}
+                  studentOptions={studentOptions}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -179,7 +204,7 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
                 <ul className="space-y-1 text-sm text-muted-foreground">
                   {jobs.slice(0, 5).map((job) => (
                     <li key={job.id}>
-                      {job.id.slice(0, 8)}… · {job.status}
+                      Job {job.id.slice(0, 8)} · {job.status}
                       {job.artifactUri ? ` · ${job.artifactUri}` : ''}
                     </li>
                   ))}

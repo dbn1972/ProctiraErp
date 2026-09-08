@@ -11,6 +11,8 @@ import {
   unpublishSectionAction,
   withdrawStudentAction,
 } from '@/app/(dashboard)/timetable-actions';
+import { EntitySearchSelect } from '@/components/shared/entity-search-select';
+import type { EntityLabelOption } from '@/lib/entity-label';
 
 export function SectionPublishControls(props: {
   institutionId: string;
@@ -71,17 +73,19 @@ export function SectionPublishControls(props: {
 export function SectionEnrollForm(props: {
   institutionId: string;
   sectionId: string;
+  studentOptions?: EntityLabelOption[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [studentId, setStudentId] = useState('');
 
   return (
     <form
       className="flex flex-wrap items-end gap-2"
       onSubmit={(event) => {
         event.preventDefault();
+        const fd = new FormData(event.currentTarget);
+        const studentId = String(fd.get('studentId') ?? '').trim();
         setError(null);
         startTransition(async () => {
           const result = await enrollStudentAction({
@@ -93,21 +97,20 @@ export function SectionEnrollForm(props: {
             setError(result.error);
             return;
           }
-          setStudentId('');
+          event.currentTarget.reset();
           router.refresh();
         });
       }}
     >
-      <label className="flex min-w-[16rem] flex-1 flex-col gap-1 text-sm">
-        <span className="font-medium">Student ID</span>
-        <input
-          className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
-          value={studentId}
-          onChange={(e) => setStudentId(e.target.value)}
+      <div className="min-w-[16rem] flex-1">
+        <EntitySearchSelect
+          id="enrollStudentId"
+          name="studentId"
+          label="Student"
+          options={props.studentOptions ?? []}
           required
-          placeholder="UUID"
         />
-      </label>
+      </div>
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? 'Enrolling…' : 'Enroll'}
       </Button>
