@@ -3,6 +3,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { withPgTenant } from '@proctira/database';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -37,6 +38,13 @@ describe('PgRegistrationRepository pipeline persist', () => {
       expect(pool).not.toBeNull();
       const repo = new PgRegistrationRepository(pool!);
       const tenantId = randomUUID();
+      // Satisfies the opt-in tenant FKs (db/sql/021b) when APPLY_STRICT_FKS=1.
+      await withPgTenant(pool!, tenantId, (client) =>
+        client.query(
+          `INSERT INTO tenants (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+          [tenantId, `reg-test-${tenantId.slice(0, 8)}`, `reg-test-${tenantId}`],
+        ),
+      );
       const institutionId = randomUUID();
       const applicationId = randomUUID();
       const trackingNumber = `REG-${applicationId.slice(0, 8).toUpperCase()}`;
@@ -62,14 +70,14 @@ describe('PgRegistrationRepository pipeline persist', () => {
       });
       expect(created.status).toBe('pending');
 
-      const byTracking = await repo.findByTrackingNumber(trackingNumber);
+      const byTracking = await repo.findByTrackingNumber(trackingNumber, tenantId);
       expect(byTracking?.id).toBe(applicationId);
 
-      const underReview = await repo.updateStatus(applicationId, 'under_review', 'Staff reviewing');
+      const underReview = await repo.updateStatus(applicationId, 'under_review', 'Staff reviewing', tenantId);
       expect(underReview?.status).toBe('under_review');
       expect(underReview?.remarks).toBe('Staff reviewing');
 
-      const waitlisted = await repo.updateStatus(applicationId, 'waitlisted', 'Capacity full');
+      const waitlisted = await repo.updateStatus(applicationId, 'waitlisted', 'Capacity full', tenantId);
       expect(waitlisted?.status).toBe('waitlisted');
 
       const listed = await repo.listByTenant(tenantId);

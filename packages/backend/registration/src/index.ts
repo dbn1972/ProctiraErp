@@ -35,8 +35,17 @@ export type { InMemoryInstitution } from './in-memory-repository.js';
 // Postgres factory (G-205)
 export {
   createRegistrationRepository,
+  createAdmissionsCrmStore,
   isPgRegistrationEnabled,
 } from './create-registration-repository.js';
+export { InMemoryAdmissionsCrmStore } from './admissions-crm-store.js';
+export type {
+  AdmissionsCrmStore,
+  WaitlistEntry,
+  InterviewSlot,
+  InterviewBooking,
+} from './admissions-crm-store.js';
+export { PgAdmissionsCrmStore } from './pg-admissions-crm-store.js';
 export {
   PgRegistrationRepository,
   getSharedRegistrationPool,

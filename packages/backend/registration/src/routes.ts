@@ -170,7 +170,11 @@ export async function registerRegistrationRoutes(
           typeof (request.query as { dob?: string }).dob === 'string'
             ? (request.query as { dob?: string }).dob
             : undefined;
-        const status = await registrationService.checkStatus(paramsResult.data.trackingNumber, dob);
+        const status = await registrationService.checkStatus(
+          paramsResult.data.trackingNumber,
+          dob,
+          resolveTenantId(request, defaultTenantId),
+        );
         return reply.status(200).send(status);
       } catch (error: unknown) {
         if (error instanceof AppError) {

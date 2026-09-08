@@ -109,6 +109,21 @@ export {
   InMemoryAppraisalRepository,
 } from './in-memory-appraisal-repository.js';
 
+// Appraisal / training Postgres repositories + factories (G-717)
+export { PgAppraisalTemplateRepository, PgAppraisalRepository } from './pg-appraisal-repository.js';
+export {
+  PgTrainingProgramRepository,
+  PgTrainingSessionRepository,
+  PgTrainingAttendanceRepository,
+  PgCertificationRepository,
+} from './pg-training-repository.js';
+export {
+  createAppraisalRepositories,
+  createTrainingRepositories,
+} from './create-hr-repositories.js';
+export type { AppraisalRepositories, TrainingRepositories } from './create-hr-repositories.js';
+export { ensureHrSchema } from './pg-hr-schema.js';
+
 // Appraisal Schemas
 export {
   AppraisalStatus,

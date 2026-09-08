@@ -7,15 +7,20 @@
  * Mirrors the staff/attendance repository factories so the standalone
  * service and the API gateway compose persistence identically.
  */
-import { assertInMemoryFallbackAllowed, createPrismaClient } from '@proctira/database';
-import type { PrismaClient } from '@proctira/database';
+import { assertInMemoryFallbackAllowed, createPrismaClient, getSharedPgPool } from '@proctira/database';
+import type { PgPool, PrismaClient } from '@proctira/database';
 
 import type {
   GradingSchemeRepository,
   AssessmentItemRepository,
   OutcomeRepository,
 } from './assessment-repository.js';
-import type { AssessmentResultRepository } from './result-repository.js';
+import {
+  InMemoryInstitutionBrandingRepository,
+  InMemoryReportCardJobRepository,
+  InMemoryReportCardTemplateRepository,
+  InMemoryTeacherCommentRepository,
+} from './in-memory-report-card-repository.js';
 import {
   InMemoryGradingSchemeRepository,
   InMemoryAssessmentItemRepository,
@@ -23,11 +28,11 @@ import {
 } from './in-memory-repository.js';
 import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
 import {
-  InMemoryInstitutionBrandingRepository,
-  InMemoryReportCardJobRepository,
-  InMemoryReportCardTemplateRepository,
-  InMemoryTeacherCommentRepository,
-} from './in-memory-report-card-repository.js';
+  PgInstitutionBrandingRepository,
+  PgReportCardJobRepository,
+  PgReportCardTemplateRepository,
+  PgTeacherCommentRepository,
+} from './pg-report-card-repository.js';
 import {
   PrismaGradingSchemeRepository,
   PrismaAssessmentItemRepository,
@@ -40,6 +45,7 @@ import type {
   ReportCardTemplateRepository,
   TeacherCommentRepository,
 } from './report-card-repository.js';
+import type { AssessmentResultRepository } from './result-repository.js';
 
 export interface AssessmentRepositoryConfig {
   /** PostgreSQL connection string. Defaults to `process.env.DATABASE_URL`. */
@@ -91,25 +97,45 @@ export function createAssessmentResultRepository(
 }
 
 /**
- * Report-card repositories (G-210).
+ * Report-card repositories (G-210 / G-717).
  *
- * No Prisma models exist yet for templates/comments/branding/jobs, so these
- * always return in-memory implementations. Routes are enabled so the
- * assessment `/report-cards` surface is live; durable HTML report cards also
- * ship via gradebook `/gradebook/report-cards` (raw pg).
+ * Templates, comments, branding and jobs persist to the `report_card_*` tables
+ * (db/sql/024) through raw pg + RLS when `DATABASE_URL` is set; otherwise the
+ * in-memory implementations back dev / unit tests (subject to the shared
+ * fallback policy).
  */
-export function createReportCardTemplateRepository(): ReportCardTemplateRepository {
-  return new InMemoryReportCardTemplateRepository();
+function resolveReportCardPool(config: AssessmentRepositoryConfig): PgPool | null {
+  const pool = getSharedPgPool(config.databaseUrl);
+  if (!pool) assertInMemoryFallbackAllowed('assessment-report-cards');
+  return pool;
 }
 
-export function createTeacherCommentRepository(): TeacherCommentRepository {
-  return new InMemoryTeacherCommentRepository();
+export function createReportCardTemplateRepository(
+  config: AssessmentRepositoryConfig = {},
+): ReportCardTemplateRepository {
+  const pool = resolveReportCardPool(config);
+  return pool ? new PgReportCardTemplateRepository(pool) : new InMemoryReportCardTemplateRepository();
 }
 
-export function createInstitutionBrandingRepository(): InstitutionBrandingRepository {
-  return new InMemoryInstitutionBrandingRepository();
+export function createTeacherCommentRepository(
+  config: AssessmentRepositoryConfig = {},
+): TeacherCommentRepository {
+  const pool = resolveReportCardPool(config);
+  return pool ? new PgTeacherCommentRepository(pool) : new InMemoryTeacherCommentRepository();
 }
 
-export function createReportCardJobRepository(): ReportCardJobRepository {
-  return new InMemoryReportCardJobRepository();
+export function createInstitutionBrandingRepository(
+  config: AssessmentRepositoryConfig = {},
+): InstitutionBrandingRepository {
+  const pool = resolveReportCardPool(config);
+  return pool
+    ? new PgInstitutionBrandingRepository(pool)
+    : new InMemoryInstitutionBrandingRepository();
+}
+
+export function createReportCardJobRepository(
+  config: AssessmentRepositoryConfig = {},
+): ReportCardJobRepository {
+  const pool = resolveReportCardPool(config);
+  return pool ? new PgReportCardJobRepository(pool) : new InMemoryReportCardJobRepository();
 }

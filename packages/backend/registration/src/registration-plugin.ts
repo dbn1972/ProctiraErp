@@ -10,6 +10,7 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import type { AdmissionsCrmStore } from './admissions-crm-store.js';
 import type { RegistrationRepository } from './registration-repository.js';
 import { RegistrationService } from './registration-service.js';
 import { registerRegistrationRoutes } from './routes.js';
@@ -20,6 +21,8 @@ import { registerRegistrationRoutes } from './routes.js';
 export interface RegistrationPluginOptions {
   /** Registration repository implementation */
   repository: RegistrationRepository;
+  /** Waitlist / interview CRM store (G-717). Defaults to in-memory. */
+  crmStore?: AdmissionsCrmStore;
   /** Route prefix for registration endpoints (default: '/registrations') */
   prefix?: string;
   /** Default tenant ID for public routes */
@@ -44,10 +47,10 @@ export const registrationPlugin = fp(
     fastify: FastifyInstance,
     options: RegistrationPluginOptions,
   ) {
-    const { repository, prefix = '/registrations', defaultTenantId } = options;
+    const { repository, crmStore, prefix = '/registrations', defaultTenantId } = options;
 
     // Create registration service instance
-    const registrationService = new RegistrationService(repository);
+    const registrationService = new RegistrationService(repository, crmStore);
 
     // Decorate fastify with the registration service
     fastify.decorate('registrationService', registrationService);

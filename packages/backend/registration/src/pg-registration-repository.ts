@@ -186,25 +186,30 @@ export class PgRegistrationRepository implements RegistrationRepository {
   }
 
   /**
-   * Public tracking lookup has no tenant context; query without RLS bind.
-   * Table owner bypasses RLS unless FORCE ROW LEVEL SECURITY is set (015 does not).
+   * Lookups bind the tenant GUC when a tenant is known: 021 FORCEs RLS, so an
+   * unbound query returns nothing for the (owner) app role. Callers without a
+   * tenant (legacy) still get the unbound query, which only works for
+   * superuser connections.
    */
-  async findByTrackingNumber(trackingNumber: string): Promise<RegistrationEntity | null> {
+  async findByTrackingNumber(
+    trackingNumber: string,
+    tenantId?: string,
+  ): Promise<RegistrationEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM admission_applications WHERE tracking_number = $1 LIMIT 1`,
-      [trackingNumber],
-    );
+    const sql = `SELECT * FROM admission_applications WHERE tracking_number = $1 LIMIT 1`;
+    const result = tenantId
+      ? await this.withTenant(tenantId, (client) => client.query(sql, [trackingNumber]))
+      : await this.pool.query(sql, [trackingNumber]);
     if (!result.rows[0]) return null;
     return mapApplication(result.rows[0] as Record<string, unknown>);
   }
 
-  async findById(id: string): Promise<RegistrationEntity | null> {
+  async findById(id: string, tenantId?: string): Promise<RegistrationEntity | null> {
     await this.ensureSchema();
-    const result = await this.pool.query(
-      `SELECT * FROM admission_applications WHERE id = $1 LIMIT 1`,
-      [id],
-    );
+    const sql = `SELECT * FROM admission_applications WHERE id = $1 LIMIT 1`;
+    const result = tenantId
+      ? await this.withTenant(tenantId, (client) => client.query(sql, [id]))
+      : await this.pool.query(sql, [id]);
     if (!result.rows[0]) return null;
     return mapApplication(result.rows[0] as Record<string, unknown>);
   }
@@ -226,9 +231,10 @@ export class PgRegistrationRepository implements RegistrationRepository {
     id: string,
     status: RegistrationStatus,
     remarks?: string,
+    tenantId?: string,
   ): Promise<RegistrationEntity | null> {
     await this.ensureSchema();
-    const existing = await this.findById(id);
+    const existing = await this.findById(id, tenantId);
     if (!existing) return null;
     return this.withTenant(existing.tenantId, async (client) => {
       const result = await client.query(

@@ -70,7 +70,11 @@ import { createInstitutionRepository, institutionPlugin } from '@proctira/backen
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
-import { createRegistrationRepository, registrationPlugin } from '@proctira/backend-registration';
+import {
+  createAdmissionsCrmStore,
+  createRegistrationRepository,
+  registrationPlugin,
+} from '@proctira/backend-registration';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -408,10 +412,12 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/registrations'],
     register: async (scope) => {
       // Pg when DATABASE_URL (db/sql/014_admissions_crm_schema.sql); else in-memory.
-      // Waitlist/interview CRM store remains in-process; OCR waived.
+      // G-717: waitlist/interview CRM store also on 014 under RLS; OCR waived.
       const repository = createRegistrationRepository();
+      const crmStore = createAdmissionsCrmStore();
       await scope.register(registrationPlugin, {
         repository,
+        crmStore,
         prefix: '/registrations',
       });
     },

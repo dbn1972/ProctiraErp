@@ -71,6 +71,14 @@ export {
   createInstitutionBrandingRepository,
   createReportCardJobRepository,
 } from './repository-factory.js';
+export {
+  PgReportCardTemplateRepository,
+  PgTeacherCommentRepository,
+  PgInstitutionBrandingRepository,
+  PgReportCardJobRepository,
+  ensureReportCardSchema,
+} from './pg-report-card-repository.js';
+export type { ReportCardPgPool } from './pg-report-card-repository.js';
 export type { AssessmentRepositoryConfig } from './repository-factory.js';
 
 // Schemas
