@@ -17,6 +17,7 @@ const TENANT_FREE = '550e8400-e29b-41d4-a716-4466554400f1';
 const TENANT_ENT = '550e8400-e29b-41d4-a716-4466554400e1';
 
 function createTestJwtPayload(overrides: Record<string, unknown> = {}) {
+  const now = Math.floor(Date.now() / 1000);
   return {
     sub: 'user-1',
     tenantId: TENANT_FREE,
@@ -25,10 +26,14 @@ function createTestJwtPayload(overrides: Record<string, unknown> = {}) {
     roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: 'root' }],
     areas: [],
     institutions: [],
+    iat: now,
+    exp: now + 3600,
     jti: 'jti-1',
     sessionId: 'session-1',
     ...overrides,
-  };
+    // Sign accepts JwtPayload; keep overrides flexible for planTier etc.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
 }
 
 function createTestConfig(overrides: Partial<GatewayConfig> = {}): GatewayConfig {
