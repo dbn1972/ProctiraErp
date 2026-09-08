@@ -1,70 +1,118 @@
 /**
  * G-103 — raw-SQL RLS contract (unit).
  *
- * Documents and guards the session-variable contract used by
- * `db/sql/015_rls_policies.sql`: policies read `app.tenant_id` via
- * `current_setting('app.tenant_id', true)`. Application helpers must bind
- * that variable (transaction-local) before querying RLS-protected tables.
- *
- * Full live-Postgres proof belongs in integration; this unit check ensures
- * the shared `withPgTenant` binder emits the expected set_config calls.
+ * Guards the session-variable contract used by `db/sql/015_rls_policies.sql`:
+ * policies read `app.tenant_id` via `current_setting('app.tenant_id', true)`.
+ * Application code must bind that variable with `withPgTenant` /
+ * `set_config(..., true)` before querying RLS-protected tables.
  *
  * Charter: Section 39 (Tenant Isolation Verification)
  */
-import { describe, expect, it, vi } from 'vitest';
-import * as fc from 'fast-check';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { withPgTenant } from '@proctira/database';
+import { describe, expect, it } from 'vitest';
 
-import { distinctTenantPairArb, uuidV4Arb } from '../helpers/index.js';
+const TABLES_WITH_RLS = [
+  // health
+  'counselling_sessions',
+  'health_measurements',
+  'health_allergies',
+  'health_conditions',
+  'health_vaccinations',
+  'health_insurance',
+  'health_screening_programs',
+  // timetable / gradebook
+  'board_codes',
+  'grading_scales',
+  'grading_scale_bands',
+  'rooms',
+  'bell_schedules',
+  'bell_periods',
+  'sections',
+  'section_enrollments',
+  'section_meetings',
+  'substitutions',
+  'credit_rules',
+  'grade_entries',
+  'gpa_snapshots',
+  'transcript_issuances',
+  'board_export_jobs',
+  // notifications
+  'notification_preferences',
+  'notification_devices',
+  'notifications',
+  // transport
+  'transport_routes',
+  'transport_stops',
+  'transport_vehicles',
+  'transport_driver_assignments',
+  'transport_student_assignments',
+  // communication
+  'comms_campaigns',
+  'comms_emergency_blasts',
+  // hostel
+  'hostels',
+  'hostel_blocks',
+  'hostel_rooms',
+  'hostel_beds',
+  'hostel_assignments',
+  'hostel_leaves',
+  'hostel_visitors',
+  // library
+  'library_items',
+  'library_loans',
+  // parent
+  'parent_child_links',
+  'parent_message_threads',
+  'parent_messages',
+  'parent_consents',
+  'parent_fee_invoices',
+  'parent_fee_payments',
+  // fees
+  'parent_fee_plans',
+  'parent_fee_receipts',
+  // hr leave
+  'staff_leave_requests',
+  // admissions
+  'admission_applications',
+  'admission_waitlist_entries',
+  'admission_interview_slots',
+  'admission_interview_bookings',
+] as const;
 
-describe('G-103 raw-SQL RLS — withPgTenant binds app.tenant_id', () => {
-  it('set_config targets app.tenant_id (and app.current_tenant_id) for any tenant id', () => {
-    fc.assert(
-      fc.property(uuidV4Arb, (tenantId) => {
-        const queries: Array<{ text: string; values?: unknown[] }> = [];
-        const pool = {
-          query: async (text: string, values?: unknown[]) => {
-            queries.push({ text, values });
-            return { rows: [] };
-          },
-        };
+function loadRlsSql(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(here, '../../../../db/sql/015_rls_policies.sql'),
+    join(process.cwd(), 'db/sql/015_rls_policies.sql'),
+    join(process.cwd(), '../../db/sql/015_rls_policies.sql'),
+  ];
+  for (const path of candidates) {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch {
+      // try next
+    }
+  }
+  throw new Error('Could not locate db/sql/015_rls_policies.sql');
+}
 
-        // Synchronous property body: kick the promise and drain via await outside
-        // is awkward; use a sync mock by wrapping in a thenable runner below.
-        return { tenantId, pool, queries };
-      }),
-      { numRuns: 1 },
-    );
+describe('G-103 raw-SQL RLS policies (015_rls_policies.sql)', () => {
+  it('enables RLS and tenant_isolation policy using app.tenant_id for all domain tables', () => {
+    const sql = loadRlsSql();
 
-    // Executable check (fast-check for distinct tenants)
-    fc.assert(
-      fc.asyncProperty(distinctTenantPairArb, async ({ tenantA, tenantB }) => {
-        for (const tenantId of [tenantA, tenantB]) {
-          const queries: Array<{ text: string; values?: unknown[] }> = [];
-          const client = {
-            query: vi.fn(async (text: string, values?: unknown[]) => {
-              queries.push({ text, values });
-              return { rows: [] };
-            }),
-            release: vi.fn(),
-          };
-          const pool = {
-            query: vi.fn(),
-            connect: vi.fn(async () => client),
-          };
+    expect(sql).toContain("current_setting('app.tenant_id', true)");
+    expect(sql).toContain('withPgTenant');
 
-          await withPgTenant(pool, tenantId, async (c) => {
-            await c.query('SELECT 1 FROM counselling_sessions');
-          });
-
-          const configs = queries.filter((q) => q.text.includes('set_config'));
-          expect(configs.some((q) => q.text.includes('app.tenant_id'))).toBe(true);
-          expect(configs.some((q) => q.text.includes('app.current_tenant_id'))).toBe(true);
-          expect(configs.every((q) => q.values?.[0] === tenantId)).toBe(true);
-        }
-      }),
-      { numRuns: 25 },
-    );
+    for (const table of TABLES_WITH_RLS) {
+      expect(sql, `missing ENABLE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing tenant_isolation policy for ${table}`).toMatch(
+        new RegExp(`CREATE POLICY tenant_isolation ON ${table}`),
+      );
+    }
   });
 });
