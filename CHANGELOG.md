@@ -13,6 +13,11 @@ section is renamed to the version + date.
 
 ### Added
 
+- **G-721** — Redesign hub i18n: `getTranslations` on fees/hostel/transport/library/health/scholarships; parity gate extended; `he` removed from `rtlLocales` (LanguageProvider still handles experimental RTL).
+
+
+### Added
+
 - PR-level live E2E gate: `e2e-backend-ready.yml` runs on every pull request
   against Postgres + api-gateway with `E2E_REQUIRE_LIVE=1`, strict tenant FKs
   and seeded E2E tenants (G-706).

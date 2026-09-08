@@ -9,6 +9,7 @@
  * Validates: Requirement 11.1 — scholarship program management entry point.
  */
 import Link from 'next/link';
+import { getTranslations } from 'next-intl/server';
 import {
   Award,
   Clock,
@@ -42,12 +43,14 @@ import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
 
-const STATUS_LABELS: Record<ScholarshipProgram['status'], string> = {
-  DRAFT: 'Draft',
-  OPEN: 'Window open',
-  CLOSED: 'Closed',
-  ARCHIVED: 'Archived',
-};
+type ScholarshipsT = Awaited<ReturnType<typeof getTranslations<'scholarships'>>>;
+
+const STATUS_KEYS = {
+  DRAFT: 'statusDraft',
+  OPEN: 'statusOpen',
+  CLOSED: 'statusClosed',
+  ARCHIVED: 'statusArchived',
+} as const satisfies Record<ScholarshipProgram['status'], string>;
 
 const STATUS_COLOURS: Record<ScholarshipProgram['status'], string> = {
   OPEN: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
@@ -84,7 +87,8 @@ function formatWindow(start: string, end: string): string {
 }
 
 export default async function ScholarshipsPage() {
-  const [programs, applications, disbursements] = await Promise.all([
+  const [t, programs, applications, disbursements] = await Promise.all([
+    getTranslations('scholarships'),
     listScholarshipPrograms(),
     listScholarshipApplications(),
     listScholarshipDisbursements(),
@@ -107,13 +111,12 @@ export default async function ScholarshipsPage() {
             id="programs-heading"
             className="text-3xl font-extrabold tracking-tight text-foreground"
           >
-            Scholarship programs
+            {t('title')}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Central and state scholarship schemes — eligibility, application windows, and DBT
-            disbursements in one place.
+            {t('subtitle')}
             {programs.length > 0
-              ? ` ${programs.length.toLocaleString()} programs configured, ${openCount.toLocaleString()} with an open window.`
+              ? ` ${t('configured', { count: programs.length, open: openCount })}`
               : null}
           </p>
         </div>
@@ -121,19 +124,19 @@ export default async function ScholarshipsPage() {
           <Button asChild variant="outline" size="sm">
             <Link href="/scholarships/applications">
               <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Applications
+              {t('applications')}
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/scholarships/disbursements">
               <Wallet className="me-1.5 h-4 w-4" aria-hidden="true" />
-              Disbursements
+              {t('disbursements')}
             </Link>
           </Button>
           <Button asChild size="sm">
             <Link href="/scholarships/programs/new">
               <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-              New program
+              {t('newProgram')}
             </Link>
           </Button>
         </div>
@@ -143,48 +146,48 @@ export default async function ScholarshipsPage() {
         <KpiCard
           icon={<Wallet className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400"
-          label="Disbursed"
+          label={t('kpiDisbursed')}
           value={processed.length > 0 ? formatMoney(disbursedTotal, disbursedCurrency) : '—'}
-          foot={
-            processed.length > 0
-              ? `${processed.length.toLocaleString()} processed payments`
-              : 'No payments processed yet'
-          }
+          foot={t('processedPayments', { count: processed.length })}
         />
         <KpiCard
           icon={<Award className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400"
-          label="Active programs"
+          label={t('kpiActive')}
           value={openCount.toLocaleString()}
-          foot={`${programs.length.toLocaleString()} total configured`}
+          foot={t('totalConfigured', { count: programs.length })}
         />
         <KpiCard
           icon={<Clock className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400"
-          label="Pending applications"
+          label={t('kpiPending')}
           value={pendingApps.toLocaleString()}
-          foot={`${applications.length.toLocaleString()} applications received`}
+          foot={t('applicationsReceived', { count: applications.length })}
         />
         <KpiCard
           icon={<Users className="h-5 w-5" aria-hidden="true" />}
           iconClass="bg-teal-50 text-teal-600 dark:bg-teal-950/40 dark:text-teal-400"
-          label="Beneficiaries"
+          label={t('kpiBeneficiaries')}
           value={approvedApps.toLocaleString()}
-          foot="Approved applications"
+          foot={t('approvedApplications')}
         />
       </div>
 
       {programs.length === 0 ? (
-        <EmptyState />
+        <EmptyState t={t} />
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <ProgramsTable items={programs} />
+              <ProgramsTable items={programs} t={t} />
             </div>
             <div className="border-t px-4 py-3 text-sm text-muted-foreground">
-              Showing <span className="font-semibold text-foreground">1–{programs.length}</span> of{' '}
-              <span className="font-semibold text-foreground">{programs.length}</span> programs
+              {t.rich('showing', {
+                from: 1,
+                to: programs.length,
+                total: programs.length,
+                strong: (chunks) => <span className="font-semibold text-foreground">{chunks}</span>,
+              })}
             </div>
           </CardContent>
         </Card>
@@ -193,34 +196,32 @@ export default async function ScholarshipsPage() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ t }: { t: ScholarshipsT }) {
   return (
     <Card>
       <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-center">
         <Award className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-        <p className="text-base font-medium">No scholarship programs yet</p>
-        <p className="text-sm text-muted-foreground">
-          Create your first scholarship program to start accepting applications.
-        </p>
+        <p className="text-base font-medium">{t('emptyTitle')}</p>
+        <p className="text-sm text-muted-foreground">{t('emptyBody')}</p>
         <Button asChild className="mt-2">
-          <Link href="/scholarships/programs/new">Create program</Link>
+          <Link href="/scholarships/programs/new">{t('createProgram')}</Link>
         </Button>
       </CardContent>
     </Card>
   );
 }
 
-function ProgramsTable({ items }: { items: ScholarshipProgram[] }) {
+function ProgramsTable({ items, t }: { items: ScholarshipProgram[]; t: ScholarshipsT }) {
   return (
-    <Table aria-label="Scholarship programs">
+    <Table aria-label={t('title')}>
       <TableHeader>
         <TableRow className="bg-muted/30 hover:bg-muted/30">
-          <TableHead className="ps-4 font-semibold">Program</TableHead>
-          <TableHead className="font-semibold text-end">Slots</TableHead>
-          <TableHead className="font-semibold text-end">Award</TableHead>
-          <TableHead className="font-semibold">Application window</TableHead>
-          <TableHead className="font-semibold">Status</TableHead>
-          <TableHead className="pe-4 text-end font-semibold">Actions</TableHead>
+          <TableHead className="ps-4 font-semibold">{t('colProgram')}</TableHead>
+          <TableHead className="font-semibold text-end">{t('colSlots')}</TableHead>
+          <TableHead className="font-semibold text-end">{t('colAward')}</TableHead>
+          <TableHead className="font-semibold">{t('colWindow')}</TableHead>
+          <TableHead className="font-semibold">{t('colStatus')}</TableHead>
+          <TableHead className="pe-4 text-end font-semibold">{t('colActions')}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -242,7 +243,9 @@ function ProgramsTable({ items }: { items: ScholarshipProgram[] }) {
             </TableCell>
             <TableCell className="text-end font-semibold tabular-nums">
               {formatMoney(program.awardAmount, program.currency)}
-              <span className="block text-[11px] font-normal text-muted-foreground">/ yr</span>
+              <span className="block text-[11px] font-normal text-muted-foreground">
+                {t('perYear')}
+              </span>
             </TableCell>
             <TableCell className="text-sm">
               {formatWindow(program.applicationStartDate, program.applicationEndDate)}
@@ -254,20 +257,20 @@ function ProgramsTable({ items }: { items: ScholarshipProgram[] }) {
                   STATUS_COLOURS[program.status],
                 )}
               >
-                {STATUS_LABELS[program.status]}
+                {t(STATUS_KEYS[program.status])}
               </span>
             </TableCell>
             <TableCell className="pe-4">
               <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
                 <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-                  <Link href={`/scholarships/programs/${program.id}`} aria-label="View">
+                  <Link href={`/scholarships/programs/${program.id}`} aria-label={t('view')}>
                     <Eye className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="Edit">
+                <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label={t('edit')}>
                   <Pencil className="h-4 w-4" aria-hidden="true" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More">
+                <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label={t('more')}>
                   <MoreVertical className="h-4 w-4" aria-hidden="true" />
                 </Button>
               </div>

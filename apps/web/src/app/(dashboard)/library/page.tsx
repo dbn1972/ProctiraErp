@@ -11,6 +11,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
+import { getTranslations } from 'next-intl/server';
+
 import { requireSession } from '@/lib/auth/server';
 import { listLibraryItems } from '@/lib/api/library';
 import { LibraryClearanceForm } from './_components/clearance-form';
@@ -20,23 +22,21 @@ export const dynamic = 'force-dynamic';
 
 export default async function LibraryCatalogPage() {
   await requireSession();
-  const items = await listLibraryItems();
+  const [t, items] = await Promise.all([getTranslations('library'), listLibraryItems()]);
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Library</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Catalog, circulation, overdues, and student clearance.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{t('title')}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{t('subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link href="/library/circulation">Circulation</Link>
+            <Link href="/library/circulation">{t('circulation')}</Link>
           </Button>
           <Button asChild variant="outline">
-            <Link href="/library/overdues">Overdues</Link>
+            <Link href="/library/overdues">{t('overdues')}</Link>
           </Button>
         </div>
       </div>
@@ -46,17 +46,13 @@ export default async function LibraryCatalogPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Catalog</CardTitle>
-          <CardDescription>
-            {items.length === 0
-              ? 'No holdings yet.'
-              : `${items.length} item${items.length === 1 ? '' : 's'}.`}
-          </CardDescription>
+          <CardTitle className="text-base">{t('catalog')}</CardTitle>
+          <CardDescription>{t('itemCount', { count: items.length })}</CardDescription>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
             <p className="text-sm text-muted-foreground" role="status">
-              No holdings yet.
+              {t('noHoldings')}
             </p>
           ) : (
             <ul className="divide-y divide-border" role="list">
@@ -68,9 +64,9 @@ export default async function LibraryCatalogPage() {
                 >
                   <p className="text-sm font-medium text-foreground">{item.title}</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {item.author ?? 'Unknown author'}
-                    {item.isbn ? ` · ISBN ${item.isbn}` : ''} · {item.available}/{item.copies}{' '}
-                    available
+                    {item.author ?? t('unknownAuthor')}
+                    {item.isbn ? ` · ${t('isbn', { isbn: item.isbn })}` : ''} ·{' '}
+                    {t('availability', { available: item.available, copies: item.copies })}
                   </p>
                 </li>
               ))}
