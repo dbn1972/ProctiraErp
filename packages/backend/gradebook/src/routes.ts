@@ -17,6 +17,7 @@ import {
   isGradeLockedError,
   isTranscriptImmutableError,
 } from './gradebook-errors.js';
+import { isGradeWorkflowAction } from './grade-workflow.js';
 import type { GradebookService } from './gradebook-service.js';
 import {
   ComputeGpaSchema,
@@ -24,6 +25,7 @@ import {
   CreateCreditRuleSchema,
   CreateReportCardJobSchema,
   IssueTranscriptSchema,
+  TransitionGradeEntrySchema,
   UpsertGradeEntrySchema,
 } from './schemas.js';
 
@@ -148,6 +150,39 @@ export async function registerGradebookRoutes(
     try {
       const row = await service.upsertGradeEntry(tenantId, validated.data, requestUser(request));
       return reply.status(200).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  /** G-303 — submit / approve / reject / lock / reopen */
+  fastify.post(`${prefix}/entries/:id/transition`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    const { id } = request.params as { id: string };
+    const validated = validate(TransitionGradeEntrySchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    const action = validated.data.action;
+    if (!isGradeWorkflowAction(action)) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid workflow action',
+        statusCode: 400,
+      });
+    }
+    // Teachers may submit; moderation/lock/reopen require registrar-class.
+    const needed: GradebookAction = action === 'submit' ? 'grade.entry' : 'grade.moderate';
+    if (!requireAction(request, reply, needed)) return;
+    try {
+      const row = await service.transitionGradeEntry(tenantId, id, action, requestUser(request));
+      return reply.send(row);
     } catch (error) {
       return sendDomainError(reply, error);
     }
@@ -421,18 +456,60 @@ export async function registerGradebookRoutes(
     if (!tenantId) return;
     try {
       const { id } = request.params as { id: string };
-      const query = request.query as { format?: string };
+      const query = request.query as { format?: string; token?: string };
       const formatRaw = (query.format ?? 'pack').toLowerCase();
       const format =
         formatRaw === 'csv' || formatRaw === 'json' || formatRaw === 'html' || formatRaw === 'pack'
           ? formatRaw
           : 'pack';
-      const file = await service.downloadBoardExport(tenantId, id, format);
+      const file = await service.downloadBoardExport(tenantId, id, format, {
+        downloadToken: query.token,
+        actorId: requestUser(request)?.sub ?? requestUser(request)?.id ?? null,
+      });
       return reply
         .header('Content-Type', file.contentType)
         .header('Content-Disposition', `attachment; filename="${file.filename}"`)
         .header('X-Checksum-SHA256', String(file.job.metadata.checksumSha256 ?? ''))
         .send(file.body);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  /** G-305 — mint a short-lived signed download token for a SUCCEEDED job. */
+  fastify.post(`${prefix}/board-exports/:id/signed-download`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'board_export.create')) return;
+    try {
+      const { id } = request.params as { id: string };
+      const job = await service.getBoardExportJob(tenantId, id);
+      if (!job) {
+        return reply.status(404).send({
+          code: 'NOT_FOUND',
+          message: 'Board export job not found',
+          statusCode: 404,
+        });
+      }
+      const signed = service.issueBoardExportDownloadToken(tenantId, id);
+      return reply.send({
+        jobId: id,
+        ...signed,
+        downloadPath: `${prefix}/board-exports/${id}/download?token=${encodeURIComponent(signed.token)}`,
+      });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/board-exports/:id/process`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'board_export.create')) return;
+    try {
+      const { id } = request.params as { id: string };
+      const job = await service.processBoardExportJob(tenantId, id);
+      return reply.send(job);
     } catch (error) {
       return sendDomainError(reply, error);
     }

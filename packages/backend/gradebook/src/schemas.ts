@@ -52,6 +52,19 @@ export const CreateBoardExportJobSchema = Type.Object({
   institutionId: Type.String({ minLength: 1 }),
   studentIds: Type.Optional(Type.Array(Type.String({ minLength: 1 }), { maxItems: 500 })),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })),
+  /** When true, leave job QUEUED for deferred processBoardExportJob. */
+  async: Type.Optional(Type.Boolean()),
   metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });
 export type CreateBoardExportJobInput = Static<typeof CreateBoardExportJobSchema>;
+
+export const TransitionGradeEntrySchema = Type.Object({
+  action: Type.Union([
+    Type.Literal('submit'),
+    Type.Literal('approve'),
+    Type.Literal('reject'),
+    Type.Literal('lock'),
+    Type.Literal('reopen'),
+  ]),
+});
+export type TransitionGradeEntryInput = Static<typeof TransitionGradeEntrySchema>;

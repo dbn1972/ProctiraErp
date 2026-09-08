@@ -9,6 +9,11 @@ import {
   validateBoardExportCompleteness,
 } from './board-export-validation.js';
 import { getBoardPack, listBoardPacks, type BoardPackCode } from './board-pack-registry.js';
+import {
+  readGradeWorkflowStatus,
+  transitionGradeWorkflow,
+  type GradeWorkflowAction,
+} from './grade-workflow.js';
 import { computeGpaSnapshot, type CourseGradeInput, type GpaPolicy } from './gpa-engine.js';
 import { GradeLockedError } from './gradebook-errors.js';
 import type {
@@ -30,6 +35,12 @@ import type {
   IssueTranscriptInput,
   UpsertGradeEntryInput,
 } from './schemas.js';
+import {
+  createBoardExportDownloadToken,
+  signTranscriptChecksum,
+  verifyBoardExportDownloadToken,
+  type BoardExportSignedDownload,
+} from './signed-download.js';
 import { writeTranscriptPdfLite } from './transcript-artifact.js';
 
 export interface GradebookAuditEntry {
@@ -170,12 +181,25 @@ export class GradebookService {
     if (existing?.lockedAt) {
       throw new GradeLockedError(`Grade entry ${existing.id} is locked`);
     }
+    if (existing) {
+      const workflow = readGradeWorkflowStatus(existing.metadata, existing.lockedAt);
+      if (workflow === 'SUBMITTED' || workflow === 'APPROVED' || workflow === 'LOCKED') {
+        throw new BusinessRuleError(
+          `Grade entry ${existing.id} is ${workflow}; reopen or wait for moderation before editing`,
+        );
+      }
+    }
 
     const now = nowIso();
-    const metadata = {
+    const priorWorkflow = existing
+      ? readGradeWorkflowStatus(existing.metadata, existing.lockedAt)
+      : 'DRAFT';
+    const metadata: Record<string, unknown> = {
       ...(existing?.metadata ?? {}),
       ...((input.metadata as Record<string, unknown>) ?? {}),
       ...(input.creditRuleCode ? { creditRuleCode: input.creditRuleCode } : {}),
+      // Editing resets REJECTED → DRAFT; new rows start DRAFT.
+      workflowStatus: priorWorkflow === 'REJECTED' || !existing ? 'DRAFT' : priorWorkflow,
     };
 
     if (existing) {
@@ -225,6 +249,47 @@ export class GradebookService {
       details: { studentId: input.studentId, mode: 'create' },
     });
     return created;
+  }
+
+  /**
+   * G-303 — publish/moderation/lock transitions for a grade entry.
+   */
+  async transitionGradeEntry(
+    tenantId: string,
+    entryId: string,
+    action: GradeWorkflowAction,
+    user?: { id?: string; sub?: string },
+  ): Promise<GradeEntryEntity> {
+    const entry = await this.repo.getGradeEntry(tenantId, entryId);
+    if (!entry) {
+      throw new NotFoundError(`Grade entry ${entryId} not found`);
+    }
+    const current = readGradeWorkflowStatus(entry.metadata, entry.lockedAt);
+    const next = transitionGradeWorkflow(current, action);
+    const now = nowIso();
+    const metadata = {
+      ...entry.metadata,
+      workflowStatus: next,
+      lastWorkflowAction: action,
+      lastWorkflowAt: now,
+      lastWorkflowBy: actorId(user),
+    };
+    const lockedAt = next === 'LOCKED' ? (entry.lockedAt ?? now) : action === 'reopen' ? null : entry.lockedAt;
+    const updated = await this.repo.updateGradeEntry(tenantId, entryId, {
+      metadata,
+      lockedAt,
+      updatedAt: now,
+    });
+    if (!updated) throw new NotFoundError(`Grade entry ${entryId} not found`);
+    this.recordAudit({
+      tenantId,
+      action: `grade.${action}`,
+      entityType: 'grade_entry',
+      entityId: entryId,
+      actorId: actorId(user),
+      details: { from: current, to: next },
+    });
+    return updated;
   }
 
   async computeGpa(
@@ -420,6 +485,7 @@ export class GradebookService {
     };
     const body = JSON.stringify(payload);
     const checksum = createHash('sha256').update(body).digest('hex');
+    const signature = signTranscriptChecksum(checksum, tenantId);
     const artifacts = writeTranscriptPdfLite({
       tenantId,
       studentId: input.studentId,
@@ -448,6 +514,9 @@ export class GradebookService {
         pdfLitePath: artifacts.pdfLitePath,
         jsonPath: artifacts.jsonPath,
         artifactKind: 'pdf-lite-html',
+        signatureAlg: 'HMAC-SHA256',
+        signature,
+        signedAt: now,
       },
       createdAt: now,
       updatedAt: now,
@@ -458,7 +527,7 @@ export class GradebookService {
       entityType: 'transcript_issuance',
       entityId: row.id,
       actorId: actorId(user),
-      details: { studentId: input.studentId, version: nextVersion, artifactUri },
+      details: { studentId: input.studentId, version: nextVersion, artifactUri, signature },
     });
     return row;
   }
@@ -529,7 +598,7 @@ export class GradebookService {
       `${board.code}-CTR-${institution.code}`;
 
     const now = nowIso();
-    let job = await this.repo.createExportJob({
+    const job = await this.repo.createExportJob({
       id: randomUUID(),
       tenantId,
       boardId: board.id,
@@ -546,14 +615,75 @@ export class GradebookService {
         packVersion: pack.version,
         securityMark: pack.securityMark,
         studentIds: exportCohort.map((c) => c.studentId),
+        asyncQueued: Boolean(input.async),
+        prep: {
+          institutionCode: institution.code,
+          institutionName: institution.name,
+          affiliationCode,
+          centreCode,
+          candidates: exportCohort,
+        },
         ...((input.metadata as Record<string, unknown>) ?? {}),
       },
       createdAt: now,
       updatedAt: now,
     });
 
+    this.recordAudit({
+      tenantId,
+      action: 'board_export.create',
+      entityType: 'board_export_job',
+      entityId: job.id,
+      actorId: actorId(user),
+      details: {
+        boardCode: board.code,
+        institutionId: input.institutionId,
+        async: Boolean(input.async),
+        candidateCount: exportCohort.length,
+      },
+    });
+
+    // Async mode: leave QUEUED for a worker / follow-up process call.
+    if (input.async) {
+      return job;
+    }
+    return this.processBoardExportJob(tenantId, job.id);
+  }
+
+  /** Process a QUEUED board export (sync runner or deferred worker). */
+  async processBoardExportJob(tenantId: string, jobId: string): Promise<ExportJobEntity> {
+    const job = await this.repo.getExportJob(tenantId, jobId);
+    if (!job) {
+      throw new NotFoundError(`Board export job ${jobId} not found`);
+    }
+    if (job.jobType !== BOARD_EXPORT_JOB_TYPE) {
+      throw new NotFoundError(`Job ${jobId} is not a board marksheet pack`);
+    }
+    if (job.status !== 'QUEUED' && job.status !== 'RUNNING') {
+      return job;
+    }
+
+    const prep = job.metadata.prep as
+      | {
+          institutionCode: string;
+          institutionName: string;
+          affiliationCode: string;
+          centreCode: string;
+          candidates: Parameters<typeof writeBoardExportArtifacts>[0]['candidates'];
+        }
+      | undefined;
+    if (!prep) {
+      throw new BusinessRuleError('Board export job is missing prep metadata');
+    }
+
+    const packCode = String(job.metadata.boardCode ?? '');
+    const pack = getBoardPack(packCode);
+    if (!pack) {
+      throw new BusinessRuleError(`No compliance pack for board ${packCode}`);
+    }
+
     const started = nowIso();
-    job =
+    let running =
       (await this.repo.updateExportJob(tenantId, job.id, {
         status: 'RUNNING',
         startedAt: started,
@@ -564,23 +694,24 @@ export class GradebookService {
       const artifacts = writeBoardExportArtifacts({
         jobId: job.id,
         tenantId,
-        boardId: board.id,
-        institutionId: institution.id,
-        institutionCode: institution.code,
-        institutionName: institution.name,
-        affiliationCode,
-        centreCode,
+        boardId: job.boardId,
+        institutionId: job.institutionId ?? '',
+        institutionCode: prep.institutionCode,
+        institutionName: prep.institutionName,
+        affiliationCode: prep.affiliationCode,
+        centreCode: prep.centreCode,
         pack,
-        candidates: exportCohort,
+        candidates: prep.candidates,
       });
       const finished = nowIso();
-      job =
+      const { prep: _drop, ...restMeta } = running.metadata;
+      running =
         (await this.repo.updateExportJob(tenantId, job.id, {
           status: 'SUCCEEDED',
           finishedAt: finished,
           artifactUri: artifacts.packJsonPath,
           metadata: {
-            ...job.metadata,
+            ...restMeta,
             checksumSha256: artifacts.checksumSha256,
             artifactDir: artifacts.artifactDir,
             marksheetCsvPath: artifacts.marksheetCsvPath,
@@ -592,8 +723,16 @@ export class GradebookService {
             securityMark: pack.securityMark,
           },
           updatedAt: finished,
-        })) ?? job;
-      return job;
+        })) ?? running;
+      this.recordAudit({
+        tenantId,
+        action: 'board_export.succeeded',
+        entityType: 'board_export_job',
+        entityId: job.id,
+        actorId: job.requestedBy,
+        details: { checksumSha256: artifacts.checksumSha256 },
+      });
+      return running;
     } catch (error) {
       const finished = nowIso();
       const message = error instanceof Error ? error.message : 'Board export failed';
@@ -603,26 +742,51 @@ export class GradebookService {
         errorMessage: message,
         updatedAt: finished,
       });
+      this.recordAudit({
+        tenantId,
+        action: 'board_export.failed',
+        entityType: 'board_export_job',
+        entityId: job.id,
+        actorId: job.requestedBy,
+        details: { error: message },
+      });
       throw error;
     }
+  }
+
+  /** G-305 — short-lived signed download stub (tenant-bound HMAC). */
+  issueBoardExportDownloadToken(
+    tenantId: string,
+    jobId: string,
+    expiresInSeconds = 300,
+  ): BoardExportSignedDownload {
+    return createBoardExportDownloadToken(tenantId, jobId, expiresInSeconds);
   }
 
   async downloadBoardExport(
     tenantId: string,
     jobId: string,
     format: 'pack' | 'csv' | 'json' | 'html' = 'pack',
+    opts?: { downloadToken?: string; actorId?: string | null },
   ): Promise<{
     job: ExportJobEntity;
     filename: string;
     contentType: string;
     body: Buffer;
   }> {
+    // Tenant check: getExportJob filters by tenantId — cross-tenant → not found.
     const job = await this.repo.getExportJob(tenantId, jobId);
     if (!job) {
       throw new NotFoundError(`Board export job ${jobId} not found`);
     }
     if (job.jobType !== BOARD_EXPORT_JOB_TYPE) {
       throw new NotFoundError(`Job ${jobId} is not a board marksheet pack`);
+    }
+    if (opts?.downloadToken) {
+      const verified = verifyBoardExportDownloadToken(tenantId, jobId, opts.downloadToken);
+      if (!verified.ok) {
+        throw new BusinessRuleError(`Signed download rejected: ${verified.reason}`);
+      }
     }
     if (job.status !== 'SUCCEEDED') {
       throw new BusinessRuleError(
@@ -673,6 +837,14 @@ export class GradebookService {
       throw new BusinessRuleError('Artifact path rejected');
     }
     const body = readFileSync(resolved.path);
+    this.recordAudit({
+      tenantId,
+      action: 'board_export.download',
+      entityType: 'board_export_job',
+      entityId: jobId,
+      actorId: opts?.actorId ?? null,
+      details: { format, viaToken: Boolean(opts?.downloadToken) },
+    });
     return {
       job,
       filename: resolved.filename,

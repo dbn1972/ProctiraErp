@@ -61,6 +61,22 @@ export {
   type GradebookAction,
 } from './gradebook-access.js';
 export {
+  GRADE_WORKFLOW_ACTIONS,
+  GRADE_WORKFLOW_STATUSES,
+  isGradeWorkflowAction,
+  readGradeWorkflowStatus,
+  transitionGradeWorkflow,
+  type GradeWorkflowAction,
+  type GradeWorkflowStatus,
+} from './grade-workflow.js';
+export {
+  createBoardExportDownloadToken,
+  signTranscriptChecksum,
+  verifyBoardExportDownloadToken,
+  verifyTranscriptSignature,
+  type BoardExportSignedDownload,
+} from './signed-download.js';
+export {
   buildTranscriptPdfLiteHtml,
   writeTranscriptPdfLite,
   transcriptArtifactRoot,
@@ -100,4 +116,5 @@ export {
   IssueTranscriptSchema,
   CreateCreditRuleSchema,
   CreateBoardExportJobSchema,
+  TransitionGradeEntrySchema,
 } from './schemas.js';

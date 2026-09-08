@@ -151,4 +151,101 @@ describe('gradebook access', () => {
     expect(hasGradebookAccess([{ roleId: 'registrar' }], 'transcript.issue')).toBe(true);
     expect(hasGradebookAccess(['super-admin'], 'transcript.issue')).toBe(true);
   });
+
+  it('allows teacher submit but denies moderate/lock', () => {
+    expect(hasGradebookAccess(['teacher'], 'grade.entry')).toBe(true);
+    expect(hasGradebookAccess(['teacher'], 'grade.moderate')).toBe(false);
+    expect(hasGradebookAccess(['registrar'], 'grade.moderate')).toBe(true);
+  });
+});
+
+describe('GradebookService G-303 workflow + signing', () => {
+  function setup() {
+    process.env.SIS_TRANSCRIPT_DIR = mkdtempSync(join(tmpdir(), 'sis-transcripts-'));
+    const repo = new InMemoryGradebookRepository();
+    repo.seedSection({
+      id: SECTION,
+      tenantId: TENANT,
+      institutionId: '66666666-6666-4666-8666-666666666666',
+      academicPeriodId: '77777777-7777-4777-8777-777777777777',
+      code: '10-A',
+      name: 'Class 10-A',
+      status: 'PUBLISHED',
+    });
+    repo.seedScale({
+      id: SCALE,
+      tenantId: TENANT,
+      boardId: BOARD,
+      code: 'CBSE-9PT',
+      name: 'CBSE 9-point',
+      scaleType: 'PERCENT_BAND',
+      isDefault: true,
+      bands: [
+        { label: 'A1', minPercent: 91, maxPercent: 100, gradePoints: 10 },
+        { label: 'A2', minPercent: 81, maxPercent: 90.99, gradePoints: 9 },
+        { label: 'E', minPercent: 0, maxPercent: 32.99, gradePoints: 0 },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return { service: new GradebookService(repo), repo };
+  }
+
+  it('runs draft → submit → approve → lock and blocks edits while locked', async () => {
+    const { service } = setup();
+    const entry = await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+    });
+    expect(entry.metadata.workflowStatus).toBe('DRAFT');
+
+    const submitted = await service.transitionGradeEntry(TENANT, entry.id, 'submit');
+    expect(submitted.metadata.workflowStatus).toBe('SUBMITTED');
+
+    await expect(
+      service.upsertGradeEntry(TENANT, {
+        sectionId: SECTION,
+        studentId: STUDENT,
+        assessmentCode: 'MATH',
+        numericScore: 90,
+      }),
+    ).rejects.toThrow(/SUBMITTED/);
+
+    const approved = await service.transitionGradeEntry(TENANT, entry.id, 'approve');
+    expect(approved.metadata.workflowStatus).toBe('APPROVED');
+
+    const locked = await service.transitionGradeEntry(TENANT, entry.id, 'lock');
+    expect(locked.metadata.workflowStatus).toBe('LOCKED');
+    expect(locked.lockedAt).toBeTruthy();
+
+    await expect(
+      service.upsertGradeEntry(TENANT, {
+        sectionId: SECTION,
+        studentId: STUDENT,
+        assessmentCode: 'MATH',
+        numericScore: 88,
+      }),
+    ).rejects.toThrow(/locked/i);
+
+    const audits = service.listAudits(TENANT);
+    expect(audits.some((a) => a.action === 'grade.submit')).toBe(true);
+    expect(audits.some((a) => a.action === 'grade.lock')).toBe(true);
+  });
+
+  it('embeds HMAC signature on issued transcripts', async () => {
+    const { service } = setup();
+    await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+    });
+    await service.computeGpa(TENANT, { studentId: STUDENT, boardId: BOARD });
+    const t = await service.issueTranscript(TENANT, { studentId: STUDENT });
+    expect(t.metadata.signatureAlg).toBe('HMAC-SHA256');
+    expect(typeof t.metadata.signature).toBe('string');
+    expect(String(t.metadata.signature)).toHaveLength(64);
+  });
 });

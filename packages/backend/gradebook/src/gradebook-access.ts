@@ -7,6 +7,7 @@ import { AppError } from '@proctira/common';
 
 export type GradebookAction =
   | 'grade.entry'
+  | 'grade.moderate'
   | 'gpa.compute'
   | 'report_card.create'
   | 'transcript.issue'
@@ -26,6 +27,7 @@ const REGISTRAR_ROLES = [
 
 const ACTION_ROLES: Record<GradebookAction, readonly string[]> = {
   'grade.entry': TEACHER_ROLES,
+  'grade.moderate': REGISTRAR_ROLES,
   'gpa.compute': TEACHER_ROLES,
   'report_card.create': TEACHER_ROLES,
   'transcript.issue': REGISTRAR_ROLES,
