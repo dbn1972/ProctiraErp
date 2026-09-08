@@ -33,6 +33,9 @@ import { setupGatewayTenantSession } from './fixtures/fake-session';
 import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/** Seeded by tools/e2e/seed-e2e-tenants.sql for tenant A (G-722). */
+const E2E_INSTITUTION_ID =
+  process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 
 // ────────────────────────────────────────────────────────────────────
 // Surfaces that do not require a live backend.
@@ -121,10 +124,47 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     await runAxe(page, { checkpointLabel: '/students' });
   });
 
-  // G-402: Health + Scholarships (and nested) on the authenticated axe matrix.
-  // HS256 session via setupGatewayTenantSession — no seeded password login.
+  // G-402 + G-722: the full authenticated module matrix (Health, Scholarships,
+  // campus, fees, admissions, attendance, workflows, assessments, examinations,
+  // staff, academic periods, platform surfaces, help). HS256 session via
+  // setupGatewayTenantSession — no seeded password login.
   for (const path of [
+    // '/students' covered by dedicated test above
+    '/students/new',
+    '/students/import',
+    '/admissions',
+    '/staff',
+    '/staff/new',
+    '/staff/leaves',
+    '/staff/substitutions',
+    '/academic-periods',
+    '/attendance',
+    '/attendance/reports',
+    '/assessments',
+    '/assessments/items',
+    '/assessments/results',
+    '/assessments/schemes/new',
+    '/examinations',
+    '/examinations/new',
+    '/examinations/board-exports',
+    '/fees',
+    '/fees/plans',
+    '/fees/invoices',
+    '/fees/receipts',
+    '/workflows',
+    '/workflows/approvals',
+    '/workflows/instances',
+    '/workflows/definitions/new',
+    '/billing',
+    '/audit-logs',
+    '/tenant-lifecycle',
+    '/help',
+    '/admin/users',
+    '/admin/roles',
+    '/admin/permissions',
+    '/admin/tenant',
     '/reports',
+    '/reports/new',
     '/data-warehouse',
     '/data-warehouse/import',
     '/data-warehouse/field-mapping',
@@ -157,11 +197,28 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/scholarships/programs/new',
     '/scholarships/applications',
     '/scholarships/disbursements',
+    '/hostel/leaves',
+    '/hostel/visitors',
+    '/transport/routes/new',
+    '/communication/campaigns/new',
   ] as const) {
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
       await setupGatewayTenantSession(page);
-      await page.goto(path);
-      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
+      await runAxe(page, { checkpointLabel: path });
+    });
+  }
+
+  // G-722: institution-scoped surfaces (timetable, gradebook, master schedule)
+  // against the fixture institution seeded by tools/e2e/seed-e2e-tenants.sql.
+  for (const suffix of ['', '/overview', '/classes', '/grades', '/gradebook', '/timetable', '/schedule', '/infrastructure'] as const) {
+    const path = `/institutions/${E2E_INSTITUTION_ID}${suffix}`;
+    test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
+      await setupGatewayTenantSession(page);
+      const response = await page.goto(path, { waitUntil: 'domcontentloaded' });
+      expect(response?.status(), `${path} must resolve (seeded institution)`).toBeLessThan(400);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
       await runAxe(page, { checkpointLabel: path });
     });
   }
@@ -178,7 +235,9 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     // PLAYWRIGHT_BASE_URL escape hatch so this test points at it when
     // the orchestrator boots both servers.
     const base = process.env.E2E_REGISTRATION_BASE_URL ?? 'http://localhost:3002';
-    const response = await page.goto(`${base}/apply`);
+    // A refused connection throws rather than returning a response; both mean
+    // the portal is not part of this run and the scan is skipped explicitly.
+    const response = await page.goto(`${base}/apply`).catch(() => null);
     test.skip(
       !response || response.status() >= 500,
       'registration portal not running on E2E_REGISTRATION_BASE_URL',

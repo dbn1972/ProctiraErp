@@ -28,4 +28,36 @@ ON CONFLICT (id) DO UPDATE
       deleted_at = NULL,
       updated_at = now();
 
+-- ---------------------------------------------------------------------------
+-- Institution fixture for tenant A (G-722): institution-scoped pages
+-- (/institutions/:id/timetable, /gradebook, /schedule) need a real row or the
+-- `[id]` layout calls notFound(). The id matches the E2E_INSTITUTION_ID default
+-- in the timetable/gradebook inventory specs. geographic_areas is tenant-only
+-- RLS, so bind app.tenant_id transaction-locally as well.
+-- ---------------------------------------------------------------------------
+DO $$ BEGIN PERFORM set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true); END $$;
+
+INSERT INTO geographic_areas (id, tenant_id, name, code, level, parent_id, path, lft, rgt)
+VALUES (
+  '00000000-0000-4000-8000-00000000a0ea',
+  '00000000-0000-4000-8000-000000000001',
+  'E2E District', 'E2E-DIST', 1, NULL, '/E2E-DIST', 1, 2
+)
+ON CONFLICT (id) DO UPDATE
+  SET deleted_at = NULL,
+      updated_at = now();
+
+INSERT INTO institutions (id, tenant_id, name, code, area_id, type, sector, ownership, status, custom_data)
+VALUES (
+  'a2e96cd1-0232-4cce-97e2-00ebbfb9a374',
+  '00000000-0000-4000-8000-000000000001',
+  'E2E Demo School', 'E2E-SCH-001',
+  '00000000-0000-4000-8000-00000000a0ea',
+  'school', 'public', 'government', 'active', '{}'::jsonb
+)
+ON CONFLICT (id) DO UPDATE
+  SET status = 'active',
+      deleted_at = NULL,
+      updated_at = now();
+
 COMMIT;

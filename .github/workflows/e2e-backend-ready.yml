@@ -57,9 +57,11 @@ env:
   E2E_GATEWAY_URL: http://127.0.0.1:3000
   NEXT_PUBLIC_GATEWAY_URL: http://127.0.0.1:3000
   # PR gate: HS256-cookie live smokes that need only Postgres + gateway.
+  # G-722: PR gate includes authenticated axe matrix (a11y-axe) + 17c smoke.
   PR_SPECS: >-
     e2e/17b-health-counselling-write-smoke.spec.ts
     e2e/17c-module-a11y-smoke.spec.ts
+    e2e/a11y-axe.spec.ts
     e2e/22-parent-portal-smoke.spec.ts
     e2e/21c-campus-comms-write-smoke.spec.ts
     e2e/14c-insights-live-write-smoke.spec.ts
@@ -69,6 +71,7 @@ env:
   NIGHTLY_SPECS: >-
     e2e/17b-health-counselling-write-smoke.spec.ts
     e2e/17c-module-a11y-smoke.spec.ts
+    e2e/a11y-axe.spec.ts
     e2e/22-parent-portal-smoke.spec.ts
     e2e/21c-campus-comms-write-smoke.spec.ts
     e2e/14c-insights-live-write-smoke.spec.ts
