@@ -51,7 +51,12 @@ export type { SessionStore } from './session-service.js';
 
 // Account Lockout Service
 export { AccountLockoutService } from './lockout-service.js';
-export type { LockoutStore, LockoutStatus, FailedAttempt, AccountLockout } from './lockout-service.js';
+export type {
+  LockoutStore,
+  LockoutStatus,
+  FailedAttempt,
+  AccountLockout,
+} from './lockout-service.js';
 export { InMemoryLockoutStore } from './lockout-store.js';
 
 // PostgreSQL Stores
@@ -185,9 +190,5 @@ export type {
 } from './otp-service.js';
 export { registerMfaRoutes } from './mfa-routes.js';
 export type { MfaRoutesOptions } from './mfa-routes.js';
-export {
-  ConsoleSmsProvider,
-  TwilioSmsProvider,
-  createSmsProviderFromEnv,
-} from './sms-provider.js';
+export { ConsoleSmsProvider, TwilioSmsProvider, createSmsProviderFromEnv } from './sms-provider.js';
 export type { SmsMessage, SmsProvider, TwilioSmsProviderOptions } from './sms-provider.js';

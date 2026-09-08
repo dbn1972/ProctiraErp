@@ -7,10 +7,7 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import {
-  OtpAuthError,
-  OtpValidationError,
-} from './otp-service.js';
+import { OtpAuthError, OtpValidationError } from './otp-service.js';
 import type { OtpService } from './otp-service.js';
 import type { UserLookup } from './routes.js';
 import type { SessionService } from './session-service.js';
@@ -78,9 +75,7 @@ export async function registerMfaRoutes(
     ) {
       const body = request.body ?? {};
       const tenantId =
-        body.tenantId ??
-        (request as FastifyRequest & { tenantId?: string }).tenantId ??
-        '';
+        body.tenantId ?? (request as FastifyRequest & { tenantId?: string }).tenantId ?? '';
       if (!tenantId) {
         return reply.status(400).send({
           code: 'TENANT_REQUIRED',
@@ -204,11 +199,7 @@ export async function registerMfaRoutes(
             areas: user.areas,
             institutions: user.institutions,
           };
-          const tokens = await tokenService.issueTokenPair(
-            authUser,
-            session.id,
-            request.ip,
-          );
+          const tokens = await tokenService.issueTokenPair(authUser, session.id, request.ip);
           return reply.status(200).send({
             success: true,
             method: 'sms',

@@ -31,8 +31,7 @@ export const InviteUserResponseSchema = Type.Object({
 export type InviteUserInput = Static<typeof InviteUserInputSchema>;
 export type InviteUserResponse = Static<typeof InviteUserResponseSchema>;
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export interface InviteValidationError {
   field: string;
@@ -42,9 +41,7 @@ export interface InviteValidationError {
 
 export function validateInviteUserInput(
   body: unknown,
-):
-  | { success: true; data: InviteUserInput }
-  | { success: false; errors: InviteValidationError[] } {
+): { success: true; data: InviteUserInput } | { success: false; errors: InviteValidationError[] } {
   const errors: InviteValidationError[] = [];
   if (!body || typeof body !== 'object') {
     return {
