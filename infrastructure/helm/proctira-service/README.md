@@ -24,3 +24,35 @@ helm template proctira-api-gateway ./infrastructure/helm/proctira-service \
 ```
 
 Platform umbrella chart: `../proctira-platform` (formerly openemis-platform path).
+
+## Hardening + availability (G-724)
+
+Every release renders a non-root, read-only-rootfs pod (`runAsUser: 1001`,
+all capabilities dropped, `RuntimeDefault` seccomp, `/tmp` emptyDir), a
+dedicated ServiceAccount with token automount off, and `PORT=<targetPort>`
+injected so Fastify and Next standalone images listen on the probed port.
+Probe paths come from `serviceProfiles[<service.name>].healthPath`
+(`/api/health` for the Next.js apps, `/health` otherwise).
+
+| Object                    | Values key                    | dev | staging | production |
+| ------------------------- | ----------------------------- | --- | ------- | ---------- |
+| HorizontalPodAutoscaler   | `autoscaling.enabled`         | off | off     | 3–12 pods  |
+| PodDisruptionBudget       | `podDisruptionBudget.enabled` | off | on      | on         |
+| NetworkPolicy (in+egress) | `networkPolicy.enabled`       | off | on      | on         |
+| topologySpreadConstraints | `topologySpreadConstraints`   | —   | —       | zone+host  |
+| ExternalSecret (ESO)      | `externalSecret.enabled`      | off | off     | opt-in     |
+
+Enable ESO-managed secrets per cluster:
+
+```bash
+helm upgrade --install proctira-api-gateway ./infrastructure/helm/proctira-service \
+  -f ./infrastructure/helm/proctira-service/values-production.yaml \
+  --set service.name=api-gateway \
+  --set externalSecret.enabled=true \
+  --set externalSecret.secretStoreRef.name=<ClusterSecretStore>
+```
+
+The Deployment then mounts `proctira-api-gateway-env` via `envFrom`; the chart
+never contains secret values. Pre-existing Secrets can be listed under
+`envFromSecrets`. `.github/workflows/helm-template.yml` asserts these objects
+render for staging and production on every chart change.

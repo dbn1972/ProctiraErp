@@ -57,9 +57,37 @@ jobs:
               > "$out"
             grep -q "name: proctira-${SERVICE}" "$out"
             grep -q "kind: Deployment" "$out"
+            # G-724: hardened pod spec + staging availability/isolation objects.
+            grep -q "readOnlyRootFilesystem: true" "$out"
+            grep -q "runAsNonRoot: true" "$out"
+            grep -q "kind: ServiceAccount" "$out"
+            grep -q "kind: PodDisruptionBudget" "$out"
+            grep -q "kind: NetworkPolicy" "$out"
+            # Next.js apps probe /api/health; Fastify services probe /health.
+            if [ "$SERVICE" = "web" ]; then
+              grep -q "path: /api/health" "$out"
+            else
+              grep -q "path: /health" "$out"
+            fi
             echo "OK proctira-${SERVICE}"
             echo "::endgroup::"
           done
+
+          echo "::group::production profile renders HPA + ExternalSecret opt-in"
+          out="$(mktemp)"
+          helm template proctira-api-gateway "$chart" \
+            --namespace proctira-production \
+            --set service.name=api-gateway \
+            --set image.tag=sha-ci \
+            --set externalSecret.enabled=true \
+            --set externalSecret.secretStoreRef.name=ci-store \
+            --values "${chart}/values-production.yaml" \
+            > "$out"
+          grep -q "kind: HorizontalPodAutoscaler" "$out"
+          grep -q "kind: ExternalSecret" "$out"
+          grep -q "name: proctira-api-gateway-env" "$out"
+          grep -q "topologySpreadConstraints" "$out"
+          echo "::endgroup::"
 
       - name: Lint + template proctira-platform umbrella
         run: |

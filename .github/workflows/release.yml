@@ -110,7 +110,7 @@ jobs:
 
           # Master list of releasable services. Adding a new service requires
           # adding it here AND providing a Dockerfile in infrastructure/docker/.
-          ALL_SERVICES="api-gateway,web,registration-portal,etl-worker,dr-tools,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
+          ALL_SERVICES="api-gateway,web,registration-portal,admin-console,developer-portal,install-wizard,public-website,etl-worker,dr-tools,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
 
           # Manual override via workflow_dispatch.
           if [ "${FORCE_ALL:-false}" = "true" ]; then
@@ -133,6 +133,10 @@ jobs:
             ["apps/api-gateway"]="api-gateway"
             ["apps/web"]="web"
             ["apps/registration-portal"]="registration-portal"
+            ["apps/admin-console"]="admin-console"
+            ["apps/developer-portal"]="developer-portal"
+            ["apps/install-wizard"]="install-wizard"
+            ["apps/public-website"]="public-website"
             ["apps/etl-worker"]="etl-worker"
             ["tools/scripts"]="dr-tools"
             ["packages/backend/institution"]="institution"
@@ -258,9 +262,18 @@ jobs:
               DOCKERFILE="infrastructure/docker/Dockerfile.web"
               BUILD_ARGS=""
               ;;
-            registration-portal)
+            registration-portal|admin-console|developer-portal|install-wizard|public-website)
+              # G-724: every Next.js app ships through the generic standalone
+              # Dockerfile; ports mirror each app's `next start --port`.
               DOCKERFILE="infrastructure/docker/Dockerfile.nextjs-app"
-              BUILD_ARGS=$'APP_NAME=registration-portal\nAPP_PORT=3002'
+              declare -A NEXT_PORT_MAP=(
+                ["registration-portal"]="3002"
+                ["public-website"]="3004"
+                ["developer-portal"]="3005"
+                ["admin-console"]="3014"
+                ["install-wizard"]="3100"
+              )
+              BUILD_ARGS=$'APP_NAME='"$SERVICE"$'\nAPP_PORT='"${NEXT_PORT_MAP[$SERVICE]}"
               ;;
             etl-worker)
               DOCKERFILE="infrastructure/docker/Dockerfile.etl-worker"

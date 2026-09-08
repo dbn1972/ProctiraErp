@@ -6,6 +6,8 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 
+imagePullSecrets: []
+
 service:
   name: api-gateway
   type: ClusterIP
@@ -13,6 +15,14 @@ service:
   targetPort: 3000
 
 replicaCount: 1
+revisionHistoryLimit: 5
+terminationGracePeriodSeconds: 30
+
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
 
 resources:
   requests:
@@ -22,18 +32,125 @@ resources:
     cpu: 500m
     memory: 512Mi
 
+# Probe path defaults to /health; Next.js apps are mapped to /api/health via
+# serviceProfiles below. The Deployment injects PORT=<service.targetPort> so
+# every image (Fastify or Next standalone) listens on the probed port.
+healthPath: /health
+serviceProfiles:
+  web: { healthPath: /api/health, metrics: false }
+  registration-portal: { healthPath: /api/health, metrics: false }
+  admin-console: { healthPath: /api/health, metrics: false }
+  developer-portal: { healthPath: /api/health, metrics: false }
+  install-wizard: { healthPath: /api/health, metrics: false }
+  public-website: { healthPath: /api/health, metrics: false }
+
 livenessProbe:
-  httpGet:
-    path: /health
-    port: http
   initialDelaySeconds: 15
   periodSeconds: 20
+  timeoutSeconds: 3
+  failureThreshold: 3
 
 readinessProbe:
-  httpGet:
-    path: /health
-    port: http
   initialDelaySeconds: 5
   periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
 
+# Gives slow cold starts (Next.js, Prisma engine) time before liveness kicks in.
+startupProbe:
+  periodSeconds: 5
+  failureThreshold: 24
+
+# Plain (non-secret) env vars rendered inline.
 env: {}
+
+# Names of pre-existing Secrets to mount via envFrom (DATABASE_URL, JWT_SECRET...).
+envFromSecrets: []
+
+# ---------------------------------------------------------------------------
+# Pod hardening (G-724). Images run as uid 1001 (nodejs/nextjs users) with a
+# read-only root FS; /tmp is an emptyDir mounted by the Deployment.
+# ---------------------------------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  runAsGroup: 1001
+  fsGroup: 1001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1001
+  capabilities:
+    drop:
+      - ALL
+
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+  automountToken: false
+
+podAnnotations: {}
+
+metrics:
+  enabled: true
+  path: /metrics
+
+# ---------------------------------------------------------------------------
+# Availability (G-724). Off by default so single-node dev clusters stay simple;
+# values-production.yaml turns them on.
+# ---------------------------------------------------------------------------
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  behavior: {}
+
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  maxUnavailable: null
+
+topologySpreadConstraints: []
+
+# ---------------------------------------------------------------------------
+# NetworkPolicy (G-724). Default-deny beyond same-namespace + DNS; list the
+# ingress-controller / monitoring namespaces and any external egress CIDRs.
+# ---------------------------------------------------------------------------
+networkPolicy:
+  enabled: false
+  ingressNamespaces: []
+  egressCIDRs: []
+  extraIngress: []
+  extraEgress: []
+
+# ---------------------------------------------------------------------------
+# ExternalSecret (G-724, opt-in). Requires External Secrets Operator.
+# ---------------------------------------------------------------------------
+externalSecret:
+  enabled: false
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  # Secret name ESO writes; defaults to <fullname>-env.
+  targetName: ''
+  # Either pull a whole provider object ...
+  dataFrom: []
+  # ... or map individual keys.
+  data: []
+  #  - secretKey: DATABASE_URL
+  #    remoteKey: proctira/production/api-gateway
+  #    property: DATABASE_URL
+
+extraVolumes: []
+extraVolumeMounts: []
+nodeSelector: {}
+tolerations: []
+affinity: {}

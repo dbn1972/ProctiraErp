@@ -7,3 +7,53 @@ resources:
   limits:
     cpu: '1'
     memory: 1Gi
+
+# G-724: production turns on the availability + isolation controls.
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 12
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+
+networkPolicy:
+  enabled: true
+  ingressNamespaces:
+    - ingress-nginx
+    - monitoring
+  # Managed Postgres / Redis / PSP endpoints live outside the namespace; add
+  # their CIDRs here per cluster (HTTPS egress to the public internet is the
+  # only default, for IdP / email / SMS providers).
+  egressCIDRs:
+    - cidr: 0.0.0.0/0
+      except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+        - 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 443
+
+# Secrets come from External Secrets Operator in production; set the store name
+# per cluster with --set externalSecret.secretStoreRef.name=<ClusterSecretStore>.
+externalSecret:
+  enabled: false
+  secretStoreRef:
+    name: ''
+    kind: ClusterSecretStore
+  dataFrom:
+    - extract:
+        key: proctira/production/shared
