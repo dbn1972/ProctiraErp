@@ -418,7 +418,18 @@ describe('API Gateway', () => {
     });
 
     it('accepts bodyless POST with Content-Type application/json', async () => {
-      const token = app.jwt.sign(createTestJwtPayload());
+      // Admin has communication:manage via gateway RBAC campus extensions (G-101)
+      const token = app.jwt.sign(
+        createTestJwtPayload({
+          roles: [
+            {
+              roleId: 'admin',
+              roleName: 'Administrator',
+              areaId: 'root',
+            },
+          ],
+        }),
+      );
       const tenantId = '550e8400-e29b-41d4-a716-446655440000';
 
       const createRes = await app.inject({

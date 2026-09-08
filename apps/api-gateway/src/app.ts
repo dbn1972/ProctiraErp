@@ -17,7 +17,12 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { authPlugin } from '@proctira/backend-auth';
+import {
+  authPlugin,
+  evaluatePermission,
+  InMemoryAreaHierarchyResolver,
+  rbacPlugin,
+} from '@proctira/backend-auth';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -30,6 +35,12 @@ import healthPlugin from './plugins/health.js';
 import idempotencyPlugin, { type RedisClient } from './plugins/idempotency.js';
 import serviceRouterPlugin from './plugins/service-router.js';
 import storageHealthPlugin from './plugins/storage-health.js';
+import {
+  actionForMethod,
+  createGatewayRbacRegistry,
+  PLATFORM_ADMIN_ROLE_IDS,
+  resourceForApiPath,
+} from './rbac-registry.js';
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -288,6 +299,23 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
+  // 7c. Strip forgeable actor headers AFTER auth (G-102).
+  // Clients must not be able to spoof identity via x-user-id / x-actor*.
+  // Actor identity comes only from the verified JWT (request.user / getActor).
+  const FORGEABLE_ACTOR_HEADERS = new Set([
+    'x-user-id',
+    'x-actor',
+    'x-actor-id',
+    'x-userid',
+  ]);
+  app.addHook('onRequest', async (request) => {
+    for (const key of Object.keys(request.headers)) {
+      if (FORGEABLE_ACTOR_HEADERS.has(key.toLowerCase())) {
+        delete request.headers[key];
+      }
+    }
+  });
+
   // 8. Register tenant resolution (after auth, so JWT claims are available)
   await app.register(tenantPlugin, {
     baseDomain: config.tenant.baseDomain,
@@ -334,6 +362,77 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/api/v1/auth/refresh',
       '/api/v1/storage/health',
     ],
+  });
+
+  // 8c. Mount RBAC (G-101) after tenant resolution and before domain plugins.
+  const rbacRegistry = createGatewayRbacRegistry();
+  const areaResolver = new InMemoryAreaHierarchyResolver([
+    { id: 'root', parentId: null, level: 0, path: '/root' },
+  ]);
+  await app.register(rbacPlugin, {
+    registry: rbacRegistry,
+    areaResolver,
+  });
+
+  const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+
+  app.addHook('onRequest', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    if (!MUTATING_METHODS.has(method)) return;
+
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+
+    const resource = resourceForApiPath(url);
+    if (!resource) return;
+
+    const user = request.user;
+    if (!user) {
+      return reply.status(401).send({
+        code: 'UNAUTHORIZED',
+        message: 'Authentication required',
+        statusCode: 401,
+      });
+    }
+
+    const roles = user.roles ?? [];
+    const isPlatformAdmin = roles.some((r) => {
+      const id = typeof r === 'string' ? r : r.roleId;
+      return PLATFORM_ADMIN_ROLE_IDS.has(id);
+    });
+
+    // Platform console paths: platform_admin / super-admin role OR platform.* permission
+    if (resource === 'platform' && isPlatformAdmin) {
+      return;
+    }
+
+    const action = actionForMethod(method);
+    const authUser = {
+      userId: user.sub,
+      tenantId: user.tenantId,
+      email: user.email,
+      displayName: user.displayName,
+      roles: user.roles,
+      areas: user.areas,
+      institutions: user.institutions,
+    };
+
+    const result = await evaluatePermission(
+      authUser,
+      resource,
+      action,
+      rbacRegistry,
+      areaResolver,
+    );
+
+    if (!result.granted) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: result.reason,
+        statusCode: 403,
+      });
+    }
   });
 
   // 9. Register in-process domain plugins (monolith mode). These serve their

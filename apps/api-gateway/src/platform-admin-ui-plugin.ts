@@ -136,6 +136,18 @@ function seedBreakGlass(): BreakGlassRequest[] {
   ];
 }
 
+/** Role IDs that may access the platform admin console (G-104). */
+const PLATFORM_ADMIN_ROLE_IDS = new Set(['platform_admin', 'super-admin']);
+
+function roleIdOf(role: unknown): string | undefined {
+  if (typeof role === 'string') return role;
+  if (role && typeof role === 'object' && 'roleId' in role) {
+    const id = (role as { roleId?: unknown }).roleId;
+    return typeof id === 'string' ? id : undefined;
+  }
+  return undefined;
+}
+
 export const platformAdminUiPlugin = fp(
   async function platformAdminUiPluginImpl(fastify: FastifyInstance) {
     const tenants = new Map<string, Tenant>(seedTenants().map((t) => [t.id, t]));
@@ -143,6 +155,32 @@ export const platformAdminUiPlugin = fp(
     const breakGlass = new Map<string, BreakGlassRequest>(
       seedBreakGlass().map((b) => [b.id, b]),
     );
+
+    // G-104: require platform_admin (or DEFAULT_ROLES super-admin) for all console routes
+    fastify.addHook('preHandler', async (request, reply) => {
+      const user = request.user;
+      if (!user) {
+        return reply.status(401).send({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          statusCode: 401,
+        });
+      }
+
+      const roles = user.roles ?? [];
+      const allowed = roles.some((r) => {
+        const id = roleIdOf(r);
+        return id !== undefined && PLATFORM_ADMIN_ROLE_IDS.has(id);
+      });
+
+      if (!allowed) {
+        return reply.status(403).send({
+          code: 'FORBIDDEN',
+          message: 'Platform administrator role required',
+          statusCode: 403,
+        });
+      }
+    });
 
     fastify.get('/tenants', async (request, reply) => {
       const query = request.query as { status?: string; q?: string };
