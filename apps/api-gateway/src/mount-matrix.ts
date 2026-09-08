@@ -186,7 +186,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'mixed',
     rbacWired: false,
     notes:
-      'Counselling + profile/screening PHI via raw pg when DATABASE_URL; special-needs in-memory. Also mounts healthUiPlugin.',
+      'Counselling + profile/screening PHI + special-needs via raw pg when DATABASE_URL (G-203). Also mounts healthUiPlugin.',
     registrarName: 'health',
   },
   {
@@ -195,7 +195,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/notifications'],
     persistence: 'mixed',
     rbacWired: false,
-    notes: 'Delivery records in-memory; prefs/devices raw pg when DATABASE_URL (005).',
+    notes:
+      'Deliveries via HybridNotificationRepository (PG when DATABASE_URL); prefs/devices raw pg when DATABASE_URL (005); providers sandbox/WAIVED (G-207).',
     registrarName: 'notification',
   },
   {
@@ -333,7 +334,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'workflow-ui',
     mounted: true,
     prefixes: ['/workflows'],
-    persistence: 'postgres-when-DATABASE_URL',
+    persistence: 'mixed',
     rbacWired: false,
     notes:
       'workflowUiPlugin with PG store when DATABASE_URL set (G-208 approvals persist). Real `@proctira/backend-workflow` engine still unmounted; registrar name `workflow`.',
