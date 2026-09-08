@@ -22,6 +22,7 @@
     "@proctira/auth": "workspace:*",
     "@proctira/backend-assessment": "workspace:*",
     "@proctira/backend-attendance": "workspace:*",
+    "@proctira/backend-audit": "workspace:*",
     "@proctira/backend-auth": "workspace:*",
     "@proctira/backend-communication": "workspace:*",
     "@proctira/backend-examination": "workspace:*",

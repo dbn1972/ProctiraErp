@@ -23,6 +23,10 @@ import {
   InMemoryAreaHierarchyResolver,
   rbacPlugin,
 } from '@proctira/backend-auth';
+import {
+  auditPlugin,
+  InMemoryAuditRepository,
+} from '@proctira/backend-audit';
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
@@ -373,6 +377,49 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     registry: rbacRegistry,
     areaResolver,
   });
+
+  // 8d. Mount audit trail (G-105) — in-memory by default; swap for Postgres in prod.
+  const auditRepository = new InMemoryAuditRepository();
+  await app.register(auditPlugin, {
+    repository: auditRepository,
+    prefix: '/api/v1/audit-logs',
+  });
+
+  // Record mutating API calls (best-effort; never fail the request).
+  app.addHook('onResponse', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return;
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    if (url.startsWith('/api/v1/audit-logs')) return;
+    if (reply.statusCode >= 400) return;
+
+    const user = request.user;
+    if (!user) return;
+
+    const operation =
+      method === 'POST' ? 'CREATE' : method === 'DELETE' ? 'DELETE' : 'UPDATE';
+    const parts = url.replace(/^\/api\/v1\//, '').split('/').filter(Boolean);
+    const entityType = parts[0] ?? 'unknown';
+    const entityId = parts[1] ?? 'collection';
+
+    try {
+      await app.auditService.recordAudit({
+        tenantId: user.tenantId,
+        entityType,
+        entityId,
+        operation,
+        userId: user.sub,
+        userName: user.displayName ?? user.email ?? user.sub,
+        ipAddress: request.ip,
+        metadata: { method, path: url, statusCode: reply.statusCode },
+      });
+    } catch {
+      // Audit must not break the primary request path.
+    }
+  });
+
 
   const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 

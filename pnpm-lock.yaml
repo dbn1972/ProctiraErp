@@ -164,6 +164,9 @@ importers:
       '@proctira/backend-attendance':
         specifier: workspace:*
         version: link:../../packages/backend/attendance
+      '@proctira/backend-audit':
+        specifier: workspace:*
+        version: link:../../packages/backend/audit
       '@proctira/backend-auth':
         specifier: workspace:*
         version: link:../../packages/backend/auth
