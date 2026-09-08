@@ -50,7 +50,10 @@ function createTestConfig(overrides?: Partial<GatewayConfig>): GatewayConfig {
     env: 'test',
     rateLimiting: {
       windowMs: 60000,
-      maxRequests: 10,
+      // G-731 keys every authenticated request by JWT tenant+sub, so the shared
+      // test principal accumulates across this file; the 429 path is covered by
+      // the dedicated Rate Limiting test that builds its own app with max 3.
+      maxRequests: 100,
     },
     cors: {
       origins: ['http://localhost:3000'],

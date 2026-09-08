@@ -400,7 +400,40 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return url === excluded;
     });
 
-    if (isExcluded) return;
+    const authHeader = request.headers.authorization;
+    const bearer =
+      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+        ? authHeader.slice('Bearer '.length).trim()
+        : undefined;
+
+    // Local HS JWT — try current secret, then previous (rotation window G-504).
+    // Use app.jwt.verify (not request.jwtVerify) so the previous key is not
+    // overwritten by the plugin's secret callback.
+    const verifyLocalBearer = (token: string): unknown => {
+      for (const secret of jwtVerifySecrets) {
+        try {
+          return app.jwt.verify(token, {
+            key: secret,
+            allowedIss: config.jwt.issuer,
+            allowedAud: config.jwt.audience,
+          });
+        } catch {
+          // try next secret
+        }
+      }
+      return undefined;
+    };
+
+    if (isExcluded) {
+      // Public path: never 401, but if the caller presents a valid token, bind
+      // the principal so downstream keying (rate limit, audit) is per-user
+      // rather than per-IP (G-731). Invalid tokens are simply ignored here.
+      if (bearer && !keycloak) {
+        const payload = verifyLocalBearer(bearer);
+        if (payload) request.user = payload as typeof request.user;
+      }
+      return;
+    }
 
     // Keycloak mode: plugin decorates jwtVerify with JWKS validation.
     if (keycloak) {
@@ -416,14 +449,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       return;
     }
 
-    // Local HS JWT — try current secret, then previous (rotation window G-504).
-    // Use app.jwt.verify (not request.jwtVerify) so the previous key is not
-    // overwritten by the plugin's secret callback.
-    const authHeader = request.headers.authorization;
-    const bearer =
-      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
-        ? authHeader.slice('Bearer '.length).trim()
-        : undefined;
     if (!bearer) {
       return reply.status(401).send({
         code: 'UNAUTHORIZED',
@@ -432,19 +457,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       });
     }
 
-    let payload: unknown;
-    for (const secret of jwtVerifySecrets) {
-      try {
-        payload = app.jwt.verify(bearer, {
-          key: secret,
-          allowedIss: config.jwt.issuer,
-          allowedAud: config.jwt.audience,
-        });
-        break;
-      } catch {
-        // try next secret
-      }
-    }
+    const payload = verifyLocalBearer(bearer);
     if (!payload) {
       return reply.status(401).send({
         code: 'UNAUTHORIZED',
