@@ -1,7 +1,16 @@
-# G-508 — Supply chain (SBOM / pnpm audit / cosign stub)
+# G-508 / G-708 — Supply chain: advisory gate, CycloneDX SBOM, image signing.
+#
+# Runs on PRs and main (advisory gate + SBOM) and nightly. Image signing runs
+# only when an OCI registry is reachable (push to main / manual dispatch) and
+# uses keyless cosign (GitHub OIDC → Sigstore Fulcio/Rekor); it is skipped, with
+# an explicit summary line, on pull requests from forks and when
+# `SUPPLY_CHAIN_SIGN_IMAGES` is not enabled — never silently.
 name: Supply Chain
 
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '30 5 * * *'
@@ -13,9 +22,12 @@ concurrency:
   group: supply-chain-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ARTIFACT_DIR: /tmp/supply-chain
+
 jobs:
-  supply-chain:
-    name: Audit + SBOM + cosign stub
+  advisory-gate:
+    name: Advisory gate (pnpm audit, high+ fails)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,85 +44,165 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: pnpm audit (prod, high+)
-        continue-on-error: true
-        id: pnpm_audit
-        run: |
-          set +e
-          pnpm audit --prod --audit-level=high > /tmp/pnpm-audit.txt 2>&1
-          code=$?
-          set -e
-          cat /tmp/pnpm-audit.txt
-          mkdir -p /opt/cursor/artifacts/supply-chain
-          cp /tmp/pnpm-audit.txt /opt/cursor/artifacts/supply-chain/pnpm-audit.txt
-          echo "exit_code=$code" | tee /opt/cursor/artifacts/supply-chain/pnpm-audit-status.txt
-          exit $code
+      - name: Allowlist self-test
+        run: node --test tools/scripts/audit-gate.test.mjs
 
-      - name: Generate CycloneDX-ish SBOM stub
-        if: always()
-        run: |
-          mkdir -p /opt/cursor/artifacts/supply-chain
-          node <<'NODE'
-          const { execSync } = require('node:child_process');
-          const fs = require('node:fs');
-          const outDir = '/opt/cursor/artifacts/supply-chain';
-          let packages = [];
-          try {
-            const raw = execSync('pnpm list -r --json --depth 0', { encoding: 'utf8', maxBuffer: 20_000_000 });
-            const parsed = JSON.parse(raw);
-            const list = Array.isArray(parsed) ? parsed : [parsed];
-            for (const pkg of list) {
-              packages.push({
-                name: pkg.name,
-                version: pkg.version,
-                path: pkg.path,
-              });
-            }
-          } catch (err) {
-            packages = [{ name: 'proctira-erp', version: '0.1.0', note: String(err) }];
-          }
-          const sbom = {
-            bomFormat: 'CycloneDX',
-            specVersion: '1.5',
-            version: 1,
-            metadata: {
-              timestamp: new Date().toISOString(),
-              component: { type: 'application', name: 'proctira-erp', version: '0.1.0' },
-              tools: [{ name: 'proctira-sbom-stub', version: '0.1.0' }],
-            },
-            components: packages.map((p) => ({
-              type: 'library',
-              name: p.name,
-              version: p.version || '0.0.0',
-            })),
-          };
-          fs.writeFileSync(`${outDir}/sbom.cdx.json`, JSON.stringify(sbom, null, 2));
-          console.log(`Wrote ${outDir}/sbom.cdx.json (${sbom.components.length} components)`);
-          NODE
+      # Hard gate: exits 1 on any high/critical advisory that is not waived in
+      # tools/supply-chain/audit-allowlist.json (waivers need reason, owner gap
+      # and expiry; expired waivers also fail).
+      - name: pnpm audit gate (prod deps, high+)
+        run: node tools/scripts/audit-gate.mjs --level high --out "$ARTIFACT_DIR"
 
-      - name: Cosign stub (CLI presence + digest placeholder)
-        if: always()
-        run: |
-          mkdir -p /opt/cursor/artifacts/supply-chain
-          DIGEST_PLACEHOLDER="sha256:$(echo -n "proctira-erp:${GITHUB_SHA:-local}" | sha256sum | awk '{print $1}')"
-          echo "$DIGEST_PLACEHOLDER" > /opt/cursor/artifacts/supply-chain/image-digest.txt
-          if command -v cosign >/dev/null 2>&1; then
-            cosign version | tee /opt/cursor/artifacts/supply-chain/cosign-version.txt
-            echo "cosign_present=true" >> /opt/cursor/artifacts/supply-chain/cosign-stub.txt
-          else
-            echo "cosign not installed in runner — stub records digest only" | tee /opt/cursor/artifacts/supply-chain/cosign-stub.txt
-            echo "cosign_present=false" >> /opt/cursor/artifacts/supply-chain/cosign-stub.txt
-          fi
-          echo "image_digest=$DIGEST_PLACEHOLDER" >> /opt/cursor/artifacts/supply-chain/cosign-stub.txt
-          # Job stays green when SBOM + cosign stub succeed; audit findings are
-          # tracked in the artifact (continue-on-error above).
-          echo "supply_chain_gate=wired" | tee /opt/cursor/artifacts/supply-chain/summary.txt
-
-      - name: Upload supply-chain artifacts
+      - name: Upload audit artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: supply-chain
-          path: /opt/cursor/artifacts/supply-chain/
+          name: supply-chain-audit
+          path: ${{ env.ARTIFACT_DIR }}/
           retention-days: 30
-          if-no-files-found: warn
+          if-no-files-found: error
+
+  sbom:
+    name: CycloneDX SBOM (cdxgen)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.33.2'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate CycloneDX 1.5 SBOM from pnpm-lock.yaml
+        run: |
+          mkdir -p "$ARTIFACT_DIR"
+          npx --yes @cyclonedx/cdxgen@11.11.0 -t pnpm --spec-version 1.5 --no-install-deps \
+            -o "$ARTIFACT_DIR/sbom.cdx.json" .
+
+      # Reject an empty or purl-less document so a tooling regression cannot
+      # ship a hollow SBOM.
+      - name: Validate SBOM shape
+        run: |
+          node - "$ARTIFACT_DIR/sbom.cdx.json" <<'NODE'
+          const fs = require('node:fs');
+          const bom = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const components = bom.components ?? [];
+          const withPurl = components.filter((c) => typeof c.purl === 'string' && c.purl.startsWith('pkg:npm/'));
+          if (bom.bomFormat !== 'CycloneDX') throw new Error(`bomFormat=${bom.bomFormat}`);
+          if (components.length < 100) throw new Error(`only ${components.length} components`);
+          if (withPurl.length / components.length < 0.95) throw new Error(`only ${withPurl.length}/${components.length} components have npm purls`);
+          console.log(`SBOM ok: CycloneDX ${bom.specVersion}, ${components.length} components, ${withPurl.length} with purl`);
+          NODE
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: ${{ env.ARTIFACT_DIR }}/sbom.cdx.json
+          retention-days: 90
+          if-no-files-found: error
+
+  sign-image:
+    name: Build, push & cosign api-gateway image
+    # Signing needs registry push + OIDC. PRs (incl. forks) cannot get either.
+    if: >-
+      github.event_name != 'pull_request' &&
+      vars.SUPPLY_CHAIN_SIGN_IMAGES == 'true'
+    needs: [advisory-gate, sbom]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}
+      IMAGE: ${{ vars.CONTAINER_REGISTRY || 'ghcr.io' }}/${{ github.repository_owner }}/proctira-api-gateway
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        if: env.REGISTRY == 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to custom registry
+        if: env.REGISTRY != 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: infrastructure/docker/Dockerfile.api-gateway
+          push: true
+          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
+          platforms: linux/amd64
+          provenance: false
+
+      - uses: sigstore/cosign-installer@v3
+
+      # Keyless: identity = this workflow's OIDC token, recorded in Rekor.
+      - name: Sign image digest
+        env:
+          COSIGN_YES: 'true'
+        run: |
+          cosign sign "${IMAGE}@${{ steps.build.outputs.digest }}"
+
+      - name: Download SBOM
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: ${{ env.ARTIFACT_DIR }}
+
+      - name: Attach SBOM attestation
+        env:
+          COSIGN_YES: 'true'
+        run: |
+          cosign attest --type cyclonedx --predicate "$ARTIFACT_DIR/sbom.cdx.json" \
+            "${IMAGE}@${{ steps.build.outputs.digest }}"
+
+      - name: Verify signature
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${IMAGE}@${{ steps.build.outputs.digest }}" | head -c 2000
+          echo "signed ${IMAGE}@${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+
+  signing-skipped:
+    name: Image signing status
+    if: >-
+      github.event_name == 'pull_request' ||
+      vars.SUPPLY_CHAIN_SIGN_IMAGES != 'true'
+    needs: [advisory-gate, sbom]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain why signing did not run
+        run: |
+          {
+            echo "## Image signing: skipped"
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              echo "- pull_request events cannot push to the registry or mint OIDC tokens for keyless cosign."
+            fi
+            if [ "${{ vars.SUPPLY_CHAIN_SIGN_IMAGES }}" != "true" ]; then
+              echo "- repository variable \`SUPPLY_CHAIN_SIGN_IMAGES\` is not \`true\`; set it (and \`CONTAINER_REGISTRY\` / registry secrets if not GHCR) to enable."
+            fi
+            echo "- Advisory gate and SBOM still ran and passed for this ref."
+          } >> "$GITHUB_STEP_SUMMARY"
