@@ -235,6 +235,149 @@ describe('G-101 gateway RBAC enforcement', () => {
   });
 });
 
+/**
+ * G-301 — route ↔ permission coupling beyond core SIS.
+ * Mutating verbs on campus modules must 403 when the role lacks the resource.
+ */
+describe('G-301 campus module RBAC deny matrix', () => {
+  let app: FastifyInstance;
+  const tenantId = '550e8400-e29b-41d4-a716-446655440000';
+
+  beforeAll(async () => {
+    app = await buildApp({ config: createTestConfig() });
+    await app.ready();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const MODULE_MUTATIONS: Array<{
+    id: string;
+    method: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+    url: string;
+    payload?: Record<string, unknown>;
+    /** Role that must be denied (lacks create/update on this resource). */
+    deniedRole: string;
+    /** Role that must pass the gateway RBAC gate (not 403). */
+    allowedRole: string;
+  }> = [
+    {
+      id: 'timetable',
+      method: 'POST',
+      url: '/api/v1/timetable/sections',
+      payload: { code: '10-A', name: 'Class 10-A' },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'gradebook',
+      method: 'POST',
+      url: '/api/v1/gradebook/report-cards',
+      payload: { studentId: '33333333-3333-4333-8333-333333333333', boardId: 'board' },
+      deniedRole: 'parent',
+      allowedRole: 'teacher',
+    },
+    {
+      id: 'health',
+      method: 'POST',
+      url: '/api/v1/health/screenings',
+      payload: { name: 'Vision' },
+      deniedRole: 'parent',
+      allowedRole: 'nurse',
+    },
+    {
+      id: 'fees',
+      method: 'POST',
+      url: '/api/v1/fees/invoices',
+      payload: { studentId: '33333333-3333-4333-8333-333333333333', amount: 100 },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'scholarships',
+      method: 'POST',
+      url: '/api/v1/scholarships/programs',
+      payload: { name: 'Merit' },
+      deniedRole: 'teacher',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'parent-portal',
+      method: 'POST',
+      url: '/api/v1/parent-portal/messages',
+      payload: { body: 'hello' },
+      deniedRole: 'teacher',
+      allowedRole: 'admin',
+    },
+  ];
+
+  function bearer(roleId: string) {
+    return app.jwt.sign(
+      createTestJwtPayload({
+        roles: [{ roleId, roleName: roleId, areaId: 'root' }],
+      }),
+    );
+  }
+
+  for (const route of MODULE_MUTATIONS) {
+    it(`${route.id}: empty roles → 403 on ${route.method} ${route.url}`, async () => {
+      const token = app.jwt.sign(createTestJwtPayload({ roles: [] }));
+      const response = await app.inject({
+        method: route.method,
+        url: route.url,
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-tenant-id': tenantId,
+          'content-type': 'application/json',
+        },
+        payload: route.payload ?? {},
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().code).toBe('FORBIDDEN');
+    });
+
+    it(`${route.id}: ${route.deniedRole} → 403 on ${route.method} ${route.url}`, async () => {
+      const response = await app.inject({
+        method: route.method,
+        url: route.url,
+        headers: {
+          authorization: `Bearer ${bearer(route.deniedRole)}`,
+          'x-tenant-id': tenantId,
+          'content-type': 'application/json',
+        },
+        payload: route.payload ?? {},
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().code).toBe('FORBIDDEN');
+    });
+
+    it(`${route.id}: ${route.allowedRole} passes RBAC gate (not 403)`, async () => {
+      const response = await app.inject({
+        method: route.method,
+        url: route.url,
+        headers: {
+          authorization: `Bearer ${bearer(route.allowedRole)}`,
+          'x-tenant-id': tenantId,
+          'content-type': 'application/json',
+        },
+        payload: route.payload ?? {},
+      });
+      // Domain may return 400/404/503 — proves gateway RBAC allowed the verb.
+      expect(response.statusCode).not.toBe(403);
+      expect(response.statusCode).not.toBe(401);
+    });
+  }
+
+  it('maps extended campus prefixes to resources', () => {
+    expect(resourceForApiPath('/api/v1/timetable/sections')).toBe('timetable');
+    expect(resourceForApiPath('/api/v1/gradebook/entries')).toBe('gradebook');
+    expect(resourceForApiPath('/api/v1/fees/invoices')).toBe('fees');
+    expect(resourceForApiPath('/api/v1/scholarships/programs')).toBe('scholarship');
+    expect(resourceForApiPath('/api/v1/parent-portal/messages')).toBe('parent');
+  });
+});
+
 describe('G-104 platform-admin role gate', () => {
   let app: FastifyInstance;
 
