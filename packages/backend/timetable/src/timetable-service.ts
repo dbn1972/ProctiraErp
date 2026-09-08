@@ -356,6 +356,14 @@ export class TimetableService {
     for (const studentId of unique) {
       try {
         const row = await this.enrollStudent(tenantId, sectionId, studentId);
+        if (!row) {
+          failed.push({
+            studentId,
+            code: 'ENROLL_FAILED',
+            message: 'Enrollment update returned no row',
+          });
+          continue;
+        }
         enrolled.push(row);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Enroll failed';
