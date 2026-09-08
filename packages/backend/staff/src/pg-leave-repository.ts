@@ -9,12 +9,13 @@ import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
-import type {
-  StaffLeaveBalanceEntity,
-  StaffLeaveEntity,
-  StaffLeaveRepository,
-  StaffLeaveStatus,
-  StaffLeaveType,
+import {
+  InsufficientLeaveBalanceError,
+  type StaffLeaveBalanceEntity,
+  type StaffLeaveEntity,
+  type StaffLeaveRepository,
+  type StaffLeaveStatus,
+  type StaffLeaveType,
 } from './leave-repository.js';
 
 const { Pool } = pg;
@@ -255,10 +256,13 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
   ): Promise<StaffLeaveBalanceEntity> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
+      // G-718: lock the balance row for the rest of this transaction so two
+      // concurrent approvals serialize instead of both reading the same balance.
       const existing = await client.query(
         `SELECT * FROM staff_leave_balances
          WHERE tenant_id = $1 AND staff_id = $2 AND leave_type = $3
-         LIMIT 1`,
+         LIMIT 1
+         FOR UPDATE`,
         [tenantId, staffId, leaveType],
       );
       const current = existing.rows[0]
@@ -266,7 +270,7 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
         : 0;
       const next = current + deltaDays;
       if (next < 0) {
-        throw new Error('balanceDays must be >= 0');
+        throw new InsufficientLeaveBalanceError(leaveType, -deltaDays, current);
       }
       const result = await client.query(
         `INSERT INTO staff_leave_balances (tenant_id, staff_id, leave_type, balance_days, updated_at)

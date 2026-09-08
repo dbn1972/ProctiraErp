@@ -12,6 +12,10 @@ import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
 import type {
+  FeeLedgerEntryEntity,
+  LedgerAccount,
+  LedgerSide,
+  LedgerTrialBalance,
   FeeInvoiceEntity,
   FeePaymentEntity,
   FeePlanEntity,
@@ -73,6 +77,13 @@ export async function ensureFeesSchema(
       await pool.query(sql010);
       const sql011 = readFileSync(resolveSqlPath('011_fees_finance_schema.sql'), 'utf8');
       await pool.query(sql011);
+      // G-718 double-entry ledger (needs schema_migrations from 021 for its ledger row).
+      await pool.query(
+        `CREATE TABLE IF NOT EXISTS schema_migrations (
+           filename TEXT PRIMARY KEY, checksum TEXT, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`,
+      );
+      const sql023 = readFileSync(resolveSqlPath('023_fee_ledger_schema.sql'), 'utf8');
+      await pool.query(sql023);
     })();
   }
   await schemaReady;
@@ -145,6 +156,25 @@ function mapReceipt(row: Record<string, unknown>): FeeReceiptEntity {
   };
 }
 
+function mapLedgerEntry(row: Record<string, unknown>): FeeLedgerEntryEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    journalId: String(row.journal_id),
+    invoiceId: String(row.invoice_id),
+    paymentId: row.payment_id == null ? null : String(row.payment_id),
+    receiptId: row.receipt_id == null ? null : String(row.receipt_id),
+    account: String(row.account) as LedgerAccount,
+    side: String(row.side) as LedgerSide,
+    amountCents: Number(row.amount_cents),
+    currency: String(row.currency),
+    memo: row.memo == null ? null : String(row.memo),
+    postedBy: row.posted_by == null ? null : String(row.posted_by),
+    postedAt: toDate(row.posted_at),
+    createdAt: toDate(row.created_at),
+  };
+}
+
 export class PgFeesRepository implements FeesRepository {
   constructor(
     private readonly pool: PgPoolLike,
@@ -158,6 +188,90 @@ export class PgFeesRepository implements FeesRepository {
 
   private withTenant<T>(tenantId: string, fn: (client: PgQueryable) => Promise<T>): Promise<T> {
     return withPgTenant(this.pool, tenantId, fn);
+  }
+
+  // ─── Double-entry ledger (G-718) ──────────────────────────────────────────
+  // All legs of a journal are inserted in ONE transaction (withTenant opens
+  // BEGIN/COMMIT); the deferred constraint trigger rejects the COMMIT when
+  // any journal in the transaction is unbalanced.
+
+  async postLedgerEntries(
+    entries: Omit<FeeLedgerEntryEntity, 'createdAt'>[],
+  ): Promise<FeeLedgerEntryEntity[]> {
+    if (entries.length === 0) return [];
+    await this.ensureSchema();
+    const tenantId = entries[0]!.tenantId;
+    if (entries.some((e) => e.tenantId !== tenantId)) {
+      throw new Error('postLedgerEntries: all entries must belong to one tenant');
+    }
+    return this.withTenant(tenantId, async (client) => {
+      const out: FeeLedgerEntryEntity[] = [];
+      for (const e of entries) {
+        const result = await client.query(
+          `INSERT INTO fee_ledger_entries (
+             id, tenant_id, journal_id, invoice_id, payment_id, receipt_id,
+             account, side, amount_cents, currency, memo, posted_by, posted_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+          [
+            e.id,
+            e.tenantId,
+            e.journalId,
+            e.invoiceId,
+            e.paymentId,
+            e.receiptId,
+            e.account,
+            e.side,
+            e.amountCents,
+            e.currency,
+            e.memo,
+            e.postedBy,
+            e.postedAt,
+          ],
+        );
+        out.push(mapLedgerEntry(result.rows[0] as Record<string, unknown>));
+      }
+      return out;
+    });
+  }
+
+  async listLedgerForInvoice(tenantId: string, invoiceId: string): Promise<FeeLedgerEntryEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM fee_ledger_entries WHERE tenant_id = $1 AND invoice_id = $2
+         ORDER BY posted_at ASC, created_at ASC`,
+        [tenantId, invoiceId],
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapLedgerEntry);
+    });
+  }
+
+  async trialBalance(tenantId: string): Promise<LedgerTrialBalance> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT account,
+                COALESCE(SUM(CASE WHEN side = 'debit'  THEN amount_cents END), 0)::bigint AS debit,
+                COALESCE(SUM(CASE WHEN side = 'credit' THEN amount_cents END), 0)::bigint AS credit
+           FROM fee_ledger_entries WHERE tenant_id = $1 GROUP BY account`,
+        [tenantId],
+      );
+      const accounts: Record<LedgerAccount, number> = {
+        accounts_receivable: 0,
+        cash: 0,
+        fee_revenue: 0,
+      };
+      let debitCents = 0;
+      let creditCents = 0;
+      for (const raw of result.rows as { account: LedgerAccount; debit: string; credit: string }[]) {
+        const d = Number(raw.debit);
+        const c = Number(raw.credit);
+        debitCents += d;
+        creditCents += c;
+        accounts[raw.account] = d - c;
+      }
+      return { tenantId, debitCents, creditCents, accounts };
+    });
   }
 
   async createFeePlan(

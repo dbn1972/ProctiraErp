@@ -130,6 +130,27 @@ function createMockFeesPool(): PgPoolLike {
       return { rows: row ? [row] : [] };
     }
 
+    // G-718 ledger (mock: echo the inserted leg)
+    if (/INSERT INTO fee_ledger_entries/i.test(sql)) {
+      const row: Row = {
+        id: values[0],
+        tenant_id: values[1],
+        journal_id: values[2],
+        invoice_id: values[3],
+        payment_id: values[4],
+        receipt_id: values[5],
+        account: values[6],
+        side: values[7],
+        amount_cents: values[8],
+        currency: values[9],
+        memo: values[10],
+        posted_by: values[11],
+        posted_at: values[12],
+        created_at: now(),
+      };
+      return { rows: [row] };
+    }
+
     return { rows: [] };
   }
 

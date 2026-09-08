@@ -457,6 +457,52 @@ export const feesPlugin = fp(
         }
       },
     );
+
+    // G-718 — double-entry ledger read models
+    fastify.get(
+      `${prefix}/invoices/:id/ledger`,
+      async function getInvoiceLedger(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid invoice ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const entries = await feesService.getInvoiceLedger(tenantId, paramsResult.data.id);
+          return reply.status(200).send({
+            data: entries.map((e) => ({
+              ...e,
+              postedAt: e.postedAt.toISOString(),
+              createdAt: e.createdAt.toISOString(),
+            })),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.get(`${prefix}/ledger/trial-balance`, async function trialBalance(request, reply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      const balance = await feesService.getTrialBalance(tenantId);
+      return reply.status(200).send({
+        ...balance,
+        balanced: balance.debitCents === balance.creditCents,
+      });
+    });
   },
   {
     name: '@proctira/backend-fees',

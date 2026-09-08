@@ -22,7 +22,12 @@ export type {
   InvoiceStatus,
   PaymentMethod,
   PaymentStatus,
+  FeeLedgerEntryEntity,
+  LedgerAccount,
+  LedgerSide,
+  LedgerTrialBalance,
 } from './fees-repository.js';
+export { UnbalancedJournalError, assertJournalBalanced } from './fees-repository.js';
 
 export { InMemoryFeesRepository } from './in-memory-repository.js';
 

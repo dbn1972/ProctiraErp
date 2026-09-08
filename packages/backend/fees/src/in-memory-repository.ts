@@ -1,12 +1,16 @@
 /**
  * In-memory fees repository (unit tests / gateway without DATABASE_URL).
  */
-import type {
-  FeeInvoiceEntity,
-  FeePaymentEntity,
-  FeePlanEntity,
-  FeeReceiptEntity,
-  FeesRepository,
+import {
+  assertJournalBalanced,
+  type FeeInvoiceEntity,
+  type FeeLedgerEntryEntity,
+  type FeePaymentEntity,
+  type FeePlanEntity,
+  type FeeReceiptEntity,
+  type FeesRepository,
+  type LedgerAccount,
+  type LedgerTrialBalance,
 } from './fees-repository.js';
 
 export class InMemoryFeesRepository implements FeesRepository {
@@ -14,6 +18,46 @@ export class InMemoryFeesRepository implements FeesRepository {
   private invoices: FeeInvoiceEntity[] = [];
   private payments: FeePaymentEntity[] = [];
   private receipts: FeeReceiptEntity[] = [];
+  private ledger: FeeLedgerEntryEntity[] = [];
+
+  // ─── Double-entry ledger (G-718) ──────────────────────────────────────────
+
+  async postLedgerEntries(
+    entries: Omit<FeeLedgerEntryEntity, 'createdAt'>[],
+  ): Promise<FeeLedgerEntryEntity[]> {
+    assertJournalBalanced(entries);
+    const now = new Date();
+    const rows = entries.map((e) => ({ ...e, createdAt: now }));
+    this.ledger.push(...rows);
+    return rows.map((r) => ({ ...r }));
+  }
+
+  async listLedgerForInvoice(tenantId: string, invoiceId: string): Promise<FeeLedgerEntryEntity[]> {
+    return this.ledger
+      .filter((e) => e.tenantId === tenantId && e.invoiceId === invoiceId)
+      .sort((a, b) => a.postedAt.getTime() - b.postedAt.getTime());
+  }
+
+  async trialBalance(tenantId: string): Promise<LedgerTrialBalance> {
+    const accounts: Record<LedgerAccount, number> = {
+      accounts_receivable: 0,
+      cash: 0,
+      fee_revenue: 0,
+    };
+    let debitCents = 0;
+    let creditCents = 0;
+    for (const e of this.ledger) {
+      if (e.tenantId !== tenantId) continue;
+      if (e.side === 'debit') {
+        debitCents += e.amountCents;
+        accounts[e.account] += e.amountCents;
+      } else {
+        creditCents += e.amountCents;
+        accounts[e.account] -= e.amountCents;
+      }
+    }
+    return { tenantId, debitCents, creditCents, accounts };
+  }
 
   async createFeePlan(
     data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>,

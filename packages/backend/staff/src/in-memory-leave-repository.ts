@@ -1,11 +1,12 @@
 /**
  * In-memory staff leave repository.
  */
-import type {
-  StaffLeaveBalanceEntity,
-  StaffLeaveEntity,
-  StaffLeaveRepository,
-  StaffLeaveType,
+import {
+  InsufficientLeaveBalanceError,
+  type StaffLeaveBalanceEntity,
+  type StaffLeaveEntity,
+  type StaffLeaveRepository,
+  type StaffLeaveType,
 } from './leave-repository.js';
 
 export class InMemoryStaffLeaveRepository implements StaffLeaveRepository {
@@ -86,7 +87,11 @@ export class InMemoryStaffLeaveRepository implements StaffLeaveRepository {
     deltaDays: number,
   ): Promise<StaffLeaveBalanceEntity> {
     const current = await this.getBalance(tenantId, staffId, leaveType);
-    const next = (current?.balanceDays ?? 0) + deltaDays;
+    const available = current?.balanceDays ?? 0;
+    const next = available + deltaDays;
+    if (next < 0) {
+      throw new InsufficientLeaveBalanceError(leaveType, -deltaDays, available);
+    }
     return this.setBalance(tenantId, staffId, leaveType, next);
   }
 }

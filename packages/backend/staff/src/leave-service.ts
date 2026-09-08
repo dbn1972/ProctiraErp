@@ -4,11 +4,12 @@
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type {
-  StaffLeaveEntity,
-  StaffLeaveRepository,
-  StaffLeaveStatus,
-  StaffLeaveType,
+import {
+  InsufficientLeaveBalanceError,
+  type StaffLeaveEntity,
+  type StaffLeaveRepository,
+  type StaffLeaveStatus,
+  type StaffLeaveType,
 } from './leave-repository.js';
 import type { CreateStaffLeaveInput, DecideStaffLeaveInput } from './leave-schemas.js';
 
@@ -95,18 +96,17 @@ export class StaffLeaveService {
 
     if (status === 'approved' && requiresBalance(leave.leaveType)) {
       const days = inclusiveLeaveDays(leave.startDate, leave.endDate);
-      const balance = await this.repository.getBalance(
-        tenantId,
-        leave.staffId,
-        leave.leaveType,
-      );
-      const available = balance?.balanceDays ?? 0;
-      if (available < days) {
-        throw new BusinessRuleError(
-          `Insufficient ${leave.leaveType} leave balance: need ${days} day(s), have ${available}`,
-        );
+      // G-718: the decrement itself is the authoritative check — the repository
+      // locks the balance row (FOR UPDATE) and rejects a negative result, so two
+      // concurrent approvals cannot both consume the same days.
+      try {
+        await this.repository.adjustBalance(tenantId, leave.staffId, leave.leaveType, -days);
+      } catch (error) {
+        if (error instanceof InsufficientLeaveBalanceError) {
+          throw new BusinessRuleError(error.message);
+        }
+        throw error;
       }
-      await this.repository.adjustBalance(tenantId, leave.staffId, leave.leaveType, -days);
     }
 
     const updated = await this.repository.updateLeave(leaveId, tenantId, {

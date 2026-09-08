@@ -83,6 +83,67 @@ describe('FeesService', () => {
       expect(receipt.amountCents).toBe(invoice.amountCents);
       expect(receipt.receiptNumber).toMatch(/^RCP-/);
       expect(receipt.paymentId).toBe(payment.id);
+
+      // G-718: two balanced journals — issuance (AR/revenue) and payment (cash/AR)
+      const ledger = await service.getInvoiceLedger(TENANT_A, invoice.id);
+      expect(ledger).toHaveLength(4);
+      expect(new Set(ledger.map((e) => e.journalId)).size).toBe(2);
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+      expect(trial.accounts.cash).toBe(invoice.amountCents);
+      expect(trial.accounts.fee_revenue).toBe(-invoice.amountCents);
+      expect(ledger.filter((e) => e.paymentId === payment.id)).toHaveLength(2);
+    });
+
+    it('voiding an open invoice reverses the receivable (G-718)', async () => {
+      const invoice = await service.createInvoice(TENANT_A, 'staff-1', {
+        studentId: STUDENT_ID,
+        title: 'Cancelled trip',
+        amountCents: 10_000,
+      });
+      await service.voidInvoice(TENANT_A, invoice.id);
+      const trial = await service.getTrialBalance(TENANT_A);
+      expect(trial.debitCents).toBe(trial.creditCents);
+      expect(trial.accounts.accounts_receivable).toBe(0);
+      expect(trial.accounts.fee_revenue).toBe(0);
+    });
+
+    it('repository rejects an unbalanced journal (G-718)', async () => {
+      await expect(
+        repository.postLedgerEntries([
+          {
+            id: 'e1',
+            tenantId: TENANT_A,
+            journalId: 'j1',
+            invoiceId: 'inv',
+            paymentId: null,
+            receiptId: null,
+            account: 'cash',
+            side: 'debit',
+            amountCents: 500,
+            currency: 'INR',
+            memo: null,
+            postedBy: null,
+            postedAt: new Date(),
+          },
+          {
+            id: 'e2',
+            tenantId: TENANT_A,
+            journalId: 'j1',
+            invoiceId: 'inv',
+            paymentId: null,
+            receiptId: null,
+            account: 'accounts_receivable',
+            side: 'credit',
+            amountCents: 400,
+            currency: 'INR',
+            memo: null,
+            postedBy: null,
+            postedAt: new Date(),
+          },
+        ]),
+      ).rejects.toThrow(/unbalanced/);
     });
 
     it('rejects mismatched amountCents override', async () => {

@@ -7,10 +7,12 @@ import { v4 as uuidv4 } from 'uuid';
 
 import type {
   FeeInvoiceEntity,
+  FeeLedgerEntryEntity,
   FeePaymentEntity,
   FeePlanEntity,
   FeeReceiptEntity,
   FeesRepository,
+  LedgerAccount,
   PaymentMethod,
 } from './fees-repository.js';
 import {
@@ -122,7 +124,7 @@ export class FeesService {
       throw new BusinessRuleError('Invoice amountCents is required');
     }
 
-    return this.repository.createInvoice({
+    const invoice = await this.repository.createInvoice({
       id: uuidv4(),
       tenantId,
       studentId: input.studentId,
@@ -135,6 +137,59 @@ export class FeesService {
       dueAt: input.dueAt ? new Date(input.dueAt) : null,
       createdBy: actorId,
     });
+
+    // G-718: DR accounts_receivable / CR fee_revenue
+    if (amountCents > 0) {
+      await this.postJournal(invoice, actorId, 'invoice issued', [
+        ['accounts_receivable', 'debit'],
+        ['fee_revenue', 'credit'],
+      ]);
+    }
+    return invoice;
+  }
+
+  /**
+   * Post one balanced journal for an invoice-scoped financial event (G-718).
+   * Both legs carry the same amount so the journal is balanced by construction;
+   * the repository still rejects unbalanced journals defensively.
+   */
+  private async postJournal(
+    invoice: FeeInvoiceEntity,
+    actorId: string | null,
+    memo: string,
+    legs: ReadonlyArray<readonly [LedgerAccount, 'debit' | 'credit']>,
+    refs: { paymentId?: string; receiptId?: string } = {},
+  ): Promise<FeeLedgerEntryEntity[]> {
+    const journalId = uuidv4();
+    const postedAt = new Date();
+    return this.repository.postLedgerEntries(
+      legs.map(([account, side]) => ({
+        id: uuidv4(),
+        tenantId: invoice.tenantId,
+        journalId,
+        invoiceId: invoice.id,
+        paymentId: refs.paymentId ?? null,
+        receiptId: refs.receiptId ?? null,
+        account,
+        side,
+        amountCents: invoice.amountCents,
+        currency: invoice.currency,
+        memo,
+        postedBy: actorId,
+        postedAt,
+      })),
+    );
+  }
+
+  /** Ledger legs posted for an invoice, oldest first (G-718). */
+  async getInvoiceLedger(tenantId: string, invoiceId: string) {
+    await this.getInvoice(tenantId, invoiceId);
+    return this.repository.listLedgerForInvoice(tenantId, invoiceId);
+  }
+
+  /** Tenant trial balance — debits must equal credits (G-718). */
+  async getTrialBalance(tenantId: string) {
+    return this.repository.trialBalance(tenantId);
   }
 
   async listInvoices(tenantId: string) {
@@ -158,6 +213,13 @@ export class FeesService {
       return invoice;
     }
     const updated = await this.repository.updateInvoice(invoiceId, tenantId, { status: 'void' });
+    // G-718: reverse the issuance — DR fee_revenue / CR accounts_receivable
+    if (invoice.amountCents > 0) {
+      await this.postJournal(invoice, null, 'invoice voided', [
+        ['fee_revenue', 'debit'],
+        ['accounts_receivable', 'credit'],
+      ]);
+    }
     return updated!;
   }
 
@@ -259,6 +321,19 @@ export class FeesService {
         'receipt.amountCents === payment.amountCents === invoice.amountCents invariant violated',
       );
     }
+
+    // G-718: DR cash / CR accounts_receivable — the receivable opened at
+    // issuance is cleared by exactly the invoice amount.
+    await this.postJournal(
+      invoice,
+      actorId,
+      'payment received',
+      [
+        ['cash', 'debit'],
+        ['accounts_receivable', 'credit'],
+      ],
+      { paymentId: payment.id, receiptId: receipt.id },
+    );
 
     const updatedInvoice = await this.repository.updateInvoice(invoice.id, tenantId, {
       status: 'paid',

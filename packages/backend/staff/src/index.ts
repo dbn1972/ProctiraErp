@@ -213,6 +213,7 @@ export type {
   StaffLeaveStatus,
   StaffLeaveType,
 } from './leave-repository.js';
+export { InsufficientLeaveBalanceError } from './leave-repository.js';
 export { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 export {
   CreateStaffLeaveSchema,
