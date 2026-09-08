@@ -27,7 +27,6 @@ import type {
   AttendanceRepository,
   StudentAttendanceEntity,
   StaffAttendanceEntity,
-  StudentRosterEntry,
   InstitutionAttendanceConfig,
   RecordingMode,
   AttendancePercentageQuery,
@@ -157,6 +156,7 @@ export class AttendanceService {
       if (updated && previousStatus !== input.status) {
         await this.repository.createAuditEntry({
           id: uuidv4(),
+          tenantId,
           attendanceId: existing.id,
           previousStatus,
           newStatus: input.status as AttendanceStatus,
@@ -246,6 +246,7 @@ export class AttendanceService {
           if (updated && previousStatus !== record.status) {
             await this.repository.createAuditEntry({
               id: uuidv4(),
+              tenantId,
               attendanceId: existing.id,
               previousStatus,
               newStatus: record.status as AttendanceStatus,
@@ -442,14 +443,14 @@ export class AttendanceService {
     if (attendanceDate < periodStartDate) {
       throw new BusinessRuleError(
         `Attendance date ${date} is before the academic period start date. ` +
-        `The active period starts on ${periodStartDate.toISOString().split('T')[0]}.`,
+        `The active period starts on ${periodStartDate.toISOString().slice(0, 10)}.`,
       );
     }
 
     if (attendanceDate > periodEndDate) {
       throw new BusinessRuleError(
         `Attendance date ${date} is after the academic period end date. ` +
-        `The active period ends on ${periodEndDate.toISOString().split('T')[0]}.`,
+        `The active period ends on ${periodEndDate.toISOString().slice(0, 10)}.`,
       );
     }
   }
@@ -661,8 +662,9 @@ export class AttendanceService {
    */
   async getAttendanceAuditTrail(
     attendanceId: string,
+    tenantId?: string,
   ): Promise<Array<{ previousStatus: string | null; newStatus: string; changedBy: string; changedAt: Date }>> {
-    const entries = await this.repository.getAuditEntriesForAttendance(attendanceId);
+    const entries = await this.repository.getAuditEntriesForAttendance(attendanceId, tenantId);
     return entries.map(e => ({
       previousStatus: e.previousStatus,
       newStatus: e.newStatus,

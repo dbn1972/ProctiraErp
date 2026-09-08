@@ -197,5 +197,11 @@ export type {
 } from './otp-service.js';
 export { registerMfaRoutes } from './mfa-routes.js';
 export type { MfaRoutesOptions } from './mfa-routes.js';
-export { ConsoleSmsProvider, TwilioSmsProvider, createSmsProviderFromEnv } from './sms-provider.js';
+export {
+  ConsoleSmsProvider,
+  TwilioSmsProvider,
+  createSmsProviderFromEnv,
+  redactOtpDigits,
+  maskPhone,
+} from './sms-provider.js';
 export type { SmsMessage, SmsProvider, TwilioSmsProviderOptions } from './sms-provider.js';

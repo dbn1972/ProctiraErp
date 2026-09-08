@@ -6,8 +6,11 @@
  * - Seeding default area hierarchy (root node)
  * - Creating the initial admin user with full permissions
  *
- * Provisioning operations bypass RLS by using a direct database connection
- * (superuser or service role) since the tenant doesn't exist yet when provisioning starts.
+ * `tenants` is FORCE-RLS (db/sql/021 + Prisma 20260908_wave7_rls_hardening), so
+ * even the owning app role cannot insert a tenant row without control-plane
+ * scope. Provisioning therefore binds `app.platform_admin = '1'` transaction-
+ * locally for the tenant insert, then binds the freshly minted tenant id
+ * (`app.tenant_id` / `app.current_tenant_id`) before seeding tenant-scoped rows.
  */
 
 import { createLogger } from '@proctira/logging';
@@ -96,6 +99,9 @@ export async function provisionTenant(
   logger.info({ slug: input.slug, name: input.name }, 'Starting tenant provisioning');
 
   const result = await db.$transaction(async (tx) => {
+    // Control-plane scope for the tenants insert (transaction-local; is_local=true).
+    await tx.$executeRawUnsafe(`SELECT set_config('app.platform_admin', '1', true)`);
+
     // Step 1: Create the Tenant record
     const tenantConfig = JSON.stringify(input.config ?? {});
     const tenantRows = await tx.$queryRawUnsafe<Array<{
@@ -119,6 +125,10 @@ export async function provisionTenant(
     }
 
     logger.info({ tenantId: tenant.id, slug: tenant.slug }, 'Tenant record created');
+
+    // Bind the new tenant so RLS WITH CHECK admits the seeded rows below.
+    await tx.$executeRawUnsafe(`SELECT set_config('app.tenant_id', $1, true)`, tenant.id);
+    await tx.$executeRawUnsafe(`SELECT set_config('app.current_tenant_id', $1, true)`, tenant.id);
 
     // Step 2: Seed default root area hierarchy node
     const areaRows = await tx.$queryRawUnsafe<Array<{

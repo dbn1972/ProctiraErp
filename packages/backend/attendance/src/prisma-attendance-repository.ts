@@ -12,8 +12,8 @@
  *    backing schema yet, so they return `null`. The service degrades safely:
  *    it defaults to `recordingMode: 'class'` and treats a null threshold config
  *    as "no alerting configured". Persisting these is a future enhancement.
- *  - `attendance_audit` carries no tenant id and no RLS (the repository contract
- *    provides none on create/read); see the AttendanceAudit note in schema.prisma.
+ *  - `attendance_audit` carries no tenant id; its RLS policy derives tenancy from
+ *    the parent attendance row, so callers pass `tenantId` to bind the context.
  */
 import type { AttendanceStatus } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
@@ -390,28 +390,34 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     return null;
   }
 
-  // --- Audit (append-only, no RLS — see schema.prisma note) ---
+  // --- Audit (append-only; RLS derived from the parent attendance row — G-732) ---
 
   async createAuditEntry(entry: AttendanceAuditEntry): Promise<void> {
-    await this.prisma.attendanceAudit.create({
-      data: {
-        id: entry.id,
-        attendanceId: entry.attendanceId,
-        previousStatus: entry.previousStatus,
-        newStatus: entry.newStatus,
-        changedBy: entry.changedBy,
-        changedAt: entry.changedAt,
-      },
-    });
+    const data = {
+      id: entry.id,
+      attendanceId: entry.attendanceId,
+      previousStatus: entry.previousStatus,
+      newStatus: entry.newStatus,
+      changedBy: entry.changedBy,
+      changedAt: entry.changedAt,
+    };
+    if (entry.tenantId) {
+      await withTenantTransaction(this.prisma, entry.tenantId, async (tx) => {
+        await tx.attendanceAudit.create({ data });
+      });
+      return;
+    }
+    await this.prisma.attendanceAudit.create({ data });
   }
 
   async getAuditEntriesForAttendance(
     attendanceId: string,
+    tenantId?: string,
   ): Promise<AttendanceAuditEntry[]> {
-    const rows = await this.prisma.attendanceAudit.findMany({
-      where: { attendanceId },
-      orderBy: { changedAt: 'asc' },
-    });
+    const query = { where: { attendanceId }, orderBy: { changedAt: 'asc' as const } };
+    const rows = tenantId
+      ? await withTenantTransaction(this.prisma, tenantId, (tx) => tx.attendanceAudit.findMany(query))
+      : await this.prisma.attendanceAudit.findMany(query);
     return rows.map((r) => ({
       id: r.id,
       attendanceId: r.attendanceId,

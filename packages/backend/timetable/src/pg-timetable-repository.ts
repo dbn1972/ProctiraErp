@@ -345,7 +345,16 @@ export class PgTimetableRepository implements TimetableRepository {
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
-      return (result.rowCount ?? 0) > 0;
+      const deleted = (result.rowCount ?? 0) > 0;
+      if (deleted) {
+        // Soft delete is not cascaded by the FK; retire the periods explicitly so
+        // listPeriods() on the retired schedule is empty.
+        await this.query(tenantId, `UPDATE bell_periods SET deleted_at = NOW(), updated_at = NOW()
+           WHERE tenant_id = $1 AND bell_schedule_id = $2 AND deleted_at IS NULL`,
+          [tenantId, id],
+        );
+      }
+      return deleted;
     });
   }
 

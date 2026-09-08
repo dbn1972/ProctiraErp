@@ -4,7 +4,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryOtpChallengeStore, OtpAuthError, OtpService, hashOtpCode } from './otp-service.js';
-import { ConsoleSmsProvider, type SmsProvider } from './sms-provider.js';
+import { ConsoleSmsProvider, maskPhone, redactOtpDigits, type SmsProvider } from './sms-provider.js';
 
 describe('hashOtpCode', () => {
   it('is deterministic and not plaintext', () => {
@@ -105,5 +105,31 @@ describe('OtpService', () => {
       code: second.debugCode!,
     });
     expect(verified.userId).toBe('u1');
+  });
+});
+
+describe('ConsoleSmsProvider redaction (G-731)', () => {
+  it('never logs a usable OTP code or full phone number', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    try {
+      await new ConsoleSmsProvider().send({
+        to: '+15551234567',
+        body: 'Your ProctiraERP code is 483920. It expires in 5 minutes.',
+      });
+      const line = String(info.mock.calls[0]?.[0] ?? '');
+      expect(line).not.toContain('483920');
+      expect(line).not.toContain('5551234567');
+      expect(line).toContain('••••••');
+      expect(line).toContain('to=+•••••••••67');
+    } finally {
+      info.mockRestore();
+    }
+  });
+
+  it('redactOtpDigits masks 4–8 digit runs only', () => {
+    expect(redactOtpDigits('code 1234 and 12345678 but not 123 or 123456789')).toBe(
+      'code •••• and •••••••• but not 123 or 123456789',
+    );
+    expect(maskPhone('+919876543210')).toBe('+••••••••••10');
   });
 });

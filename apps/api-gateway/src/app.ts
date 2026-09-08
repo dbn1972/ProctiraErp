@@ -40,7 +40,7 @@ import { createTenantRepository, tenantLifecyclePlugin } from '@proctira/backend
 import { loggingPlugin } from '@proctira/logging';
 import { observabilityPlugin } from '@proctira/observability';
 import { tenantPlugin } from '@proctira/tenant';
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
@@ -75,6 +75,23 @@ export interface BuildAppOptions {
 /**
  * Build and configure the API Gateway Fastify application.
  */
+/**
+ * Rate-limit bucket key (G-505 / G-731).
+ *
+ * Authenticated: `<jwt tenant>:<sub>` — the tenant comes from the verified
+ * token (falling back to the host-resolved tenant), so a client cannot escape
+ * its quota by rotating `x-tenant-id`. Anonymous: per source IP only; the raw
+ * header is never used as a bucket.
+ */
+export function rateLimitKeyFor(request: FastifyRequest): string {
+  const user = (request as unknown as { user?: { sub?: string; tenantId?: string } }).user;
+  if (user?.sub) {
+    const tenantId = user.tenantId ?? request.tenantId;
+    return tenantId ? `${tenantId}:${user.sub}` : `user:${user.sub}`;
+  }
+  return `ip:${request.ip}`;
+}
+
 export async function buildApp(options: BuildAppOptions): Promise<FastifyInstance> {
   const { config } = options;
 
@@ -159,33 +176,18 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   await app.register(rateLimit, {
     hook: 'preHandler',
     max: (request) => {
-      const headerTenant = request.headers['x-tenant-id'];
-      const tenantId =
-        request.tenantId ?? (typeof headerTenant === 'string' ? headerTenant : undefined);
+      // G-731: plan-tier lookups trust the JWT tenant, never a caller-supplied
+      // header. Anonymous requests get the gateway default.
       const user = (
         request as unknown as {
-          user?: { planTier?: string; tier?: string };
+          user?: { tenantId?: string; planTier?: string; tier?: string };
         }
       ).user;
+      const tenantId = user ? (user.tenantId ?? request.tenantId) : undefined;
       return maxRequestsForTenant(tenantId, user, config.rateLimiting.maxRequests);
     },
     timeWindow: config.rateLimiting.windowMs,
-    keyGenerator: (request) => {
-      // Rate limit key priority: tenant ID > authenticated user > IP
-      // Tenant-scoped keys keep free-tier and enterprise quotas isolated (G-505).
-      const headerTenant = request.headers['x-tenant-id'];
-      const tenantId =
-        request.tenantId ?? (typeof headerTenant === 'string' ? headerTenant : undefined);
-      const userId = (request as unknown as { user?: { sub?: string } }).user?.sub;
-
-      if (tenantId && userId) {
-        return `${tenantId}:${userId}`;
-      }
-      if (tenantId) {
-        return `tenant:${tenantId}`;
-      }
-      return request.ip;
-    },
+    keyGenerator: (request) => rateLimitKeyFor(request),
     allowList: [],
     addHeadersOnExceeding: {
       'x-ratelimit-limit': true,
@@ -358,10 +360,15 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // MFA OTP endpoints (Postgres challenges when DATABASE_URL is set — G-704;
   // console SMS unless TWILIO_* is set). Registered in both modes so clients
   // can exercise SMS OTP without Keycloak.
+  // G-731: MFA_EXPOSE_OTP is a local-dev convenience only — refuse it in production.
+  const exposeOtp = process.env['MFA_EXPOSE_OTP'] === 'true';
+  if (exposeOtp && process.env['NODE_ENV'] === 'production') {
+    throw new Error('MFA_EXPOSE_OTP=true is not allowed when NODE_ENV=production');
+  }
   const otpService = new OtpService({
     store: createOtpChallengeStore(),
     sms: createSmsProviderFromEnv(),
-    exposeCodeInResponse: process.env['MFA_EXPOSE_OTP'] === 'true',
+    exposeCodeInResponse: exposeOtp,
   });
   await registerMfaRoutes(app, { otpService, prefix: '/api/v1/auth' });
   await registerMfaRoutes(app, { otpService, prefix: '/auth' });

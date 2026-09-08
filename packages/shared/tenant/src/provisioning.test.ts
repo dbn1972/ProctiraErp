@@ -123,6 +123,39 @@ describe('provisionTenant', () => {
     expect(thirdCall[2]).toBe('admin@test-ministry.org');
   });
 
+  it('binds control-plane scope before the tenants insert and the tenant id after (FORCE RLS)', async () => {
+    const db = createMockDb();
+    await provisionTenant(db, validInput);
+
+    const txFn = (db.$transaction as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    const mockTx = {
+      $executeRawUnsafe: vi.fn().mockResolvedValue(1),
+      $queryRawUnsafe: vi.fn()
+        .mockResolvedValueOnce([{
+          id: 'tid', name: 'Test Ministry', slug: 'test-ministry',
+          status: 'active', created_at: new Date(),
+        }])
+        .mockResolvedValueOnce([{ id: 'aid', name: 'Root', code: 'ROOT' }])
+        .mockResolvedValueOnce([{
+          id: 'uid', email: 'admin@test.org', first_name: 'A', last_name: 'U',
+        }]),
+    };
+    await txFn(mockTx);
+
+    const gucCalls = mockTx.$executeRawUnsafe.mock.calls.map((c) => c[0] as string);
+    expect(gucCalls[0]).toContain("set_config('app.platform_admin', '1', true)");
+    expect(gucCalls[1]).toContain("set_config('app.tenant_id', $1, true)");
+    expect(mockTx.$executeRawUnsafe.mock.calls[1]![1]).toBe('tid');
+    expect(gucCalls[2]).toContain("set_config('app.current_tenant_id', $1, true)");
+    // platform scope is bound before the first INSERT, tenant scope before the second
+    expect(mockTx.$executeRawUnsafe.mock.invocationCallOrder[0]!).toBeLessThan(
+      mockTx.$queryRawUnsafe.mock.invocationCallOrder[0]!,
+    );
+    expect(mockTx.$executeRawUnsafe.mock.invocationCallOrder[1]!).toBeLessThan(
+      mockTx.$queryRawUnsafe.mock.invocationCallOrder[1]!,
+    );
+  });
+
   it('should throw if tenant creation fails', async () => {
     const db = createMockDb({ tenantResult: [] });
 

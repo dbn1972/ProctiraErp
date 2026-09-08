@@ -96,6 +96,8 @@ export interface LeaveTypeConfig {
  */
 export interface AttendanceAuditEntry {
   id: string;
+  /** Tenant of the parent attendance row — binds RLS for the audit write (G-732). */
+  tenantId?: string;
   attendanceId: string;
   previousStatus: AttendanceStatus | null;
   newStatus: AttendanceStatus;
@@ -252,7 +254,7 @@ export interface AttendanceRepository {
     institutionId: string,
   ): Promise<AbsenceThresholdConfig | null>;
 
-  // Audit
+  // Audit (tenantId binds the RLS context — attendance_audit derives tenancy from its parent row)
   createAuditEntry(entry: AttendanceAuditEntry): Promise<void>;
-  getAuditEntriesForAttendance(attendanceId: string): Promise<AttendanceAuditEntry[]>;
+  getAuditEntriesForAttendance(attendanceId: string, tenantId?: string): Promise<AttendanceAuditEntry[]>;
 }

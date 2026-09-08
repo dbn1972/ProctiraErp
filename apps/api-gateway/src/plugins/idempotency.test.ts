@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
-import idempotencyPlugin, { type RedisClient } from './idempotency.js';
+import idempotencyPlugin, { InMemoryIdempotencyStore, type RedisClient } from './idempotency.js';
 
 /**
  * In-memory Redis mock for testing the idempotency plugin.
@@ -380,8 +380,8 @@ describe('idempotencyPlugin', () => {
     });
   });
 
-  describe('graceful degradation', () => {
-    it('should not enforce idempotency when no Redis client is provided', async () => {
+  describe('in-memory fallback (G-731)', () => {
+    it('still deduplicates within the process when no Redis client is provided', async () => {
       let callCount = 0;
       await app.register(idempotencyPlugin, { redis: undefined });
       app.post('/test', async () => {
@@ -389,21 +389,43 @@ describe('idempotencyPlugin', () => {
         return { result: 'created' };
       });
 
-      await app.inject({
+      const first = await app.inject({
+        method: 'POST',
+        url: '/test',
+        headers: { 'idempotency-key': 'no-redis-key' },
+        payload: { name: 'test' },
+      });
+      const second = await app.inject({
         method: 'POST',
         url: '/test',
         headers: { 'idempotency-key': 'no-redis-key' },
         payload: { name: 'test' },
       });
 
-      await app.inject({
-        method: 'POST',
-        url: '/test',
-        headers: { 'idempotency-key': 'no-redis-key' },
-        payload: { name: 'test' },
-      });
+      expect(first.headers['x-idempotency-replay']).toBeUndefined();
+      expect(second.headers['x-idempotency-replay']).toBe('true');
+      expect(callCount).toBe(1);
+    });
 
-      expect(callCount).toBe(2); // Both executed (no Redis)
+    it('InMemoryIdempotencyStore honours EX ttl and bounds entries', async () => {
+      vi.useFakeTimers();
+      try {
+        const store = new InMemoryIdempotencyStore(2);
+        await store.set('a', '1', 'EX', 1);
+        expect(await store.get('a')).toBe('1');
+        vi.advanceTimersByTime(1500);
+        expect(await store.get('a')).toBeNull();
+
+        await store.set('x', '1');
+        await store.set('y', '2');
+        await store.set('z', '3');
+        expect(store.size).toBe(2);
+        expect(await store.get('x')).toBeNull();
+        expect(await store.get('z')).toBe('3');
+        expect(await store.del(['y', 'z'])).toBe(2);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

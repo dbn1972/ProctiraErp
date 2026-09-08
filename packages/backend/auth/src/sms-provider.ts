@@ -14,12 +14,27 @@ export interface SmsProvider {
   send(message: SmsMessage): Promise<void>;
 }
 
+/** Masks 4–8 digit runs (OTP codes) so console/dev logs never carry a usable code (G-731). */
+export function redactOtpDigits(body: string): string {
+  return body.replace(/\b\d{4,8}\b/g, (match) => '•'.repeat(match.length));
+}
+
+/** Masks all but the last two digits of a phone number. */
+export function maskPhone(to: string): string {
+  const digits = to.replace(/\D/g, '');
+  if (digits.length <= 2) return '••';
+  return `${to.startsWith('+') ? '+' : ''}${'•'.repeat(digits.length - 2)}${digits.slice(-2)}`;
+}
+
 export class ConsoleSmsProvider implements SmsProvider {
   readonly name = 'console';
 
   async send(message: SmsMessage): Promise<void> {
+    // Dev flows read the code from MFA_EXPOSE_OTP's debugCode, not from logs.
     // eslint-disable-next-line no-console
-    console.info(`[sms:console] to=${message.to} body=${message.body}`);
+    console.info(
+      `[sms:console] to=${maskPhone(message.to)} body=${redactOtpDigits(message.body)}`,
+    );
   }
 }
 

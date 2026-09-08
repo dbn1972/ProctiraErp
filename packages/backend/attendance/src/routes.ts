@@ -25,14 +25,12 @@ import {
   ClassRosterQuerySchema,
   AttendancePercentageQuerySchema,
   AbsenceThresholdCheckQuerySchema,
-  AttendanceAuditQuerySchema,
   type RecordStudentAttendanceInput,
   type RecordBulkStudentAttendanceInput,
   type RecordStaffAttendanceInput,
   type ClassRosterQuery,
   type AttendancePercentageQueryInput,
   type AbsenceThresholdCheckQueryInput,
-  type AttendanceAuditQueryInput,
 } from './schemas.js';
 
 /**
@@ -465,7 +463,7 @@ export async function registerAttendanceRoutes(
       const { attendanceId } = request.params;
 
       try {
-        const auditTrail = await attendanceService.getAttendanceAuditTrail(attendanceId);
+        const auditTrail = await attendanceService.getAttendanceAuditTrail(attendanceId, tenantId);
         return reply.status(200).send({ data: auditTrail });
       } catch (error: unknown) {
         if (error instanceof AppError) {

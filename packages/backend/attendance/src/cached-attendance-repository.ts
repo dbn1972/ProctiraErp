@@ -176,7 +176,10 @@ export class CachedAttendanceRepository implements AttendanceRepository {
     return this.delegate.createAuditEntry(entry);
   }
 
-  async getAuditEntriesForAttendance(attendanceId: string): Promise<AttendanceAuditEntry[]> {
-    return this.delegate.getAuditEntriesForAttendance(attendanceId);
+  async getAuditEntriesForAttendance(
+    attendanceId: string,
+    tenantId?: string,
+  ): Promise<AttendanceAuditEntry[]> {
+    return this.delegate.getAuditEntriesForAttendance(attendanceId, tenantId);
   }
 }

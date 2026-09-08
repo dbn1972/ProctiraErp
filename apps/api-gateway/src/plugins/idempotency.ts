@@ -46,6 +46,72 @@ export interface RedisClient {
 }
 
 /**
+ * Process-local `RedisClient` used when `REDIS_URL` is not configured (G-731).
+ *
+ * Honours `EX <seconds>` so cached responses and in-flight locks expire the
+ * same way they do in Redis. Entries are bounded by `maxEntries` (oldest
+ * evicted first). Single-process only: replays across gateway replicas are
+ * not deduplicated — the plugin logs this at startup.
+ */
+export class InMemoryIdempotencyStore implements RedisClient {
+  private readonly entries = new Map<string, { value: string; expiresAt: number | null }>();
+
+  constructor(private readonly maxEntries = 10_000) {}
+
+  private purge(now: number): void {
+    for (const [key, entry] of this.entries) {
+      if (entry.expiresAt !== null && entry.expiresAt <= now) this.entries.delete(key);
+    }
+  }
+
+  async get(key: string): Promise<string | null> {
+    const entry = this.entries.get(key);
+    if (!entry) return null;
+    if (entry.expiresAt !== null && entry.expiresAt <= Date.now()) {
+      this.entries.delete(key);
+      return null;
+    }
+    return entry.value;
+  }
+
+  async set(key: string, value: string, ...args: unknown[]): Promise<unknown> {
+    let expiresAt: number | null = null;
+    for (let i = 0; i < args.length; i += 1) {
+      if (String(args[i]).toUpperCase() === 'EX') {
+        const seconds = Number(args[i + 1]);
+        if (Number.isFinite(seconds) && seconds > 0) expiresAt = Date.now() + seconds * 1000;
+      }
+    }
+    const now = Date.now();
+    if (this.entries.size >= this.maxEntries) {
+      this.purge(now);
+      while (this.entries.size >= this.maxEntries) {
+        const oldest = this.entries.keys().next().value;
+        if (oldest === undefined) break;
+        this.entries.delete(oldest);
+      }
+    }
+    this.entries.delete(key);
+    this.entries.set(key, { value, expiresAt });
+    return 'OK';
+  }
+
+  async del(key: string | string[]): Promise<number> {
+    const keys = Array.isArray(key) ? key : [key];
+    let removed = 0;
+    for (const k of keys) {
+      if (this.entries.delete(k)) removed += 1;
+    }
+    return removed;
+  }
+
+  /** Test helper. */
+  get size(): number {
+    return this.entries.size;
+  }
+}
+
+/**
  * Cached response stored in Redis.
  */
 interface CachedResponse {
@@ -65,16 +131,17 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
     ttlSeconds = 86400, // 24 hours
     lockTtlSeconds = 60, // 1 minute lock for in-flight requests
     headerName = 'idempotency-key',
-    redis,
     excludePaths = [],
   } = options;
 
-  // If no Redis client is provided, skip idempotency enforcement (graceful degradation)
-  if (!redis) {
+  // Without Redis fall back to a process-local store so Idempotency-Key is
+  // still honoured on a single replica (G-731). Multi-replica deployments must
+  // configure REDIS_URL; the warning makes the degraded mode visible.
+  const redis: RedisClient = options.redis ?? new InMemoryIdempotencyStore();
+  if (!options.redis) {
     fastify.log.warn(
-      'Idempotency plugin registered without Redis client — idempotency checks disabled',
+      'Idempotency plugin registered without Redis client — using in-memory store (single-process only; set REDIS_URL for multi-replica deduplication)',
     );
-    return;
   }
 
   // Hook: onRequest — check for cached response or acquire lock

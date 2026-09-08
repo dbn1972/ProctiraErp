@@ -3,7 +3,7 @@
  *
  * Used for unit testing without database dependencies.
  */
-import type { AttendanceStatus } from '@proctira/common';
+import { AttendanceStatus } from '@proctira/common';
 
 import type {
   AttendanceRepository,
@@ -99,7 +99,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
       ...data,
       updatedAt: new Date(),
     };
-    return this.studentAttendance[index]!;
+    return this.studentAttendance[index];
   }
 
   async findStudentAttendance(
@@ -163,7 +163,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
       ...data,
       updatedAt: new Date(),
     };
-    return this.staffAttendance[index]!;
+    return this.staffAttendance[index];
   }
 
   async findStaffAttendance(
@@ -278,7 +278,7 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
         r.institutionId === institutionId &&
         r.date >= startDate &&
         r.date <= endDate &&
-        r.status === 'ABSENT',
+        r.status === AttendanceStatus.ABSENT,
     ).length;
   }
 
@@ -288,7 +288,12 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     this.auditEntries.push(entry);
   }
 
-  async getAuditEntriesForAttendance(attendanceId: string): Promise<AttendanceAuditEntry[]> {
-    return this.auditEntries.filter(e => e.attendanceId === attendanceId);
+  async getAuditEntriesForAttendance(
+    attendanceId: string,
+    tenantId?: string,
+  ): Promise<AttendanceAuditEntry[]> {
+    return this.auditEntries.filter(
+      (e) => e.attendanceId === attendanceId && (!tenantId || !e.tenantId || e.tenantId === tenantId),
+    );
   }
 }
