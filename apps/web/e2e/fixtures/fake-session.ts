@@ -50,6 +50,7 @@ export async function setupFakeTenantSession(
     email: string;
     displayName: string;
     tenantId: string;
+    roles: Array<{ roleId: string; roleName: string; areaId: string | null }>;
   }> = {},
 ): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
@@ -58,7 +59,7 @@ export async function setupFakeTenantSession(
     email: overrides.email ?? 'admin@tenant-a.test',
     displayName: overrides.displayName ?? 'E2E Admin',
     tenantId: overrides.tenantId ?? '00000000-0000-4000-8000-0000000000aa',
-    roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
+    roles: overrides.roles ?? [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
     iat: now,
     exp: now + 60 * 60 * 8,
   });
@@ -82,6 +83,7 @@ export async function setupGatewayTenantSession(
     email: string;
     displayName: string;
     tenantId: string;
+    roles: Array<{ roleId: string; roleName: string; areaId: string | null }>;
   }> = {},
 ): Promise<void> {
   const token = createSignedJwt({
@@ -89,7 +91,10 @@ export async function setupGatewayTenantSession(
     email: overrides.email ?? 'admin@tenant-a.test',
     displayName: overrides.displayName ?? 'E2E Admin',
     tenantId: overrides.tenantId ?? '00000000-0000-4000-8000-000000000001',
-    roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: null }],
+    roles: overrides.roles ?? [
+      { roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null },
+      { roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null },
+    ],
   });
 
   const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3001';

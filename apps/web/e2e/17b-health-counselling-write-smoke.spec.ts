@@ -16,6 +16,10 @@ async function setupHealthSession(page: Page): Promise<void> {
     email: 'nurse@tenant-a.test',
     displayName: 'Health E2E',
     tenantId: '00000000-0000-4000-8000-0000000000aa',
+    roles: [
+      { roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null },
+      { roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null },
+    ],
   });
 }
 
@@ -25,6 +29,10 @@ async function setupHealthLiveSession(page: Page): Promise<void> {
     email: 'nurse@tenant-a.test',
     displayName: 'Health E2E',
     tenantId: '00000000-0000-4000-8000-0000000000aa',
+    roles: [
+      { roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null },
+      { roleId: 'health', roleName: 'HEALTH_OFFICER', areaId: null },
+    ],
   });
 }
 
