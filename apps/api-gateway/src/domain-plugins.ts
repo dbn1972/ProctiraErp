@@ -84,6 +84,7 @@ import {
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
+import { createWorkflowRepositories, workflowPlugin } from '@proctira/backend-workflow';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -287,12 +288,25 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'workflow',
     proxyPrefixes: ['/workflows'],
     register: async (scope) => {
-      // Redesign UI aggregates (definitions / instances / approvals) until
-      // Prisma workflow models are mounted through @proctira/backend-workflow
-      // with a stable UI adapter. UI routes alone own `/workflows/*` list
-      // shapes expected by App Router pages.
+      // Redesign UI aggregates (definitions / instances / approvals). UI routes
+      // own the `/workflows/*` list shapes expected by App Router pages; the
+      // real engine lives under `/workflow-engine` (registrar below).
       await scope.register(workflowUiPlugin, {
         seed: createWorkflowUiSeed(),
+      });
+    },
+  },
+  {
+    name: 'workflow-engine',
+    proxyPrefixes: ['/workflow-engine'],
+    register: async (scope) => {
+      // G-715: real @proctira/backend-workflow engine (definitions, instances,
+      // transitions + audit, cases). Pg on db/sql/025 when DATABASE_URL is set.
+      const { repository, caseRepository } = createWorkflowRepositories();
+      await scope.register(workflowPlugin, {
+        repository,
+        caseRepository,
+        prefix: '/workflow-engine',
       });
     },
   },

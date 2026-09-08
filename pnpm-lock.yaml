@@ -227,6 +227,9 @@ importers:
       '@proctira/backend-transport':
         specifier: workspace:*
         version: link:../../packages/backend/transport
+      '@proctira/backend-workflow':
+        specifier: workspace:*
+        version: link:../../packages/backend/workflow
       '@proctira/common':
         specifier: workspace:*
         version: link:../../packages/shared/common
@@ -2389,6 +2392,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation

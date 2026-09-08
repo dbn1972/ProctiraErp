@@ -44,7 +44,8 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `backend/tenant`              | Yes      | `/tenant-lifecycle`                                                                               | In-memory                                                  | No          | Mounted in `app.ts` (G-106); UI stub still owns `/tenants`.                                      |
 | `(gateway) insights-ui`       | Yes      | `/reports`, `/data-warehouse`                                                                     | Postgres when `DATABASE_URL` (`020`; else in-memory)       | No          | Registrar `insights` (G-209). Real `report` / `data-warehouse` packages still unmounted.         |
 | `(gateway) platform-admin-ui` | Yes      | `/tenants`, `/plugins`, `/break-glass`, `/plans`, `/themes`, `/platform`, `/audit`                | UI seed / stubs                                            | Yes         | Registrar `platform-admin` (G-104).                                                              |
-| `(gateway) workflow-ui`       | Yes      | `/workflows`                                                                                      | Postgres when `DATABASE_URL` (else UI seed)                | No          | Registrar `workflow`. Approvals persist (G-208). Real `backend/workflow` engine still unmounted. |
+| `(gateway) workflow-ui`       | Yes      | `/workflows`                                                                                      | Postgres when `DATABASE_URL` (else UI seed)                | No          | Registrar `workflow`. Approvals persist (G-208). Engine mounted separately (`/workflow-engine`). |
+| `backend/workflow`            | Yes      | `/workflow-engine`                                                                                | Postgres when `DATABASE_URL` (`025`; else in-memory)       | No          | Registrar `workflow-engine` (G-715): definitions, instances, transitions + append-only audit, cases. |
 
 ## Unmounted / PARKED (G-605)
 
@@ -61,7 +62,6 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `backend/report`          | No       | `/reports`           | n/a         | No          | Insights UI owns `/reports` (G-209).                                                     |
 | `backend/survey`          | No       | `/surveys`           | n/a         | No          | **PARKED (G-605)** — plugin ready; no gateway product surface/E2E.                       |
 | `backend/theme`           | No       | `/themes`            | n/a         | No          | **PARKED (G-605)** — `/themes` owned by platform-admin UI stub (prefix conflict).        |
-| `backend/workflow`        | No       | `/workflows`         | n/a         | No          | Real plugin unmounted; `workflow-ui` PG/seed store is live (G-208).                      |
 
 ## Registrar ↔ package map
 
@@ -80,6 +80,7 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `insights`               | `(gateway) insights-ui`                          |
 | `platform-admin`         | `(gateway) platform-admin-ui`                    |
 | `workflow`               | `(gateway) workflow-ui` (not `backend/workflow`) |
+| `workflow-engine`        | `backend/workflow` (G-715)                       |
 | `notification`           | `backend/notification`                           |
 | `transport`              | `backend/transport`                              |
 | `communication`          | `backend/communication`                          |

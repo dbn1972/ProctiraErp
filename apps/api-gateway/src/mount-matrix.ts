@@ -65,6 +65,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'tenant',
   'timetable',
   'transport',
+  'workflow',
 ] as const;
 
 /**
@@ -83,7 +84,6 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
   'report',
   'survey',
   'theme',
-  'workflow',
 ] as const;
 
 /**
@@ -359,7 +359,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'mixed',
     rbacWired: false,
     notes:
-      'workflowUiPlugin with PG store when DATABASE_URL set (G-208 approvals persist). Real `@proctira/backend-workflow` engine still unmounted; registrar name `workflow`.',
+      'workflowUiPlugin with PG store when DATABASE_URL set (G-208 approvals persist). Real `@proctira/backend-workflow` engine mounted separately under `/workflow-engine` (G-715); registrar name `workflow`.',
     registrarName: 'workflow',
   },
 
@@ -466,12 +466,13 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   },
   {
     package: 'workflow',
-    mounted: false,
-    prefixes: ['/workflows'],
-    persistence: 'n/a',
+    mounted: true,
+    prefixes: ['/workflow-engine'],
+    persistence: 'raw-pg',
     rbacWired: false,
+    registrarName: 'workflow-engine',
     notes:
-      'Real workflowPlugin unmounted; gateway serves workflow-ui (PG when DATABASE_URL) under registrar `workflow` (G-208).',
+      'G-715: real workflowPlugin (definitions/instances/transitions+audit/cases) mounted under `/workflow-engine`; Pg on db/sql/025 when DATABASE_URL set, else in-memory. `/workflows` stays with workflow-ui.',
   },
 ] as const;
 
