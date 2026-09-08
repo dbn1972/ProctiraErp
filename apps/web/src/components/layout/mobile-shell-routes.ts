@@ -22,8 +22,18 @@ export const MOBILE_TAB_DESTINATIONS: readonly MobileShellDestination[] = [
   { key: 'profile', label: 'Profile', href: '/admin/users', available: true },
 ] as const;
 
-/** Hamburger drawer secondary destinations. */
+/**
+ * Hamburger drawer secondary destinations.
+ *
+ * Campus modules (G-727) sit between the tabs and the account section so a
+ * warden, driver or librarian on a phone reaches their module in two taps.
+ */
 export const MOBILE_DRAWER_DESTINATIONS: readonly MobileShellDestination[] = [
+  { key: 'fees', label: 'Fees', href: '/fees', available: true },
+  { key: 'hostel', label: 'Hostel', href: '/hostel', available: true },
+  { key: 'transport', label: 'Transport', href: '/transport', available: true },
+  { key: 'library', label: 'Library', href: '/library', available: true },
+  { key: 'communication', label: 'Communication', href: '/communication', available: true },
   { key: 'settings', label: 'Settings', href: '/admin', available: true },
   { key: 'reports', label: 'Reports', href: '/reports', available: true },
   /**
@@ -31,7 +41,7 @@ export const MOBILE_DRAWER_DESTINATIONS: readonly MobileShellDestination[] = [
    * page so the link resolves; keep available=true once that page exists.
    */
   { key: 'help', label: 'Help', href: '/help', available: true },
-  { key: 'signout', label: 'Sign out', href: '/api/auth/signout', available: true },
+  { key: 'signout', label: 'Sign out', href: '/api/auth/logout', available: true },
 ] as const;
 
 export function availableDestinations(
@@ -41,10 +51,6 @@ export function availableDestinations(
 }
 
 /** Assert every available href is a rooted path (no /app/* SPA leftovers). */
-export function assertNoDeadAppPrefix(
-  destinations: readonly MobileShellDestination[],
-): string[] {
-  return destinations
-    .filter((d) => d.available && d.href.startsWith('/app/'))
-    .map((d) => d.href);
+export function assertNoDeadAppPrefix(destinations: readonly MobileShellDestination[]): string[] {
+  return destinations.filter((d) => d.available && d.href.startsWith('/app/')).map((d) => d.href);
 }

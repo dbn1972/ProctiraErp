@@ -39,15 +39,20 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  BedDouble,
+  Bus,
   ClipboardCheck,
   FileBarChart,
   HelpCircle,
   Home,
+  Library,
   LogOut,
+  Megaphone,
   Menu,
   Settings,
   User,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -101,27 +106,41 @@ const MOBILE_TABS: readonly MobileTab[] = availableDestinations(MOBILE_TAB_DESTI
 // ─── Drawer configuration ─────────────────────────────────────────────────────
 
 interface DrawerLink {
-  key: 'settings' | 'reports' | 'help' | 'signout';
+  key:
+    | 'fees'
+    | 'hostel'
+    | 'transport'
+    | 'library'
+    | 'communication'
+    | 'settings'
+    | 'reports'
+    | 'help'
+    | 'signout';
   label: string;
   href: string;
   Icon: LucideIcon;
 }
 
 const DRAWER_ICONS: Record<DrawerLink['key'], LucideIcon> = {
+  fees: Wallet,
+  hostel: BedDouble,
+  transport: Bus,
+  library: Library,
+  communication: Megaphone,
   settings: Settings,
   reports: FileBarChart,
   help: HelpCircle,
   signout: LogOut,
 };
 
-const DRAWER_LINKS: readonly DrawerLink[] = availableDestinations(
-  MOBILE_DRAWER_DESTINATIONS,
-).map((d) => ({
-  key: d.key as DrawerLink['key'],
-  label: d.label,
-  href: d.href,
-  Icon: DRAWER_ICONS[d.key as DrawerLink['key']],
-}));
+const DRAWER_LINKS: readonly DrawerLink[] = availableDestinations(MOBILE_DRAWER_DESTINATIONS).map(
+  (d) => ({
+    key: d.key as DrawerLink['key'],
+    label: d.label,
+    href: d.href,
+    Icon: DRAWER_ICONS[d.key as DrawerLink['key']],
+  }),
+);
 
 // ─── Active-tab helper ────────────────────────────────────────────────────────
 
@@ -240,7 +259,8 @@ export function MobileShell({ children, pageTitle, primaryAction }: MobileShellP
             <SheetHeader className="border-b border-border p-4">
               <SheetTitle>Menu</SheetTitle>
               <SheetDescription className="sr-only">
-                Less-frequent destinations: Settings, Reports, Help, Sign out.
+                Campus modules (Fees, Hostel, Transport, Library, Communication) and account
+                destinations (Settings, Reports, Help, Sign out).
               </SheetDescription>
             </SheetHeader>
             <nav aria-label="Secondary navigation" className="flex flex-col py-2">

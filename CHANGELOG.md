@@ -22,6 +22,10 @@ section is renamed to the version + date.
   Next.js app (G-724).
 - Governance: `CODEOWNERS`, Dependabot (npm, GitHub Actions, Docker, pub),
   this changelog, and the database migration & rollback runbook (G-726).
+- Web: `/billing`, `/audit-logs` and `/tenant-lifecycle` pages against the
+  platform gateway APIs with explicit forbidden/offline states, app-level 404
+  boundary, help centre content, campus modules in the mobile drawer, and a
+  route-audit test that fails on dead navigation links (G-727).
 - Observability: `/metrics` on every standalone backend service
   (`METRICS_ENABLED`), Prometheus scrapes only real targets, Alertmanager
   receivers rendered from environment variables with email fallback, and an

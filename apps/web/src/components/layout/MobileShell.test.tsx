@@ -24,14 +24,7 @@
  * lightweight stubs/mocks so the shell can render in isolation.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 
@@ -90,10 +83,7 @@ vi.mock('next/link', () => ({
 // ─── Test subject ────────────────────────────────────────────────────────────
 
 import { MobileShell, getActiveMobileTab } from './MobileShell';
-import {
-  BrandConfigProvider,
-  type Brand,
-} from '@/providers/BrandConfigProvider';
+import { BrandConfigProvider, type Brand } from '@/providers/BrandConfigProvider';
 
 const TEST_BRAND: Brand = {
   name: 'EduZo',
@@ -184,15 +174,21 @@ describe('<MobileShell> — active-tab highlighting (Task 53.2)', () => {
     expect(students.getAttribute('data-active')).toBe('true');
     // Sibling tabs must remain inactive.
     expect(screen.getByTestId('mobile-shell-tab-home').getAttribute('data-active')).toBe('false');
-    expect(screen.getByTestId('mobile-shell-tab-attendance').getAttribute('data-active')).toBe('false');
-    expect(screen.getByTestId('mobile-shell-tab-profile').getAttribute('data-active')).toBe('false');
+    expect(screen.getByTestId('mobile-shell-tab-attendance').getAttribute('data-active')).toBe(
+      'false',
+    );
+    expect(screen.getByTestId('mobile-shell-tab-profile').getAttribute('data-active')).toBe(
+      'false',
+    );
   });
 
   it('flags no tab as active when the pathname does not match any tab prefix', () => {
     currentPathname = '/admin';
     renderShell();
     for (const key of ['home', 'attendance', 'students', 'profile'] as const) {
-      expect(screen.getByTestId(`mobile-shell-tab-${key}`).getAttribute('data-active')).toBe('false');
+      expect(screen.getByTestId(`mobile-shell-tab-${key}`).getAttribute('data-active')).toBe(
+        'false',
+      );
     }
   });
 
@@ -241,17 +237,29 @@ describe('<MobileShell> — hamburger drawer (Task 53.2 / Design §K)', () => {
     expect(screen.getByTestId('mobile-shell-drawer-link-reports').getAttribute('href')).toBe(
       '/reports',
     );
-    expect(screen.getByTestId('mobile-shell-drawer-link-help').getAttribute('href')).toBe(
-      '/help',
-    );
+    expect(screen.getByTestId('mobile-shell-drawer-link-help').getAttribute('href')).toBe('/help');
     expect(screen.getByTestId('mobile-shell-drawer-link-signout').getAttribute('href')).toBe(
-      '/api/auth/signout',
+      '/api/auth/logout',
     );
 
-    expect(screen.getByTestId('mobile-shell-drawer-link-settings').textContent).toContain('Settings');
+    for (const [key, href] of [
+      ['fees', '/fees'],
+      ['hostel', '/hostel'],
+      ['transport', '/transport'],
+      ['library', '/library'],
+      ['communication', '/communication'],
+    ] as const) {
+      expect(screen.getByTestId(`mobile-shell-drawer-link-${key}`).getAttribute('href')).toBe(href);
+    }
+
+    expect(screen.getByTestId('mobile-shell-drawer-link-settings').textContent).toContain(
+      'Settings',
+    );
     expect(screen.getByTestId('mobile-shell-drawer-link-reports').textContent).toContain('Reports');
     expect(screen.getByTestId('mobile-shell-drawer-link-help').textContent).toContain('Help');
-    expect(screen.getByTestId('mobile-shell-drawer-link-signout').textContent).toContain('Sign out');
+    expect(screen.getByTestId('mobile-shell-drawer-link-signout').textContent).toContain(
+      'Sign out',
+    );
   });
 
   it('closes the drawer on Escape', () => {
