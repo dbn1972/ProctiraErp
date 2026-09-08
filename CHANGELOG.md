@@ -13,6 +13,7 @@ section is renamed to the version + date.
 
 ### Added
 
+- **G-734** — Product backlog rows + DSAR export endpoints on audit and health PHI (`GET /audit/dsar/:subjectId`, `GET /health/dsar/:studentId`).
 - **G-733** — Repo-wide Prettier format + CI `format:check` gate (replaces tip-only formatting).
 - **G-723** — Visual regression baselines for desktop + iPad tablet + Pixel 5 mobile (login / redirect shells); `visual-regression.yml` runs all three projects.
 - **G-722** — Authenticated axe matrix on G-706 PR gate; institution fixture for timetable/gradebook/schedule.

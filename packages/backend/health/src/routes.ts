@@ -1176,4 +1176,37 @@ export async function registerHealthRoutes(
       }
     },
   );
+
+  // G-734 — DSAR export of student PHI package
+  fastify.get(`${prefix}/dsar/:studentId`, async (request: FastifyRequest, reply: FastifyReply) => {
+    const params = validate(StudentParamsSchema, {
+      studentId: (request.params as { studentId?: string }).studentId,
+    });
+    if (!params.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: params.errors,
+      });
+    }
+    const tenantId = getTenantId(request);
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
+    try {
+      const pack = await healthService.exportStudentDsarPackage(
+        tenantId,
+        params.data.studentId,
+        getAccessContext(request),
+      );
+      return reply.status(200).send(pack);
+    } catch (error) {
+      return sendError(reply, error);
+    }
+  });
 }

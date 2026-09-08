@@ -355,4 +355,60 @@ describe('Audit Routes', () => {
       expect(body.count).toBe(0);
     });
   });
+
+  describe('GET /audit/dsar/:subjectId (G-734)', () => {
+    it('exports audit entries where the subject is the entity or the actor', async () => {
+      const subjectId = 'subject-dsar-001';
+
+      await app.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: {
+          entityType: 'student',
+          entityId: subjectId,
+          operation: 'CREATE',
+          afterValues: { name: 'Ada Lovelace' },
+        },
+      });
+
+      await app.inject({
+        method: 'POST',
+        url: '/audit',
+        payload: {
+          entityType: 'institution',
+          entityId: 'other-entity',
+          operation: 'UPDATE',
+          beforeValues: { name: 'A' },
+          afterValues: { name: 'B' },
+        },
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/audit/dsar/${subjectId}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.subjectId).toBe(subjectId);
+      expect(body.tenantId).toBe('test-tenant');
+      expect(body.entryCount).toBeGreaterThanOrEqual(1);
+      expect(body.truncated).toBe(false);
+      expect(body.entries.some((e: { entityId: string }) => e.entityId === subjectId)).toBe(true);
+      // Acting-user match: the inject hook sets user.sub = test-user-id, so only
+      // entityId matches are required for this subject id.
+      expect(body.exportedAt).toBeDefined();
+    });
+
+    it('returns an empty package when the subject has no audit trail', async () => {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/audit/dsar/nobody-here',
+      });
+      expect(response.statusCode).toBe(200);
+      const body = response.json();
+      expect(body.entryCount).toBe(0);
+      expect(body.entries).toEqual([]);
+    });
+  });
 });

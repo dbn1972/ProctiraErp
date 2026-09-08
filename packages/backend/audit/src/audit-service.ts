@@ -313,6 +313,77 @@ export class AuditService {
   }
 
   /**
+   * G-734 — Data Subject Access Request (DSAR) export.
+   *
+   * Collects every audit entry for a subject within the tenant where the
+   * subject appears as the entity id or as the acting user. Pages through
+   * the repository so the package is complete up to the configured ceiling.
+   */
+  async exportDataSubjectPackage(
+    tenantId: string,
+    subjectId: string,
+    options: { maxEntries?: number } = {},
+  ): Promise<{
+    subjectId: string;
+    tenantId: string;
+    exportedAt: string;
+    entryCount: number;
+    truncated: boolean;
+    entries: AuditLogEntry[];
+  }> {
+    if (!tenantId?.trim()) {
+      throw new ValidationError('tenantId is required', [
+        { field: 'tenantId', rule: 'required', message: 'tenantId is required' },
+      ]);
+    }
+    if (!subjectId?.trim()) {
+      throw new ValidationError('subjectId is required', [
+        { field: 'subjectId', rule: 'required', message: 'subjectId is required' },
+      ]);
+    }
+
+    const maxEntries = Math.min(Math.max(options.maxEntries ?? 5_000, 1), 10_000);
+    const pageSize = 100;
+    const byId = new Map<string, AuditLogEntry>();
+
+    const collect = async (filter: { entityId?: string; userId?: string }) => {
+      let page = 1;
+      for (;;) {
+        if (byId.size >= maxEntries) return;
+        const result = await this.repository.query({
+          tenantId,
+          ...filter,
+          page,
+          pageSize,
+          sortOrder: 'desc',
+        });
+        for (const entry of result.data) {
+          byId.set(entry.id, entry);
+          if (byId.size >= maxEntries) return;
+        }
+        if (page >= result.meta.totalPages || result.data.length === 0) return;
+        page += 1;
+      }
+    };
+
+    await collect({ entityId: subjectId });
+    await collect({ userId: subjectId });
+
+    const entries = Array.from(byId.values()).sort(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+    );
+
+    return {
+      subjectId,
+      tenantId,
+      exportedAt: new Date().toISOString(),
+      entryCount: entries.length,
+      truncated: entries.length >= maxEntries,
+      entries,
+    };
+  }
+
+  /**
    * Validate audit input for operation-specific constraints.
    */
   private validateAuditInput(input: RecordAuditInput): void {

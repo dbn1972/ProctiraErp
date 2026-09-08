@@ -187,4 +187,58 @@ describe('Health Routes', () => {
       expect(body.data).toHaveLength(1);
     });
   });
+
+  describe('GET /health/dsar/:studentId (G-734)', () => {
+    const studentId = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+
+    it('exports a PHI package for an authorized health officer', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/health/measurements',
+        payload: {
+          studentId,
+          date: '2024-03-15',
+          height: 165,
+          weight: 55,
+        },
+      });
+      await app.inject({
+        method: 'POST',
+        url: '/health/allergies',
+        payload: {
+          studentId,
+          allergyType: 'food',
+          description: 'Peanut allergy',
+          severity: 'severe',
+          reaction: 'Anaphylaxis',
+        },
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/health/dsar/${studentId}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const body = JSON.parse(response.body);
+      expect(body.subjectId).toBe(studentId);
+      expect(body.tenantId).toBe('tenant-001');
+      expect(body.sections.measurements).toHaveLength(1);
+      expect(body.sections.allergies).toHaveLength(1);
+      expect(body.exportedAt).toBeDefined();
+    });
+
+    it('denies DSAR export when the caller lacks health access', async () => {
+      // Override access context for this request path via a fresh app hook is
+      // heavy — instead swap the decorated context for this inject by
+      // temporarily mutating the shared context object.
+      healthOfficerContext.roles = [];
+      const response = await app.inject({
+        method: 'GET',
+        url: `/health/dsar/${studentId}`,
+      });
+      healthOfficerContext.roles = ['health_officer'];
+      expect(response.statusCode).toBeGreaterThanOrEqual(400);
+    });
+  });
 });

@@ -850,4 +850,74 @@ export class HealthService {
   ): Promise<PaginatedResult<ScreeningProgramEntity>> {
     return this.repository.listScreeningProgramsByGrade(tenantId, gradeLevel, pagination);
   }
+  /**
+   * G-734 — DSAR export of PHI held for a student (measurements, allergies,
+   * conditions, vaccinations, insurance, special needs, counselling).
+   * Access control mirrors other student PHI reads.
+   */
+  async exportStudentDsarPackage(
+    tenantId: string,
+    studentId: string,
+    accessContext: HealthAccessContext,
+  ): Promise<{
+    subjectId: string;
+    tenantId: string;
+    exportedAt: string;
+    sections: Record<string, unknown>;
+  }> {
+    if (!hasHealthAccess(accessContext, studentId)) {
+      throw new BusinessRuleError(
+        "Access denied: not authorized to access this student's health records",
+      );
+    }
+    const page = { page: 1, pageSize: 100 };
+    const [
+      measurements,
+      allergies,
+      conditions,
+      vaccinations,
+      insurance,
+      assessments,
+      diagnoses,
+      referrals,
+      accommodationPlans,
+      counsellingSessions,
+    ] = await Promise.all([
+      this.repository.listMeasurementsByStudent(tenantId, studentId, page),
+      this.repository.listAllergiesByStudent(tenantId, studentId, page),
+      this.repository.listConditionsByStudent(tenantId, studentId, page),
+      this.repository.listVaccinationsByStudent(tenantId, studentId, page),
+      this.repository.listInsuranceByStudent(tenantId, studentId, page),
+      this.repository.listAssessmentsByStudent(tenantId, studentId, page),
+      this.repository.listDiagnosesByStudent(tenantId, studentId, page),
+      this.repository.listReferralsByStudent(tenantId, studentId, page),
+      this.repository.listAccommodationPlansByStudent(tenantId, studentId, page),
+      this.repository.listCounsellingSessionsByStudent(tenantId, studentId, page),
+    ]);
+
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'dsar_export',
+      resourceId: null,
+    });
+
+    return {
+      subjectId: studentId,
+      tenantId,
+      exportedAt: new Date().toISOString(),
+      sections: {
+        measurements: measurements.data,
+        allergies: allergies.data,
+        conditions: conditions.data,
+        vaccinations: vaccinations.data,
+        insurance: insurance.data,
+        specialNeedsAssessments: assessments.data,
+        diagnoses: diagnoses.data,
+        referrals: referrals.data,
+        accommodationPlans: accommodationPlans.data,
+        counsellingSessions: counsellingSessions.data,
+      },
+    };
+  }
 }
