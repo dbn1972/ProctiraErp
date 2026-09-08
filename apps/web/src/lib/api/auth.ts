@@ -26,6 +26,8 @@
  * Validates Tasks 49.2, 49.4.
  */
 
+import { withCsrfHeader } from '@/lib/auth/csrf';
+
 // ─── Endpoints ──────────────────────────────────────────────────────────────
 
 /**
@@ -76,7 +78,7 @@ export interface FetchSignupRolesResult {
    * cancelled via `AbortController`; any other value is a network /
    * upstream failure the UI should surface.
    */
-  error?: 'aborted' | 'network' | string;
+  error?: string;
 }
 
 /** Loads the role list offered to public sign-ups for the active tenant. */
@@ -165,7 +167,7 @@ export async function signUp(payload: SignUpRequest): Promise<SignUpResult> {
     const response = await fetch(AUTH_API_ENDPOINTS.SIGNUP, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
 

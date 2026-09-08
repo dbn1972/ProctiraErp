@@ -46,13 +46,13 @@ export async function GET(request: Request): Promise<NextResponse> {
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
     data.accessToken,
-    accessTokenCookieOptions(data.expiresIn ?? 900),
+    accessTokenCookieOptions(data.expiresIn ?? 900, request),
   );
   if (data.refreshToken) {
     response.cookies.set(
       AUTH_COOKIES.REFRESH_TOKEN,
       data.refreshToken,
-      refreshTokenCookieOptions(),
+      refreshTokenCookieOptions(undefined, request),
     );
   }
   return response;

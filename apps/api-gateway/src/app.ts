@@ -140,6 +140,7 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       'X-Request-ID',
       'X-Correlation-ID',
       'Idempotency-Key',
+      'X-CSRF-Token',
     ],
     exposedHeaders: [
       'X-Request-ID',

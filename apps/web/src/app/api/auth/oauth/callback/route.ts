@@ -76,15 +76,15 @@ export async function GET(request: Request): Promise<NextResponse> {
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
     data.tokens.accessToken,
-    accessTokenCookieOptions(data.tokens.expiresIn),
+    accessTokenCookieOptions(data.tokens.expiresIn, request),
   );
   response.cookies.set(
     AUTH_COOKIES.REFRESH_TOKEN,
     data.tokens.refreshToken,
-    refreshTokenCookieOptions(),
+    refreshTokenCookieOptions(undefined, request),
   );
   if (data.session?.id) {
-    response.cookies.set(AUTH_COOKIES.SESSION_ID, data.session.id, accessTokenCookieOptions());
+    response.cookies.set(AUTH_COOKIES.SESSION_ID, data.session.id, accessTokenCookieOptions(undefined, request));
   }
   return response;
 }

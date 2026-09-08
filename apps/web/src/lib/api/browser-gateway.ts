@@ -23,6 +23,8 @@
  * back to a default value when the endpoint is not yet wired in dev.
  */
 
+import { CSRF_HEADER, readCsrfTokenFromDocument } from '@/lib/auth/csrf';
+
 /** Base URL of the API gateway, configurable per environment. */
 export const BROWSER_GATEWAY_BASE_URL =
   process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? '';
@@ -84,6 +86,8 @@ export async function browserGatewayFetch<T>(
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   if (init.tenantId) headers.set('X-Tenant-ID', init.tenantId);
+  const csrfToken = readCsrfTokenFromDocument();
+  if (csrfToken && !headers.has(CSRF_HEADER)) headers.set(CSRF_HEADER, csrfToken);
 
   let body: BodyInit | null | undefined = init.body;
   if (body == null && init.json !== undefined) {

@@ -60,17 +60,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     failure.cookies.set(
       AUTH_COOKIES.ACCESS_TOKEN,
       '',
-      clearCookieOptions(),
+      clearCookieOptions(request),
     );
     failure.cookies.set(
       AUTH_COOKIES.REFRESH_TOKEN,
       '',
-      clearCookieOptions(),
+      clearCookieOptions(request),
     );
     failure.cookies.set(
       AUTH_COOKIES.SESSION_ID,
       '',
-      clearCookieOptions(),
+      clearCookieOptions(request),
     );
     return failure;
   }
@@ -79,12 +79,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   response.cookies.set(
     AUTH_COOKIES.ACCESS_TOKEN,
     data.tokens.accessToken,
-    accessTokenCookieOptions(data.tokens.expiresIn),
+    accessTokenCookieOptions(data.tokens.expiresIn, request),
   );
   response.cookies.set(
     AUTH_COOKIES.REFRESH_TOKEN,
     data.tokens.refreshToken,
-    refreshTokenCookieOptions(),
+    refreshTokenCookieOptions(undefined, request),
   );
   return response;
 }

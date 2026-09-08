@@ -7,6 +7,8 @@
  * client-side helpers that call those route handlers.
  */
 
+import { withCsrfHeader } from '@/lib/auth/csrf';
+
 /** Cookie names used for authentication. */
 export const AUTH_COOKIES = {
   ACCESS_TOKEN: 'access_token',
@@ -125,7 +127,7 @@ export async function signIn(
     const response = await fetch(AUTH_ENDPOINTS.LOGIN, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ email, password }),
     });
 
@@ -166,7 +168,7 @@ export async function verifyMfa(
     const response = await fetch(AUTH_ENDPOINTS.VERIFY_MFA, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ mfaToken, code }),
     });
     const data: { message?: string } = await safeJson(response);
@@ -191,7 +193,7 @@ export async function refreshAccessToken(): Promise<boolean> {
     const response = await fetch(AUTH_ENDPOINTS.REFRESH, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
     });
     return response.ok;
   } catch {
@@ -209,7 +211,7 @@ export async function signOut(redirectTo: string = '/login'): Promise<void> {
     await fetch(AUTH_ENDPOINTS.LOGOUT, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
     });
   } catch {
     // Even if the API call fails, we redirect to login.
@@ -252,7 +254,7 @@ export async function requestPasswordReset(
     const response = await fetch(AUTH_ENDPOINTS.FORGOT_PASSWORD, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ email }),
     });
 
@@ -281,7 +283,7 @@ export async function resetPassword(
     const response = await fetch(AUTH_ENDPOINTS.RESET_PASSWORD, {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: withCsrfHeader({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ token, newPassword }),
     });
 
