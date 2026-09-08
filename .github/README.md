@@ -18,13 +18,18 @@ Runs on every push and PR to `main`/`develop` branches.
 5. **Build** — Production build (affected packages only)
 6. **Integration Tests** — Tests requiring PostgreSQL/Redis (backend changes only)
 
-### `e2e-backend-ready.yml` — G-401 nightly / manual write-smoke
+### `e2e-backend-ready.yml` — G-401 / G-706 live E2E gate
 
-Triggers on `workflow_dispatch` and a nightly cron. Spins Postgres + Redis,
-runs Prisma migrate + `tools/scripts/apply-sql.sh`, then
-`tools/scripts/run-e2e-backend-ready.sh` (api-gateway + small
-`E2E_BACKEND_READY=1` Playwright subset). No live IdP secrets; seeded-login
-journeys remain residual until admin seed lands.
+Runs on every `pull_request` (hard gate), nightly, and on `workflow_dispatch`.
+Spins Postgres + Redis, runs Prisma migrate + `tools/scripts/apply-sql.sh`
+with `APPLY_STRICT_FKS=1` (production FK posture), seeds the fixed E2E tenant
+rows (`tools/e2e/seed-e2e-tenants.sql`), then
+`tools/scripts/run-e2e-backend-ready.sh` starts api-gateway and runs the
+`E2E_BACKEND_READY=1` Playwright live write-smokes with `E2E_REQUIRE_LIVE=1`:
+a gateway that never becomes healthy or any failing spec turns the PR red.
+PRs run the curated `PR_SPECS` set; the nightly run adds the remaining live
+write smokes. All live specs authenticate with HS256 cookies (`JWT_SECRET`);
+no IdP secrets are required.
 
 ### `release.yml` — Release (Container Image Build & Push)
 

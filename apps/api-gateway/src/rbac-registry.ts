@@ -99,6 +99,21 @@ export const GATEWAY_UTILITY_SEGMENTS = new Set(['services', 'storage']);
  */
 export const SELF_SERVICE_READ_RESOURCES = new Set(['notification', 'parent']);
 
+/**
+ * Portal self-service writes: parents/guardians/students act on their own
+ * links, message threads, consent decisions and fee payments. The gateway
+ * grants the verb; `@proctira/backend-parent-portal` binds every row to the
+ * JWT `sub` (G-306) so no cross-actor write is possible.
+ */
+export const PORTAL_SELF_SERVICE_WRITES: ReadonlyArray<{
+  resource: string;
+  action: PermissionAction;
+}> = [
+  { resource: 'parent', action: 'create' },
+  { resource: 'parent', action: 'update' },
+  { resource: 'parent', action: 'delete' },
+];
+
 export const PLATFORM_PATH_SEGMENTS = new Set([
   'tenants',
   'plans',
@@ -228,6 +243,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   const guardian = roles.find((r) => r.roleId === 'guardian');
   if (guardian) {
     guardian.permissions.push(
+      ...PORTAL_SELF_SERVICE_WRITES,
       { resource: 'parent', action: 'read' },
       { resource: 'parent', action: 'list' },
       { resource: 'fees', action: 'read' },
@@ -249,6 +265,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
     roleId: 'parent',
     roleName: 'Parent',
     permissions: [
+      ...PORTAL_SELF_SERVICE_WRITES,
       { resource: 'parent', action: 'read' },
       { resource: 'parent', action: 'list' },
       { resource: 'student', action: 'read' },
@@ -264,6 +281,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
     roleId: 'student',
     roleName: 'Student',
     permissions: [
+      ...PORTAL_SELF_SERVICE_WRITES,
       { resource: 'parent', action: 'read' },
       { resource: 'parent', action: 'list' },
       { resource: 'student', action: 'read' },

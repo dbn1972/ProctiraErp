@@ -1,31 +1,26 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { createSignedJwt } from './fixtures/fake-session';
+
 /**
  * Insights — live write proofs when gateway is up (E2E_BACKEND_READY).
  * Ungated suite still covers client validation via 14b.
+ *
+ * The session cookie must be a real HS256 token: the gateway verifies
+ * signatures fail-closed (G-703), and the server components proxy this cookie
+ * to /reports/templates — an unsigned token yields 401 → scaffold banner.
  */
 
-function createFakeJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64');
-  const body = Buffer.from(JSON.stringify(payload)).toString('base64');
-  return `${header}.${body}.ZmFrZS1zaWduYXR1cmU`;
-}
-
 async function setupTenantSession(page: Page): Promise<void> {
-  const now = Math.floor(Date.now() / 1000);
-  const token = createFakeJwt({
+  const token = createSignedJwt({
     sub: 'insights-live-e2e',
     email: 'admin@tenant-a.test',
     displayName: 'Insights Live E2E',
     tenantId: '00000000-0000-4000-8000-0000000000aa',
     roles: [{ roleId: 'admin', roleName: 'Administrator', areaId: 'root' }],
-    iat: now,
-    exp: now + 60 * 60 * 8,
   });
 
-  const baseUrl = new URL(
-    page.url() === 'about:blank' ? 'http://localhost:3001' : page.url(),
-  );
+  const baseUrl = new URL(page.url() === 'about:blank' ? 'http://localhost:3001' : page.url());
 
   await page.context().addCookies([
     {
@@ -66,6 +61,8 @@ test.describe('Insights — live write proofs (E2E_BACKEND_READY)', () => {
       'data-live-generate',
       'true',
     );
+    // Wait for React to attach handlers before driving the select.
+    await expect(page.getByTestId('report-builder-form')).toHaveAttribute('data-hydrated', 'true');
 
     await page.locator('#report-template').selectOption('tpl-enrolment-summary');
     await page.locator('#filter-academicPeriodId').fill('2025-26');
@@ -77,13 +74,17 @@ test.describe('Insights — live write proofs (E2E_BACKEND_READY)', () => {
     await page.goto('/data-warehouse/import', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/import data/i);
     await expect(page.getByTestId('scaffold-mode-banner')).toHaveCount(0);
+    await expect(page.getByTestId('import-source-forms')).toHaveAttribute('data-hydrated', 'true');
 
     await page.setInputFiles('input[aria-label="Upload CSV file"]', {
       name: 'students.csv',
       mimeType: 'text/csv',
       buffer: Buffer.from('student_id,name\na,Ada\n'),
     });
-    await page.getByRole('button', { name: /^upload$/i }).nth(1).click();
+    await page
+      .getByRole('button', { name: /^upload$/i })
+      .nth(1)
+      .click();
     await expect(page.getByTestId('csv-live-submit')).toBeVisible({ timeout: 15_000 });
   });
 });

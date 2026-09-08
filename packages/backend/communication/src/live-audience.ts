@@ -4,6 +4,8 @@
  */
 import pg from 'pg';
 
+import { withPgTenant, type PgQueryable } from '@proctira/database';
+
 const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
@@ -24,10 +26,15 @@ export async function fetchLiveAudienceCounts(
   tenantId: string,
   audienceJson: Record<string, unknown>,
 ): Promise<LiveAudienceCounts> {
-  const db = getPool();
-  if (!db) {
+  const rawPool = getPool();
+  if (!rawPool) {
     return { hostelActiveAssignments: null, routeActiveAssignments: null };
   }
+  // RLS on hostel_* / transport_* would silently return 0 without app.tenant_id.
+  const db: PgQueryable = {
+    query: (text, values) =>
+      withPgTenant(rawPool, tenantId, (client) => client.query(text, values)),
+  };
 
   const scope = String(audienceJson['scope'] ?? 'all').toLowerCase();
   let hostelActiveAssignments: number | null = null;

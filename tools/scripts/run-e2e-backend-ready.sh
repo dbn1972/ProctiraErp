@@ -114,29 +114,56 @@ if [[ -z "${DATABASE_URL:-}" ]]; then
   exit 0
 fi
 
+# G-706: the live smokes mint cookies for fixed tenant ids; with strict tenant
+# FKs (APPLY_STRICT_FKS=1) and FORCE RLS on `tenants` those rows must exist.
+if [[ "${E2E_SKIP_TENANT_SEED:-0}" != "1" ]]; then
+  if command -v psql >/dev/null 2>&1; then
+    echo "==> Seeding E2E tenant fixtures (tools/e2e/seed-e2e-tenants.sql)"
+    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f "$ROOT/tools/e2e/seed-e2e-tenants.sql"
+  else
+    echo "warn: psql not on PATH — skipping E2E tenant seed (set E2E_SKIP_TENANT_SEED=1 to silence)" >&2
+    if [[ "${E2E_REQUIRE_LIVE:-0}" == "1" ]]; then
+      echo "error: E2E_REQUIRE_LIVE=1 needs psql to seed tenant fixtures" >&2
+      exit 1
+    fi
+  fi
+fi
+
+# A stale gateway on the port would make the health check pass against code
+# that is not the checkout under test — refuse rather than report a false pass.
+if curl -fsS --max-time 2 "${GATEWAY_URL}/health" >/dev/null 2>&1; then
+  echo "error: something is already listening at ${GATEWAY_URL} — stop it before running the harness" >&2
+  echo "       (pnpm wrappers can outlive their parent; try: pkill -f 'tsx src/server.ts')" >&2
+  exit 1
+fi
+
 GATEWAY_PID=""
 cleanup() {
   if [[ -n "$GATEWAY_PID" ]] && kill -0 "$GATEWAY_PID" 2>/dev/null; then
-    echo "==> Stopping api-gateway (pid $GATEWAY_PID)"
-    kill "$GATEWAY_PID" 2>/dev/null || true
+    echo "==> Stopping api-gateway (pgid $GATEWAY_PID)"
+    # setsid made the gateway its own process group: signal the whole group so
+    # the pnpm wrapper AND the node child go away together.
+    kill -- "-$GATEWAY_PID" 2>/dev/null || kill "$GATEWAY_PID" 2>/dev/null || true
+    for _ in $(seq 1 20); do
+      kill -0 "$GATEWAY_PID" 2>/dev/null || break
+      sleep 0.5
+    done
+    kill -9 -- "-$GATEWAY_PID" 2>/dev/null || true
     wait "$GATEWAY_PID" 2>/dev/null || true
   fi
 }
 trap cleanup EXIT
 
 echo "==> Starting api-gateway (PORT=${GATEWAY_PORT}, JWT_SECRET set)"
-(
-  cd "$ROOT"
-  PORT="$GATEWAY_PORT" \
-  HOST=0.0.0.0 \
-  NODE_ENV=development \
-  SEED_DEMO_DATA="${SEED_DEMO_DATA:-1}" \
-  DATABASE_URL="$DATABASE_URL" \
-  REDIS_URL="${REDIS_URL:-}" \
-  JWT_SECRET="$JWT_SECRET" \
-  CORS_ORIGINS="http://localhost:3001,http://127.0.0.1:3001" \
-  pnpm --filter @proctira/api-gateway start
-) >"$ROOT/.e2e-gateway.log" 2>&1 &
+PORT="$GATEWAY_PORT" \
+HOST=0.0.0.0 \
+NODE_ENV=development \
+SEED_DEMO_DATA="${SEED_DEMO_DATA:-1}" \
+DATABASE_URL="$DATABASE_URL" \
+REDIS_URL="${REDIS_URL:-}" \
+JWT_SECRET="$JWT_SECRET" \
+CORS_ORIGINS="http://localhost:3001,http://127.0.0.1:3001" \
+setsid pnpm --filter @proctira/api-gateway start >"$ROOT/.e2e-gateway.log" 2>&1 &
 GATEWAY_PID=$!
 
 echo "==> Waiting for gateway health at ${GATEWAY_URL}/health"

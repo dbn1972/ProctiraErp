@@ -17,6 +17,7 @@ import {
   Input,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { ReportTemplate, ReportFilter } from '@/lib/api/reports';
 
 import { generateReportAction } from '../actions';
@@ -47,6 +48,7 @@ export function ReportBuilderForm({
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const hydrated = useHydrated();
 
   const selected =
     templates.find((tpl) => tpl.id === selectedId) ??
@@ -64,10 +66,7 @@ export function ReportBuilderForm({
       return;
     }
 
-    const format = String(form.get('report-format') ?? '').trim() as
-      | 'PDF'
-      | 'XLSX'
-      | 'CSV';
+    const format = String(form.get('report-format') ?? '').trim() as 'PDF' | 'XLSX' | 'CSV';
     if (!format) {
       setError('Choose an output format.');
       return;
@@ -98,9 +97,7 @@ export function ReportBuilderForm({
         setError(result.message ?? 'Failed to generate report');
         return;
       }
-      setSuccessMessage(
-        result.message ?? `Report run ${result.id} created via live gateway.`,
-      );
+      setSuccessMessage(result.message ?? `Report run ${result.id} created via live gateway.`);
     });
   }
 
@@ -110,6 +107,7 @@ export function ReportBuilderForm({
       aria-label="Report builder form"
       data-testid="report-builder-form"
       data-live-generate={liveGenerate ? 'true' : 'false'}
+      data-hydrated={hydrated ? 'true' : 'false'}
       onSubmit={onSubmit}
       noValidate
     >
@@ -182,11 +180,7 @@ export function ReportBuilderForm({
           </FormField>
 
           {error && (
-            <p
-              className="text-sm text-destructive"
-              role="alert"
-              data-testid="report-builder-error"
-            >
+            <p className="text-sm text-destructive" role="alert" data-testid="report-builder-error">
               {error}
             </p>
           )}
