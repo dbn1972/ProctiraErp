@@ -3,15 +3,49 @@
  *
  * AES-256-GCM with key from PHI_ENCRYPTION_KEY (32-byte base64 or hex, or
  * any utf8 string hashed via SHA-256). Ciphertext format: enc:v1:<iv>:<tag>:<data>
- * (all base64). When the key is unset, values pass through plaintext (dev/CI).
+ * (all base64).
+ *
+ * G-711: when the key is unset, values pass through plaintext ONLY outside
+ * production. In production (`NODE_ENV=production`) a missing key throws at
+ * the first PHI write/read and at {@link assertPhiKeyConfigured} (boot) unless
+ * `ALLOW_PLAINTEXT_PHI=1` is set explicitly.
  */
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 
 const PREFIX = 'enc:v1:';
 
+export class PhiKeyMissingError extends Error {
+  constructor() {
+    super(
+      'PHI_ENCRYPTION_KEY is required in production (set a 32-byte base64/hex key, ' +
+        'or ALLOW_PLAINTEXT_PHI=1 to explicitly accept plaintext PHI at rest)',
+    );
+    this.name = 'PhiKeyMissingError';
+  }
+}
+
+function plaintextAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.NODE_ENV !== 'production') return true;
+  const flag = env.ALLOW_PLAINTEXT_PHI?.trim().toLowerCase();
+  return flag === '1' || flag === 'true';
+}
+
+/**
+ * Boot-time guard: throws in production when no key is configured and
+ * plaintext PHI has not been explicitly allowed.
+ */
+export function assertPhiKeyConfigured(env: NodeJS.ProcessEnv = process.env): void {
+  if (!env.PHI_ENCRYPTION_KEY?.trim() && !plaintextAllowed(env)) {
+    throw new PhiKeyMissingError();
+  }
+}
+
 function resolveKey(): Buffer | null {
   const raw = process.env.PHI_ENCRYPTION_KEY?.trim();
-  if (!raw) return null;
+  if (!raw) {
+    if (!plaintextAllowed()) throw new PhiKeyMissingError();
+    return null;
+  }
   if (/^[0-9a-fA-F]{64}$/.test(raw)) return Buffer.from(raw, 'hex');
   try {
     const b64 = Buffer.from(raw, 'base64');
@@ -23,7 +57,12 @@ function resolveKey(): Buffer | null {
 }
 
 export function isPhiEncryptionEnabled(): boolean {
-  return resolveKey() !== null;
+  return Boolean(process.env.PHI_ENCRYPTION_KEY?.trim());
+}
+
+/** True when `value` is an enc:v1 ciphertext (used by tests / migrations). */
+export function isPhiCiphertext(value: string | null | undefined): boolean {
+  return typeof value === 'string' && value.startsWith(PREFIX);
 }
 
 export function encryptPhi(plaintext: string | null | undefined): string | null {

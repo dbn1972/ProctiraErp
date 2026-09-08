@@ -60,9 +60,12 @@ export {
 } from './pg-special-needs-store.js';
 export type { PhiAccessLogInput } from './pg-special-needs-store.js';
 export {
+  assertPhiKeyConfigured,
   decryptPhi,
   encryptPhi,
+  isPhiCiphertext,
   isPhiEncryptionEnabled,
+  PhiKeyMissingError,
 } from './phi-crypto.js';
 
 // Routes

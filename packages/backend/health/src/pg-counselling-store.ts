@@ -13,6 +13,7 @@ import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type { CounsellingSessionEntity } from './health-repository.js';
+import { decryptPhi, encryptPhi } from './phi-crypto.js';
 
 const { Pool } = pg;
 
@@ -80,9 +81,9 @@ function mapRow(row: Record<string, unknown>): CounsellingSessionEntity {
         ? row.session_date.toISOString().slice(0, 10)
         : String(row.session_date).slice(0, 10),
     sessionType: String(row.session_type),
-    reason: String(row.reason),
-    caseNotes: String(row.case_notes),
-    outcome: row.outcome == null ? null : String(row.outcome),
+    reason: decryptPhi(String(row.reason)) ?? '',
+    caseNotes: decryptPhi(String(row.case_notes)) ?? '',
+    outcome: decryptPhi(row.outcome == null ? null : String(row.outcome)),
     followUpRequired: Boolean(row.follow_up_required),
     followUpDate:
       row.follow_up_date == null
@@ -130,9 +131,9 @@ export class PgCounsellingStore {
         data.counsellorId,
         data.sessionDate,
         data.sessionType,
-        data.reason,
-        data.caseNotes,
-        data.outcome,
+        encryptPhi(data.reason),
+        encryptPhi(data.caseNotes),
+        encryptPhi(data.outcome),
         data.followUpRequired,
         data.followUpDate,
         data.status,
@@ -179,9 +180,9 @@ export class PgCounsellingStore {
         merged.counsellorId,
         merged.sessionDate,
         merged.sessionType,
-        merged.reason,
-        merged.caseNotes,
-        merged.outcome,
+        encryptPhi(merged.reason),
+        encryptPhi(merged.caseNotes),
+        encryptPhi(merged.outcome),
         merged.followUpRequired,
         merged.followUpDate,
         merged.status,

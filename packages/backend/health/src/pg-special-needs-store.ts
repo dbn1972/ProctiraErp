@@ -17,12 +17,12 @@ import type {
   ReferralEntity,
   SpecialNeedsAssessmentEntity,
 } from './health-repository.js';
-import { decryptPhi, encryptPhi } from './phi-crypto.js';
 import {
   getSharedCounsellingPool,
   isPgCounsellingEnabled,
   type PgPoolLike,
 } from './pg-counselling-store.js';
+import { decryptPhi, encryptPhi } from './phi-crypto.js';
 
 let schemaReady: Promise<void> | null = null;
 

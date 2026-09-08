@@ -3,10 +3,19 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { decryptPhi, encryptPhi, isPhiEncryptionEnabled } from './phi-crypto.js';
+import {
+  assertPhiKeyConfigured,
+  decryptPhi,
+  encryptPhi,
+  isPhiCiphertext,
+  isPhiEncryptionEnabled,
+  PhiKeyMissingError,
+} from './phi-crypto.js';
 
 describe('phi-crypto', () => {
   const previousKey = process.env.PHI_ENCRYPTION_KEY;
+  const previousEnv = process.env.NODE_ENV;
+  const previousAllow = process.env.ALLOW_PLAINTEXT_PHI;
 
   afterEach(() => {
     if (previousKey === undefined) {
@@ -14,6 +23,35 @@ describe('phi-crypto', () => {
     } else {
       process.env.PHI_ENCRYPTION_KEY = previousKey;
     }
+    process.env.NODE_ENV = previousEnv;
+    if (previousAllow === undefined) delete process.env.ALLOW_PLAINTEXT_PHI;
+    else process.env.ALLOW_PLAINTEXT_PHI = previousAllow;
+  });
+
+  // G-711 — fail closed in production
+  it('throws in production when the key is missing (boot guard and first write)', () => {
+    delete process.env.PHI_ENCRYPTION_KEY;
+    delete process.env.ALLOW_PLAINTEXT_PHI;
+    process.env.NODE_ENV = 'production';
+    expect(() => assertPhiKeyConfigured()).toThrow(PhiKeyMissingError);
+    expect(() => encryptPhi('notes')).toThrow(PhiKeyMissingError);
+    expect(() => decryptPhi('notes')).not.toThrow(); // plaintext legacy rows still readable
+  });
+
+  it('allows plaintext in production only with ALLOW_PLAINTEXT_PHI=1', () => {
+    delete process.env.PHI_ENCRYPTION_KEY;
+    process.env.NODE_ENV = 'production';
+    process.env.ALLOW_PLAINTEXT_PHI = '1';
+    expect(() => assertPhiKeyConfigured()).not.toThrow();
+    expect(encryptPhi('notes')).toBe('notes');
+  });
+
+  it('does not throw in production when a key is configured', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.PHI_ENCRYPTION_KEY = 'b'.repeat(64);
+    expect(() => assertPhiKeyConfigured()).not.toThrow();
+    expect(isPhiCiphertext(encryptPhi('x'))).toBe(true);
+    expect(isPhiCiphertext('x')).toBe(false);
   });
 
   it('passes through plaintext when PHI_ENCRYPTION_KEY is unset', () => {
