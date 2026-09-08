@@ -45,6 +45,7 @@ import {
   PLATFORM_ADMIN_ROLE_IDS,
   resourceForApiPath,
 } from './rbac-registry.js';
+import { isTenantSuspended } from './tenant-entitlement.js';
 
 export interface BuildAppOptions {
   config: GatewayConfig;
@@ -336,6 +337,26 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
       '/api/v1/storage/health',
     ],
     resolveSlugToId: false, // Gateway doesn't have direct DB access
+  });
+
+  // 8a. G-106 — Suspended tenants cannot mutate /api/v1 (except /auth).
+  const SUSPEND_MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+  app.addHook('onRequest', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    if (!SUSPEND_MUTATING.has(method)) return;
+
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+
+    const tenantId = request.tenantId;
+    if (tenantId && isTenantSuspended(tenantId)) {
+      return reply.status(403).send({
+        code: 'TENANT_SUSPENDED',
+        message: 'Tenant is suspended; mutating requests are not allowed',
+        statusCode: 403,
+      });
+    }
   });
 
   // 8b. Register Idempotency-Key support (after tenant, so tenant scoping works)
