@@ -213,5 +213,5 @@ const observabilityPluginImpl: FastifyPluginAsync<ObservabilityPluginOptions> = 
  */
 export const observabilityPlugin = fp(observabilityPluginImpl, {
   name: '@proctira/observability',
-  fastify: '4.x',
+  fastify: '5.x',
 });

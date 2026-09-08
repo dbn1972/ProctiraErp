@@ -128,7 +128,7 @@ export const staffPlugin = fp(
   },
   {
     name: '@proctira/backend-staff',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

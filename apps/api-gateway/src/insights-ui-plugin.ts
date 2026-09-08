@@ -209,5 +209,5 @@ export const insightsUiPlugin = fp(
       return reply.send({ data: await store.listGeoFeatures() });
     });
   },
-  { name: 'insights-ui-aggregates', fastify: '4.x' },
+  { name: 'insights-ui-aggregates', fastify: '5.x' },
 );

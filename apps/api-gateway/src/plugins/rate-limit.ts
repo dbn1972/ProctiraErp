@@ -91,5 +91,5 @@ async function rateLimitPlugin(
 
 export default fp(rateLimitPlugin, {
   name: 'rate-limit-redis',
-  fastify: '4.x',
+  fastify: '5.x',
 });

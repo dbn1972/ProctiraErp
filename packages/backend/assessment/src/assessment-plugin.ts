@@ -175,7 +175,7 @@ export const assessmentPlugin = fp(
   },
   {
     name: '@proctira/backend-assessment',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

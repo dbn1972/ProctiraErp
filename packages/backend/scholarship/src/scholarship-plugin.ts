@@ -59,7 +59,7 @@ export const scholarshipPlugin = fp(
   },
   {
     name: '@proctira/backend-scholarship',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

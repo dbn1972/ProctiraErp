@@ -61,7 +61,7 @@ export const customFieldPlugin = fp(
   },
   {
     name: '@proctira/backend-custom-field',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

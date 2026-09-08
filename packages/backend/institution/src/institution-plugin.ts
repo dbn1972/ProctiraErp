@@ -78,7 +78,7 @@ export const institutionPlugin = fp(
   },
   {
     name: '@proctira/backend-institution',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

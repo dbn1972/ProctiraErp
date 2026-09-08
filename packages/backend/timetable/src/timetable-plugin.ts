@@ -27,7 +27,7 @@ export const timetablePlugin = fp(
   },
   {
     name: '@proctira/backend-timetable',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

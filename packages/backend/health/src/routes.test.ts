@@ -27,7 +27,7 @@ describe('Health Routes', () => {
 
     // Simulate tenant and access context middleware
     app.decorateRequest('tenantId', '');
-    app.decorateRequest('healthAccessContext', null);
+    app.decorateRequest('healthAccessContext', undefined);
     app.addHook('onRequest', async (request) => {
       (request as any).tenantId = 'tenant-001';
       (request as any).healthAccessContext = healthOfficerContext;

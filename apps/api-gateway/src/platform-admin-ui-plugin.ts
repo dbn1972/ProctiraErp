@@ -480,5 +480,5 @@ export const platformAdminUiPlugin = fp(
       });
     });
   },
-  { name: 'platform-admin-ui-aggregates', fastify: '4.x' },
+  { name: 'platform-admin-ui-aggregates', fastify: '5.x' },
 );

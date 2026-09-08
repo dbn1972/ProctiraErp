@@ -214,7 +214,7 @@ export const healthUiPlugin = fp(
       return reply.send({ data: forTenant(seed.screenings, tenantId) });
     });
   },
-  { name: 'health-ui-aggregates', fastify: '4.x' },
+  { name: 'health-ui-aggregates', fastify: '5.x' },
 );
 
 export const HEALTH_UI_DEMO_TENANT_ID = HEALTH_DEMO_TENANT_ID;

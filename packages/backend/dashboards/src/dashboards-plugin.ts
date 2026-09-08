@@ -41,6 +41,6 @@ export const dashboardsPlugin = fp(
   },
   {
     name: '@proctira/backend-dashboards',
-    fastify: '4.x',
+    fastify: '5.x',
   },
 );

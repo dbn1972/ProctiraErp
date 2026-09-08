@@ -28,7 +28,7 @@ export const libraryPlugin = fp(
   },
   {
     name: '@proctira/backend-library',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

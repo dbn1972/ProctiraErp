@@ -247,5 +247,5 @@ export const workflowUiPlugin = fp(
       async (request, reply) => decideApproval(request, reply, 'REJECTED'),
     );
   },
-  { name: 'workflow-ui-aggregates', fastify: '4.x' },
+  { name: 'workflow-ui-aggregates', fastify: '5.x' },
 );

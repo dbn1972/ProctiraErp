@@ -51,7 +51,7 @@ export const pluginPlugin = fp(
   },
   {
     name: '@proctira/backend-plugin',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

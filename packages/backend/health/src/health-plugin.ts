@@ -56,7 +56,7 @@ export const healthPlugin = fp(
   },
   {
     name: '@proctira/backend-health',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

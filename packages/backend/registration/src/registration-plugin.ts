@@ -64,7 +64,7 @@ export const registrationPlugin = fp(
   },
   {
     name: '@proctira/backend-registration',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

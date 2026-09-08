@@ -34,7 +34,7 @@ export const communicationPlugin = fp(
   },
   {
     name: '@proctira/backend-communication',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

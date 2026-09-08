@@ -51,7 +51,7 @@ export const transportPlugin = fp(
   },
   {
     name: '@proctira/backend-transport',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

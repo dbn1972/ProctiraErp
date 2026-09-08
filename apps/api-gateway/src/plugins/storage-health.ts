@@ -250,5 +250,5 @@ const storageHealthPlugin: FastifyPluginAsync<StorageHealthOptions> = async (
 
 export default fp(storageHealthPlugin, {
   name: 'storage-health',
-  fastify: '4.x',
+  fastify: '5.x',
 });

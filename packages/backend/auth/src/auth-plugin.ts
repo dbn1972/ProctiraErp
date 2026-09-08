@@ -109,7 +109,7 @@ export const authPlugin = fp(
   },
   {
     name: '@proctira/backend-auth',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

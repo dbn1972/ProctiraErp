@@ -98,7 +98,7 @@ export const reportPlugin = fp(
   },
   {
     name: '@proctira/backend-report',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

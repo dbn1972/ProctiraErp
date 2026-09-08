@@ -49,7 +49,7 @@ describe('Attendance Routes', () => {
     });
 
     // Add user context
-    app.decorateRequest('user', null);
+    app.decorateRequest('user', undefined);
     app.addHook('onRequest', async (request) => {
       (request as typeof request & { user: { sub: string } }).user = { sub: 'test-user' };
     });

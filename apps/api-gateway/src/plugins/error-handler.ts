@@ -270,7 +270,7 @@ function handlePrismaError(
  */
 export const errorHandlerPlugin = fp(errorHandlerPluginImpl, {
   name: '@proctira/error-handler',
-  fastify: '4.x',
+  fastify: '5.x',
 });
 
 export default errorHandlerPlugin;

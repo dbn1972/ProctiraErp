@@ -164,5 +164,5 @@ const loggingPluginImpl: FastifyPluginAsync<LoggingPluginOptions> = async (
  */
 export const loggingPlugin = fp(loggingPluginImpl, {
   name: '@proctira/logging',
-  fastify: '4.x',
+  fastify: '5.x',
 });

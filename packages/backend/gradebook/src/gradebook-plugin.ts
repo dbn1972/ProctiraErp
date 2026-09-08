@@ -27,7 +27,7 @@ export const gradebookPlugin = fp(
   },
   {
     name: '@proctira/backend-gradebook',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

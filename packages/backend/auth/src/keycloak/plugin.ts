@@ -46,7 +46,9 @@ export const keycloakAuthPlugin = fp(
   ) {
     const jwks = new KeycloakJwksClient(options.config.jwksUri);
 
-    fastify.decorateRequest('user', null);
+    // Fastify 5 decorateRequest requires a concrete default (GetterSetter).
+    // Handlers overwrite `request.user` after JWT verification.
+    fastify.decorateRequest('user', null as unknown as JwtPayload);
 
     fastify.decorate(
       'authenticate',
@@ -85,7 +87,7 @@ export const keycloakAuthPlugin = fp(
       },
     );
   },
-  { name: 'proctira-keycloak-auth', fastify: '4.x' },
+  { name: 'proctira-keycloak-auth', fastify: '5.x' },
 );
 
 async function hydrateKeycloakUser(

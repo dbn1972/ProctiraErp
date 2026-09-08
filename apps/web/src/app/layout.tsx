@@ -136,7 +136,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // we inline into the `<head>` block below. All read paths are SSR-safe:
   // `next/headers` is only called from Server Components, the Theme
   // Service fetch falls back to ProctiraERP defaults on any failure.
-  const headerStore = headers();
+  const headerStore = await headers();
   const tenantSlug = await resolveRequestTenantSlug(headerStore);
   const { tokens } = await getPublishedTenantTheme(tenantSlug);
   const tenantThemeCSS = renderTenantThemeCSS(tokens);

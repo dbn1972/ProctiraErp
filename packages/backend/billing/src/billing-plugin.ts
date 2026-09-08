@@ -51,7 +51,7 @@ export const billingPlugin = fp(
   },
   {
     name: '@proctira/backend-billing',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

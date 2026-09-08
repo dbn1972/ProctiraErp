@@ -112,7 +112,7 @@ export const examinationPlugin = fp(
   },
   {
     name: '@proctira/backend-examination',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

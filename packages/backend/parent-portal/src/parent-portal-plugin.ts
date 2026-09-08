@@ -28,7 +28,7 @@ export const parentPortalPlugin = fp(
   },
   {
     name: '@proctira/backend-parent-portal',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

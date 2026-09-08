@@ -71,7 +71,7 @@ export async function registerExternalAuthRoutes(
 
       try {
         const { redirectUrl } = await handler.initiateAuth(providerId, tenantId);
-        return reply.redirect(302, redirectUrl);
+        return reply.redirect(redirectUrl, 302);
       } catch (error: unknown) {
         if (error instanceof ExternalAuthError) {
           return reply.status(error.statusCode).send({
@@ -209,7 +209,7 @@ function sendSuccess(
       provider: result.providerId,
       is_new_user: String(result.isNewUser),
     });
-    return reply.redirect(302, `${redirectUrl}?${params.toString()}`);
+    return reply.redirect(`${redirectUrl}?${params.toString()}`, 302);
   }
 
   return reply.status(200).send({
@@ -237,7 +237,7 @@ function sendError(
       error_description: error.message,
       ...(error.providerId ? { provider: error.providerId } : {}),
     });
-    return reply.redirect(302, `${redirectUrl}?${params.toString()}`);
+    return reply.redirect(`${redirectUrl}?${params.toString()}`, 302);
   }
 
   return reply.status(error.statusCode).send(error);

@@ -78,7 +78,7 @@ export const surveyPlugin = fp(
   },
   {
     name: '@proctira/backend-survey',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

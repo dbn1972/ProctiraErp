@@ -158,7 +158,7 @@ export const rbacPlugin = fp(
   },
   {
     name: '@proctira/rbac',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: ['@proctira/backend-auth'],
   },
 );

@@ -16,6 +16,6 @@ export default fp(
   },
   {
     name: 'admin-dashboard-plugin',
-    fastify: '4.x',
+    fastify: '5.x',
   },
 );

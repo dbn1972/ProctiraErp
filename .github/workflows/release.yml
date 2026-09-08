@@ -218,6 +218,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ci-gate, detect-services, matrix-prep]
     if: needs.detect-services.outputs.has-services == 'true'
+    # G-735 — keyless cosign needs id-token; packages:write for GHCR push.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
@@ -331,6 +336,7 @@ jobs:
             org.opencontainers.image.version=${{ needs.ci-gate.outputs.head-branch }}
 
       - name: Build and push image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -344,6 +350,34 @@ jobs:
           platforms: linux/amd64
           provenance: false
 
+      # G-735 — keyless cosign for every matrix image (same gate as supply-chain.yml).
+      - uses: sigstore/cosign-installer@v3
+        if: vars.SUPPLY_CHAIN_SIGN_IMAGES == 'true'
+
+      - name: Sign image digest (keyless)
+        if: vars.SUPPLY_CHAIN_SIGN_IMAGES == 'true'
+        env:
+          COSIGN_YES: 'true'
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira-${{ matrix.service }}
+        run: |
+          cosign sign "${IMAGE}@${{ steps.build.outputs.digest }}"
+
+      - name: Verify image signature
+        if: vars.SUPPLY_CHAIN_SIGN_IMAGES == 'true'
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/proctira-${{ matrix.service }}
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "^https://github.com/${{ github.repository }}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${IMAGE}@${{ steps.build.outputs.digest }}" | head -c 2000
+          echo "signed ${IMAGE}@${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record signing skipped
+        if: vars.SUPPLY_CHAIN_SIGN_IMAGES != 'true'
+        run: |
+          echo "Cosign skipped for proctira-${{ matrix.service }} (set SUPPLY_CHAIN_SIGN_IMAGES=true to enable)." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Record image digest
         run: |
           {
@@ -352,6 +386,7 @@ jobs:
             echo '```'
             echo "Tags:"
             echo "${{ steps.meta.outputs.tags }}"
+            echo "Digest: ${{ steps.build.outputs.digest }}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

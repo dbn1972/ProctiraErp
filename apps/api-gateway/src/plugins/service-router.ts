@@ -271,5 +271,5 @@ declare module 'fastify' {
 
 export default fp(serviceRouterPlugin, {
   name: 'service-router',
-  fastify: '4.x',
+  fastify: '5.x',
 });

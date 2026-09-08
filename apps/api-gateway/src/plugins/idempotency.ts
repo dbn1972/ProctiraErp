@@ -265,7 +265,7 @@ const idempotencyPluginImpl: FastifyPluginAsync<IdempotencyOptions> = async (
  */
 export const idempotencyPlugin = fp(idempotencyPluginImpl, {
   name: '@proctira/idempotency',
-  fastify: '4.x',
+  fastify: '5.x',
 });
 
 export default idempotencyPlugin;

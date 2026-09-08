@@ -13,6 +13,7 @@ section is renamed to the version + date.
 
 ### Added
 
+- **G-735** — Next.js 15 + Fastify 5 majors; empty advisory allowlist; keyless cosign on the full release image matrix.
 - **G-734** — Product backlog rows + DSAR export endpoints on audit and health PHI (`GET /audit/dsar/:subjectId`, `GET /health/dsar/:studentId`).
 - **G-733** — Repo-wide Prettier format + CI `format:check` gate (replaces tip-only formatting).
 - **G-723** — Visual regression baselines for desktop + iPad tablet + Pixel 5 mobile (login / redirect shells); `visual-regression.yml` runs all three projects.

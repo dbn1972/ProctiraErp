@@ -55,7 +55,7 @@ export const attendancePlugin = fp(
   },
   {
     name: '@proctira/backend-attendance',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

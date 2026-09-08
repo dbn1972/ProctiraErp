@@ -86,7 +86,7 @@ export async function registerKeycloakAuthRoutes(
       reply: FastifyReply,
     ) => {
       const state = request.query.state ?? crypto.randomUUID();
-      return reply.redirect(302, authorizeUrl(config, state));
+      return reply.redirect(authorizeUrl(config, state), 302);
     },
   );
 
@@ -173,7 +173,7 @@ export async function registerKeycloakAuthRoutes(
         const next = new URL('/api/auth/callback', config.webOrigin);
         next.searchParams.set('ticket', ticket);
         next.searchParams.set('returnTo', returnTo);
-        return reply.redirect(302, next.toString());
+        return reply.redirect(next.toString(), 302);
       }
 
       return reply.status(200).send({
@@ -357,7 +357,7 @@ export async function registerKeycloakAuthRoutes(
       }>,
       reply: FastifyReply,
     ) => {
-      return reply.redirect(302, logoutUrl(config, request.query.redirect ?? config.webOrigin));
+      return reply.redirect(logoutUrl(config, request.query.redirect ?? config.webOrigin), 302);
     },
   );
 

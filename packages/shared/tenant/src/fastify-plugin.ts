@@ -169,6 +169,6 @@ export const tenantPlugin = fp(
   },
   {
     name: '@proctira/tenant',
-    fastify: '4.x',
+    fastify: '5.x',
   },
 );

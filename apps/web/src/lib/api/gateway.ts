@@ -44,9 +44,12 @@ export interface GatewayResponse<T> {
 }
 
 /** Reads the current session's tenant + access token from cookies / headers. */
-export function getSessionContext(): { tenantId: string; accessToken: string | null } {
-  const cookieStore = cookies();
-  const headerStore = headers();
+export async function getSessionContext(): Promise<{
+  tenantId: string;
+  accessToken: string | null;
+}> {
+  const cookieStore = await cookies();
+  const headerStore = await headers();
 
   const accessToken = cookieStore.get(AUTH_COOKIES.ACCESS_TOKEN)?.value ?? null;
   const payload = accessToken ? decodeTokenPayload(accessToken) : null;
@@ -65,7 +68,7 @@ export async function gatewayFetch<T>(
   path: string,
   init: GatewayRequestInit = {},
 ): Promise<GatewayResponse<T>> {
-  const { tenantId: ctxTenantId, accessToken } = getSessionContext();
+  const { tenantId: ctxTenantId, accessToken } = await getSessionContext();
   const tenantId = init.tenantId ?? ctxTenantId;
 
   const requestHeaders = new Headers(init.headers);

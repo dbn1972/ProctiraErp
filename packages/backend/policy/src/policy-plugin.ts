@@ -51,7 +51,7 @@ export const policyPlugin = fp(
   },
   {
     name: '@proctira/backend-policy',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

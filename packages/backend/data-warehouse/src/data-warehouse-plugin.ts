@@ -54,7 +54,7 @@ export const dataWarehousePlugin = fp(
   },
   {
     name: '@proctira/backend-data-warehouse',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

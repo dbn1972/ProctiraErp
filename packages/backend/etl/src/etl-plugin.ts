@@ -51,7 +51,7 @@ export const etlPlugin = fp(
   },
   {
     name: '@proctira/backend-etl',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

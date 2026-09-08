@@ -25,7 +25,7 @@ export const hostelPlugin = fp(
   },
   {
     name: '@proctira/backend-hostel',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

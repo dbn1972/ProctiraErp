@@ -66,7 +66,7 @@ export const auditPlugin = fp(
   },
   {
     name: '@proctira/backend-audit',
-    fastify: '4.x',
+    fastify: '5.x',
     dependencies: [],
   },
 );

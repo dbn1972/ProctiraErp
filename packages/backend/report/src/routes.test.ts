@@ -52,7 +52,7 @@ async function buildApp(): Promise<FastifyInstance> {
   });
 
   // Add user context
-  app.decorateRequest('user', null);
+  app.decorateRequest('user', undefined);
   app.addHook('onRequest', async (request) => {
     (request as typeof request & { user: unknown }).user = {
       sub: '22222222-2222-4222-8222-222222222222',
