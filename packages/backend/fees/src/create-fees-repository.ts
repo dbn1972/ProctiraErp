@@ -3,9 +3,9 @@
  * Shared in-memory ensures library fines (G-603) and /fees reads see the same ledger
  * within a single process when not using Postgres.
  */
+import type { FeesRepository } from './fees-repository.js';
 import { InMemoryFeesRepository } from './in-memory-repository.js';
 import { getSharedFeesPool, PgFeesRepository } from './pg-fees-repository.js';
-import type { FeesRepository } from './fees-repository.js';
 
 let sharedMemoryFees: InMemoryFeesRepository | null = null;
 

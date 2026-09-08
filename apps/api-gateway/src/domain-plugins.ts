@@ -53,22 +53,22 @@ import {
   createSandboxDeliveryAdapter,
 } from '@proctira/backend-communication';
 import {
+  developerPortalPlugin,
+  InMemoryDeveloperPortalRepository,
+} from '@proctira/backend-developer-portal';
+import {
   createDocumentRepository,
   createExaminationRepository,
   createResultRepository,
   examinationPlugin,
 } from '@proctira/backend-examination';
+import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import { healthPlugin, createHealthRepository } from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
-import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
-import {
-  developerPortalPlugin,
-  InMemoryDeveloperPortalRepository,
-} from '@proctira/backend-developer-portal';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import { createRegistrationRepository, registrationPlugin } from '@proctira/backend-registration';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';

@@ -9,22 +9,15 @@
  * - Manage vehicle records and driver assignments
  * - Assign students to transport routes
  */
-import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type {
-  TransportRouteEntity,
-  RouteStopEntity,
-  VehicleEntity,
-  DriverAssignmentEntity,
-  StudentRouteAssignmentEntity,
-  RouteFilter,
-  VehicleFilter,
-  DriverAssignmentFilter,
-  StudentAssignmentFilter,
-  TransportRepository,
-} from './transport-repository.js';
+import {
+  BUS_ATTENDANCE_STUB_HONESTY_NOTE,
+  GPS_STUB_HONESTY_NOTE,
+  GpsAttendanceStubStore,
+} from './gps-attendance-stub.js';
 import type {
   CreateTransportRouteInput,
   UpdateTransportRouteInput,
@@ -39,11 +32,18 @@ import type {
   RecordGpsPingInput,
   RecordBusAttendanceInput,
 } from './schemas.js';
-import {
-  BUS_ATTENDANCE_STUB_HONESTY_NOTE,
-  GPS_STUB_HONESTY_NOTE,
-  GpsAttendanceStubStore,
-} from './gps-attendance-stub.js';
+import type {
+  TransportRouteEntity,
+  RouteStopEntity,
+  VehicleEntity,
+  DriverAssignmentEntity,
+  StudentRouteAssignmentEntity,
+  RouteFilter,
+  VehicleFilter,
+  DriverAssignmentFilter,
+  StudentAssignmentFilter,
+  TransportRepository,
+} from './transport-repository.js';
 
 /**
  * Service handling transport business logic.

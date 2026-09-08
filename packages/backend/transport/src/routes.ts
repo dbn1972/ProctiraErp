@@ -37,7 +37,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { TransportService } from './transport-service.js';
 import {
   CreateTransportRouteSchema,
   UpdateTransportRouteSchema,
@@ -51,7 +50,6 @@ import {
   UpdateStudentAssignmentSchema,
   TransportParamsSchema,
   RouteParamsSchema,
-  TransportListQuerySchema,
   type CreateTransportRouteInput,
   type UpdateTransportRouteInput,
   type CreateRouteStopInput,
@@ -72,6 +70,8 @@ import {
   type VehicleParams,
   type RecordBusAttendanceInput,
 } from './schemas.js';
+import type { RouteStatus, VehicleStatus } from './transport-repository.js';
+import type { TransportService } from './transport-service.js';
 
 /**
  * Options for registering transport routes.
@@ -228,7 +228,11 @@ export async function registerTransportRoutes(
 
       const result = await transportService.listRoutes(
         tenantId,
-        { status: query.status as any, institutionId: query.institutionId, search: query.search },
+        {
+          status: query.status as RouteStatus | undefined,
+          institutionId: query.institutionId,
+          search: query.search,
+        },
         { page, pageSize, sortBy, sortOrder },
       );
 
@@ -647,7 +651,10 @@ export async function registerTransportRoutes(
 
       const result = await transportService.listVehicles(
         tenantId,
-        { status: query.status as any, search: query.search },
+        {
+          status: query.status as VehicleStatus | undefined,
+          search: query.search,
+        },
         { page, pageSize, sortBy, sortOrder },
       );
 

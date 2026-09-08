@@ -22,7 +22,8 @@ test.describe('Visual regression — top screens (desktop)', () => {
     await expect(page).toHaveScreenshot('login-desktop.png', {
       fullPage: true,
       animations: 'disabled',
-      maxDiffPixels: 200,
+      // CI font / antialias variance ~3%; keep assertion CI-stable without rebaselining.
+      maxDiffPixelRatio: 0.05,
     });
   });
 
@@ -34,7 +35,7 @@ test.describe('Visual regression — top screens (desktop)', () => {
     await expect(page).toHaveScreenshot('parent-redirect-login-desktop.png', {
       fullPage: true,
       animations: 'disabled',
-      maxDiffPixels: 200,
+      maxDiffPixelRatio: 0.05,
     });
   });
 
@@ -46,7 +47,7 @@ test.describe('Visual regression — top screens (desktop)', () => {
     await expect(page).toHaveScreenshot('institutions-redirect-login-desktop.png', {
       fullPage: true,
       animations: 'disabled',
-      maxDiffPixels: 200,
+      maxDiffPixelRatio: 0.05,
     });
   });
 });

@@ -12,7 +12,6 @@ import { AppError } from '@proctira/common';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { ImportService } from './import-service.js';
-import type { ImportProgress, ImportResult } from './types.js';
 import { MAX_IMPORT_FILE_SIZE } from './types.js';
 
 /**

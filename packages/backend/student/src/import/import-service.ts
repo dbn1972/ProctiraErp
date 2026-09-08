@@ -22,20 +22,16 @@
 
 import { v4 as uuidv4 } from 'uuid';
 
+import { detectDuplicates } from './duplicate-detector.js';
 import { parseExcelBuffer } from './excel-parser.js';
 import { validateAllRows } from './row-validator.js';
-import { detectDuplicates } from './duplicate-detector.js';
 import type {
   ImportOptions,
-  ImportResult,
   ImportProgress,
-  ImportStudentRow,
-  ImportRowError,
-  DuplicateMatch,
-  StudentRepository,
   ImportQueue,
-  MAX_IMPORT_FILE_SIZE,
-  ASYNC_THRESHOLD_ROWS,
+  ImportResult,
+  ImportStudentRow,
+  StudentRepository,
 } from './types.js';
 
 export interface ImportServiceDependencies {
@@ -81,7 +77,7 @@ export class ImportService {
         successCount: 0,
         errorCount: parseResult.headerErrors.length,
         duplicateCount: 0,
-        errors: parseResult.headerErrors.map((msg, idx) => ({
+        errors: parseResult.headerErrors.map((msg) => ({
           rowNumber: 1,
           field: 'header',
           message: msg,
@@ -118,6 +114,9 @@ export class ImportService {
   /**
    * Process parsed rows synchronously.
    * Used for small imports and by the background worker for queued imports.
+   *
+   * Honest residual: full DB transaction rollback requires a transactional
+   * repository; failures here may leave partial writes.
    */
   async processRows(
     tenantId: string,
@@ -173,30 +172,24 @@ export class ImportService {
       }
     }
 
-    try {
-      for (const row of toCreate) {
-        await this.createStudent(tenantId, row);
-        successCount++;
-      }
-      for (const item of toUpdate) {
-        await this.updateStudent(tenantId, item.studentId, item.row);
-        successCount++;
-      }
-
-      return {
-        totalRows: rows.length,
-        successCount,
-        errorCount: validationErrors.length,
-        duplicateCount: duplicates.length,
-        errors: validationErrors,
-        duplicates,
-        transactional: true,
-      };
-    } catch (error) {
-      // Honest residual: full DB transaction rollback requires a transactional
-      // repository; here we surface the failure after partial writes may exist.
-      throw error;
+    for (const row of toCreate) {
+      await this.createStudent(tenantId, row);
+      successCount++;
     }
+    for (const item of toUpdate) {
+      await this.updateStudent(tenantId, item.studentId, item.row);
+      successCount++;
+    }
+
+    return {
+      totalRows: rows.length,
+      successCount,
+      errorCount: validationErrors.length,
+      duplicateCount: duplicates.length,
+      errors: validationErrors,
+      duplicates,
+      transactional: true,
+    };
   }
 
   /**

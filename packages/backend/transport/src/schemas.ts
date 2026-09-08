@@ -437,7 +437,7 @@ export type VehicleParams = Static<typeof VehicleParamsSchema>;
 export const RecordBusAttendanceSchema = Type.Object({
   vehicleId: Type.String({ pattern: UUID_PATTERN }),
   studentId: Type.String({ minLength: 1, maxLength: 128 }),
-  eventType: Type.String({ enum: ['board', 'alight'] }),
+  eventType: Type.Union([Type.Literal('board'), Type.Literal('alight')]),
   routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
   recordedAt: Type.Optional(Type.String()),
 });
