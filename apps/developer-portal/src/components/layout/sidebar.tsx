@@ -26,7 +26,11 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-gray-200 bg-white" role="navigation" aria-label="Main navigation">
+    <aside
+      className="flex h-screen w-64 flex-col border-r border-gray-200 bg-white"
+      role="navigation"
+      aria-label="Main navigation"
+    >
       <div className="flex h-16 items-center border-b border-gray-200 px-6">
         <Link href="/" className="text-lg font-bold text-primary-700">
           ProctiraERP Dev
@@ -43,13 +47,13 @@ export function Sidebar() {
                 <Link
                   href={item.href}
                   className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive
-                      ? 'bg-primary-50 text-primary-700'
-                      : 'text-gray-700 hover:bg-gray-100'
+                    isActive ? 'bg-primary-50 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
                   }`}
                   aria-current={isActive ? 'page' : undefined}
                 >
-                  <span className="text-base" aria-hidden="true">{item.icon}</span>
+                  <span className="text-base" aria-hidden="true">
+                    {item.icon}
+                  </span>
                   {item.label}
                 </Link>
               </li>

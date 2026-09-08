@@ -36,10 +36,7 @@ import {
   type DataTableCardColumn,
 } from '@proctira/ui-dashboards';
 
-import {
-  useParentStudentDashboard,
-  type ParentAssessmentResult,
-} from '../api';
+import { useParentStudentDashboard, type ParentAssessmentResult } from '../api';
 
 const NUMBER_FORMAT = new Intl.NumberFormat();
 
@@ -51,11 +48,7 @@ const RESULT_COLUMNS: ReadonlyArray<DataTableCardColumn<ParentAssessmentResult>>
   {
     id: 'subject',
     header: 'Subject',
-    cell: (row) => (
-      <span className="font-medium text-[hsl(var(--foreground))]">
-        {row.subject}
-      </span>
-    ),
+    cell: (row) => <span className="font-medium text-[hsl(var(--foreground))]">{row.subject}</span>,
   },
   {
     id: 'score',
@@ -88,9 +81,7 @@ export default function ParentStudentDashboard() {
   return (
     <div className="space-y-6 p-6" data-testid="parent-student-dashboard">
       <header>
-        <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">
-          My Dashboard
-        </h1>
+        <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">My Dashboard</h1>
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
           {data
             ? `${data.studentName} — ${data.gradeLabel}`
@@ -99,10 +90,7 @@ export default function ParentStudentDashboard() {
       </header>
 
       {/* Attendance summary KPIs */}
-      <DashboardSection
-        title="Attendance summary"
-        description="Current term overview"
-      >
+      <DashboardSection title="Attendance summary" description="Current term overview">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label="Attendance rate"
@@ -115,11 +103,7 @@ export default function ParentStudentDashboard() {
           />
           <KpiCard
             label="Days present"
-            value={
-              attendance
-                ? NUMBER_FORMAT.format(attendance.daysPresent)
-                : '—'
-            }
+            value={attendance ? NUMBER_FORMAT.format(attendance.daysPresent) : '—'}
             icon={<CalendarCheck className="h-5 w-5" aria-hidden="true" />}
             loading={isLoading}
             error={error}
@@ -127,9 +111,7 @@ export default function ParentStudentDashboard() {
           />
           <KpiCard
             label="Days absent"
-            value={
-              attendance ? NUMBER_FORMAT.format(attendance.daysAbsent) : '—'
-            }
+            value={attendance ? NUMBER_FORMAT.format(attendance.daysAbsent) : '—'}
             icon={<UserX className="h-5 w-5" aria-hidden="true" />}
             loading={isLoading}
             error={error}
@@ -137,9 +119,7 @@ export default function ParentStudentDashboard() {
           />
           <KpiCard
             label="Days late"
-            value={
-              attendance ? NUMBER_FORMAT.format(attendance.daysLate) : '—'
-            }
+            value={attendance ? NUMBER_FORMAT.format(attendance.daysLate) : '—'}
             icon={<ClockAlert className="h-5 w-5" aria-hidden="true" />}
             loading={isLoading}
             error={error}
@@ -189,15 +169,10 @@ export default function ParentStudentDashboard() {
           <Card data-testid="notifications">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Bell
-                  className="h-4 w-4 text-[hsl(var(--muted-foreground))]"
-                  aria-hidden="true"
-                />
+                <Bell className="h-4 w-4 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
                 Latest messages
               </CardTitle>
-              <CardDescription>
-                Unread items appear at the top
-              </CardDescription>
+              <CardDescription>Unread items appear at the top</CardDescription>
             </CardHeader>
             <CardContent>
               {data.notifications.length === 0 ? (
@@ -217,16 +192,12 @@ export default function ParentStudentDashboard() {
                         <p className="text-sm font-semibold text-[hsl(var(--foreground))]">
                           {n.sender}
                         </p>
-                        <p className="text-sm text-[hsl(var(--foreground))]">
-                          {n.subject}
-                        </p>
+                        <p className="text-sm text-[hsl(var(--foreground))]">{n.subject}</p>
                         <p className="text-xs text-[hsl(var(--muted-foreground))]">
                           {n.receivedAt}
                         </p>
                       </div>
-                      {n.unread ? (
-                        <Badge variant="default">New</Badge>
-                      ) : null}
+                      {n.unread ? <Badge variant="default">New</Badge> : null}
                     </li>
                   ))}
                 </ul>

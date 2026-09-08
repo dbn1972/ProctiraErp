@@ -70,9 +70,7 @@ export interface AuthProviderProps {
 
 export function AuthProvider({ children, initialUser = null }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(initialUser);
-  const [status, setStatus] = useState<AuthStatus>(
-    initialUser ? 'authenticated' : 'idle'
-  );
+  const [status, setStatus] = useState<AuthStatus>(initialUser ? 'authenticated' : 'idle');
   const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const signIn = useCallback(async (_email: string, _password: string) => {
@@ -114,11 +112,7 @@ export function AuthProvider({ children, initialUser = null }: AuthProviderProps
     accessToken,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────

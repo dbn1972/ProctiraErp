@@ -350,13 +350,14 @@ export default function WorkflowDetail() {
             </div>
             {instance.metadata &&
               Object.entries(instance.metadata)
-                .filter(([key]) => key !== 'priority' && key !== 'slaDurationHours' && key !== 'entityLabel')
+                .filter(
+                  ([key]) =>
+                    key !== 'priority' && key !== 'slaDurationHours' && key !== 'entityLabel',
+                )
                 .map(([key, value]) => (
                   <div key={key}>
                     <dt className="font-medium text-muted-foreground">
-                      {key
-                        .replace(/([A-Z])/g, ' $1')
-                        .replace(/^./, (s) => s.toUpperCase())}
+                      {key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
                     </dt>
                     <dd className="mt-1">{String(value)}</dd>
                   </div>
@@ -401,8 +402,7 @@ export default function WorkflowDetail() {
                 const isReject = transition.action.toLowerCase().includes('reject');
                 const isEscalate = transition.action.toLowerCase().includes('escalate');
 
-                let buttonClass =
-                  'rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ';
+                let buttonClass = 'rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50 ';
                 if (isApprove) {
                   buttonClass += 'bg-green-600 text-white hover:bg-green-700';
                 } else if (isReject) {
@@ -410,8 +410,7 @@ export default function WorkflowDetail() {
                 } else if (isEscalate) {
                   buttonClass += 'bg-yellow-600 text-white hover:bg-yellow-700';
                 } else {
-                  buttonClass +=
-                    'bg-primary text-primary-foreground hover:bg-primary/90';
+                  buttonClass += 'bg-primary text-primary-foreground hover:bg-primary/90';
                 }
 
                 return (
@@ -515,9 +514,7 @@ export default function WorkflowDetail() {
                         : `${rule.durationMinutes}m`}
                     </td>
                     <td className="px-4 py-3">{getStateName(rule.escalateToStateId)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {rule.notifyRoleId ?? '—'}
-                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{rule.notifyRoleId ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>

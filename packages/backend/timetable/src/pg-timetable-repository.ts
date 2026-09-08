@@ -56,9 +56,7 @@ export async function ensureTimetableSchema(_pool?: PgPoolLike): Promise<void> {
 
 function isUndefinedTable(error: unknown): boolean {
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { code?: string }).code === '42P01'
+    typeof error === 'object' && error !== null && (error as { code?: string }).code === '42P01'
   );
 }
 
@@ -247,8 +245,10 @@ export class PgTimetableRepository implements TimetableRepository {
 
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
-    return withPgTenant(this.pool, tenantId, (client) =>
-      client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    return withPgTenant(
+      this.pool,
+      tenantId,
+      (client) => client.query(text, values) as unknown as Promise<pg.QueryResult>,
     );
   }
 
@@ -264,7 +264,9 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.academicPeriodId);
         clauses.push(`academic_period_id = $${params.length}`);
       }
-      const result = await this.query(tenantId, `SELECT * FROM bell_schedules WHERE ${clauses.join(' AND ')} ORDER BY name ASC`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM bell_schedules WHERE ${clauses.join(' AND ')} ORDER BY name ASC`,
         params,
       );
       return result.rows.map((row) => mapBellSchedule(row as Record<string, unknown>));
@@ -273,7 +275,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async getBellSchedule(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM bell_schedules WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM bell_schedules WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -283,7 +287,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createBellSchedule(row: BellScheduleEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(row.tenantId, `INSERT INTO bell_schedules (
+      const result = await this.query(
+        row.tenantId,
+        `INSERT INTO bell_schedules (
           id, tenant_id, institution_id, academic_period_id, code, name,
           day_pattern, status, created_at, updated_at
         ) VALUES (
@@ -317,7 +323,9 @@ export class PgTimetableRepository implements TimetableRepository {
         tenantId: cur.tenantId,
         updatedAt: new Date().toISOString(),
       };
-      const result = await this.query(tenantId, `UPDATE bell_schedules SET
+      const result = await this.query(
+        tenantId,
+        `UPDATE bell_schedules SET
           code = $3,
           name = $4,
           day_pattern = $5::jsonb,
@@ -341,7 +349,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async deleteBellSchedule(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `UPDATE bell_schedules SET deleted_at = NOW(), updated_at = NOW()
+      const result = await this.query(
+        tenantId,
+        `UPDATE bell_schedules SET deleted_at = NOW(), updated_at = NOW()
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -349,7 +359,9 @@ export class PgTimetableRepository implements TimetableRepository {
       if (deleted) {
         // Soft delete is not cascaded by the FK; retire the periods explicitly so
         // listPeriods() on the retired schedule is empty.
-        await this.query(tenantId, `UPDATE bell_periods SET deleted_at = NOW(), updated_at = NOW()
+        await this.query(
+          tenantId,
+          `UPDATE bell_periods SET deleted_at = NOW(), updated_at = NOW()
            WHERE tenant_id = $1 AND bell_schedule_id = $2 AND deleted_at IS NULL`,
           [tenantId, id],
         );
@@ -360,7 +372,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async listPeriods(tenantId: string, bellScheduleId: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM bell_periods
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM bell_periods
          WHERE tenant_id = $1 AND bell_schedule_id = $2 AND deleted_at IS NULL
          ORDER BY period_order ASC`,
         [tenantId, bellScheduleId],
@@ -371,7 +385,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async getPeriod(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM bell_periods WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM bell_periods WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -382,7 +398,9 @@ export class PgTimetableRepository implements TimetableRepository {
   async createPeriod(row: PeriodEntity) {
     return withSchemaCheck(async () => {
       const code = `P${row.periodOrder}`;
-      const result = await this.query(row.tenantId, `INSERT INTO bell_periods (
+      const result = await this.query(
+        row.tenantId,
+        `INSERT INTO bell_periods (
           id, tenant_id, bell_schedule_id, code, name, period_order,
           start_time, end_time, created_at, updated_at
         ) VALUES (
@@ -416,7 +434,9 @@ export class PgTimetableRepository implements TimetableRepository {
         tenantId: cur.tenantId,
         updatedAt: new Date().toISOString(),
       };
-      const result = await this.query(tenantId, `UPDATE bell_periods SET
+      const result = await this.query(
+        tenantId,
+        `UPDATE bell_periods SET
           name = $3,
           period_order = $4,
           start_time = $5::time,
@@ -432,7 +452,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async deletePeriod(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `UPDATE bell_periods SET deleted_at = NOW(), updated_at = NOW()
+      const result = await this.query(
+        tenantId,
+        `UPDATE bell_periods SET deleted_at = NOW(), updated_at = NOW()
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -460,7 +482,9 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.sectionId);
         clauses.push(`sm.section_id = $${params.length}`);
       }
-      const result = await this.query(tenantId, `${MEETING_SELECT}
+      const result = await this.query(
+        tenantId,
+        `${MEETING_SELECT}
          WHERE ${clauses.join(' AND ')}
          ORDER BY sm.day_of_week ASC, sm.bell_period_id ASC`,
         params,
@@ -471,7 +495,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async getMeeting(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `${MEETING_SELECT}
+      const result = await this.query(
+        tenantId,
+        `${MEETING_SELECT}
          WHERE sm.tenant_id = $1 AND sm.id = $2 AND sm.deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -482,7 +508,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createMeeting(row: SectionMeetingEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(row.tenantId, `INSERT INTO section_meetings (
+      const result = await this.query(
+        row.tenantId,
+        `INSERT INTO section_meetings (
           id, tenant_id, section_id, bell_period_id, day_of_week,
           room_id, teacher_staff_id, status, created_at, updated_at
         ) VALUES (
@@ -504,7 +532,14 @@ export class PgTimetableRepository implements TimetableRepository {
       const inserted = result.rows[0] as Record<string, unknown>;
       // Re-read with join for institution/period denorm fields.
       const full = await this.getMeeting(row.tenantId, String(inserted.id));
-      return full ?? mapMeeting({ ...inserted, institution_id: row.institutionId, academic_period_id: row.academicPeriodId });
+      return (
+        full ??
+        mapMeeting({
+          ...inserted,
+          institution_id: row.institutionId,
+          academic_period_id: row.academicPeriodId,
+        })
+      );
     });
   }
 
@@ -519,7 +554,9 @@ export class PgTimetableRepository implements TimetableRepository {
         tenantId: cur.tenantId,
         updatedAt: new Date().toISOString(),
       };
-      await this.query(tenantId, `UPDATE section_meetings SET
+      await this.query(
+        tenantId,
+        `UPDATE section_meetings SET
           section_id = $3,
           bell_period_id = $4,
           day_of_week = $5,
@@ -546,7 +583,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async deleteMeeting(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `UPDATE section_meetings SET deleted_at = NOW(), updated_at = NOW()
+      const result = await this.query(
+        tenantId,
+        `UPDATE section_meetings SET deleted_at = NOW(), updated_at = NOW()
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -570,7 +609,9 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.toDate);
         clauses.push(`sub.substitution_date <= $${params.length}::date`);
       }
-      const result = await this.query(tenantId, `SELECT sub.*, s.institution_id
+      const result = await this.query(
+        tenantId,
+        `SELECT sub.*, s.institution_id
          FROM substitutions sub
          JOIN section_meetings sm ON sm.id = sub.section_meeting_id
          JOIN sections s ON s.id = sm.section_id
@@ -584,7 +625,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async getSubstitution(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT sub.*, s.institution_id
+      const result = await this.query(
+        tenantId,
+        `SELECT sub.*, s.institution_id
          FROM substitutions sub
          JOIN section_meetings sm ON sm.id = sub.section_meeting_id
          JOIN sections s ON s.id = sm.section_id
@@ -598,10 +641,13 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createSubstitution(row: SubstitutionEntity) {
     return withSchemaCheck(async () => {
-      const status = row.status.toUpperCase() === 'SCHEDULED' || row.status === 'scheduled'
-        ? 'SCHEDULED'
-        : row.status.toUpperCase();
-      const result = await this.query(row.tenantId, `INSERT INTO substitutions (
+      const status =
+        row.status.toUpperCase() === 'SCHEDULED' || row.status === 'scheduled'
+          ? 'SCHEDULED'
+          : row.status.toUpperCase();
+      const result = await this.query(
+        row.tenantId,
+        `INSERT INTO substitutions (
           id, tenant_id, section_meeting_id, original_staff_id,
           substitute_staff_id, substitution_date, reason, status, created_at, updated_at
         ) VALUES (
@@ -633,7 +679,9 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.institutionId);
         clauses.push(`institution_id = $${params.length}`);
       }
-      const result = await this.query(tenantId, `SELECT * FROM rooms WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM rooms WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
         params,
       );
       return result.rows.map((row) => mapRoom(row as Record<string, unknown>));
@@ -642,7 +690,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async getRoom(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM rooms WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM rooms WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -652,7 +702,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createRoom(row: RoomEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(row.tenantId, `INSERT INTO rooms (
+      const result = await this.query(
+        row.tenantId,
+        `INSERT INTO rooms (
           id, tenant_id, institution_id, code, name, capacity, room_type, status,
           created_at, updated_at
         ) VALUES (
@@ -691,7 +743,9 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.status);
         clauses.push(`status = $${params.length}::section_publish_status`);
       }
-      const result = await this.query(tenantId, `SELECT * FROM sections WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM sections WHERE ${clauses.join(' AND ')} ORDER BY code ASC`,
         params,
       );
       return result.rows.map((row) => mapSection(row as Record<string, unknown>));
@@ -700,7 +754,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async getSection(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM sections WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM sections WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
       const row = result.rows[0] as Record<string, unknown> | undefined;
@@ -710,7 +766,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createSection(row: SectionEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(row.tenantId, `INSERT INTO sections (
+      const result = await this.query(
+        row.tenantId,
+        `INSERT INTO sections (
           id, tenant_id, institution_id, academic_period_id, grade_id, code, name,
           primary_teacher_id, default_room_id, capacity, status, published_at,
           created_at, updated_at
@@ -750,7 +808,9 @@ export class PgTimetableRepository implements TimetableRepository {
         tenantId: cur.tenantId,
         updatedAt: new Date().toISOString(),
       };
-      const result = await this.query(tenantId, `UPDATE sections SET
+      const result = await this.query(
+        tenantId,
+        `UPDATE sections SET
           grade_id = $3,
           code = $4,
           name = $5,
@@ -782,7 +842,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async deleteSection(tenantId: string, id: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `UPDATE sections SET deleted_at = NOW(), updated_at = NOW()
+      const result = await this.query(
+        tenantId,
+        `UPDATE sections SET deleted_at = NOW(), updated_at = NOW()
          WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`,
         [tenantId, id],
       );
@@ -792,7 +854,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async listEnrollments(tenantId: string, sectionId: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM section_enrollments
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM section_enrollments
          WHERE tenant_id = $1 AND section_id = $2
          ORDER BY enrolled_at ASC, created_at ASC`,
         [tenantId, sectionId],
@@ -803,7 +867,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async getEnrollment(tenantId: string, sectionId: string, studentId: string) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM section_enrollments
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM section_enrollments
          WHERE tenant_id = $1 AND section_id = $2 AND student_id = $3`,
         [tenantId, sectionId, studentId],
       );
@@ -814,7 +880,9 @@ export class PgTimetableRepository implements TimetableRepository {
 
   async createEnrollment(row: SectionEnrollmentEntity) {
     return withSchemaCheck(async () => {
-      const result = await this.query(row.tenantId, `INSERT INTO section_enrollments (
+      const result = await this.query(
+        row.tenantId,
+        `INSERT INTO section_enrollments (
           id, tenant_id, section_id, student_id, status, enrolled_at, withdrawn_at,
           created_at, updated_at
         ) VALUES (
@@ -836,13 +904,11 @@ export class PgTimetableRepository implements TimetableRepository {
     });
   }
 
-  async updateEnrollment(
-    tenantId: string,
-    id: string,
-    patch: Partial<SectionEnrollmentEntity>,
-  ) {
+  async updateEnrollment(tenantId: string, id: string, patch: Partial<SectionEnrollmentEntity>) {
     return withSchemaCheck(async () => {
-      const result = await this.query(tenantId, `SELECT * FROM section_enrollments WHERE tenant_id = $1 AND id = $2`,
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM section_enrollments WHERE tenant_id = $1 AND id = $2`,
         [tenantId, id],
       );
       const curRow = result.rows[0] as Record<string, unknown> | undefined;
@@ -855,7 +921,9 @@ export class PgTimetableRepository implements TimetableRepository {
         tenantId: cur.tenantId,
         updatedAt: new Date().toISOString(),
       };
-      const updated = await this.query(tenantId, `UPDATE section_enrollments SET
+      const updated = await this.query(
+        tenantId,
+        `UPDATE section_enrollments SET
           status = $3,
           withdrawn_at = $4::date,
           updated_at = $5::timestamptz
@@ -884,7 +952,9 @@ export class PgTimetableRepository implements TimetableRepository {
         params.push(filter.dayOfWeek);
         clauses.push(`sm.day_of_week = $${params.length}`);
       }
-      const result = await this.query(tenantId, `SELECT
+      const result = await this.query(
+        tenantId,
+        `SELECT
            sm.id AS meeting_id,
            s.id AS section_id,
            s.code AS section_code,

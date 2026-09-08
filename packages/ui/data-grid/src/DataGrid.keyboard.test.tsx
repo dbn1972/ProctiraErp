@@ -148,10 +148,18 @@ describe('<DataGrid> keyboard contract — Task 56.6 / Req 37 AC 6', () => {
   it('pagination is initially on page 1; previous/first are disabled, next/last are enabled', () => {
     render(<DataGrid data={ROWS} columns={COLUMNS} ariaLabel="People" defaultPageSize={10} />);
 
-    expect(screen.getByRole('button', { name: 'Go to first page' }).hasAttribute('disabled')).toBe(true);
-    expect(screen.getByRole('button', { name: 'Go to previous page' }).hasAttribute('disabled')).toBe(true);
-    expect(screen.getByRole('button', { name: 'Go to next page' }).hasAttribute('disabled')).toBe(false);
-    expect(screen.getByRole('button', { name: 'Go to last page' }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: 'Go to first page' }).hasAttribute('disabled')).toBe(
+      true,
+    );
+    expect(
+      screen.getByRole('button', { name: 'Go to previous page' }).hasAttribute('disabled'),
+    ).toBe(true);
+    expect(screen.getByRole('button', { name: 'Go to next page' }).hasAttribute('disabled')).toBe(
+      false,
+    );
+    expect(screen.getByRole('button', { name: 'Go to last page' }).hasAttribute('disabled')).toBe(
+      false,
+    );
   });
 
   it('Enter on the next-page button advances pagination and updates aria-live caption', () => {

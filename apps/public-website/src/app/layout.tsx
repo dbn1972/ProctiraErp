@@ -66,11 +66,7 @@ export const viewport: Viewport = {
  *  - Inter font from Google Fonts via a stylesheet link to avoid runtime
  *    network calls during static export.
  */
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body className="flex min-h-screen flex-col font-sans">

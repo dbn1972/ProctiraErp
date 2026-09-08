@@ -1,13 +1,7 @@
 /**
  * Parent consents (Server Component).
  */
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listConsents } from '@/lib/api/parent-portal';
 import { ConsentDecisionButtons } from './_components/consent-decision-buttons';

@@ -45,7 +45,11 @@ export const CaseAttachmentSchema = Type.Object({
   fileType: Type.String({ minLength: 1, maxLength: 100, description: 'MIME type of the file' }),
   fileSize: Type.Number({ minimum: 1, description: 'File size in bytes' }),
   storagePath: Type.String({ minLength: 1, maxLength: 500, description: 'Storage path or URL' }),
-  uploadedBy: Type.String({ minLength: 1, maxLength: 255, description: 'User who uploaded the file' }),
+  uploadedBy: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'User who uploaded the file',
+  }),
   uploadedAt: Type.Optional(Type.String({ description: 'ISO timestamp of upload' })),
 });
 
@@ -54,10 +58,20 @@ export type CaseAttachmentInput = Static<typeof CaseAttachmentSchema>;
 // ─── Case Resolution Schema ─────────────────────────────────────────────────
 
 export const CaseResolutionSchema = Type.Object({
-  outcome: Type.String({ minLength: 1, maxLength: 500, description: 'Resolution outcome description' }),
-  resolvedBy: Type.String({ minLength: 1, maxLength: 255, description: 'User who resolved the case' }),
+  outcome: Type.String({
+    minLength: 1,
+    maxLength: 500,
+    description: 'Resolution outcome description',
+  }),
+  resolvedBy: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'User who resolved the case',
+  }),
   resolvedAt: Type.Optional(Type.String({ description: 'ISO timestamp of resolution' })),
-  notes: Type.Optional(Type.String({ maxLength: 2000, description: 'Additional resolution notes' })),
+  notes: Type.Optional(
+    Type.String({ maxLength: 2000, description: 'Additional resolution notes' }),
+  ),
   followUpRequired: Type.Optional(Type.Boolean({ description: 'Whether follow-up is required' })),
   followUpDate: Type.Optional(Type.String({ description: 'ISO date for follow-up' })),
 });
@@ -70,18 +84,36 @@ export const CreateCaseSchema = Type.Object({
   type: CaseTypeEnum,
   title: Type.String({ minLength: 1, maxLength: 255, description: 'Case title' }),
   description: Type.String({ minLength: 1, maxLength: 5000, description: 'Case description' }),
-  entityType: Type.String({ minLength: 1, maxLength: 100, description: 'Related entity type (e.g., student, staff)' }),
+  entityType: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Related entity type (e.g., student, staff)',
+  }),
   entityId: Type.String({ minLength: 1, maxLength: 255, description: 'Related entity ID' }),
-  institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Institution context' })),
-  areaId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Area hierarchy context' })),
-  assignedTo: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Assigned user or role' })),
-  priority: Type.Optional(Type.Union(
-    [Type.Literal('low'), Type.Literal('medium'), Type.Literal('high'), Type.Literal('critical')],
-    { description: 'Case priority level' },
-  )),
-  workflowInstanceId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Linked workflow instance' })),
-  attachments: Type.Optional(Type.Array(CaseAttachmentSchema, { description: 'Initial attachments' })),
-  metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Additional case metadata' })),
+  institutionId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Institution context' }),
+  ),
+  areaId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Area hierarchy context' }),
+  ),
+  assignedTo: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 255, description: 'Assigned user or role' }),
+  ),
+  priority: Type.Optional(
+    Type.Union(
+      [Type.Literal('low'), Type.Literal('medium'), Type.Literal('high'), Type.Literal('critical')],
+      { description: 'Case priority level' },
+    ),
+  ),
+  workflowInstanceId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Linked workflow instance' }),
+  ),
+  attachments: Type.Optional(
+    Type.Array(CaseAttachmentSchema, { description: 'Initial attachments' }),
+  ),
+  metadata: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), { description: 'Additional case metadata' }),
+  ),
 });
 
 export type CreateCaseInput = Static<typeof CreateCaseSchema>;
@@ -90,14 +122,22 @@ export type CreateCaseInput = Static<typeof CreateCaseSchema>;
 
 export const UpdateCaseSchema = Type.Object({
   title: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Case title' })),
-  description: Type.Optional(Type.String({ minLength: 1, maxLength: 5000, description: 'Case description' })),
+  description: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 5000, description: 'Case description' }),
+  ),
   status: Type.Optional(CaseStatusEnum),
-  assignedTo: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Assigned user or role' })),
-  priority: Type.Optional(Type.Union(
-    [Type.Literal('low'), Type.Literal('medium'), Type.Literal('high'), Type.Literal('critical')],
-    { description: 'Case priority level' },
-  )),
-  metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Additional case metadata' })),
+  assignedTo: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 255, description: 'Assigned user or role' }),
+  ),
+  priority: Type.Optional(
+    Type.Union(
+      [Type.Literal('low'), Type.Literal('medium'), Type.Literal('high'), Type.Literal('critical')],
+      { description: 'Case priority level' },
+    ),
+  ),
+  metadata: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), { description: 'Additional case metadata' }),
+  ),
 });
 
 export type UpdateCaseInput = Static<typeof UpdateCaseSchema>;
@@ -109,7 +149,11 @@ export const AddAttachmentSchema = Type.Object({
   fileType: Type.String({ minLength: 1, maxLength: 100, description: 'MIME type of the file' }),
   fileSize: Type.Number({ minimum: 1, description: 'File size in bytes' }),
   storagePath: Type.String({ minLength: 1, maxLength: 500, description: 'Storage path or URL' }),
-  uploadedBy: Type.String({ minLength: 1, maxLength: 255, description: 'User who uploaded the file' }),
+  uploadedBy: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'User who uploaded the file',
+  }),
 });
 
 export type AddAttachmentInput = Static<typeof AddAttachmentSchema>;
@@ -117,9 +161,19 @@ export type AddAttachmentInput = Static<typeof AddAttachmentSchema>;
 // ─── Resolve Case Schema ─────────────────────────────────────────────────────
 
 export const ResolveCaseSchema = Type.Object({
-  outcome: Type.String({ minLength: 1, maxLength: 500, description: 'Resolution outcome description' }),
-  resolvedBy: Type.String({ minLength: 1, maxLength: 255, description: 'User who resolved the case' }),
-  notes: Type.Optional(Type.String({ maxLength: 2000, description: 'Additional resolution notes' })),
+  outcome: Type.String({
+    minLength: 1,
+    maxLength: 500,
+    description: 'Resolution outcome description',
+  }),
+  resolvedBy: Type.String({
+    minLength: 1,
+    maxLength: 255,
+    description: 'User who resolved the case',
+  }),
+  notes: Type.Optional(
+    Type.String({ maxLength: 2000, description: 'Additional resolution notes' }),
+  ),
   followUpRequired: Type.Optional(Type.Boolean({ description: 'Whether follow-up is required' })),
   followUpDate: Type.Optional(Type.String({ description: 'ISO date for follow-up' })),
 });

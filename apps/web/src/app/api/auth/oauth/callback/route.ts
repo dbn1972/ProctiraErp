@@ -84,7 +84,11 @@ export async function GET(request: Request): Promise<NextResponse> {
     refreshTokenCookieOptions(undefined, request),
   );
   if (data.session?.id) {
-    response.cookies.set(AUTH_COOKIES.SESSION_ID, data.session.id, accessTokenCookieOptions(undefined, request));
+    response.cookies.set(
+      AUTH_COOKIES.SESSION_ID,
+      data.session.id,
+      accessTokenCookieOptions(undefined, request),
+    );
   }
   return response;
 }

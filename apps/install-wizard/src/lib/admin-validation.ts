@@ -34,9 +34,7 @@ function asString(value: unknown): string {
  * Validate admin + tenant fields for the final install step.
  * Returns field errors (any key set) or null when valid.
  */
-export function validateAdminAccount(
-  input: AdminAccountInput,
-): AdminAccountFieldErrors | null {
+export function validateAdminAccount(input: AdminAccountInput): AdminAccountFieldErrors | null {
   const email = asString(input.email).trim();
   const password = asString(input.password);
   const confirmPassword = asString(input.confirmPassword);

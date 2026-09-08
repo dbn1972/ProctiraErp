@@ -65,7 +65,9 @@ export function FieldMappingForm() {
       return value.length > 0;
     });
     if (mapped.length === 0) {
-      setError('Map at least one source column to a warehouse field (or skip only after mapping one).');
+      setError(
+        'Map at least one source column to a warehouse field (or skip only after mapping one).',
+      );
       return;
     }
     setDemoMessage(
@@ -83,19 +85,14 @@ export function FieldMappingForm() {
           <div>
             <CardTitle className="text-base">Column → field</CardTitle>
             <CardDescription>
-              Scaffold preview with demo columns. Wire upload headers when import
-              jobs attach source schema.
+              Scaffold preview with demo columns. Wire upload headers when import jobs attach source
+              schema.
             </CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        <form
-          className="space-y-0"
-          aria-label="Field mapping form"
-          onSubmit={onSubmit}
-          noValidate
-        >
+        <form className="space-y-0" aria-label="Field mapping form" onSubmit={onSubmit} noValidate>
           <Table aria-label="Source column mappings">
             <TableHeader>
               <TableRow className="bg-muted/30 hover:bg-muted/30">

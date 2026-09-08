@@ -54,22 +54,9 @@ export type {
 } from './tokens.js';
 
 // Validation
-export {
-  validateTheme,
-  validateThemeSecurity,
-} from './validation.js';
-export type {
-  ValidationIssue,
-  ValidationResult,
-} from './validation.js';
+export { validateTheme, validateThemeSecurity } from './validation.js';
+export type { ValidationIssue, ValidationResult } from './validation.js';
 
 // Preview
-export {
-  generateThemePreview,
-  generateCssVariables,
-} from './preview.js';
-export type {
-  ThemePreview,
-  ColorSwatch,
-  TypographySample,
-} from './preview.js';
+export { generateThemePreview, generateCssVariables } from './preview.js';
+export type { ThemePreview, ColorSwatch, TypographySample } from './preview.js';

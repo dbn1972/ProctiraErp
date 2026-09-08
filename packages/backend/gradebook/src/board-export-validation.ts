@@ -68,10 +68,7 @@ export function assertBoardExportCompleteness(
 
   const sample = result.incomplete
     .slice(0, 5)
-    .map(
-      (row) =>
-        `${row.nationalId ?? row.studentId}: missing ${row.missingSubjects.join(',')}`,
-    )
+    .map((row) => `${row.nationalId ?? row.studentId}: missing ${row.missingSubjects.join(',')}`)
     .join('; ');
 
   throw new BusinessRuleError(

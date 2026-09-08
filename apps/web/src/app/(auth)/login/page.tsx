@@ -30,13 +30,11 @@ export default function LoginPage() {
         <div className="space-y-3">
           <h2 className="text-4xl font-extrabold tracking-tight">
             Every school, every student,{' '}
-            <span className="text-[var(--color-primary-400)]">
-              one platform.
-            </span>
+            <span className="text-[var(--color-primary-400)]">one platform.</span>
           </h2>
           <p className="max-w-md text-sm text-white/70">
-            One platform for institutions, students, staff, attendance,
-            assessment, examinations, scholarships, and analytics.
+            One platform for institutions, students, staff, attendance, assessment, examinations,
+            scholarships, and analytics.
           </p>
         </div>
 
@@ -79,13 +77,7 @@ export default function LoginPage() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}): JSX.Element {
+function StatCard({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div className="rounded-lg bg-white/10 p-4 backdrop-blur-sm">
       <div className="text-xl font-semibold">{value}</div>

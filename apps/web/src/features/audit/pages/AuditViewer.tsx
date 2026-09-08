@@ -151,7 +151,9 @@ export default function AuditViewer(): JSX.Element {
       .catch(() => {
         if (!cancelled) dispatch({ type: 'ENTITY_TYPES_OK', entityTypes: [] });
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Fetch entries when filters change
@@ -179,8 +181,8 @@ export default function AuditViewer(): JSX.Element {
       <header>
         <h1 className="text-2xl font-semibold">Audit Trail</h1>
         <p className="text-muted-foreground mt-1">
-          View and filter all changes made across the platform. Click an entry
-          to see the full before/after diff.
+          View and filter all changes made across the platform. Click an entry to see the full
+          before/after diff.
         </p>
       </header>
 
@@ -326,9 +328,7 @@ export default function AuditViewer(): JSX.Element {
         <>
           {state.entries.length === 0 ? (
             <Alert data-testid="no-entries">
-              <AlertDescription>
-                No audit entries match the current filters.
-              </AlertDescription>
+              <AlertDescription>No audit entries match the current filters.</AlertDescription>
             </Alert>
           ) : (
             <div className="border rounded overflow-x-auto">
@@ -356,9 +356,7 @@ export default function AuditViewer(): JSX.Element {
                         </time>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-xs">
-                          {entry.entityType}
-                        </span>
+                        <span className="font-mono text-xs">{entry.entityType}</span>
                         <span className="text-muted-foreground text-xs ml-1">
                           ({entry.entityId.slice(0, 8)}…)
                         </span>
@@ -381,10 +379,7 @@ export default function AuditViewer(): JSX.Element {
 
           {/* ── Pagination ─────────────────────────────────────────── */}
           {state.meta.totalPages > 1 && (
-            <div
-              className="flex items-center justify-between pt-2"
-              data-testid="audit-pagination"
-            >
+            <div className="flex items-center justify-between pt-2" data-testid="audit-pagination">
               <span className="text-sm text-muted-foreground">
                 Page {state.meta.page} of {state.meta.totalPages} ({state.meta.totalItems} entries)
               </span>

@@ -45,10 +45,7 @@ export default async function DataWarehouseMapPage() {
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1
-            id="map-heading"
-            className="text-3xl font-extrabold tracking-tight text-foreground"
-          >
+          <h1 id="map-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
             GIS map viewer
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -67,8 +64,8 @@ export default async function DataWarehouseMapPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Map</CardTitle>
           <CardDescription>
-            Interactive map (Leaflet/MapLibre) renders client-side. Markers below show
-            the {features.length.toLocaleString()} institutions with geo coordinates.
+            Interactive map (Leaflet/MapLibre) renders client-side. Markers below show the{' '}
+            {features.length.toLocaleString()} institutions with geo coordinates.
           </CardDescription>
         </CardHeader>
         <CardContent>

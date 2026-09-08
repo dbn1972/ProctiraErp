@@ -49,10 +49,7 @@ declare module 'fastify' {
  * ```
  */
 export const auditPlugin = fp(
-  async function auditPluginImpl(
-    fastify: FastifyInstance,
-    options: AuditPluginOptions,
-  ) {
+  async function auditPluginImpl(fastify: FastifyInstance, options: AuditPluginOptions) {
     const { repository, prefix = '/audit' } = options;
 
     // Create audit service instance

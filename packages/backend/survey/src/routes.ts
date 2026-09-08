@@ -407,10 +407,7 @@ export async function registerSurveyRoutes(
         });
       }
 
-      const status = await surveyService.getCompletionStatus(
-        tenantId,
-        paramsResult.data.id,
-      );
+      const status = await surveyService.getCompletionStatus(tenantId, paramsResult.data.id);
       return reply.status(200).send(status);
     },
   );

@@ -4,12 +4,24 @@
  * Tests core business logic for student and staff attendance recording.
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BusinessRuleError, ValidationError, NotFoundError, AttendanceStatus } from '@proctira/common';
+import {
+  BusinessRuleError,
+  ValidationError,
+  NotFoundError,
+  AttendanceStatus,
+} from '@proctira/common';
 
 import { AttendanceService } from './attendance-service.js';
-import type { AttendanceEventPublisher, AbsenceThresholdExceededEvent } from './attendance-service.js';
+import type {
+  AttendanceEventPublisher,
+  AbsenceThresholdExceededEvent,
+} from './attendance-service.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';
-import type { AcademicPeriodInfo, InstitutionAttendanceConfig, AbsenceThresholdConfig } from './attendance-repository.js';
+import type {
+  AcademicPeriodInfo,
+  InstitutionAttendanceConfig,
+  AbsenceThresholdConfig,
+} from './attendance-repository.js';
 
 // Test fixtures
 const TENANT_ID = 'tenant-001';
@@ -119,10 +131,12 @@ describe('AttendanceService', () => {
     it('should reject dates after academic period end', async () => {
       // Set up a period that ended in the past
       repository.clear();
-      repository.addAcademicPeriod(createActivePeriod({
-        startDate: new Date('2023-01-01'),
-        endDate: new Date('2023-06-30'),
-      }));
+      repository.addAcademicPeriod(
+        createActivePeriod({
+          startDate: new Date('2023-01-01'),
+          endDate: new Date('2023-06-30'),
+        }),
+      );
 
       await expect(
         service.recordStudentAttendance(
@@ -549,7 +563,9 @@ describe('AttendanceService', () => {
       const periodStart = new Date('2024-01-01');
       const periodEnd = new Date('2024-12-31');
 
-      expect(() => service.validateAttendanceDate('2024-06-15', periodStart, periodEnd)).not.toThrow();
+      expect(() =>
+        service.validateAttendanceDate('2024-06-15', periodStart, periodEnd),
+      ).not.toThrow();
     });
 
     it('should reject future dates', () => {
@@ -581,7 +597,9 @@ describe('AttendanceService', () => {
     });
 
     it('should pass for period mode with periodId', () => {
-      expect(() => service.validateRecordingMode('period', undefined, 'period-slot-1')).not.toThrow();
+      expect(() =>
+        service.validateRecordingMode('period', undefined, 'period-slot-1'),
+      ).not.toThrow();
     });
 
     it('should fail for subject mode without subjectId', () => {
@@ -639,9 +657,7 @@ describe('AttendanceService', () => {
           classId: CLASS_ID,
           academicPeriodId: PERIOD_ID,
           date: '2024-06-15',
-          records: [
-            { studentId: STUDENT_ID, status: 'ABSENT' },
-          ],
+          records: [{ studentId: STUDENT_ID, status: 'ABSENT' }],
         },
         RECORDED_BY,
       );
@@ -709,8 +725,8 @@ describe('AttendanceService', () => {
       expect(result.presentCount).toBe(3);
       expect(result.absentCount).toBe(1);
       expect(result.lateCount).toBe(1);
-      expect(result.attendancePercentage).toBe(80.00);
-      expect(result.absencePercentage).toBe(20.00);
+      expect(result.attendancePercentage).toBe(80.0);
+      expect(result.absencePercentage).toBe(20.0);
     });
 
     it('should round to exactly two decimal places', async () => {
@@ -749,8 +765,8 @@ describe('AttendanceService', () => {
 
       // 3 present + 1 absent = 4 total, attendance = 3/4 * 100 = 75.00%
       expect(result.totalRecords).toBe(4);
-      expect(result.attendancePercentage).toBe(75.00);
-      expect(result.absencePercentage).toBe(25.00);
+      expect(result.attendancePercentage).toBe(75.0);
+      expect(result.absencePercentage).toBe(25.0);
     });
 
     it('should calculate institution-level attendance percentage', async () => {
@@ -848,13 +864,15 @@ describe('AttendanceService', () => {
         endDate: '2024-06-30',
       });
 
-      expect(result.attendancePercentage).toBe(100.00);
+      expect(result.attendancePercentage).toBe(100.0);
       expect(result.absencePercentage).toBe(0);
     });
   });
 
   describe('checkAbsenceThreshold', () => {
-    function createThresholdConfig(overrides?: Partial<AbsenceThresholdConfig>): AbsenceThresholdConfig {
+    function createThresholdConfig(
+      overrides?: Partial<AbsenceThresholdConfig>,
+    ): AbsenceThresholdConfig {
       return {
         institutionId: INSTITUTION_ID,
         tenantId: TENANT_ID,
@@ -1022,10 +1040,12 @@ describe('AttendanceService', () => {
     });
 
     it('should only count absences within the evaluation period', async () => {
-      repository.addAbsenceThresholdConfig(createThresholdConfig({
-        threshold: 2,
-        evaluationPeriodDays: 7,
-      }));
+      repository.addAbsenceThresholdConfig(
+        createThresholdConfig({
+          threshold: 2,
+          evaluationPeriodDays: 7,
+        }),
+      );
 
       // Record 3 absences, but 2 are outside the 7-day evaluation period
       const today = new Date();

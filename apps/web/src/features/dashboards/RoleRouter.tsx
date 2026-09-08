@@ -32,9 +32,7 @@ export default function RoleRouter() {
   // up the tree, but if it reaches us we still surface the lowest-privilege
   // dashboard rather than crashing — server-side RBAC will enforce the
   // actual data fence.
-  const scope: RoleRouterScope | null = user?.scope
-    ? { level: user.scope.level }
-    : null;
+  const scope: RoleRouterScope | null = user?.scope ? { level: user.scope.level } : null;
   const roles = user?.roles ?? [];
 
   if (!user) {

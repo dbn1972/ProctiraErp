@@ -136,7 +136,10 @@ export type {
   KeycloakIdentityStore,
   LinkedKeycloakUser,
 } from './keycloak/identity.js';
-export { PgKeycloakIdentityStore, createKeycloakIdentityStore } from './keycloak/pg-identity-store.js';
+export {
+  PgKeycloakIdentityStore,
+  createKeycloakIdentityStore,
+} from './keycloak/pg-identity-store.js';
 export type { PgKeycloakIdentityStoreOptions } from './keycloak/pg-identity-store.js';
 export {
   KEYCLOAK_REALM_ROLES,

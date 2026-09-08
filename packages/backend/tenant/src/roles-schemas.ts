@@ -53,11 +53,7 @@ export const ListUsersQuerySchema = Type.Object({
   search: Type.Optional(Type.String({ maxLength: 100 })),
   roleId: Type.Optional(Type.String({ minLength: 1 })),
   status: Type.Optional(
-    Type.Union([
-      Type.Literal('ACTIVE'),
-      Type.Literal('SUSPENDED'),
-      Type.Literal('INVITED'),
-    ]),
+    Type.Union([Type.Literal('ACTIVE'), Type.Literal('SUSPENDED'), Type.Literal('INVITED')]),
   ),
   page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),

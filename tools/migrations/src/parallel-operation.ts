@@ -173,12 +173,12 @@ export class ParallelOperationManager {
           const filterClause = mapping.sourceFilter ? `WHERE ${mapping.sourceFilter}` : '';
 
           const legacyResult = await client.query(
-            `SELECT COUNT(*) as count FROM "${this.config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`
+            `SELECT COUNT(*) as count FROM "${this.config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
           );
           const legacyCount = parseInt(legacyResult.rows[0].count, 10);
 
           const newResult = await client.query(
-            `SELECT COUNT(*) as count FROM "${this.config.pg.schema}"."${mapping.targetTable}"`
+            `SELECT COUNT(*) as count FROM "${this.config.pg.schema}"."${mapping.targetTable}"`,
           );
           const newCount = parseInt(newResult.rows[0].count, 10);
 
@@ -354,7 +354,7 @@ export class ParallelOperationManager {
  * Runs a parallel operation health check and consistency verification.
  */
 export async function runParallelOperationCheck(
-  config: MigrationConfig
+  config: MigrationConfig,
 ): Promise<MigrationStepResult> {
   const startTime = Date.now();
   const errors: MigrationStepResult['errors'] = [];
@@ -377,7 +377,9 @@ export async function runParallelOperationCheck(
     const legacyHealth = await manager.checkLegacyHealth(pool);
     const newHealth = await manager.checkNewSystemHealth(pool);
 
-    console.log(`[parallel-op]   Legacy MySQL: ${legacyHealth.status} (${legacyHealth.latencyMs}ms)`);
+    console.log(
+      `[parallel-op]   Legacy MySQL: ${legacyHealth.status} (${legacyHealth.latencyMs}ms)`,
+    );
     console.log(`[parallel-op]   New PostgreSQL: ${newHealth.status} (${newHealth.latencyMs}ms)`);
 
     if (legacyHealth.status !== 'healthy') {
@@ -407,7 +409,7 @@ export async function runParallelOperationCheck(
           count: check.drift,
         });
         console.log(
-          `[parallel-op]   ⚠ ${check.table}: drift=${check.drift} (legacy=${check.legacyCount}, new=${check.newCount})`
+          `[parallel-op]   ⚠ ${check.table}: drift=${check.drift} (legacy=${check.legacyCount}, new=${check.newCount})`,
         );
       }
     } else {

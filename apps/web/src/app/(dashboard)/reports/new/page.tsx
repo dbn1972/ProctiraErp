@@ -40,9 +40,7 @@ export default async function NewReportPage({ searchParams }: PageProps) {
       </Button>
 
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
-          New report
-        </h1>
+        <h1 className="text-3xl font-extrabold tracking-tight text-foreground">New report</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Pick a template, set filters, and download once the run completes.
         </p>

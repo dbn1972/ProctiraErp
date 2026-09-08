@@ -138,7 +138,11 @@ describe('createLogger', () => {
 /**
  * Helper to capture log output as a string by writing to a custom destination.
  */
-function captureLogOutput(logger: ReturnType<typeof createLogger>, level: string, msg: string): string {
+function captureLogOutput(
+  logger: ReturnType<typeof createLogger>,
+  level: string,
+  msg: string,
+): string {
   // We need to create a logger that writes to a writable stream we can capture
   // Since the logger is already created, we'll use pino's destination approach
   const pino = require('pino');
@@ -164,9 +168,9 @@ function captureLogOutput(logger: ReturnType<typeof createLogger>, level: string
         },
       },
     },
-    writable
+    writable,
   ).child(bindings);
 
-  (captureLogger)[level](msg);
+  captureLogger[level](msg);
   return output;
 }

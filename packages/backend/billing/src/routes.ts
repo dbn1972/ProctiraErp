@@ -257,9 +257,9 @@ export async function registerBillingRoutes(
       try {
         const subscription = await billingService.subscribeTenant(result.data);
         const plan = await billingService.getPlanById(subscription.planId);
-        return reply.status(201).send(
-          billingService.formatSubscriptionResponse(subscription, plan.name),
-        );
+        return reply
+          .status(201)
+          .send(billingService.formatSubscriptionResponse(subscription, plan.name));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -292,9 +292,9 @@ export async function registerBillingRoutes(
       try {
         const subscription = await billingService.getSubscription(paramsResult.data.id);
         const plan = await billingService.getPlanById(subscription.planId);
-        return reply.status(200).send(
-          billingService.formatSubscriptionResponse(subscription, plan.name),
-        );
+        return reply
+          .status(200)
+          .send(billingService.formatSubscriptionResponse(subscription, plan.name));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -327,9 +327,9 @@ export async function registerBillingRoutes(
       try {
         const subscription = await billingService.activateSubscription(paramsResult.data.id);
         const plan = await billingService.getPlanById(subscription.planId);
-        return reply.status(200).send(
-          billingService.formatSubscriptionResponse(subscription, plan.name),
-        );
+        return reply
+          .status(200)
+          .send(billingService.formatSubscriptionResponse(subscription, plan.name));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -362,9 +362,9 @@ export async function registerBillingRoutes(
       try {
         const subscription = await billingService.suspendSubscription(paramsResult.data.id);
         const plan = await billingService.getPlanById(subscription.planId);
-        return reply.status(200).send(
-          billingService.formatSubscriptionResponse(subscription, plan.name),
-        );
+        return reply
+          .status(200)
+          .send(billingService.formatSubscriptionResponse(subscription, plan.name));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -397,9 +397,9 @@ export async function registerBillingRoutes(
       try {
         const subscription = await billingService.cancelSubscription(paramsResult.data.id);
         const plan = await billingService.getPlanById(subscription.planId);
-        return reply.status(200).send(
-          billingService.formatSubscriptionResponse(subscription, plan.name),
-        );
+        return reply
+          .status(200)
+          .send(billingService.formatSubscriptionResponse(subscription, plan.name));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -432,9 +432,9 @@ export async function registerBillingRoutes(
       try {
         const subscription = await billingService.reactivateSubscription(paramsResult.data.id);
         const plan = await billingService.getPlanById(subscription.planId);
-        return reply.status(200).send(
-          billingService.formatSubscriptionResponse(subscription, plan.name),
-        );
+        return reply
+          .status(200)
+          .send(billingService.formatSubscriptionResponse(subscription, plan.name));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -477,11 +477,14 @@ export async function registerBillingRoutes(
       try {
         // Get the subscription to find the tenant
         const existingSub = await billingService.getSubscription(paramsResult.data.id);
-        const subscription = await billingService.upgradePlan(existingSub.tenantId, bodyResult.data);
-        const plan = await billingService.getPlanById(subscription.planId);
-        return reply.status(200).send(
-          billingService.formatSubscriptionResponse(subscription, plan.name),
+        const subscription = await billingService.upgradePlan(
+          existingSub.tenantId,
+          bodyResult.data,
         );
+        const plan = await billingService.getPlanById(subscription.planId);
+        return reply
+          .status(200)
+          .send(billingService.formatSubscriptionResponse(subscription, plan.name));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

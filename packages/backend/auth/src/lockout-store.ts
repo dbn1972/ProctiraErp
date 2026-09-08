@@ -19,17 +19,12 @@ export class InMemoryLockoutStore implements LockoutStore {
 
   async getFailureCount(userId: string, tenantId: string, windowStart: Date): Promise<number> {
     return this.failures.filter(
-      (f) =>
-        f.userId === userId &&
-        f.tenantId === tenantId &&
-        f.attemptedAt >= windowStart,
+      (f) => f.userId === userId && f.tenantId === tenantId && f.attemptedAt >= windowStart,
     ).length;
   }
 
   async clearFailures(userId: string, tenantId: string): Promise<void> {
-    this.failures = this.failures.filter(
-      (f) => !(f.userId === userId && f.tenantId === tenantId),
-    );
+    this.failures = this.failures.filter((f) => !(f.userId === userId && f.tenantId === tenantId));
   }
 
   async createLockout(lockout: AccountLockout): Promise<void> {
@@ -39,10 +34,7 @@ export class InMemoryLockoutStore implements LockoutStore {
   async getActiveLockout(userId: string, tenantId: string): Promise<AccountLockout | null> {
     const now = new Date();
     const active = this.lockouts.find(
-      (l) =>
-        l.userId === userId &&
-        l.tenantId === tenantId &&
-        l.expiresAt > now,
+      (l) => l.userId === userId && l.tenantId === tenantId && l.expiresAt > now,
     );
     return active ?? null;
   }

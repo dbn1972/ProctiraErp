@@ -13,8 +13,17 @@ import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import { withPgTenant, type PgPool, type PgQueryable } from '@proctira/database';
 
 import type { CaseEntity, CaseFilter, CaseRepository } from './case-repository.js';
-import type { CaseAttachmentInput, CaseResolutionInput, CaseStatus, CaseType } from './case-schemas.js';
-import type { EscalationRuleInput, WorkflowStateInput, WorkflowTransitionInput } from './schemas.js';
+import type {
+  CaseAttachmentInput,
+  CaseResolutionInput,
+  CaseStatus,
+  CaseType,
+} from './case-schemas.js';
+import type {
+  EscalationRuleInput,
+  WorkflowStateInput,
+  WorkflowTransitionInput,
+} from './schemas.js';
 import type {
   ApprovalRecord,
   TransitionAuditEntity,
@@ -121,7 +130,9 @@ function mapDefinition(row: Row): WorkflowDefinitionEntity {
     states: parseJson<WorkflowStateInput[]>(row.states, []),
     transitions: parseJson<WorkflowTransitionInput[]>(row.transitions, []),
     escalationRules:
-      row.escalation_rules == null ? null : parseJson<EscalationRuleInput[]>(row.escalation_rules, []),
+      row.escalation_rules == null
+        ? null
+        : parseJson<EscalationRuleInput[]>(row.escalation_rules, []),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -173,7 +184,10 @@ function mapCase(row: Row): CaseEntity {
     priority: (nullableString(row.priority) as CaseEntity['priority']) ?? null,
     workflowInstanceId: nullableString(row.workflow_instance_id),
     attachments: parseJson<CaseAttachmentInput[]>(row.attachments, []),
-    resolution: row.resolution == null ? null : parseJson<CaseResolutionInput>(row.resolution, {} as CaseResolutionInput),
+    resolution:
+      row.resolution == null
+        ? null
+        : parseJson<CaseResolutionInput>(row.resolution, {} as CaseResolutionInput),
     metadata: row.metadata == null ? null : parseJson<Record<string, unknown>>(row.metadata, {}),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
@@ -303,7 +317,12 @@ export class PgWorkflowRepository extends PgWorkflowBase implements WorkflowRepo
       const rows = await c.query(
         `SELECT * FROM workflow_definitions WHERE tenant_id = $1 ${where.sql}
           ORDER BY created_at ASC, id LIMIT $${offsetIdx} OFFSET $${offsetIdx + 1}`,
-        [tenantId, ...where.values, pagination.pageSize, (pagination.page - 1) * pagination.pageSize],
+        [
+          tenantId,
+          ...where.values,
+          pagination.pageSize,
+          (pagination.page - 1) * pagination.pageSize,
+        ],
       );
       return paginate(
         (rows.rows as Row[]).map(mapDefinition),
@@ -410,7 +429,12 @@ export class PgWorkflowRepository extends PgWorkflowBase implements WorkflowRepo
       const rows = await c.query(
         `SELECT * FROM workflow_instances WHERE tenant_id = $1 ${where.sql}
           ORDER BY created_at ASC, id LIMIT $${offsetIdx} OFFSET $${offsetIdx + 1}`,
-        [tenantId, ...where.values, pagination.pageSize, (pagination.page - 1) * pagination.pageSize],
+        [
+          tenantId,
+          ...where.values,
+          pagination.pageSize,
+          (pagination.page - 1) * pagination.pageSize,
+        ],
       );
       return paginate(
         (rows.rows as Row[]).map(mapInstance),
@@ -502,7 +526,11 @@ export class PgCaseRepository extends PgWorkflowBase implements CaseRepository {
     });
   }
 
-  async updateCase(id: string, tenantId: string, data: Partial<CaseEntity>): Promise<CaseEntity | null> {
+  async updateCase(
+    id: string,
+    tenantId: string,
+    data: Partial<CaseEntity>,
+  ): Promise<CaseEntity | null> {
     return this.run(tenantId, async (c) => {
       const res = await c.query(
         `UPDATE workflow_cases
@@ -579,9 +607,18 @@ export class PgCaseRepository extends PgWorkflowBase implements CaseRepository {
       const rows = await c.query(
         `SELECT * FROM workflow_cases WHERE tenant_id = $1 ${where.sql}
           ORDER BY created_at ASC, id LIMIT $${offsetIdx} OFFSET $${offsetIdx + 1}`,
-        [tenantId, ...where.values, pagination.pageSize, (pagination.page - 1) * pagination.pageSize],
+        [
+          tenantId,
+          ...where.values,
+          pagination.pageSize,
+          (pagination.page - 1) * pagination.pageSize,
+        ],
       );
-      return paginate((rows.rows as Row[]).map(mapCase), Number((total.rows[0] as Row).n), pagination);
+      return paginate(
+        (rows.rows as Row[]).map(mapCase),
+        Number((total.rows[0] as Row).n),
+        pagination,
+      );
     });
   }
 }

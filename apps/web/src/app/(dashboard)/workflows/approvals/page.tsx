@@ -8,10 +8,7 @@ import { ArrowLeft, CheckCircle2, ListChecks } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import {
-  listPendingApprovals,
-  type WorkflowApproval,
-} from '@/lib/api/workflows';
+import { listPendingApprovals, type WorkflowApproval } from '@/lib/api/workflows';
 import { ApprovalDecisionButtons } from '../_components/approval-decision-buttons';
 
 export const dynamic = 'force-dynamic';
@@ -93,9 +90,7 @@ function ApprovalCard({ approval: a }: { approval: WorkflowApproval }) {
           <dt className="text-muted-foreground">Subject</dt>
           <dd>
             <span className="text-muted-foreground">{a.subjectType}/</span>
-            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-              {a.subjectId}
-            </code>
+            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{a.subjectId}</code>
           </dd>
           <dt className="text-muted-foreground">Step</dt>
           <dd className="font-medium text-foreground">{a.stepName || '—'}</dd>

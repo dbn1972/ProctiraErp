@@ -18,9 +18,7 @@ import { AUTH_COOKIES, decodeTokenPayload } from '@/lib/auth';
 
 /** Base URL for the API gateway. Can be overridden via env. */
 export const GATEWAY_BASE_URL =
-  process.env['NEXT_PUBLIC_GATEWAY_URL'] ??
-  process.env['GATEWAY_URL'] ??
-  'http://localhost:3000';
+  process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? process.env['GATEWAY_URL'] ?? 'http://localhost:3000';
 
 /** API version prefix used by the gateway. */
 export const GATEWAY_API_PREFIX = '/api/v1';
@@ -54,10 +52,7 @@ export function getSessionContext(): { tenantId: string; accessToken: string | n
   const payload = accessToken ? decodeTokenPayload(accessToken) : null;
 
   // Prefer JWT claim; fall back to middleware-injected header; finally to "default".
-  const tenantId =
-    payload?.tenantId ??
-    headerStore.get('x-tenant-id') ??
-    'default';
+  const tenantId = payload?.tenantId ?? headerStore.get('x-tenant-id') ?? 'default';
 
   return { tenantId, accessToken };
 }

@@ -35,7 +35,7 @@ export type ActionResult<T = unknown> =
 
 function flattenZodErrors(errors: Record<string, string[] | undefined>): FieldError[] {
   return Object.entries(errors).flatMap(([field, messages]) =>
-    (messages ?? []).map((message) => ({ field, message }))
+    (messages ?? []).map((message) => ({ field, message })),
   );
 }
 
@@ -58,7 +58,7 @@ function toActionError(error: unknown): ActionResult<never> {
 // ---------------------------------------------------------------------------
 
 export async function createInstitutionAction(
-  values: InstitutionFormValues
+  values: InstitutionFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = institutionFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -80,7 +80,7 @@ export async function createInstitutionAction(
 
 export async function updateInstitutionAction(
   id: string,
-  values: InstitutionFormValues
+  values: InstitutionFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = institutionFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -103,7 +103,7 @@ export async function updateInstitutionAction(
 
 export async function deactivateInstitutionAction(
   id: string,
-  reason: string
+  reason: string,
 ): Promise<ActionResult<{ id: string }>> {
   if (!reason || reason.trim().length === 0) {
     return {
@@ -128,7 +128,7 @@ export async function deactivateInstitutionAction(
 // ---------------------------------------------------------------------------
 
 export async function createAcademicPeriodAction(
-  values: AcademicPeriodFormValues
+  values: AcademicPeriodFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = academicPeriodFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -150,7 +150,7 @@ export async function createAcademicPeriodAction(
 
 export async function updateAcademicPeriodAction(
   id: string,
-  values: AcademicPeriodFormValues
+  values: AcademicPeriodFormValues,
 ): Promise<ActionResult<{ id: string }>> {
   const parsed = academicPeriodFormSchema.safeParse(values);
   if (!parsed.success) {
@@ -171,7 +171,7 @@ export async function updateAcademicPeriodAction(
 }
 
 export async function deleteAcademicPeriodAction(
-  id: string
+  id: string,
 ): Promise<ActionResult<{ id: string }>> {
   try {
     await deleteAcademicPeriod(id);

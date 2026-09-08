@@ -229,9 +229,10 @@ describe('Property F-5: Touch Target Minimum', () => {
         const analysis = analyzeComponent(componentPath);
 
         if (!analysis.hasTouchTargetSize) {
-          const heightInfo = analysis.heightClasses.length > 0
-            ? `Found height classes: ${analysis.heightClasses.join(', ')}`
-            : 'No height classes found';
+          const heightInfo =
+            analysis.heightClasses.length > 0
+              ? `Found height classes: ${analysis.heightClasses.join(', ')}`
+              : 'No height classes found';
 
           throw new Error(
             `Touch target violation in ${componentPath}:\n` +
@@ -251,8 +252,8 @@ describe('Property F-5: Touch Target Minimum', () => {
   it('wrapper-dependent components (Checkbox, Switch, RadioGroup) document their touch-target strategy', () => {
     // These components achieve touch-target compliance through wrapper elements.
     // Verify they exist and are intentionally small (the wrapper provides the target).
-    const wrapperComponents = INTERACTIVE_COMPONENT_FILES.filter(
-      (f) => WRAPPER_DEPENDENT_COMPONENTS.has(f),
+    const wrapperComponents = INTERACTIVE_COMPONENT_FILES.filter((f) =>
+      WRAPPER_DEPENDENT_COMPONENTS.has(f),
     );
 
     for (const componentPath of wrapperComponents) {
@@ -269,10 +270,7 @@ describe('Property F-5: Touch Target Minimum', () => {
       ).toBeGreaterThan(0);
 
       // Verify the component exports something (is a valid module)
-      expect(
-        content,
-        `${componentPath} should export a component`,
-      ).toMatch(/export/);
+      expect(content, `${componentPath} should export a component`).toMatch(/export/);
     }
   });
 
@@ -396,9 +394,7 @@ describe('Property F-5: Touch Target Minimum', () => {
 
       // Find the maximum height class value
       const heightClasses = extractHeightClasses(content);
-      const pixelValues = heightClasses
-        .map(parseHeightPx)
-        .filter((v): v is number => v !== null);
+      const pixelValues = heightClasses.map(parseHeightPx).filter((v): v is number => v !== null);
 
       if (pixelValues.length > 0) {
         const maxHeight = Math.max(...pixelValues);

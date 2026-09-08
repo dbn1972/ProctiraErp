@@ -61,7 +61,10 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ParseResult> {
   const headerRow = worksheet.getRow(1);
   const headers: string[] = [];
   headerRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-    headers[colNumber - 1] = String(cell.value ?? '').trim().toLowerCase().replace(/\s+/g, '_');
+    headers[colNumber - 1] = String(cell.value ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_');
   });
 
   const headerErrors: string[] = [];
@@ -132,7 +135,10 @@ export async function parseExcelBuffer(buffer: Buffer): Promise<ParseResult> {
 /**
  * Check if a worksheet row is completely empty.
  */
-function isRowEmpty(row: { getCell: (col: number) => { value: unknown } }, colCount: number): boolean {
+function isRowEmpty(
+  row: { getCell: (col: number) => { value: unknown } },
+  colCount: number,
+): boolean {
   for (let i = 1; i <= colCount; i++) {
     const cell = row.getCell(i);
     if (cell.value !== null && cell.value !== undefined && String(cell.value).trim() !== '') {

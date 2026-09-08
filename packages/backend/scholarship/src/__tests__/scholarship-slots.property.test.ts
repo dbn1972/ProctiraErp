@@ -33,9 +33,11 @@ describe('Scholarship Service - Slot Allocation Invariant (Property)', () => {
           // Create a scholarship program with limited slots
           const today = new Date();
           const startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000)
-            .toISOString().split('T')[0]!;
+            .toISOString()
+            .split('T')[0]!;
           const endDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
-            .toISOString().split('T')[0]!;
+            .toISOString()
+            .split('T')[0]!;
 
           const program = await service.createProgram(tenantId, {
             name: `Program-${uuidv4().slice(0, 8)}`,

@@ -116,9 +116,7 @@ export interface FieldError {
 }
 
 /** Result of `validate()`. */
-export type ValidateResult =
-  | { ok: true }
-  | { ok: false; errors: FieldError[] };
+export type ValidateResult = { ok: true } | { ok: false; errors: FieldError[] };
 
 // ─── Persistence key ─────────────────────────────────────────────────────────
 
@@ -149,10 +147,7 @@ function getStepSchema(step: WizardStep): ZodTypeAny {
   }
 }
 
-function getStepSlice(
-  step: WizardStep,
-  draft: RegistrationDraft,
-): unknown {
+function getStepSlice(step: WizardStep, draft: RegistrationDraft): unknown {
   switch (step) {
     case 'personal-info':
       return draft.personalInfo;
@@ -170,9 +165,7 @@ function getStepSlice(
 /** Convert a Zod issue path (an array of strings/numbers) to a dotted string. */
 function pathToString(path: ReadonlyArray<PropertyKey>): string {
   return path
-    .map((segment) =>
-      typeof segment === 'number' ? String(segment) : String(segment),
-    )
+    .map((segment) => (typeof segment === 'number' ? String(segment) : String(segment)))
     .join('.');
 }
 
@@ -181,10 +174,7 @@ function pathToString(path: ReadonlyArray<PropertyKey>): string {
  * slices as "not yet filled" and return a single high-level error so
  * the UI can flag the step instead of crashing on `parse(undefined)`.
  */
-function runStepValidation(
-  step: WizardStep,
-  draft: RegistrationDraft,
-): ValidateResult {
+function runStepValidation(step: WizardStep, draft: RegistrationDraft): ValidateResult {
   const slice = getStepSlice(step, draft);
   if (slice === undefined) {
     return {
@@ -365,10 +355,7 @@ export function useRegistrationWizard(
   // ─── Setters ────────────────────────────────────────────────────────────────
 
   const updateSlice = useCallback(
-    <K extends keyof RegistrationDraft>(
-      key: K,
-      values: RegistrationDraft[K],
-    ) => {
+    <K extends keyof RegistrationDraft>(key: K, values: RegistrationDraft[K]) => {
       // Update the ref synchronously so subsequent `goNext` calls in
       // the same React tick observe the new slice. The ref + state
       // pair is the standard "latest" pattern.
@@ -390,8 +377,7 @@ export function useRegistrationWizard(
     [updateSlice],
   );
   const setSchoolSelection = useCallback(
-    (values: SchoolSelectionValues) =>
-      updateSlice('schoolSelection', values),
+    (values: SchoolSelectionValues) => updateSlice('schoolSelection', values),
     [updateSlice],
   );
   const setDocuments = useCallback(
@@ -468,9 +454,7 @@ export function useRegistrationWizard(
 
   // ─── Submission helper ──────────────────────────────────────────────────────
 
-  const getSubmitSnapshot = useCallback((): ReturnType<
-    RegistrationWizard['getSubmitSnapshot']
-  > => {
+  const getSubmitSnapshot = useCallback((): ReturnType<RegistrationWizard['getSubmitSnapshot']> => {
     const snap = draftRef.current;
     // Validate every step in order; the first failure becomes the
     // page-level error report so we can navigate the user back to it.
@@ -536,7 +520,7 @@ export const _internals = {
   getStepSchema,
   pathToString,
   // Default slices so tests can build a complete draft without
- // re-deriving the shapes.
+  // re-deriving the shapes.
   DEFAULT_PERSONAL_INFO,
   DEFAULT_CONTACT,
   DEFAULT_SCHOOL_SELECTION,

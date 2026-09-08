@@ -14,15 +14,7 @@
  * render in isolation.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type Mock,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import React from 'react';
 
@@ -95,8 +87,12 @@ function installMatchMedia(initial: boolean): FakeMediaQueryList {
     removeEventListener: vi.fn((event: string, cb: (e: MediaQueryListEvent) => void) => {
       if (event === 'change') listeners.delete(cb);
     }) as unknown as Mock,
-    addListener: vi.fn((cb: (e: MediaQueryListEvent) => void) => listeners.add(cb)) as unknown as Mock,
-    removeListener: vi.fn((cb: (e: MediaQueryListEvent) => void) => listeners.delete(cb)) as unknown as Mock,
+    addListener: vi.fn((cb: (e: MediaQueryListEvent) => void) =>
+      listeners.add(cb),
+    ) as unknown as Mock,
+    removeListener: vi.fn((cb: (e: MediaQueryListEvent) => void) =>
+      listeners.delete(cb),
+    ) as unknown as Mock,
     dispatchEvent: () => true,
     fire(matches: boolean) {
       this.matches = matches;

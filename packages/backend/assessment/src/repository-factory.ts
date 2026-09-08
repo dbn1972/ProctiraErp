@@ -7,7 +7,11 @@
  * Mirrors the staff/attendance repository factories so the standalone
  * service and the API gateway compose persistence identically.
  */
-import { assertInMemoryFallbackAllowed, createPrismaClient, getSharedPgPool } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  createPrismaClient,
+  getSharedPgPool,
+} from '@proctira/database';
 import type { PgPool, PrismaClient } from '@proctira/database';
 
 import type {
@@ -114,7 +118,9 @@ export function createReportCardTemplateRepository(
   config: AssessmentRepositoryConfig = {},
 ): ReportCardTemplateRepository {
   const pool = resolveReportCardPool(config);
-  return pool ? new PgReportCardTemplateRepository(pool) : new InMemoryReportCardTemplateRepository();
+  return pool
+    ? new PgReportCardTemplateRepository(pool)
+    : new InMemoryReportCardTemplateRepository();
 }
 
 export function createTeacherCommentRepository(

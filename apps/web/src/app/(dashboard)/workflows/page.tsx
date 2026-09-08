@@ -17,10 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import {
-  listWorkflowDefinitions,
-  type WorkflowDefinition,
-} from '@/lib/api/workflows';
+import { listWorkflowDefinitions, type WorkflowDefinition } from '@/lib/api/workflows';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,8 +36,8 @@ export default async function WorkflowsPage() {
             Workflow definitions
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Approval flows for transfers, leaves, disbursements and other district
-            actions · {definitions.length.toLocaleString()} definition
+            Approval flows for transfers, leaves, disbursements and other district actions ·{' '}
+            {definitions.length.toLocaleString()} definition
             {definitions.length === 1 ? '' : 's'}, {activeCount.toLocaleString()} active
           </p>
         </div>
@@ -126,15 +123,11 @@ function DefinitionsTable({ items }: { items: WorkflowDefinition[] }) {
                 {def.module}
               </span>
             </TableCell>
-            <TableCell className="text-end tabular-nums">
-              {def.steps.length}
-            </TableCell>
+            <TableCell className="text-end tabular-nums">{def.steps.length}</TableCell>
             <TableCell>
               <StatusPill active={def.active} />
             </TableCell>
-            <TableCell className="text-muted-foreground">
-              {def.updatedAt || '—'}
-            </TableCell>
+            <TableCell className="text-muted-foreground">{def.updatedAt || '—'}</TableCell>
             <TableCell className="text-end">
               <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
                 <Button

@@ -43,9 +43,10 @@ describe('resolveGradePoints', () => {
 
 describe('applyCreditRule', () => {
   it('awards full credits on pass', () => {
-    expect(
-      applyCreditRule({ credits: 1 }, { numericScore: 40 }),
-    ).toEqual({ creditsEarned: 1, completed: true });
+    expect(applyCreditRule({ credits: 1 }, { numericScore: 40 })).toEqual({
+      creditsEarned: 1,
+      completed: true,
+    });
   });
 
   it('awards zero on fail', () => {

@@ -10,16 +10,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { ADMIN_AUTH_COOKIES } from './cookies';
-import {
-  hasRole,
-  type AdminArea,
-  type PlatformRole,
-} from './roles';
-import {
-  decodeAdminToken,
-  isAdminTokenExpired,
-  type AdminTokenPayload,
-} from './session';
+import { hasRole, type AdminArea, type PlatformRole } from './roles';
+import { decodeAdminToken, isAdminTokenExpired, type AdminTokenPayload } from './session';
 
 export interface AdminServerSession {
   accessToken: string;
@@ -65,10 +57,7 @@ export async function requireSession(returnTo?: string): Promise<AdminServerSess
  * Operators without the required role are redirected to /forbidden so the
  * audit log can record the attempted access.
  */
-export async function requireRole(
-  area: AdminArea,
-  returnTo?: string,
-): Promise<AdminServerSession> {
+export async function requireRole(area: AdminArea, returnTo?: string): Promise<AdminServerSession> {
   const session = await requireSession(returnTo);
   if (!hasRole(session.user.platformRole, area)) {
     redirect(`/forbidden?area=${encodeURIComponent(area)}`);
@@ -77,10 +66,7 @@ export async function requireRole(
 }
 
 /** Convenience: explicit role check that returns boolean rather than redirecting. */
-export function userHasRole(
-  session: AdminServerSession | null,
-  area: AdminArea,
-): boolean {
+export function userHasRole(session: AdminServerSession | null, area: AdminArea): boolean {
   return hasRole(session?.user.platformRole, area);
 }
 

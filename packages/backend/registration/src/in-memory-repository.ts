@@ -107,8 +107,7 @@ export class InMemoryRegistrationRepository implements RegistrationRepository {
 
   async findById(id: string, tenantId?: string): Promise<RegistrationEntity | null> {
     return (
-      this.registrations.find((r) => r.id === id && (!tenantId || r.tenantId === tenantId)) ??
-      null
+      this.registrations.find((r) => r.id === id && (!tenantId || r.tenantId === tenantId)) ?? null
     );
   }
 

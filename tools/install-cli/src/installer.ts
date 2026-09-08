@@ -45,7 +45,9 @@ export interface MigrationRunner {
  */
 export interface AdminAccountCreator {
   /** Create the initial platform admin account */
-  createAdmin(admin: AdminAccountConfig): Promise<{ success: boolean; userId?: string; error?: string }>;
+  createAdmin(
+    admin: AdminAccountConfig,
+  ): Promise<{ success: boolean; userId?: string; error?: string }>;
 }
 
 /**
@@ -78,7 +80,9 @@ export class DefaultMigrationRunner implements MigrationRunner {
 export class DefaultAdminCreator implements AdminAccountCreator {
   constructor(private readonly logger: InstallerLogger) {}
 
-  async createAdmin(admin: AdminAccountConfig): Promise<{ success: boolean; userId?: string; error?: string }> {
+  async createAdmin(
+    admin: AdminAccountConfig,
+  ): Promise<{ success: boolean; userId?: string; error?: string }> {
     this.logger.info(
       { username: admin.username, name: `${admin.firstName} ${admin.lastName}` },
       'Creating platform admin account',
@@ -107,9 +111,15 @@ export class Installer {
   /**
    * Run the full installation process.
    */
-  async install(config: InstallConfig, options?: { skipMigrations?: boolean; skipAdmin?: boolean }): Promise<InstallResult> {
+  async install(
+    config: InstallConfig,
+    options?: { skipMigrations?: boolean; skipAdmin?: boolean },
+  ): Promise<InstallResult> {
     const startTime = Date.now();
-    const adapterResults: Record<string, { success: boolean; message: string; latencyMs?: number }> = {};
+    const adapterResults: Record<
+      string,
+      { success: boolean; message: string; latencyMs?: number }
+    > = {};
 
     this.logger.info('Starting ProctiraERP platform installation...');
 
@@ -186,7 +196,11 @@ export class Installer {
     // Finalize bootstrap
     const bootstrapResult = await installService.finalizeBootstrap();
     if (!bootstrapResult.success) {
-      return this.buildFailureResult(adapterResults, undefined, bootstrapResult.error ?? 'Bootstrap finalization failed');
+      return this.buildFailureResult(
+        adapterResults,
+        undefined,
+        bootstrapResult.error ?? 'Bootstrap finalization failed',
+      );
     }
     this.logger.info('  ✓ All adapters validated and configured');
 

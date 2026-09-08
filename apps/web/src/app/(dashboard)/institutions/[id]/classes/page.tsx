@@ -21,11 +21,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import {
-  ApiClientError,
-  listClassesByInstitution,
-  listGrades,
-} from '@/lib/institutions/api';
+import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
 import type { ClassSection, Grade } from '@/lib/institutions/types';
 
 interface ClassesPageProps {
@@ -49,7 +45,6 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
 
   return (
     <div className="space-y-4">
-
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -98,7 +93,9 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
               <TableBody>
                 {data.classes.map((section) => {
                   const grade = gradeMap.get(section.gradeId);
-                  const cd = (section as unknown as { customData?: Record<string, unknown> }).customData ?? {};
+                  const cd =
+                    (section as unknown as { customData?: Record<string, unknown> }).customData ??
+                    {};
                   const teacher = readStr(cd, 'classTeacher');
                   const teacherRole = readStr(cd, 'classTeacherRole');
                   const room = readStr(cd, 'room');
@@ -133,13 +130,28 @@ export default async function InstitutionClassesPage({ params }: ClassesPageProp
                       <TableCell className="text-sm text-muted-foreground">{room || '—'}</TableCell>
                       <TableCell className="text-end">
                         <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="View section">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 p-0"
+                            aria-label="View section"
+                          >
                             <Eye className="h-4 w-4" aria-hidden="true" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="Edit section">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 p-0"
+                            aria-label="Edit section"
+                          >
                             <Pencil className="h-4 w-4" aria-hidden="true" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 p-0"
+                            aria-label="More actions"
+                          >
                             <MoreVertical className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </div>

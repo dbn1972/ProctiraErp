@@ -13,16 +13,20 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export const CreateAreaBodySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Area name' }),
   code: Type.String({ minLength: 1, maxLength: 50, description: 'Unique area code within tenant' }),
-  parentId: Type.Optional(Type.Union([
-    Type.String({ pattern: UUID_PATTERN, description: 'Parent area ID (UUID)' }),
-    Type.Null(),
-  ])),
+  parentId: Type.Optional(
+    Type.Union([
+      Type.String({ pattern: UUID_PATTERN, description: 'Parent area ID (UUID)' }),
+      Type.Null(),
+    ]),
+  ),
 });
 export type CreateAreaBody = Static<typeof CreateAreaBodySchema>;
 
 export const UpdateAreaBodySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Area name' })),
-  code: Type.Optional(Type.String({ minLength: 1, maxLength: 50, description: 'Unique area code within tenant' })),
+  code: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 50, description: 'Unique area code within tenant' }),
+  ),
 });
 export type UpdateAreaBody = Static<typeof UpdateAreaBodySchema>;
 
@@ -43,7 +47,9 @@ export const AreaIdParamSchema = Type.Object({
 export type AreaIdParam = Static<typeof AreaIdParamSchema>;
 
 export const AreaTreeQuerySchema = Type.Object({
-  rootId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Root area ID to start tree from' })),
+  rootId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Root area ID to start tree from' }),
+  ),
 });
 export type AreaTreeQuery = Static<typeof AreaTreeQuerySchema>;
 
@@ -113,9 +119,13 @@ export const ApiErrorResponseSchema = Type.Object({
   code: Type.String(),
   message: Type.String(),
   statusCode: Type.Number(),
-  errors: Type.Optional(Type.Array(Type.Object({
-    field: Type.String(),
-    rule: Type.String(),
-    message: Type.String(),
-  }))),
+  errors: Type.Optional(
+    Type.Array(
+      Type.Object({
+        field: Type.String(),
+        rule: Type.String(),
+        message: Type.String(),
+      }),
+    ),
+  ),
 });

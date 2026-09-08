@@ -86,19 +86,35 @@ export interface CertificationFilter {
  * Repository interface for training program data access.
  */
 export interface TrainingProgramRepository {
-  create(data: Omit<TrainingProgramEntity, 'createdAt' | 'updatedAt'>): Promise<TrainingProgramEntity>;
+  create(
+    data: Omit<TrainingProgramEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TrainingProgramEntity>;
   findById(id: string, tenantId: string): Promise<TrainingProgramEntity | null>;
-  update(id: string, tenantId: string, data: Partial<TrainingProgramEntity>): Promise<TrainingProgramEntity | null>;
-  list(tenantId: string, search: string | undefined, pagination: PaginationOptions): Promise<PaginatedResult<TrainingProgramEntity>>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<TrainingProgramEntity>,
+  ): Promise<TrainingProgramEntity | null>;
+  list(
+    tenantId: string,
+    search: string | undefined,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<TrainingProgramEntity>>;
 }
 
 /**
  * Repository interface for training session data access.
  */
 export interface TrainingSessionRepository {
-  create(data: Omit<TrainingSessionEntity, 'createdAt' | 'updatedAt'>): Promise<TrainingSessionEntity>;
+  create(
+    data: Omit<TrainingSessionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TrainingSessionEntity>;
   findById(id: string, tenantId: string): Promise<TrainingSessionEntity | null>;
-  listByProgram(tenantId: string, programId: string, pagination: PaginationOptions): Promise<PaginatedResult<TrainingSessionEntity>>;
+  listByProgram(
+    tenantId: string,
+    programId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<TrainingSessionEntity>>;
 }
 
 /**
@@ -106,7 +122,11 @@ export interface TrainingSessionRepository {
  */
 export interface TrainingAttendanceRepository {
   create(data: Omit<TrainingAttendanceEntity, 'createdAt'>): Promise<TrainingAttendanceEntity>;
-  findBySessionAndStaff(sessionId: string, staffId: string, tenantId: string): Promise<TrainingAttendanceEntity | null>;
+  findBySessionAndStaff(
+    sessionId: string,
+    staffId: string,
+    tenantId: string,
+  ): Promise<TrainingAttendanceEntity | null>;
   listBySession(tenantId: string, sessionId: string): Promise<TrainingAttendanceEntity[]>;
   listByStaff(tenantId: string, staffId: string): Promise<TrainingAttendanceEntity[]>;
 }
@@ -117,7 +137,15 @@ export interface TrainingAttendanceRepository {
 export interface CertificationRepository {
   create(data: Omit<CertificationEntity, 'createdAt' | 'updatedAt'>): Promise<CertificationEntity>;
   findById(id: string, tenantId: string): Promise<CertificationEntity | null>;
-  update(id: string, tenantId: string, data: Partial<CertificationEntity>): Promise<CertificationEntity | null>;
-  list(tenantId: string, filter: CertificationFilter, pagination: PaginationOptions): Promise<PaginatedResult<CertificationEntity>>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<CertificationEntity>,
+  ): Promise<CertificationEntity | null>;
+  list(
+    tenantId: string,
+    filter: CertificationFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<CertificationEntity>>;
   findExpiredCertifications(tenantId: string, asOfDate: string): Promise<CertificationEntity[]>;
 }

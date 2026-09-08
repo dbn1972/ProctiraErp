@@ -25,12 +25,12 @@ moves directly to `<CommandInput>`.
 
 ## Navigation inside the listbox
 
-| Key | Action |
-| --- | --- |
-| `ArrowDown` | Move active item to the next visible result. Wraps to the first item. |
-| `ArrowUp` | Move active item to the previous visible result. Wraps to the last item. |
-| `Home` | Move active item to the first visible result. |
-| `End` | Move active item to the last visible result. |
+| Key         | Action                                                                   |
+| ----------- | ------------------------------------------------------------------------ |
+| `ArrowDown` | Move active item to the next visible result. Wraps to the first item.    |
+| `ArrowUp`   | Move active item to the previous visible result. Wraps to the last item. |
+| `Home`      | Move active item to the first visible result.                            |
+| `End`       | Move active item to the last visible result.                             |
 
 The "active" item is reflected via `aria-selected="true"` on the
 `<CommandItem>` (cmdk uses `aria-selected`, not `aria-activedescendant`).
@@ -44,8 +44,8 @@ items.
 
 ## Selection
 
-| Key | Action |
-| --- | --- |
+| Key     | Action                                                                                                          |
+| ------- | --------------------------------------------------------------------------------------------------------------- |
 | `Enter` | Selects the active `<CommandItem>` (fires the item's `onSelect`). For comboboxes, this also closes the popover. |
 
 `Space` does **not** select — it types a literal space into the input,
@@ -55,8 +55,8 @@ type, not select, when focus is in the input.
 
 ## Dismissal
 
-| Key | Action |
-| --- | --- |
+| Key      | Action                                                                                                                                   |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `Escape` | Closes the popover (combobox) or dialog (`<CommandDialog>`). Focus returns to the popover trigger or the element that opened the dialog. |
 
 ## Disabled items

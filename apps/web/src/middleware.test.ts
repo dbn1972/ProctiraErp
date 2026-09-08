@@ -71,27 +71,33 @@ describe('Tenant Config Cache', () => {
   });
 
   it('returns DEFAULT_TENANT_CONFIG when fetch returns 404', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 404,
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+      }),
+    );
 
     const config = await getTenantConfig('nonexistent');
     expect(config).toEqual(DEFAULT_TENANT_CONFIG);
   });
 
   it('normalizes tenant slug to lowercase', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        id: 'uuid-123',
-        slug: 'myschool',
-        name: 'My School',
-        primaryColor: 'hsl(200, 50%, 50%)',
-        accentColor: 'hsl(100, 50%, 50%)',
-        active: true,
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          id: 'uuid-123',
+          slug: 'myschool',
+          name: 'My School',
+          primaryColor: 'hsl(200, 50%, 50%)',
+          accentColor: 'hsl(100, 50%, 50%)',
+          active: true,
+        }),
       }),
-    }));
+    );
 
     const config = await getTenantConfig('MySchool');
     expect(config.slug).toBe('myschool');
@@ -197,9 +203,7 @@ describe('Public Path Matching', () => {
   const PUBLIC_PATHS = ['/login', '/callback', '/forgot-password', '/health', '/track'];
 
   function isPublicPath(pathname: string): boolean {
-    return PUBLIC_PATHS.some(
-      (path) => pathname === path || pathname.startsWith(`${path}/`)
-    );
+    return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
   }
 
   it('identifies login as public', () => {

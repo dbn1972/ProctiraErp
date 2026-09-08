@@ -57,9 +57,7 @@ export async function withTenantTransaction<T>(
   options?: TenantTransactionOptions,
 ): Promise<T> {
   if (!UUID_V4.test(tenantId)) {
-    throw new Error(
-      `withTenantTransaction: invalid tenantId "${tenantId}" (expected UUID v4)`,
-    );
+    throw new Error(`withTenantTransaction: invalid tenantId "${tenantId}" (expected UUID v4)`);
   }
 
   return prisma.$transaction(async (tx) => {

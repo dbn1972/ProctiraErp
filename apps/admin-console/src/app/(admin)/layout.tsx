@@ -4,11 +4,7 @@ import { requireSession } from '@/lib/auth/server';
 import { AREA_ROLES, hasRole, type AdminArea } from '@/lib/auth';
 
 /** Authenticated admin shell with sidebar + header. */
-export default async function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requireSession();
   const role = session.user.platformRole;
 
@@ -21,9 +17,7 @@ export default async function AdminLayout({
       <Sidebar allowedAreas={allowedAreas} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header email={session.user.email} role={role} />
-        <main className="flex-1 overflow-y-auto bg-secondary/40 p-6">
-          {children}
-        </main>
+        <main className="flex-1 overflow-y-auto bg-secondary/40 p-6">{children}</main>
       </div>
     </div>
   );

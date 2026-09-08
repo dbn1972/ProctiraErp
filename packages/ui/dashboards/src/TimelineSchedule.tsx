@@ -28,11 +28,7 @@ import { Skeleton } from '@proctira/ui-components';
 import { cn } from './lib/utils';
 import { useAsyncAnnounce } from './lib/useAsyncAnnounce';
 
-export type TimelineItemStatus =
-  | 'completed'
-  | 'active'
-  | 'upcoming'
-  | 'cancelled';
+export type TimelineItemStatus = 'completed' | 'active' | 'upcoming' | 'cancelled';
 
 export interface TimelineItem {
   /** Stable id used as the React key. */
@@ -128,9 +124,7 @@ export function TimelineSchedule({
     loading,
     loadedMessage:
       loadedMessage ??
-      `${title ?? 'Schedule'} loaded: ${items.length} ${
-        items.length === 1 ? 'event' : 'events'
-      }`,
+      `${title ?? 'Schedule'} loaded: ${items.length} ${items.length === 1 ? 'event' : 'events'}`,
     error,
   });
 
@@ -143,13 +137,9 @@ export function TimelineSchedule({
         data-state="error"
       >
         {title ? (
-          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">
-            {title}
-          </h2>
+          <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">{title}</h2>
         ) : null}
-        <p className="text-sm text-[hsl(var(--destructive))]">
-          Unable to load schedule.
-        </p>
+        <p className="text-sm text-[hsl(var(--destructive))]">Unable to load schedule.</p>
       </div>
     );
   }
@@ -174,21 +164,14 @@ export function TimelineSchedule({
       aria-busy={loading ? 'true' : undefined}
     >
       {title ? (
-        <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">
-          {title}
-        </h2>
+        <h2 className="text-lg font-semibold text-[hsl(var(--foreground))]">{title}</h2>
       ) : null}
       {description ? (
-        <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          {description}
-        </p>
+        <p className="text-sm text-[hsl(var(--muted-foreground))]">{description}</p>
       ) : null}
 
       {loading ? (
-        <ul
-          className="space-y-3"
-          data-testid="timeline-schedule-skeleton"
-        >
+        <ul className="space-y-3" data-testid="timeline-schedule-skeleton">
           {Array.from({ length: Math.max(1, loadingRowCount) }).map((_, i) => (
             <li key={i} className="flex items-start gap-3">
               <Skeleton className="h-3 w-12 rounded" />
@@ -255,9 +238,7 @@ export function TimelineSchedule({
                               {item.description}
                             </p>
                           ) : null}
-                          <span className="sr-only">
-                            Status: {tone.label}
-                          </span>
+                          <span className="sr-only">Status: {tone.label}</span>
                         </div>
                       </div>
                     </li>

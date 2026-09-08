@@ -164,8 +164,12 @@ describe('buildRoutes — non-mobile scopes are unaffected by the flag', () => {
       const offGroup = findGroup(offTree, path);
       const onGroup = findGroup(onTree, path);
 
-      const offChildren = (offGroup?.children ?? []).map((c) => c.path ?? (c.index ? '__index__' : ''));
-      const onChildren = (onGroup?.children ?? []).map((c) => c.path ?? (c.index ? '__index__' : ''));
+      const offChildren = (offGroup?.children ?? []).map(
+        (c) => c.path ?? (c.index ? '__index__' : ''),
+      );
+      const onChildren = (onGroup?.children ?? []).map(
+        (c) => c.path ?? (c.index ? '__index__' : ''),
+      );
 
       expect(offChildren).toEqual(onChildren);
     }

@@ -71,11 +71,14 @@ describe('FeesService', () => {
         amountCents: 2500000,
       });
 
-      const { payment, receipt, invoice: paid } = await service.recordPayment(
-        TENANT_A,
-        'parent-a',
-        { invoiceId: invoice.id, method: 'sandbox' },
-      );
+      const {
+        payment,
+        receipt,
+        invoice: paid,
+      } = await service.recordPayment(TENANT_A, 'parent-a', {
+        invoiceId: invoice.id,
+        method: 'sandbox',
+      });
 
       expect(paid.status).toBe('paid');
       expect(payment.amountCents).toBe(invoice.amountCents);

@@ -38,12 +38,7 @@ import fc from 'fast-check';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { BACKOFF_SCHEDULE_MS, MAX_ATTEMPTS, replayAll } from '../replay';
-import {
-  _resetForTests,
-  enqueue,
-  getOperation,
-  peekAll,
-} from '../syncQueue';
+import { _resetForTests, enqueue, getOperation, peekAll } from '../syncQueue';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -110,10 +105,7 @@ const baseInput = (overrides: Partial<Parameters<typeof enqueue>[0]> = {}) => ({
  * implementation received. The `Headers` constructor normalises
  * objects, arrays, and `Headers` instances.
  */
-function extractHeader(
-  init: HeadersInit | undefined,
-  name: string,
-): string | null {
+function extractHeader(init: HeadersInit | undefined, name: string): string | null {
   if (!init) return null;
   return new Headers(init).get(name);
 }
@@ -159,17 +151,15 @@ describe('replayAll — success path', () => {
     ]);
 
     const results = await replayAll(fetch, fakeWait());
-    expect(results.map((r) => r.outcome)).toEqual([
-      'succeeded',
-      'succeeded',
-      'succeeded',
-    ]);
+    expect(results.map((r) => r.outcome)).toEqual(['succeeded', 'succeeded', 'succeeded']);
 
     // The Idempotency-Key header lets us confirm the calls executed
     // in createdAt order (a, b, c).
-    expect(
-      calls.map((c) => extractHeader(c.init?.headers, 'Idempotency-Key')),
-    ).toEqual(['idem-a', 'idem-b', 'idem-c']);
+    expect(calls.map((c) => extractHeader(c.init?.headers, 'Idempotency-Key'))).toEqual([
+      'idem-a',
+      'idem-b',
+      'idem-c',
+    ]);
 
     expect(await peekAll()).toEqual([]);
   });
@@ -186,9 +176,7 @@ describe('replayAll — success path', () => {
     await replayAll(fetch, fakeWait());
 
     expect(calls).toHaveLength(1);
-    expect(extractHeader(calls[0]!.init?.headers, 'Idempotency-Key')).toBe(
-      'idem-abc',
-    );
+    expect(extractHeader(calls[0]!.init?.headers, 'Idempotency-Key')).toBe('idem-abc');
     expect(await getOperation(id)).toBeNull();
   });
 
@@ -298,8 +286,7 @@ describe('replayAll — transient failures and backoff', () => {
 
   it('matches the design backoff schedule of 1 s, 2 s, 4 s, 8 s, 16 s, 32 s, ..., capped at 5 minutes', () => {
     expect(BACKOFF_SCHEDULE_MS).toEqual([
-      1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000,
-      300_000,
+      1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 300_000,
     ]);
     // Spec says "max 5 min, up to 10 attempts".
     expect(MAX_ATTEMPTS).toBe(10);
@@ -429,14 +416,10 @@ describe('replayAll — property tests', () => {
           );
         }
 
-        const { fetch, calls } = mockFetcher(
-          gen.map(() => new Response('', { status: 200 })),
-        );
+        const { fetch, calls } = mockFetcher(gen.map(() => new Response('', { status: 200 })));
         await replayAll(fetch, fakeWait());
 
-        const replayedKeys = calls.map((c) =>
-          extractHeader(c.init?.headers, 'Idempotency-Key'),
-        );
+        const replayedKeys = calls.map((c) => extractHeader(c.init?.headers, 'Idempotency-Key'));
         const expectedKeys = [...gen]
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
           .map((o) => o.idempotencyKey);
@@ -471,16 +454,12 @@ describe('replayAll — property tests', () => {
           idemByUrl.set(`/api/v1/x/${op.targetId}`, op.idempotencyKey);
         }
 
-        const { fetch, calls } = mockFetcher(
-          gen.map(() => new Response('', { status: 200 })),
-        );
+        const { fetch, calls } = mockFetcher(gen.map(() => new Response('', { status: 200 })));
         await replayAll(fetch, fakeWait());
 
         for (const call of calls) {
           const expected = idemByUrl.get(call.url);
-          expect(extractHeader(call.init?.headers, 'Idempotency-Key')).toBe(
-            expected,
-          );
+          expect(extractHeader(call.init?.headers, 'Idempotency-Key')).toBe(expected);
         }
       }),
       { numRuns: 30 },

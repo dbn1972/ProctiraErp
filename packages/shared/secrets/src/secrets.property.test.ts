@@ -39,7 +39,7 @@ describe('Secret Management Properties', () => {
         // The value is still accessible via expose()
         expect(secret.expose()).toBe(secretValue);
       }),
-      { numRuns: 200 }
+      { numRuns: 200 },
     );
   });
 
@@ -54,9 +54,9 @@ describe('Secret Management Properties', () => {
     const keyArb = fc.stringOf(
       fc.oneof(
         fc.char().filter((c) => /[a-z0-9]/.test(c)),
-        fc.constantFrom('.', '-', '/', '_')
+        fc.constantFrom('.', '-', '/', '_'),
       ),
-      { minLength: 1, maxLength: 50 }
+      { minLength: 1, maxLength: 50 },
     );
 
     fc.assert(
@@ -77,7 +77,7 @@ describe('Secret Management Properties', () => {
         // Cleanup
         delete process.env[expectedEnvKey];
       }),
-      { numRuns: 100 }
+      { numRuns: 100 },
     );
   });
 
@@ -105,7 +105,7 @@ describe('Secret Management Properties', () => {
         // isEmpty is correct
         expect(secret.isEmpty).toBe(value.length === 0);
       }),
-      { numRuns: 200 }
+      { numRuns: 200 },
     );
   });
 
@@ -117,10 +117,13 @@ describe('Secret Management Properties', () => {
    */
   it('EnvSecretAdapter round-trips secrets correctly', async () => {
     // Use simple alphanumeric keys to avoid env var naming issues
-    const keyArb = fc.stringOf(fc.char().filter((c) => /[a-z]/.test(c)), {
-      minLength: 1,
-      maxLength: 20,
-    });
+    const keyArb = fc.stringOf(
+      fc.char().filter((c) => /[a-z]/.test(c)),
+      {
+        minLength: 1,
+        maxLength: 20,
+      },
+    );
     const valueArb = fc.string({ minLength: 0, maxLength: 200 });
 
     await fc.assert(
@@ -141,7 +144,7 @@ describe('Secret Management Properties', () => {
         const envKey = `ROUNDTRIP_${key.replace(/[.\-/]/g, '_').toUpperCase()}`;
         delete process.env[envKey];
       }),
-      { numRuns: 100 }
+      { numRuns: 100 },
     );
   });
 });

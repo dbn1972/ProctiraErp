@@ -19,12 +19,12 @@ groups:
           slo: parent-portal-journey
           journey: parent-portal
         annotations:
-          summary: "Parent portal journey error budget burning on api-gateway"
+          summary: 'Parent portal journey error budget burning on api-gateway'
           description: |
             api-gateway 5xx rate is above 2% for 10m. Parent messaging / consent / fees
             journeys may be impacted. See docs/observability/SLO_CRITICAL_JOURNEYS.md.
-          runbook_url: "https://runbooks.proctira.org/services/api-gateway.md#error-rate-high"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-slo-tracking"
+          runbook_url: 'https://runbooks.proctira.org/services/api-gateway.md#error-rate-high'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-slo-tracking'
 
       - alert: AuthLoginJourneyErrorBudgetBurn
         expr: |
@@ -40,9 +40,9 @@ groups:
           slo: auth-login-journey
           journey: auth-login
         annotations:
-          summary: "Auth / login journey error budget burning"
+          summary: 'Auth / login journey error budget burning'
           description: |
             Combined auth + api-gateway 5xx rate above 1% for 5m.
             See docs/observability/SLO_CRITICAL_JOURNEYS.md.
-          runbook_url: "https://runbooks.proctira.org/services/auth.md#error-rate-high"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-slo-tracking"
+          runbook_url: 'https://runbooks.proctira.org/services/auth.md#error-rate-high'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-slo-tracking'

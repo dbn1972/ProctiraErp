@@ -69,10 +69,7 @@ const FEDERATED_PROVIDERS: readonly FederatedProvider[] = [
 ] as const;
 
 /** Builds the OAuth authorize URL the federated buttons redirect to. */
-export function buildOAuthHref(
-  provider: FederatedProviderId,
-  returnTo: string,
-): string {
+export function buildOAuthHref(provider: FederatedProviderId, returnTo: string): string {
   const params = new URLSearchParams({ provider });
   if (returnTo) params.set('returnTo', returnTo);
   return `/api/auth/oauth/authorize?${params.toString()}`;
@@ -228,27 +225,17 @@ export default function SignIn(): ReactElement {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   aria-invalid={passwordError ? 'true' : undefined}
-                  aria-describedby={
-                    passwordError ? 'signin-password-error' : undefined
-                  }
+                  aria-describedby={passwordError ? 'signin-password-error' : undefined}
                   className="pe-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   className="absolute end-0 top-0 inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                  aria-label={
-                    showPassword
-                      ? t('auth.hidePassword')
-                      : t('auth.showPassword')
-                  }
+                  aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                   tabIndex={-1}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {passwordError && (
@@ -285,12 +272,7 @@ export default function SignIn(): ReactElement {
               className="w-full"
               data-testid="signin-submit"
             >
-              {isSubmitting && (
-                <Loader2
-                  className="me-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              )}
+              {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />}
               {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
             </Button>
           </form>
@@ -300,9 +282,7 @@ export default function SignIn(): ReactElement {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">
-                {t('auth.orContinueWith')}
-              </span>
+              <span className="bg-card px-2 text-muted-foreground">{t('auth.orContinueWith')}</span>
             </div>
           </div>
 
@@ -320,17 +300,13 @@ export default function SignIn(): ReactElement {
                   data-testid={`signin-oauth-${provider.id}`}
                 >
                   <OAuthIcon provider={provider.icon} />
-                  <span>
-                    {t('auth.continueWith', { provider: provider.name })}
-                  </span>
+                  <span>{t('auth.continueWith', { provider: provider.name })}</span>
                 </a>
               </Button>
             ))}
           </div>
 
-          <p className="mt-8 text-center text-xs text-muted-foreground">
-            {t('auth.contactAdmin')}
-          </p>
+          <p className="mt-8 text-center text-xs text-muted-foreground">{t('auth.contactAdmin')}</p>
         </CardContent>
       </Card>
     </div>

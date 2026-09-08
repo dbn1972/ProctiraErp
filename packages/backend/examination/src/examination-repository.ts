@@ -133,7 +133,11 @@ export interface ExaminationRepository {
   create(data: Omit<ExaminationEntity, 'createdAt' | 'updatedAt'>): Promise<ExaminationEntity>;
 
   /** Update an existing examination */
-  update(id: string, tenantId: string, data: Partial<ExaminationEntity>): Promise<ExaminationEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<ExaminationEntity>,
+  ): Promise<ExaminationEntity | null>;
 
   /** Find an examination by ID within a tenant */
   findById(id: string, tenantId: string): Promise<ExaminationEntity | null>;

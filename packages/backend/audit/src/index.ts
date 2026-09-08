@@ -18,11 +18,7 @@ export type { AuditPluginOptions } from './audit-plugin.js';
 
 // Service
 export { AuditService, PROTECTED_ENTITY_TYPES } from './audit-service.js';
-export type {
-  RecordAuditInput,
-  QueryAuditInput,
-  SetRetentionInput,
-} from './audit-service.js';
+export type { RecordAuditInput, QueryAuditInput, SetRetentionInput } from './audit-service.js';
 
 // Repository
 export type {

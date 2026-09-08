@@ -32,9 +32,24 @@ const TEST_AREAS: AreaNode[] = [
   { id: 'country', parentId: null, level: 0, path: '/country' },
   { id: 'region-north', parentId: 'country', level: 1, path: '/country/region-north' },
   { id: 'region-south', parentId: 'country', level: 1, path: '/country/region-south' },
-  { id: 'district-a', parentId: 'region-north', level: 2, path: '/country/region-north/district-a' },
-  { id: 'district-b', parentId: 'region-north', level: 2, path: '/country/region-north/district-b' },
-  { id: 'district-c', parentId: 'region-south', level: 2, path: '/country/region-south/district-c' },
+  {
+    id: 'district-a',
+    parentId: 'region-north',
+    level: 2,
+    path: '/country/region-north/district-a',
+  },
+  {
+    id: 'district-b',
+    parentId: 'region-north',
+    level: 2,
+    path: '/country/region-north/district-b',
+  },
+  {
+    id: 'district-c',
+    parentId: 'region-south',
+    level: 2,
+    path: '/country/region-south/district-c',
+  },
 ];
 
 const TEST_SECRET = 'test-secret-key-for-rbac-tests-minimum-32-chars';
@@ -74,9 +89,13 @@ describe('RBAC Fastify Plugin', () => {
     await app.register(authPlugin, { config });
     await app.register(rbacPlugin, { registry, areaResolver });
 
-    app.get('/test', {
-      preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
-    }, async () => ({ ok: true }));
+    app.get(
+      '/test',
+      {
+        preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
+      },
+      async () => ({ ok: true }),
+    );
 
     await app.ready();
 
@@ -97,9 +116,13 @@ describe('RBAC Fastify Plugin', () => {
     await app.register(authPlugin, { config });
     await app.register(rbacPlugin, { registry, areaResolver });
 
-    app.get('/institutions', {
-      preHandler: [app.authenticate, app.requirePermission('institution', 'create')],
-    }, async () => ({ ok: true }));
+    app.get(
+      '/institutions',
+      {
+        preHandler: [app.authenticate, app.requirePermission('institution', 'create')],
+      },
+      async () => ({ ok: true }),
+    );
 
     await app.ready();
 
@@ -132,9 +155,13 @@ describe('RBAC Fastify Plugin', () => {
     await app.register(authPlugin, { config });
     await app.register(rbacPlugin, { registry, areaResolver });
 
-    app.get('/institutions', {
-      preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
-    }, async () => ({ ok: true }));
+    app.get(
+      '/institutions',
+      {
+        preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
+      },
+      async () => ({ ok: true }),
+    );
 
     await app.ready();
 
@@ -167,9 +194,13 @@ describe('RBAC Fastify Plugin', () => {
     await app.register(authPlugin, { config });
     await app.register(rbacPlugin, { registry, areaResolver });
 
-    app.get('/institutions', {
-      preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
-    }, async () => ({ ok: true }));
+    app.get(
+      '/institutions',
+      {
+        preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
+      },
+      async () => ({ ok: true }),
+    );
 
     await app.ready();
 
@@ -208,9 +239,13 @@ describe('RBAC Fastify Plugin', () => {
     await app.register(authPlugin, { config });
     await app.register(rbacPlugin, { registry, areaResolver });
 
-    app.get('/areas/:areaId/institutions', {
-      preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
-    }, async () => ({ ok: true }));
+    app.get(
+      '/areas/:areaId/institutions',
+      {
+        preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
+      },
+      async () => ({ ok: true }),
+    );
 
     await app.ready();
 
@@ -255,12 +290,16 @@ describe('RBAC Fastify Plugin', () => {
       return areaId ? { areaId } : undefined;
     };
 
-    app.get('/custom', {
-      preHandler: [
-        app.authenticate,
-        app.requirePermission('institution', 'read', customExtractor as any),
-      ],
-    }, async () => ({ ok: true }));
+    app.get(
+      '/custom',
+      {
+        preHandler: [
+          app.authenticate,
+          app.requirePermission('institution', 'read', customExtractor as any),
+        ],
+      },
+      async () => ({ ok: true }),
+    );
 
     await app.ready();
 
@@ -304,9 +343,13 @@ describe('RBAC Fastify Plugin', () => {
     await app.register(authPlugin, { config });
     await app.register(rbacPlugin, { registry, areaResolver });
 
-    app.get('/dashboard', {
-      preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
-    }, async () => ({ ok: true }));
+    app.get(
+      '/dashboard',
+      {
+        preHandler: [app.authenticate, app.requirePermission('institution', 'read')],
+      },
+      async () => ({ ok: true }),
+    );
 
     await app.ready();
 

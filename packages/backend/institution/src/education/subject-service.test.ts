@@ -63,9 +63,9 @@ describe('SubjectService', () => {
     it('should throw ConflictError if code already exists', async () => {
       prisma.subject.findUnique.mockResolvedValue({ id: 'existing' });
 
-      await expect(
-        service.create(TENANT_ID, { name: 'Math', code: 'MATH' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.create(TENANT_ID, { name: 'Math', code: 'MATH' })).rejects.toThrow(
+        ConflictError,
+      );
     });
   });
 
@@ -89,9 +89,9 @@ describe('SubjectService', () => {
     it('should throw NotFoundError if subject not found', async () => {
       prisma.subject.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.update(TENANT_ID, 'nonexistent', { name: 'X' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.update(TENANT_ID, 'nonexistent', { name: 'X' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw ConflictError if new code already exists', async () => {
@@ -99,9 +99,9 @@ describe('SubjectService', () => {
       prisma.subject.findFirst.mockResolvedValue(existing);
       prisma.subject.findUnique.mockResolvedValue({ id: 'other' });
 
-      await expect(
-        service.update(TENANT_ID, 'subj-1', { code: 'SCI' }),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.update(TENANT_ID, 'subj-1', { code: 'SCI' })).rejects.toThrow(
+        ConflictError,
+      );
     });
   });
 
@@ -123,7 +123,10 @@ describe('SubjectService', () => {
 
   describe('list', () => {
     it('should return all subjects ordered by name', async () => {
-      const subjects = [{ id: 's1', name: 'Art' }, { id: 's2', name: 'Math' }];
+      const subjects = [
+        { id: 's1', name: 'Art' },
+        { id: 's2', name: 'Math' },
+      ];
       prisma.subject.findMany.mockResolvedValue(subjects);
 
       const result = await service.list(TENANT_ID);
@@ -248,9 +251,9 @@ describe('SubjectService', () => {
     it('should throw NotFoundError if link not found', async () => {
       prisma.institutionSubject.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.unlinkFromGrade(TENANT_ID, 'nonexistent'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.unlinkFromGrade(TENANT_ID, 'nonexistent')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 

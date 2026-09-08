@@ -52,9 +52,9 @@ export function DuplicateResolutionStep({
       <div className="space-y-2">
         <h3 className="text-lg font-medium">Resolve Duplicates</h3>
         <p className="text-sm text-muted-foreground">
-          {duplicates.length} potential duplicate{duplicates.length !== 1 ? 's' : ''} found.
-          For each match, choose whether to skip the import row, update the existing
-          record, or create a new record.
+          {duplicates.length} potential duplicate{duplicates.length !== 1 ? 's' : ''} found. For
+          each match, choose whether to skip the import row, update the existing record, or create a
+          new record.
         </p>
       </div>
 
@@ -80,7 +80,8 @@ export function DuplicateResolutionStep({
           className="rounded-md border border-amber-500/50 bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/20 dark:text-amber-200"
           role="alert"
         >
-          {unresolvedCount} duplicate{unresolvedCount !== 1 ? 's' : ''} still need resolution before importing.
+          {unresolvedCount} duplicate{unresolvedCount !== 1 ? 's' : ''} still need resolution before
+          importing.
         </div>
       )}
 
@@ -145,16 +146,12 @@ export function DuplicateResolutionStep({
                   </div>
                   <div className="flex gap-2">
                     <dt className="font-medium">DOB:</dt>
-                    <dd className="text-muted-foreground">
-                      {dup.existingRecord.dateOfBirth}
-                    </dd>
+                    <dd className="text-muted-foreground">{dup.existingRecord.dateOfBirth}</dd>
                   </div>
                   {dup.existingRecord.nationalId && (
                     <div className="flex gap-2">
                       <dt className="font-medium">National ID:</dt>
-                      <dd className="text-muted-foreground">
-                        {dup.existingRecord.nationalId}
-                      </dd>
+                      <dd className="text-muted-foreground">{dup.existingRecord.nationalId}</dd>
                     </div>
                   )}
                   <div className="flex gap-2">
@@ -169,9 +166,7 @@ export function DuplicateResolutionStep({
 
             {/* Resolution selector */}
             <fieldset>
-              <legend className="sr-only">
-                Resolution for row {dup.importRow}
-              </legend>
+              <legend className="sr-only">Resolution for row {dup.importRow}</legend>
               <div className="flex flex-wrap gap-2">
                 {RESOLUTION_OPTIONS.map((opt) => (
                   <label
@@ -187,9 +182,7 @@ export function DuplicateResolutionStep({
                       name={`resolution-${dup.importRow}`}
                       value={opt.value}
                       checked={dup.resolution === opt.value}
-                      onChange={() =>
-                        onResolutionChange(dup.importRow, opt.value)
-                      }
+                      onChange={() => onResolutionChange(dup.importRow, opt.value)}
                       className="sr-only"
                     />
                     <span>{opt.label}</span>

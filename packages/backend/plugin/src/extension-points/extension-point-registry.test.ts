@@ -85,9 +85,7 @@ describe('ExtensionPointRegistry', () => {
     });
 
     it('should list extension points with filters', () => {
-      BUILT_IN_EXTENSION_POINTS.forEach((ep) =>
-        registry.registerExtensionPoint(ep),
-      );
+      BUILT_IN_EXTENSION_POINTS.forEach((ep) => registry.registerExtensionPoint(ep));
 
       const studentHooks = registry.listExtensionPoints({
         entityType: 'student',
@@ -182,7 +180,9 @@ describe('ExtensionPointRegistry', () => {
           handler,
           pluginPermissions: ['other.permission'],
         }),
-      ).toThrow("Plugin lacks required permissions for extension point 'test.before-create': test.write");
+      ).toThrow(
+        "Plugin lacks required permissions for extension point 'test.before-create': test.write",
+      );
     });
 
     it('should reject hooks for deprecated extension points', () => {
@@ -220,7 +220,9 @@ describe('ExtensionPointRegistry', () => {
           handler,
           pluginPermissions: [],
         }),
-      ).toThrow("Extension point 'test.deprecated' is deprecated. Use 'test.before-create' instead");
+      ).toThrow(
+        "Extension point 'test.deprecated' is deprecated. Use 'test.before-create' instead",
+      );
     });
   });
 
@@ -277,10 +279,14 @@ describe('ExtensionPointRegistry', () => {
         pluginPermissions: ['test.write'],
       });
 
-      await registry.invokeHooks('test.before-create', { name: 'test' }, {
-        tenantId: 'tenant-1',
-        actorId: 'user-1',
-      });
+      await registry.invokeHooks(
+        'test.before-create',
+        { name: 'test' },
+        {
+          tenantId: 'tenant-1',
+          actorId: 'user-1',
+        },
+      );
 
       expect(order).toEqual([1, 2]);
     });
@@ -300,10 +306,14 @@ describe('ExtensionPointRegistry', () => {
         pluginPermissions: ['test.write'],
       });
 
-      await registry.invokeHooks('test.before-create', {}, {
-        tenantId: 'tenant-1',
-        actorId: 'user-1',
-      });
+      await registry.invokeHooks(
+        'test.before-create',
+        {},
+        {
+          tenantId: 'tenant-1',
+          actorId: 'user-1',
+        },
+      );
 
       expect(invoked).toBe(false);
     });
@@ -321,10 +331,14 @@ describe('ExtensionPointRegistry', () => {
         pluginPermissions: ['test.write'],
       });
 
-      const results = await registry.invokeHooks('test.before-create', {}, {
-        tenantId: 'tenant-1',
-        actorId: 'user-1',
-      });
+      const results = await registry.invokeHooks(
+        'test.before-create',
+        {},
+        {
+          tenantId: 'tenant-1',
+          actorId: 'user-1',
+        },
+      );
 
       expect(results).toHaveLength(1);
       expect(results[0]!.success).toBe(false);
@@ -360,10 +374,14 @@ describe('ExtensionPointRegistry', () => {
         pluginPermissions: ['test.write'],
       });
 
-      const results = await registry.invokeHooks('test.before-create', {}, {
-        tenantId: 'tenant-1',
-        actorId: 'user-1',
-      });
+      const results = await registry.invokeHooks(
+        'test.before-create',
+        {},
+        {
+          tenantId: 'tenant-1',
+          actorId: 'user-1',
+        },
+      );
 
       expect(order).toEqual([1]);
       expect(results).toHaveLength(1);
@@ -765,9 +783,7 @@ describe('ExtensionPointRegistry', () => {
         registry.registerExtensionPoint(ep);
       });
 
-      expect(registry.listExtensionPoints()).toHaveLength(
-        BUILT_IN_EXTENSION_POINTS.length,
-      );
+      expect(registry.listExtensionPoints()).toHaveLength(BUILT_IN_EXTENSION_POINTS.length);
     });
 
     it('should register all built-in UI slots without error', () => {
@@ -783,19 +799,13 @@ describe('ExtensionPointRegistry', () => {
         registry.registerEventDefinition(def);
       });
 
-      expect(registry.listEventDefinitions()).toHaveLength(
-        BUILT_IN_EVENT_DEFINITIONS.length,
-      );
+      expect(registry.listEventDefinitions()).toHaveLength(BUILT_IN_EVENT_DEFINITIONS.length);
     });
 
     it('should provide a summary of all registrations', () => {
-      BUILT_IN_EXTENSION_POINTS.forEach((ep) =>
-        registry.registerExtensionPoint(ep),
-      );
+      BUILT_IN_EXTENSION_POINTS.forEach((ep) => registry.registerExtensionPoint(ep));
       BUILT_IN_UI_SLOTS.forEach((slot) => registry.registerUISlot(slot));
-      BUILT_IN_EVENT_DEFINITIONS.forEach((def) =>
-        registry.registerEventDefinition(def),
-      );
+      BUILT_IN_EVENT_DEFINITIONS.forEach((def) => registry.registerEventDefinition(def));
 
       const summary = registry.getSummary();
       expect(summary.extensionPoints).toBe(BUILT_IN_EXTENSION_POINTS.length);

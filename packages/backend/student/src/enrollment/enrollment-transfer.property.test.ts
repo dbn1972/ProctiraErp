@@ -46,9 +46,7 @@ const isoDateArb: fc.Arbitrary<string> = fc
  * Generates a non-empty reason string (1–500 chars).
  */
 const reasonArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(
-    ...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 '.split(''),
-  ),
+  fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 '.split('')),
   { minLength: 1, maxLength: 100 },
 );
 
@@ -170,7 +168,9 @@ describe('Property 11: Student Transfer State Consistency', () => {
 
         // Property: transfer record links correct institutions
         expect(result.transferRecord.sourceInstitutionId).toBe(scenario.sourceInstitutionId);
-        expect(result.transferRecord.destinationInstitutionId).toBe(scenario.destinationInstitutionId);
+        expect(result.transferRecord.destinationInstitutionId).toBe(
+          scenario.destinationInstitutionId,
+        );
 
         // Property: transfer record has correct date
         expect(result.transferRecord.transferDate).toEqual(new Date(scenario.transferDate));
@@ -278,9 +278,9 @@ describe('Property 12: Student Transfer Destination Validation', () => {
           };
 
           // Property: transfer MUST be rejected
-          await expect(
-            service.transferStudent(scenario.tenantId, transferInput),
-          ).rejects.toThrow(BusinessRuleError);
+          await expect(service.transferStudent(scenario.tenantId, transferInput)).rejects.toThrow(
+            BusinessRuleError,
+          );
 
           // Property: source enrollment status MUST remain ENROLLED (unchanged)
           const sourceAfter = await service.getEnrollmentById(scenario.tenantId, enrollment.id);
@@ -293,110 +293,102 @@ describe('Property 12: Student Transfer Destination Validation', () => {
 
   it('transfers to inactive institutions are always rejected with BusinessRuleError', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        transferScenarioArb,
-        inactiveStatusArb,
-        async (scenario, inactiveStatus) => {
-          const repository = new InMemoryEnrollmentRepository();
-          const service = new EnrollmentService(repository);
+      fc.asyncProperty(transferScenarioArb, inactiveStatusArb, async (scenario, inactiveStatus) => {
+        const repository = new InMemoryEnrollmentRepository();
+        const service = new EnrollmentService(repository);
 
-          // Add source as active, destination as inactive
-          repository.addInstitution(scenario.sourceInstitutionId, scenario.tenantId, 'active');
-          repository.addInstitution(
-            scenario.destinationInstitutionId,
-            scenario.tenantId,
-            inactiveStatus,
-          );
+        // Add source as active, destination as inactive
+        repository.addInstitution(scenario.sourceInstitutionId, scenario.tenantId, 'active');
+        repository.addInstitution(
+          scenario.destinationInstitutionId,
+          scenario.tenantId,
+          inactiveStatus,
+        );
 
-          // Create initial enrollment
-          const createInput: CreateEnrollmentInput = {
-            studentId: scenario.studentId,
-            institutionId: scenario.sourceInstitutionId,
-            gradeId: scenario.gradeId,
-            classId: scenario.classId,
-            academicPeriodId: scenario.academicPeriodId,
-            enrolledAt: scenario.enrolledAt,
-          };
-          const enrollment = await service.createEnrollment(scenario.tenantId, createInput);
+        // Create initial enrollment
+        const createInput: CreateEnrollmentInput = {
+          studentId: scenario.studentId,
+          institutionId: scenario.sourceInstitutionId,
+          gradeId: scenario.gradeId,
+          classId: scenario.classId,
+          academicPeriodId: scenario.academicPeriodId,
+          enrolledAt: scenario.enrolledAt,
+        };
+        const enrollment = await service.createEnrollment(scenario.tenantId, createInput);
 
-          // Attempt transfer to inactive institution
-          const transferInput: StudentTransferInput = {
-            studentId: scenario.studentId,
-            sourceEnrollmentId: enrollment.id,
-            destinationInstitutionId: scenario.destinationInstitutionId,
-            destinationGradeId: scenario.destinationGradeId,
-            destinationClassId: scenario.destinationClassId,
-            academicPeriodId: scenario.academicPeriodId,
-            transferDate: scenario.transferDate,
-            reason: scenario.reason,
-          };
+        // Attempt transfer to inactive institution
+        const transferInput: StudentTransferInput = {
+          studentId: scenario.studentId,
+          sourceEnrollmentId: enrollment.id,
+          destinationInstitutionId: scenario.destinationInstitutionId,
+          destinationGradeId: scenario.destinationGradeId,
+          destinationClassId: scenario.destinationClassId,
+          academicPeriodId: scenario.academicPeriodId,
+          transferDate: scenario.transferDate,
+          reason: scenario.reason,
+        };
 
-          // Property: transfer MUST be rejected
-          await expect(
-            service.transferStudent(scenario.tenantId, transferInput),
-          ).rejects.toThrow(BusinessRuleError);
+        // Property: transfer MUST be rejected
+        await expect(service.transferStudent(scenario.tenantId, transferInput)).rejects.toThrow(
+          BusinessRuleError,
+        );
 
-          // Property: source enrollment status MUST remain ENROLLED (unchanged)
-          const sourceAfter = await service.getEnrollmentById(scenario.tenantId, enrollment.id);
-          expect(sourceAfter.status).toBe(EnrollmentStatus.ENROLLED);
-        },
-      ),
+        // Property: source enrollment status MUST remain ENROLLED (unchanged)
+        const sourceAfter = await service.getEnrollmentById(scenario.tenantId, enrollment.id);
+        expect(sourceAfter.status).toBe(EnrollmentStatus.ENROLLED);
+      }),
       { numRuns: 100 },
     );
   });
 
   it('rejected transfers do not create transfer records', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        transferScenarioArb,
-        inactiveStatusArb,
-        async (scenario, inactiveStatus) => {
-          const repository = new InMemoryEnrollmentRepository();
-          const service = new EnrollmentService(repository);
+      fc.asyncProperty(transferScenarioArb, inactiveStatusArb, async (scenario, inactiveStatus) => {
+        const repository = new InMemoryEnrollmentRepository();
+        const service = new EnrollmentService(repository);
 
-          repository.addInstitution(scenario.sourceInstitutionId, scenario.tenantId, 'active');
-          repository.addInstitution(
-            scenario.destinationInstitutionId,
-            scenario.tenantId,
-            inactiveStatus,
-          );
+        repository.addInstitution(scenario.sourceInstitutionId, scenario.tenantId, 'active');
+        repository.addInstitution(
+          scenario.destinationInstitutionId,
+          scenario.tenantId,
+          inactiveStatus,
+        );
 
-          const createInput: CreateEnrollmentInput = {
-            studentId: scenario.studentId,
-            institutionId: scenario.sourceInstitutionId,
-            gradeId: scenario.gradeId,
-            classId: scenario.classId,
-            academicPeriodId: scenario.academicPeriodId,
-            enrolledAt: scenario.enrolledAt,
-          };
-          const enrollment = await service.createEnrollment(scenario.tenantId, createInput);
+        const createInput: CreateEnrollmentInput = {
+          studentId: scenario.studentId,
+          institutionId: scenario.sourceInstitutionId,
+          gradeId: scenario.gradeId,
+          classId: scenario.classId,
+          academicPeriodId: scenario.academicPeriodId,
+          enrolledAt: scenario.enrolledAt,
+        };
+        const enrollment = await service.createEnrollment(scenario.tenantId, createInput);
 
-          const transferInput: StudentTransferInput = {
-            studentId: scenario.studentId,
-            sourceEnrollmentId: enrollment.id,
-            destinationInstitutionId: scenario.destinationInstitutionId,
-            destinationGradeId: scenario.destinationGradeId,
-            destinationClassId: scenario.destinationClassId,
-            academicPeriodId: scenario.academicPeriodId,
-            transferDate: scenario.transferDate,
-            reason: scenario.reason,
-          };
+        const transferInput: StudentTransferInput = {
+          studentId: scenario.studentId,
+          sourceEnrollmentId: enrollment.id,
+          destinationInstitutionId: scenario.destinationInstitutionId,
+          destinationGradeId: scenario.destinationGradeId,
+          destinationClassId: scenario.destinationClassId,
+          academicPeriodId: scenario.academicPeriodId,
+          transferDate: scenario.transferDate,
+          reason: scenario.reason,
+        };
 
-          // Attempt transfer (should fail)
-          try {
-            await service.transferStudent(scenario.tenantId, transferInput);
-          } catch {
-            // Expected
-          }
+        // Attempt transfer (should fail)
+        try {
+          await service.transferStudent(scenario.tenantId, transferInput);
+        } catch {
+          // Expected
+        }
 
-          // Property: no transfer records should exist
-          const transfers = await service.getStudentTransferRecords(
-            scenario.tenantId,
-            scenario.studentId,
-          );
-          expect(transfers).toHaveLength(0);
-        },
-      ),
+        // Property: no transfer records should exist
+        const transfers = await service.getStudentTransferRecords(
+          scenario.tenantId,
+          scenario.studentId,
+        );
+        expect(transfers).toHaveLength(0);
+      }),
       { numRuns: 100 },
     );
   });
@@ -409,44 +401,41 @@ describe('Property 13: Enrollment Status History Completeness', () => {
 
   it('every enrollment creation produces a history entry with correct fields', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        transferScenarioArb,
-        async (scenario) => {
-          const repository = new InMemoryEnrollmentRepository();
-          const service = new EnrollmentService(repository);
+      fc.asyncProperty(transferScenarioArb, async (scenario) => {
+        const repository = new InMemoryEnrollmentRepository();
+        const service = new EnrollmentService(repository);
 
-          repository.addInstitution(scenario.sourceInstitutionId, scenario.tenantId, 'active');
+        repository.addInstitution(scenario.sourceInstitutionId, scenario.tenantId, 'active');
 
-          const createInput: CreateEnrollmentInput = {
-            studentId: scenario.studentId,
-            institutionId: scenario.sourceInstitutionId,
-            gradeId: scenario.gradeId,
-            classId: scenario.classId,
-            academicPeriodId: scenario.academicPeriodId,
-            enrolledAt: scenario.enrolledAt,
-          };
-          const enrollment = await service.createEnrollment(scenario.tenantId, createInput);
+        const createInput: CreateEnrollmentInput = {
+          studentId: scenario.studentId,
+          institutionId: scenario.sourceInstitutionId,
+          gradeId: scenario.gradeId,
+          classId: scenario.classId,
+          academicPeriodId: scenario.academicPeriodId,
+          enrolledAt: scenario.enrolledAt,
+        };
+        const enrollment = await service.createEnrollment(scenario.tenantId, createInput);
 
-          // Get history for the enrollment
-          const history = await repository.getHistoryByEnrollmentId(enrollment.id);
+        // Get history for the enrollment
+        const history = await repository.getHistoryByEnrollmentId(enrollment.id);
 
-          // Property: at least one history entry exists
-          expect(history.length).toBeGreaterThanOrEqual(1);
+        // Property: at least one history entry exists
+        expect(history.length).toBeGreaterThanOrEqual(1);
 
-          // Find the initial enrollment entry
-          const initialEntry = history.find((h) => h.newStatus === EnrollmentStatus.ENROLLED);
-          expect(initialEntry).toBeDefined();
+        // Find the initial enrollment entry
+        const initialEntry = history.find((h) => h.newStatus === EnrollmentStatus.ENROLLED);
+        expect(initialEntry).toBeDefined();
 
-          // Property: history entry contains all required fields
-          expect(initialEntry!.enrollmentId).toBe(enrollment.id);
-          expect(initialEntry!.previousStatus).toBeNull(); // first enrollment has no previous
-          expect(initialEntry!.newStatus).toBe(EnrollmentStatus.ENROLLED);
-          expect(initialEntry!.effectiveDate).toEqual(new Date(scenario.enrolledAt));
-          expect(initialEntry!.institutionId).toBe(scenario.sourceInstitutionId);
-          expect(initialEntry!.academicPeriodId).toBe(scenario.academicPeriodId);
-          expect(initialEntry!.reason).toBeDefined();
-        },
-      ),
+        // Property: history entry contains all required fields
+        expect(initialEntry!.enrollmentId).toBe(enrollment.id);
+        expect(initialEntry!.previousStatus).toBeNull(); // first enrollment has no previous
+        expect(initialEntry!.newStatus).toBe(EnrollmentStatus.ENROLLED);
+        expect(initialEntry!.effectiveDate).toEqual(new Date(scenario.enrolledAt));
+        expect(initialEntry!.institutionId).toBe(scenario.sourceInstitutionId);
+        expect(initialEntry!.academicPeriodId).toBe(scenario.academicPeriodId);
+        expect(initialEntry!.reason).toBeDefined();
+      }),
       { numRuns: 100 },
     );
   });
@@ -575,9 +564,7 @@ describe('Property 13: Enrollment Status History Completeness', () => {
         );
 
         // Property: destination has history entry for ENROLLED
-        const transferInEntry = destHistory.find(
-          (h) => h.newStatus === EnrollmentStatus.ENROLLED,
-        );
+        const transferInEntry = destHistory.find((h) => h.newStatus === EnrollmentStatus.ENROLLED);
         expect(transferInEntry).toBeDefined();
         expect(transferInEntry!.previousStatus).toBeNull();
         expect(transferInEntry!.effectiveDate).toEqual(new Date(scenario.transferDate));

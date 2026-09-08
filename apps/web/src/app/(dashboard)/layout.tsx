@@ -14,11 +14,7 @@ import { requireSession } from '@/lib/auth/server';
  * tree (auth, language, theme, connectivity) preserve session, locale,
  * theme, and Sync_Queue state through the switch (Requirement 41 AC 6).
  */
-export default async function DashboardLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   await requireSession();
 
   return <AppShell>{children}</AppShell>;

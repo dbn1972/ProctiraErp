@@ -9,10 +9,7 @@ import { requireRole } from '@/lib/auth/server';
 const decisionSchema = z.object({
   id: z.string().min(1, 'Plugin id is required.'),
   action: z.enum(['approve', 'revoke', 'disable', 'reject']),
-  reason: z
-    .string()
-    .min(10, 'Provide at least 10 characters of justification.')
-    .max(2000),
+  reason: z.string().min(10, 'Provide at least 10 characters of justification.').max(2000),
 });
 
 export interface PluginDecisionState {

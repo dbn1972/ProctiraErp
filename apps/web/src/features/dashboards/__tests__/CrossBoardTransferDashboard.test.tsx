@@ -29,15 +29,13 @@ vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();
   return {
     ...actual,
-    useCrossBoardTransferData: (id?: string) =>
-      useCrossBoardTransferDataMock(id),
+    useCrossBoardTransferData: (id?: string) => useCrossBoardTransferDataMock(id),
   };
 });
 
 async function renderPage(transferId?: string) {
-  const { default: CrossBoardTransferDashboard } = await import(
-    '../pages/CrossBoardTransferDashboard'
-  );
+  const { default: CrossBoardTransferDashboard } =
+    await import('../pages/CrossBoardTransferDashboard');
   const path = transferId
     ? `/app/dashboard/cross-board-transfer/${transferId}`
     : '/app/dashboard/cross-board-transfer';
@@ -78,14 +76,10 @@ describe('<CrossBoardTransferDashboard>', () => {
       'destination_approved',
       'completed',
     ]) {
-      expect(
-        within(stepper).getByTestId(`cross-board-transfer-step-${stateId}`),
-      ).toBeTruthy();
+      expect(within(stepper).getByTestId(`cross-board-transfer-step-${stateId}`)).toBeTruthy();
     }
 
-    const currentStep = screen.getByTestId(
-      'cross-board-transfer-step-equivalency_mapped',
-    );
+    const currentStep = screen.getByTestId('cross-board-transfer-step-equivalency_mapped');
     expect(currentStep.getAttribute('data-status')).toBe('current');
   });
 
@@ -99,9 +93,7 @@ describe('<CrossBoardTransferDashboard>', () => {
     await renderPage();
 
     const source = screen.getByTestId('cross-board-transfer-source-card');
-    const destination = screen.getByTestId(
-      'cross-board-transfer-destination-card',
-    );
+    const destination = screen.getByTestId('cross-board-transfer-destination-card');
     expect(within(source).getByText(/Maharashtra State Board School/)).toBeTruthy();
     expect(within(destination).getByText(/CBSE Academy/)).toBeTruthy();
   });
@@ -171,15 +163,9 @@ describe('<CrossBoardTransferDashboard>', () => {
 
     await renderPage();
 
-    const approve = screen.getByTestId(
-      'cross-board-transfer-approve-button',
-    ) as HTMLButtonElement;
-    const reject = screen.getByTestId(
-      'cross-board-transfer-reject-button',
-    ) as HTMLButtonElement;
-    const info = screen.getByTestId(
-      'cross-board-transfer-info-button',
-    ) as HTMLButtonElement;
+    const approve = screen.getByTestId('cross-board-transfer-approve-button') as HTMLButtonElement;
+    const reject = screen.getByTestId('cross-board-transfer-reject-button') as HTMLButtonElement;
+    const info = screen.getByTestId('cross-board-transfer-info-button') as HTMLButtonElement;
 
     expect(approve.disabled).toBe(true);
     expect(reject.disabled).toBe(true);

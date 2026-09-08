@@ -58,11 +58,7 @@ export default async function EditStaffPage({ params }: PageProps) {
           <CardDescription>Update identity and contact information.</CardDescription>
         </CardHeader>
         <CardContent>
-          <StaffForm
-            mode="edit"
-            staffId={staff.id}
-            initialValues={initialValues}
-          />
+          <StaffForm mode="edit" staffId={staff.id} initialValues={initialValues} />
         </CardContent>
       </Card>
     </section>

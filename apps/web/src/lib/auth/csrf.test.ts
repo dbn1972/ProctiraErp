@@ -57,7 +57,9 @@ describe('csrf — origin verification', () => {
 
   it('accepts same-origin / same-site / none fetch metadata', () => {
     for (const site of ['same-origin', 'same-site', 'none']) {
-      expect(verifyRequestOrigin(makeRequest({ headers: { 'sec-fetch-site': site } })).ok).toBe(true);
+      expect(verifyRequestOrigin(makeRequest({ headers: { 'sec-fetch-site': site } })).ok).toBe(
+        true,
+      );
     }
   });
 
@@ -67,7 +69,9 @@ describe('csrf — origin verification', () => {
   });
 
   it('accepts a matching Origin header, case-insensitively', () => {
-    expect(verifyRequestOrigin(makeRequest({ headers: { origin: 'https://APP.proctira.io' } })).ok).toBe(true);
+    expect(
+      verifyRequestOrigin(makeRequest({ headers: { origin: 'https://APP.proctira.io' } })).ok,
+    ).toBe(true);
   });
 
   it('honours x-forwarded-host behind a proxy', () => {
@@ -82,7 +86,9 @@ describe('csrf — origin verification', () => {
     expect(
       verifyRequestOrigin(makeRequest({ headers: { referer: 'https://evil.example/page' } })),
     ).toEqual({ ok: false, reason: 'origin-mismatch' });
-    expect(verifyRequestOrigin(makeRequest({ headers: { referer: `${ORIGIN}/login` } })).ok).toBe(true);
+    expect(verifyRequestOrigin(makeRequest({ headers: { referer: `${ORIGIN}/login` } })).ok).toBe(
+      true,
+    );
   });
 
   it('passes when neither Origin nor Referer is present (server-to-server)', () => {
@@ -101,7 +107,9 @@ describe('csrf — double submit', () => {
   });
 
   it('requires the header', () => {
-    expect(verifyDoubleSubmit(makeRequest({ headers: { cookie: `${CSRF_COOKIE}=${token}` } }))).toEqual({
+    expect(
+      verifyDoubleSubmit(makeRequest({ headers: { cookie: `${CSRF_COOKIE}=${token}` } })),
+    ).toEqual({
       ok: false,
       reason: 'missing-header',
     });
@@ -124,7 +132,9 @@ describe('csrf — double submit', () => {
 
 describe('csrf — verifyCsrf', () => {
   it('always passes safe methods', () => {
-    expect(verifyCsrf(makeRequest({ method: 'GET', headers: { origin: 'https://evil.example' } }))).toEqual({
+    expect(
+      verifyCsrf(makeRequest({ method: 'GET', headers: { origin: 'https://evil.example' } })),
+    ).toEqual({
       ok: true,
     });
   });

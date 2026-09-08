@@ -37,8 +37,8 @@ export async function validateActivePeriod(
   if (period.status !== 'active') {
     throw new BusinessRuleError(
       `The referenced academic period '${period.name}' is not currently active. ` +
-      `Current status: ${period.status}. ` +
-      `Only active periods allow enrollment, attendance, and assessment operations.`,
+        `Current status: ${period.status}. ` +
+        `Only active periods allow enrollment, attendance, and assessment operations.`,
     );
   }
 

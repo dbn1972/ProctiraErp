@@ -15,13 +15,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const dynamic = 'force-static';
 
@@ -98,8 +92,7 @@ const SOLUTIONS: ReadonlyArray<Solution> = [
     id: 'solutions-districts',
     icon: LayoutGrid,
     title: 'Districts',
-    description:
-      'Aggregate school data, manage staffing, and monitor outcomes across every block.',
+    description: 'Aggregate school data, manage staffing, and monitor outcomes across every block.',
     points: [
       'Cross-school dashboards and league reports',
       'Teacher deployment and transfer workflows',
@@ -112,8 +105,7 @@ const SOLUTIONS: ReadonlyArray<Solution> = [
     id: 'solutions-ministries',
     icon: Landmark,
     title: 'Ministries',
-    description:
-      'National EMIS reporting, policy rollouts, and sovereign data control at scale.',
+    description: 'National EMIS reporting, policy rollouts, and sovereign data control at scale.',
     points: [
       'State-wide multi-tenant deployment',
       'UDISE+ and census-grade data exports',
@@ -159,13 +151,12 @@ export default function HomePage() {
               id="hero-heading"
               className="text-4xl font-extrabold tracking-tight text-foreground md:text-5xl lg:text-6xl"
             >
-              The open platform for{' '}
-              <span className="text-primary">modern education</span>
+              The open platform for <span className="text-primary">modern education</span>
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground">
-              ProctiraERP unifies students, staff, finance, and analytics across
-              schools, districts, and ministries — with the security, scale,
-              and flexibility every education system needs.
+              ProctiraERP unifies students, staff, finance, and analytics across schools, districts,
+              and ministries — with the security, scale, and flexibility every education system
+              needs.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild size="lg">
@@ -182,8 +173,8 @@ export default function HomePage() {
               </Button>
             </div>
             <p className="mt-6 text-sm text-muted-foreground">
-              Free, open source, and self-hostable. Cloud editions available for
-              districts and states.
+              Free, open source, and self-hostable. Cloud editions available for districts and
+              states.
             </p>
           </div>
 
@@ -212,9 +203,7 @@ export default function HomePage() {
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">
                     {item.label}
                   </p>
-                  <p className="mt-1 text-lg font-semibold text-foreground">
-                    {item.value}
-                  </p>
+                  <p className="mt-1 text-lg font-semibold text-foreground">{item.value}</p>
                 </div>
               ))}
             </div>
@@ -229,10 +218,7 @@ export default function HomePage() {
       </section>
 
       {/* Trust signals */}
-      <section
-        className="border-b border-border bg-secondary/30"
-        aria-label="Trust signals"
-      >
+      <section className="border-b border-border bg-secondary/30" aria-label="Trust signals">
         <div className="container flex flex-wrap items-center justify-center gap-x-10 gap-y-3 py-6 text-sm text-muted-foreground">
           <Lock aria-hidden="true" className="h-4 w-4 text-primary" />
           {TRUST_SIGNALS.map((signal) => (
@@ -256,8 +242,8 @@ export default function HomePage() {
             Everything an education system needs
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            A complete platform with the modules, integrations, and governance
-            controls to run a school, a district, or an entire ministry.
+            A complete platform with the modules, integrations, and governance controls to run a
+            school, a district, or an entire ministry.
           </p>
         </div>
 
@@ -265,10 +251,7 @@ export default function HomePage() {
           {FEATURES.map((feature) => {
             const Icon = feature.icon;
             return (
-              <Card
-                key={feature.title}
-                className="transition-shadow hover:shadow-md"
-              >
+              <Card key={feature.title} className="transition-shadow hover:shadow-md">
                 <CardHeader>
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Icon aria-hidden="true" className="h-5 w-5" />
@@ -300,19 +283,15 @@ export default function HomePage() {
               Built for every level of education
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              From classroom rosters to national policy rollouts, ProctiraERP
-              scales with the shape of your education system.
+              From classroom rosters to national policy rollouts, ProctiraERP scales with the shape
+              of your education system.
             </p>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {SOLUTIONS.map((solution) => {
               const Icon = solution.icon;
               return (
-                <Card
-                  key={solution.id}
-                  id={solution.id}
-                  className="flex flex-col"
-                >
+                <Card key={solution.id} id={solution.id} className="flex flex-col">
                   <CardHeader>
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
                       <Icon aria-hidden="true" className="h-5 w-5" />
@@ -375,12 +354,8 @@ export default function HomePage() {
               },
             ].map((stat) => (
               <div key={stat.label}>
-                <p className="text-4xl font-extrabold tracking-tight md:text-5xl">
-                  {stat.value}
-                </p>
-                <p className="mt-2 text-sm text-primary-foreground/70">
-                  {stat.label}
-                </p>
+                <p className="text-4xl font-extrabold tracking-tight md:text-5xl">{stat.value}</p>
+                <p className="mt-2 text-sm text-primary-foreground/70">{stat.label}</p>
               </div>
             ))}
           </div>
@@ -397,16 +372,12 @@ export default function HomePage() {
         aria-labelledby="cta-heading"
       >
         <div className="container py-20 text-center">
-          <h2
-            id="cta-heading"
-            className="text-3xl font-extrabold tracking-tight md:text-4xl"
-          >
+          <h2 id="cta-heading" className="text-3xl font-extrabold tracking-tight md:text-4xl">
             Ready to modernize your education system?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Talk to our team about deployment, training, and support — or
-            self-host the open-source platform today and see it running in under
-            an hour.
+            Talk to our team about deployment, training, and support — or self-host the open-source
+            platform today and see it running in under an hour.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">

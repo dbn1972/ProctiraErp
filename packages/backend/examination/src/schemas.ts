@@ -28,7 +28,11 @@ const TIME_PATTERN = '^([01]\\d|2[0-3]):[0-5]\\d$';
  * Grade threshold schema for grading schemes.
  */
 export const GradeThresholdSchema = Type.Object({
-  grade: Type.String({ minLength: 1, maxLength: 10, description: 'Grade label (e.g., A, B, Pass)' }),
+  grade: Type.String({
+    minLength: 1,
+    maxLength: 10,
+    description: 'Grade label (e.g., A, B, Pass)',
+  }),
   minScore: Type.Number({ minimum: 0, description: 'Minimum score for this grade' }),
   maxScore: Type.Number({ minimum: 0, description: 'Maximum score for this grade' }),
   descriptor: Type.Optional(Type.String({ maxLength: 255, description: 'Grade descriptor' })),
@@ -59,10 +63,12 @@ export const ExaminationSubjectSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Subject name' }),
   code: Type.String({ minLength: 1, maxLength: 50, description: 'Subject code' }),
   maxScore: Type.Number({ minimum: 1, description: 'Maximum score for this subject' }),
-  gradingSchemeId: Type.Optional(Type.String({
-    pattern: UUID_PATTERN,
-    description: 'Associated grading scheme UUID (references a scheme in the same examination)',
-  })),
+  gradingSchemeId: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description: 'Associated grading scheme UUID (references a scheme in the same examination)',
+    }),
+  ),
 });
 
 export type ExaminationSubjectInput = Static<typeof ExaminationSubjectSchema>;
@@ -93,10 +99,12 @@ export const ExaminationSessionSchema = Type.Object({
   date: Type.String({ pattern: DATE_PATTERN, description: 'Session date (YYYY-MM-DD)' }),
   startTime: Type.String({ pattern: TIME_PATTERN, description: 'Start time (HH:MM)' }),
   endTime: Type.String({ pattern: TIME_PATTERN, description: 'End time (HH:MM)' }),
-  centerId: Type.Optional(Type.String({
-    pattern: UUID_PATTERN,
-    description: 'Specific center UUID for this session (optional)',
-  })),
+  centerId: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description: 'Specific center UUID for this session (optional)',
+    }),
+  ),
 });
 
 export type ExaminationSessionInput = Static<typeof ExaminationSessionSchema>;
@@ -110,12 +118,17 @@ export type ExaminationSessionInput = Static<typeof ExaminationSessionSchema>;
 export const CreateExaminationSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Examination name' }),
   code: Type.String({ minLength: 1, maxLength: 50, description: 'Unique examination code' }),
-  description: Type.Optional(Type.String({ maxLength: 1000, description: 'Examination description' })),
+  description: Type.Optional(
+    Type.String({ maxLength: 1000, description: 'Examination description' }),
+  ),
   academicPeriodId: Type.String({
     pattern: UUID_PATTERN,
     description: 'Academic period UUID',
   }),
-  startDate: Type.String({ pattern: DATE_PATTERN, description: 'Examination start date (YYYY-MM-DD)' }),
+  startDate: Type.String({
+    pattern: DATE_PATTERN,
+    description: 'Examination start date (YYYY-MM-DD)',
+  }),
   endDate: Type.String({ pattern: DATE_PATTERN, description: 'Examination end date (YYYY-MM-DD)' }),
   subjects: Type.Array(ExaminationSubjectSchema, {
     minItems: 1,
@@ -125,9 +138,11 @@ export const CreateExaminationSchema = Type.Object({
     minItems: 1,
     description: 'Examination centers (minimum 1 required)',
   }),
-  sessions: Type.Optional(Type.Array(ExaminationSessionSchema, {
-    description: 'Examination sessions (scheduling)',
-  })),
+  sessions: Type.Optional(
+    Type.Array(ExaminationSessionSchema, {
+      description: 'Examination sessions (scheduling)',
+    }),
+  ),
   gradingSchemes: Type.Array(ExaminationGradingSchemeSchema, {
     minItems: 1,
     maxItems: 10,
@@ -142,38 +157,63 @@ export type CreateExaminationInput = Static<typeof CreateExaminationSchema>;
  * All fields are optional — only provided fields are updated.
  */
 export const UpdateExaminationSchema = Type.Object({
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Examination name' })),
-  code: Type.Optional(Type.String({ minLength: 1, maxLength: 50, description: 'Unique examination code' })),
-  description: Type.Optional(Type.String({ maxLength: 1000, description: 'Examination description' })),
-  academicPeriodId: Type.Optional(Type.String({
-    pattern: UUID_PATTERN,
-    description: 'Academic period UUID',
-  })),
-  startDate: Type.Optional(Type.String({ pattern: DATE_PATTERN, description: 'Examination start date (YYYY-MM-DD)' })),
-  endDate: Type.Optional(Type.String({ pattern: DATE_PATTERN, description: 'Examination end date (YYYY-MM-DD)' })),
-  subjects: Type.Optional(Type.Array(ExaminationSubjectSchema, {
-    minItems: 1,
-    description: 'Examination subjects (minimum 1 required)',
-  })),
-  centers: Type.Optional(Type.Array(ExaminationCenterSchema, {
-    minItems: 1,
-    description: 'Examination centers (minimum 1 required)',
-  })),
-  sessions: Type.Optional(Type.Array(ExaminationSessionSchema, {
-    description: 'Examination sessions (scheduling)',
-  })),
-  gradingSchemes: Type.Optional(Type.Array(ExaminationGradingSchemeSchema, {
-    minItems: 1,
-    maxItems: 10,
-    description: 'Grading schemes (1–10 per examination)',
-  })),
-  status: Type.Optional(Type.Union([
-    Type.Literal('DRAFT'),
-    Type.Literal('SCHEDULED'),
-    Type.Literal('IN_PROGRESS'),
-    Type.Literal('COMPLETED'),
-    Type.Literal('CANCELLED'),
-  ], { description: 'Examination status' })),
+  name: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 255, description: 'Examination name' }),
+  ),
+  code: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 50, description: 'Unique examination code' }),
+  ),
+  description: Type.Optional(
+    Type.String({ maxLength: 1000, description: 'Examination description' }),
+  ),
+  academicPeriodId: Type.Optional(
+    Type.String({
+      pattern: UUID_PATTERN,
+      description: 'Academic period UUID',
+    }),
+  ),
+  startDate: Type.Optional(
+    Type.String({ pattern: DATE_PATTERN, description: 'Examination start date (YYYY-MM-DD)' }),
+  ),
+  endDate: Type.Optional(
+    Type.String({ pattern: DATE_PATTERN, description: 'Examination end date (YYYY-MM-DD)' }),
+  ),
+  subjects: Type.Optional(
+    Type.Array(ExaminationSubjectSchema, {
+      minItems: 1,
+      description: 'Examination subjects (minimum 1 required)',
+    }),
+  ),
+  centers: Type.Optional(
+    Type.Array(ExaminationCenterSchema, {
+      minItems: 1,
+      description: 'Examination centers (minimum 1 required)',
+    }),
+  ),
+  sessions: Type.Optional(
+    Type.Array(ExaminationSessionSchema, {
+      description: 'Examination sessions (scheduling)',
+    }),
+  ),
+  gradingSchemes: Type.Optional(
+    Type.Array(ExaminationGradingSchemeSchema, {
+      minItems: 1,
+      maxItems: 10,
+      description: 'Grading schemes (1–10 per examination)',
+    }),
+  ),
+  status: Type.Optional(
+    Type.Union(
+      [
+        Type.Literal('DRAFT'),
+        Type.Literal('SCHEDULED'),
+        Type.Literal('IN_PROGRESS'),
+        Type.Literal('COMPLETED'),
+        Type.Literal('CANCELLED'),
+      ],
+      { description: 'Examination status' },
+    ),
+  ),
 });
 
 export type UpdateExaminationInput = Static<typeof UpdateExaminationSchema>;
@@ -182,16 +222,30 @@ export type UpdateExaminationInput = Static<typeof UpdateExaminationSchema>;
  * Schema for examination list query parameters.
  */
 export const ExaminationListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   academicPeriodId: Type.Optional(Type.String({ description: 'Filter by academic period ID' })),
-  status: Type.Optional(Type.String({
-    enum: ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
-    description: 'Filter by status',
-  })),
+  status: Type.Optional(
+    Type.String({
+      enum: ['DRAFT', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+      description: 'Filter by status',
+    }),
+  ),
   search: Type.Optional(Type.String({ description: 'Search by name or code' })),
-  sortBy: Type.Optional(Type.String({ enum: ['name', 'code', 'startDate', 'createdAt'], default: 'name', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' })),
+  sortBy: Type.Optional(
+    Type.String({
+      enum: ['name', 'code', 'startDate', 'createdAt'],
+      default: 'name',
+      description: 'Sort field',
+    }),
+  ),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+  ),
 });
 
 export type ExaminationListQuery = Static<typeof ExaminationListQuerySchema>;
@@ -220,36 +274,44 @@ export const ExaminationResponseSchema = Type.Object({
   startDate: Type.String({ description: 'Examination start date (YYYY-MM-DD)' }),
   endDate: Type.String({ description: 'Examination end date (YYYY-MM-DD)' }),
   status: Type.String({ description: 'Examination status' }),
-  subjects: Type.Array(Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    code: Type.String(),
-    maxScore: Type.Number(),
-    gradingSchemeId: Type.Optional(Type.String()),
-  })),
-  centers: Type.Array(Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    code: Type.String(),
-    institutionId: Type.String(),
-    capacity: Type.Number(),
-  })),
-  sessions: Type.Array(Type.Object({
-    id: Type.String(),
-    subjectId: Type.String(),
-    date: Type.String(),
-    startTime: Type.String(),
-    endTime: Type.String(),
-    centerId: Type.Optional(Type.String()),
-  })),
-  gradingSchemes: Type.Array(Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    minScore: Type.Number(),
-    maxScore: Type.Number(),
-    passThreshold: Type.Number(),
-    thresholds: Type.Array(GradeThresholdSchema),
-  })),
+  subjects: Type.Array(
+    Type.Object({
+      id: Type.String(),
+      name: Type.String(),
+      code: Type.String(),
+      maxScore: Type.Number(),
+      gradingSchemeId: Type.Optional(Type.String()),
+    }),
+  ),
+  centers: Type.Array(
+    Type.Object({
+      id: Type.String(),
+      name: Type.String(),
+      code: Type.String(),
+      institutionId: Type.String(),
+      capacity: Type.Number(),
+    }),
+  ),
+  sessions: Type.Array(
+    Type.Object({
+      id: Type.String(),
+      subjectId: Type.String(),
+      date: Type.String(),
+      startTime: Type.String(),
+      endTime: Type.String(),
+      centerId: Type.Optional(Type.String()),
+    }),
+  ),
+  gradingSchemes: Type.Array(
+    Type.Object({
+      id: Type.String(),
+      name: Type.String(),
+      minScore: Type.Number(),
+      maxScore: Type.Number(),
+      passThreshold: Type.Number(),
+      thresholds: Type.Array(GradeThresholdSchema),
+    }),
+  ),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
 });
@@ -288,13 +350,10 @@ export const RegisterCandidateSchema = Type.Object({
     pattern: UUID_PATTERN,
     description: 'Examination center UUID for the candidate',
   }),
-  subjectIds: Type.Array(
-    Type.String({ pattern: UUID_PATTERN }),
-    {
-      minItems: 1,
-      description: 'Subject UUIDs the candidate is registering for',
-    },
-  ),
+  subjectIds: Type.Array(Type.String({ pattern: UUID_PATTERN }), {
+    minItems: 1,
+    description: 'Subject UUIDs the candidate is registering for',
+  }),
 });
 
 export type RegisterCandidateInput = Static<typeof RegisterCandidateSchema>;

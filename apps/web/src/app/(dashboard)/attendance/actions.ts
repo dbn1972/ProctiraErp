@@ -31,9 +31,7 @@ export interface ActionState<T = unknown> {
   data?: T;
 }
 
-function zodFlatten(
-  fieldErrors: Record<string, string[] | undefined>,
-): Record<string, string> {
+function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fieldErrors)) {
     if (value && value.length > 0 && value[0]) out[key] = value[0];
@@ -41,10 +39,7 @@ function zodFlatten(
   return out;
 }
 
-function toErrorState<T = unknown>(
-  error: unknown,
-  fallback: string,
-): ActionState<T> {
+function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
   if (error instanceof GatewayError) {
     return { status: 'error', message: error.message || fallback };
   }
@@ -112,9 +107,7 @@ export async function getAttendanceReportAction(
       scope: parsed.data.scope,
       ...(parsed.data.studentId ? { studentId: parsed.data.studentId } : {}),
       ...(parsed.data.classId ? { classId: parsed.data.classId } : {}),
-      ...(parsed.data.institutionId
-        ? { institutionId: parsed.data.institutionId }
-        : {}),
+      ...(parsed.data.institutionId ? { institutionId: parsed.data.institutionId } : {}),
       startDate: parsed.data.startDate,
       endDate: parsed.data.endDate,
     });

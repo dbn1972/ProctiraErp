@@ -10,10 +10,8 @@ import { loginAsTenantAdmin } from './fixtures/auth';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
-const INSTITUTION_ID =
-  process.env.E2E_INSTITUTION_ID ?? '2e0126f1-752b-4d63-ba57-633a83cc6508';
-const SECTION_ID =
-  process.env.E2E_SECTION_ID ?? 'a3000001-0001-4000-8000-000000000001';
+const INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? '2e0126f1-752b-4d63-ba57-633a83cc6508';
+const SECTION_ID = process.env.E2E_SECTION_ID ?? 'a3000001-0001-4000-8000-000000000001';
 
 const SCHEDULE_ROUTES: { id: string; path: string }[] = [
   {

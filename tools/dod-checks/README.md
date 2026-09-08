@@ -5,15 +5,15 @@ Each check runs independently, can be invoked from the command line, and is wire
 
 ## Charter Mapping
 
-| Check ID                | Charter Reference     | What it Enforces                                                                        |
-| ----------------------- | --------------------- | --------------------------------------------------------------------------------------- |
-| `table-naming`          | §4 + §32              | Every Prisma `model` / `view` maps to a `<service>_<name>` table.                       |
-| `cross-service-joins`   | §5 + §32              | No raw SQL JOINs span service boundaries.                                               |
-| `tenant-id`             | §3 + §32              | Public service methods that touch persistence accept a `tenantId` argument.             |
-| `audit-events`          | §28 + §32             | Services with write routes integrate with the audit trail (audit service or events).    |
-| `api-schema`            | §6 + §32              | Every backend service that defines routes ships Typebox schemas (file or inline).       |
-| `error-envelope`        | §6 + §32              | 4xx/5xx responses include `{ code, message, statusCode }`.                              |
-| `i18n-readiness`        | §17 + §32             | Route handlers don't ship hardcoded English strings in `message` fields.                |
+| Check ID              | Charter Reference | What it Enforces                                                                     |
+| --------------------- | ----------------- | ------------------------------------------------------------------------------------ |
+| `table-naming`        | §4 + §32          | Every Prisma `model` / `view` maps to a `<service>_<name>` table.                    |
+| `cross-service-joins` | §5 + §32          | No raw SQL JOINs span service boundaries.                                            |
+| `tenant-id`           | §3 + §32          | Public service methods that touch persistence accept a `tenantId` argument.          |
+| `audit-events`        | §28 + §32         | Services with write routes integrate with the audit trail (audit service or events). |
+| `api-schema`          | §6 + §32          | Every backend service that defines routes ships Typebox schemas (file or inline).    |
+| `error-envelope`      | §6 + §32          | 4xx/5xx responses include `{ code, message, statusCode }`.                           |
+| `i18n-readiness`      | §17 + §32         | Route handlers don't ship hardcoded English strings in `message` fields.             |
 
 ## Running the Checks
 
@@ -50,9 +50,9 @@ The schema is:
       "durationMs": 18,
       "errorCount": 0,
       "warningCount": 0,
-      "findings": []
-    }
-  ]
+      "findings": [],
+    },
+  ],
 }
 ```
 

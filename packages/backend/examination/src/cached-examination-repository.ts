@@ -27,11 +27,17 @@ export class CachedExaminationRepository implements ExaminationRepository {
     private readonly cache?: CacheClient,
   ) {}
 
-  async create(data: Omit<ExaminationEntity, 'createdAt' | 'updatedAt'>): Promise<ExaminationEntity> {
+  async create(
+    data: Omit<ExaminationEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ExaminationEntity> {
     return this.delegate.create(data);
   }
 
-  async update(id: string, tenantId: string, data: Partial<ExaminationEntity>): Promise<ExaminationEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<ExaminationEntity>,
+  ): Promise<ExaminationEntity | null> {
     const result = await this.delegate.update(id, tenantId, data);
     if (result && this.cache) {
       const key = tenantKey(tenantId, 'examination', id);
@@ -75,7 +81,10 @@ export class CachedExaminationRepository implements ExaminationRepository {
     return result;
   }
 
-  async getStudentEnrollment(studentId: string, tenantId: string): Promise<StudentEnrollment | null> {
+  async getStudentEnrollment(
+    studentId: string,
+    tenantId: string,
+  ): Promise<StudentEnrollment | null> {
     return this.delegate.getStudentEnrollment(studentId, tenantId);
   }
 

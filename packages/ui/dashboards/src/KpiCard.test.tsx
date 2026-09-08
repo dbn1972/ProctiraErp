@@ -67,29 +67,20 @@ describe('<KpiCard />', () => {
 
   it('renders an inline error state with role="alert" when error is set', () => {
     render(
-      <KpiCard
-        label="Total students"
-        value="12,480"
-        error={new Error('boom')}
-        data-testid="kpi"
-      />,
+      <KpiCard label="Total students" value="12,480" error={new Error('boom')} data-testid="kpi" />,
     );
 
     const card = screen.getByTestId('kpi');
     expect(card).toHaveAttribute('data-state', 'error');
     expect(card).toHaveAttribute('role', 'alert');
-    expect(
-      screen.getByText('Unable to load this metric.'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Unable to load this metric.')).toBeInTheDocument();
     expect(screen.queryByTestId('kpi-value')).toBeNull();
   });
 
   it('announces loading→loaded transitions through <LiveRegion>', () => {
     render(<LiveRegion />);
 
-    const { rerender } = render(
-      <KpiCard label="Total students" value="12,480" loading />,
-    );
+    const { rerender } = render(<KpiCard label="Total students" value="12,480" loading />);
 
     // Still loading — region is empty.
     act(() => {
@@ -102,25 +93,15 @@ describe('<KpiCard />', () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(screen.getByTestId('live-region-polite').textContent).toBe(
-      'Total students loaded',
-    );
+    expect(screen.getByTestId('live-region-polite').textContent).toBe('Total students loaded');
   });
 
   it('announces error transitions assertively', () => {
     render(<LiveRegion />);
 
-    const { rerender } = render(
-      <KpiCard label="Pass rate" value="—" loading />,
-    );
+    const { rerender } = render(<KpiCard label="Pass rate" value="—" loading />);
 
-    rerender(
-      <KpiCard
-        label="Pass rate"
-        value="—"
-        error={new Error('boom')}
-      />,
-    );
+    rerender(<KpiCard label="Pass rate" value="—" error={new Error('boom')} />);
 
     act(() => {
       vi.advanceTimersByTime(1);

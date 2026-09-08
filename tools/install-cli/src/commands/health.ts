@@ -114,10 +114,7 @@ async function httpPost(
 // Individual Health Checks
 // ---------------------------------------------------------------------------
 
-async function checkServiceHealth(
-  baseUrl: string,
-  timeoutMs: number,
-): Promise<HealthCheckResult> {
+async function checkServiceHealth(baseUrl: string, timeoutMs: number): Promise<HealthCheckResult> {
   const url = `${baseUrl}/health`;
   const result = await httpGet(url, timeoutMs);
 
@@ -212,10 +209,7 @@ async function checkTenantResolution(
   };
 }
 
-async function checkAuditWrite(
-  baseUrl: string,
-  timeoutMs: number,
-): Promise<HealthCheckResult> {
+async function checkAuditWrite(baseUrl: string, timeoutMs: number): Promise<HealthCheckResult> {
   const url = `${baseUrl}/api/v1/audit/health`;
   const result = await httpGet(url, timeoutMs);
 
@@ -278,10 +272,7 @@ async function checkObjectStorageRoundTrip(
   };
 }
 
-async function checkQueuePubSub(
-  baseUrl: string,
-  timeoutMs: number,
-): Promise<HealthCheckResult> {
+async function checkQueuePubSub(baseUrl: string, timeoutMs: number): Promise<HealthCheckResult> {
   const url = `${baseUrl}/api/v1/queue/health`;
   const result = await httpGet(url, timeoutMs);
 

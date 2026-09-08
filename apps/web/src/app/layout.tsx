@@ -124,11 +124,7 @@ export const metadata: Metadata = {
  *   chain via LanguageProvider (which wraps next-intl client provider)
  * - RTL/LTR direction stamped on <html> at SSR for first paint
  */
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();
   const direction = getDirection(locale);
@@ -146,12 +142,7 @@ export default async function RootLayout({
   const tenantThemeCSS = renderTenantThemeCSS(tokens);
 
   return (
-    <html
-      lang={locale}
-      dir={direction}
-      suppressHydrationWarning
-      className={inter.variable}
-    >
+    <html lang={locale} dir={direction} suppressHydrationWarning className={inter.variable}>
       <head>
         {/*
           PWA manifest link (Task 54.1). The manifest itself lives in

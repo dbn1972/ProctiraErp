@@ -50,12 +50,7 @@
  *     drain short. The next checkpoint is between operations.
  */
 
-import {
-  dequeue,
-  peekAll,
-  persistAttempt,
-  type SyncQueueOperation,
-} from './syncQueue';
+import { dequeue, peekAll, persistAttempt, type SyncQueueOperation } from './syncQueue';
 
 // ─── Backoff schedule ────────────────────────────────────────────────────────
 
@@ -68,16 +63,16 @@ import {
  * gateway when many clients reconnect at once.
  */
 export const BACKOFF_SCHEDULE_MS: readonly number[] = [
-  1_000,    // attempt 1
-  2_000,    // attempt 2
-  4_000,    // attempt 3
-  8_000,    // attempt 4
-  16_000,   // attempt 5
-  32_000,   // attempt 6
-  64_000,   // attempt 7
-  128_000,  // attempt 8
-  256_000,  // attempt 9
-  300_000,  // attempt 10 — final cap at 5 minutes
+  1_000, // attempt 1
+  2_000, // attempt 2
+  4_000, // attempt 3
+  8_000, // attempt 4
+  16_000, // attempt 5
+  32_000, // attempt 6
+  64_000, // attempt 7
+  128_000, // attempt 8
+  256_000, // attempt 9
+  300_000, // attempt 10 — final cap at 5 minutes
 ] as const;
 
 /**
@@ -161,11 +156,7 @@ export function backoffFor(attemptCount: number): number {
  * stack traces because the queue may serve as the audit log shown to
  * the user in the conflict dialog (task 54.5).
  */
-function formatError(
-  status: number | null,
-  message: string,
-  bodyExcerpt?: string,
-): string {
+function formatError(status: number | null, message: string, bodyExcerpt?: string): string {
   const head = status === null ? 'network' : `status ${status}`;
   if (bodyExcerpt && bodyExcerpt.length > 0) {
     return `${head}: ${message} — ${bodyExcerpt.slice(0, 200)}`;
@@ -296,12 +287,7 @@ export async function replayAll(
           bodyExcerpt,
         );
 
-        const updated = await persistAttempt(
-          op.id,
-          op.attemptCount + 1,
-          attemptedAt,
-          message,
-        );
+        const updated = await persistAttempt(op.id, op.attemptCount + 1, attemptedAt, message);
         // The record was deleted out from under us (user discarded
         // mid-replay). Record the most recent state we knew about
         // and move on to the next operation.
@@ -332,12 +318,7 @@ export async function replayAll(
       } else {
         // Network error / timeout — same as 5xx for retry purposes.
         const message = formatError(null, fetchError?.message ?? 'unknown network error');
-        const updated = await persistAttempt(
-          op.id,
-          op.attemptCount + 1,
-          attemptedAt,
-          message,
-        );
+        const updated = await persistAttempt(op.id, op.attemptCount + 1, attemptedAt, message);
         if (!updated) {
           outcome = 'failed_transient';
           status = null;

@@ -4,10 +4,7 @@
  */
 import { assertInMemoryFallbackAllowed } from '@proctira/database';
 
-import {
-  InMemoryAdmissionsCrmStore,
-  type AdmissionsCrmStore,
-} from './admissions-crm-store.js';
+import { InMemoryAdmissionsCrmStore, type AdmissionsCrmStore } from './admissions-crm-store.js';
 import { InMemoryRegistrationRepository } from './in-memory-repository.js';
 import { PgAdmissionsCrmStore } from './pg-admissions-crm-store.js';
 import {

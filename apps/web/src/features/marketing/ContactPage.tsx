@@ -38,10 +38,7 @@ export default function ContactPage() {
 
   return (
     <MarketingLayout pageTitle={t('marketing.pages.contact.documentTitle')}>
-      <main
-        data-testid="marketing-contact-page"
-        className="flex flex-1 flex-col"
-      >
+      <main data-testid="marketing-contact-page" className="flex flex-1 flex-col">
         {/* Hero */}
         <section className="border-b border-border bg-[hsl(var(--secondary))]">
           <div className="mx-auto w-full max-w-5xl px-6 py-20 lg:px-8 lg:py-24">
@@ -109,9 +106,7 @@ export default function ContactPage() {
                 {t('marketing.pages.contact.ctaBody')}
               </p>
               <Button asChild size="lg" className="mt-6">
-                <Link href="/demo">
-                  {t('marketing.pages.contact.ctaButton')}
-                </Link>
+                <Link href="/demo">{t('marketing.pages.contact.ctaButton')}</Link>
               </Button>
             </div>
           </div>

@@ -54,7 +54,14 @@ export class CachedAttendanceRepository implements AttendanceRepository {
     subjectId?: string | null,
     periodId?: string | null,
   ): Promise<StudentAttendanceEntity | null> {
-    return this.delegate.findStudentAttendance(tenantId, studentId, classId, date, subjectId, periodId);
+    return this.delegate.findStudentAttendance(
+      tenantId,
+      studentId,
+      classId,
+      date,
+      subjectId,
+      periodId,
+    );
   }
 
   async listStudentAttendance(
@@ -79,7 +86,13 @@ export class CachedAttendanceRepository implements AttendanceRepository {
     startDate: string,
     endDate: string,
   ): Promise<number> {
-    return this.delegate.countStudentAbsences(tenantId, studentId, institutionId, startDate, endDate);
+    return this.delegate.countStudentAbsences(
+      tenantId,
+      studentId,
+      institutionId,
+      startDate,
+      endDate,
+    );
   }
 
   // --- Staff Attendance (not cached) ---
@@ -130,7 +143,11 @@ export class CachedAttendanceRepository implements AttendanceRepository {
    * Invalidate the cached roster for a class.
    * Call this when enrollment changes (student added/removed from class).
    */
-  async invalidateClassRoster(tenantId: string, classId: string, academicPeriodId: string): Promise<void> {
+  async invalidateClassRoster(
+    tenantId: string,
+    classId: string,
+    academicPeriodId: string,
+  ): Promise<void> {
     if (!this.cache) return;
     const key = tenantKey(tenantId, 'roster', `${classId}:${academicPeriodId}`);
     await this.cache.del(key);

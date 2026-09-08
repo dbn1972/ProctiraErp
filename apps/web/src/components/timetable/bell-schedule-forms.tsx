@@ -5,15 +5,9 @@ import { useRouter } from 'next/navigation';
 
 import { Button } from '@proctira/ui/components';
 
-import {
-  createBellScheduleAction,
-  createPeriodAction,
-} from '@/app/(dashboard)/timetable-actions';
+import { createBellScheduleAction, createPeriodAction } from '@/app/(dashboard)/timetable-actions';
 
-export function BellScheduleCreateForm(props: {
-  academicPeriodId: string;
-  institutionId: string;
-}) {
+export function BellScheduleCreateForm(props: { academicPeriodId: string; institutionId: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +155,10 @@ export function PeriodCreateForm(props: {
         </Button>
       </div>
       {error && (
-        <p className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p
+          className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400"
+          role="alert"
+        >
           {error}
         </p>
       )}

@@ -5,13 +5,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { ArrowLeft, Lock, MailCheck, Loader2 } from 'lucide-react';
 
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Input,
-  Label,
-} from '@proctira/ui/components';
+import { Alert, AlertDescription, Button, Input, Label } from '@proctira/ui/components';
 import { requestPasswordReset } from '@/lib/auth';
 
 /**
@@ -56,9 +50,7 @@ export function ForgotPasswordForm(): JSX.Element {
           <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
             {t('resetYourPassword')}
           </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            {t('resetPasswordSubtitle')}
-          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">{t('resetPasswordSubtitle')}</p>
 
           {error && (
             <Alert variant="destructive" className="mt-5">
@@ -96,9 +88,7 @@ export function ForgotPasswordForm(): JSX.Element {
           <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-foreground">
             {t('checkYourEmail')}
           </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            {t('resetLinkSentTo', { email })}
-          </p>
+          <p className="mt-1.5 text-sm text-muted-foreground">{t('resetLinkSentTo', { email })}</p>
           <Button
             onClick={() => {
               setSubmitted(false);

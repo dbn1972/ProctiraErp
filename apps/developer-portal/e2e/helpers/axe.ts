@@ -5,12 +5,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 
-export const WCAG_2_1_AA_TAGS = [
-  'wcag2a',
-  'wcag2aa',
-  'wcag21a',
-  'wcag21aa',
-] as const;
+export const WCAG_2_1_AA_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] as const;
 
 export async function runAxe(
   page: Page,

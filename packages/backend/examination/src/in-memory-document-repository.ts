@@ -91,13 +91,8 @@ export class InMemoryDocumentRepository implements DocumentRepository {
     return this.jobs.get(jobId) ?? null;
   }
 
-  async listJobs(
-    examinationId: string,
-    _tenantId: string,
-  ): Promise<DocumentGenerationJob[]> {
-    return Array.from(this.jobs.values()).filter(
-      (job) => job.examinationId === examinationId,
-    );
+  async listJobs(examinationId: string, _tenantId: string): Promise<DocumentGenerationJob[]> {
+    return Array.from(this.jobs.values()).filter((job) => job.examinationId === examinationId);
   }
 
   /** Test helper: clear all data */

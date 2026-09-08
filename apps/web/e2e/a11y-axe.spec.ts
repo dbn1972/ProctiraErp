@@ -34,8 +34,7 @@ import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 /** Seeded by tools/e2e/seed-e2e-tenants.sql for tenant A (G-722). */
-const E2E_INSTITUTION_ID =
-  process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+const E2E_INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 
 // ────────────────────────────────────────────────────────────────────
 // Surfaces that do not require a live backend.
@@ -212,7 +211,16 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
 
   // G-722: institution-scoped surfaces (timetable, gradebook, master schedule)
   // against the fixture institution seeded by tools/e2e/seed-e2e-tenants.sql.
-  for (const suffix of ['', '/overview', '/classes', '/grades', '/gradebook', '/timetable', '/schedule', '/infrastructure'] as const) {
+  for (const suffix of [
+    '',
+    '/overview',
+    '/classes',
+    '/grades',
+    '/gradebook',
+    '/timetable',
+    '/schedule',
+    '/infrastructure',
+  ] as const) {
     const path = `/institutions/${E2E_INSTITUTION_ID}${suffix}`;
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
       await setupGatewayTenantSession(page);

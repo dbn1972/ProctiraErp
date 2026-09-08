@@ -12,15 +12,15 @@ The suite is split into seven categories. Each category is independently
 runnable so service teams can debug a single failing facet without running
 the entire gate locally.
 
-| Category                          | Location                       | Script                              |
-| --------------------------------- | ------------------------------ | ----------------------------------- |
-| 1. Unit (query scoping)           | `src/unit/`                    | `pnpm test:tenant-isolation:unit`        |
-| 2. Integration (auth/authz)       | `src/integration/`             | `pnpm test:tenant-isolation:integration` |
-| 3. E2E (HTTP cross-tenant)        | `e2e/`                         | `pnpm test:tenant-isolation:e2e`         |
-| 4. Queue / event routing          | `src/queue/`                   | `pnpm test:tenant-isolation:queue`       |
-| 5. Search result trimming         | `src/search/`                  | `pnpm test:tenant-isolation:search`      |
-| 6. Cache namespace collision      | `src/cache/`                   | `pnpm test:tenant-isolation:cache`       |
-| 7. Report export isolation        | `src/report/`                  | `pnpm test:tenant-isolation:report`      |
+| Category                     | Location           | Script                                   |
+| ---------------------------- | ------------------ | ---------------------------------------- |
+| 1. Unit (query scoping)      | `src/unit/`        | `pnpm test:tenant-isolation:unit`        |
+| 2. Integration (auth/authz)  | `src/integration/` | `pnpm test:tenant-isolation:integration` |
+| 3. E2E (HTTP cross-tenant)   | `e2e/`             | `pnpm test:tenant-isolation:e2e`         |
+| 4. Queue / event routing     | `src/queue/`       | `pnpm test:tenant-isolation:queue`       |
+| 5. Search result trimming    | `src/search/`      | `pnpm test:tenant-isolation:search`      |
+| 6. Cache namespace collision | `src/cache/`       | `pnpm test:tenant-isolation:cache`       |
+| 7. Report export isolation   | `src/report/`      | `pnpm test:tenant-isolation:report`      |
 
 The umbrella script that runs every category is:
 

@@ -58,9 +58,9 @@ describe('TransportService', () => {
     });
 
     it('should throw NotFoundError when updating non-existent route', async () => {
-      await expect(
-        service.updateRoute(tenantId, uuidv4(), { name: 'X' }),
-      ).rejects.toThrow('not found');
+      await expect(service.updateRoute(tenantId, uuidv4(), { name: 'X' })).rejects.toThrow(
+        'not found',
+      );
     });
 
     it('should get a route by ID', async () => {
@@ -76,9 +76,7 @@ describe('TransportService', () => {
     });
 
     it('should throw NotFoundError for non-existent route', async () => {
-      await expect(
-        service.getRouteById(tenantId, uuidv4()),
-      ).rejects.toThrow('not found');
+      await expect(service.getRouteById(tenantId, uuidv4())).rejects.toThrow('not found');
     });
 
     it('should delete a route without active assignments', async () => {

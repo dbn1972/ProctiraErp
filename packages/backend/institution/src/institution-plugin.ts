@@ -46,7 +46,12 @@ export const institutionPlugin = fp(
     fastify: FastifyInstance,
     options: InstitutionPluginOptions,
   ) {
-    const { repository, areaHierarchyDb, prefix = '/institutions', areaPrefix = '/areas' } = options;
+    const {
+      repository,
+      areaHierarchyDb,
+      prefix = '/institutions',
+      areaPrefix = '/areas',
+    } = options;
 
     // Create institution service instance
     const institutionService = new InstitutionService(repository);

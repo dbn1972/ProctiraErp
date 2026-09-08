@@ -18,15 +18,26 @@ import { ExternalAuthError } from './types.js';
  * Interface for making HTTP requests (allows testing without real HTTP calls).
  */
 export interface HttpClient {
-  post(url: string, body: Record<string, string>, headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }>;
-  get(url: string, headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }>;
+  post(
+    url: string,
+    body: Record<string, string>,
+    headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }>;
+  get(
+    url: string,
+    headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }>;
 }
 
 /**
  * Simple fetch-based HTTP client implementation.
  */
 export class FetchHttpClient implements HttpClient {
-  async post(url: string, body: Record<string, string>, headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }> {
+  async post(
+    url: string,
+    body: Record<string, string>,
+    headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }> {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -35,16 +46,19 @@ export class FetchHttpClient implements HttpClient {
       },
       body: new URLSearchParams(body).toString(),
     });
-    const data = await response.json() as Record<string, unknown>;
+    const data = (await response.json()) as Record<string, unknown>;
     return { data, status: response.status };
   }
 
-  async get(url: string, headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }> {
+  async get(
+    url: string,
+    headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }> {
     const response = await fetch(url, {
       method: 'GET',
       headers: { ...headers },
     });
-    const data = await response.json() as Record<string, unknown>;
+    const data = (await response.json()) as Record<string, unknown>;
     return { data, status: response.status };
   }
 }

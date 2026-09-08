@@ -50,7 +50,9 @@ export function runPgloader(config: MigrationConfig): MigrationStepResult {
     const configPath = generatePgloaderConfig(config);
 
     console.log(`[pgloader] Running bulk transfer: MySQL → PostgreSQL`);
-    console.log(`[pgloader] Source: ${config.mysql.host}:${config.mysql.port}/${config.mysql.database}`);
+    console.log(
+      `[pgloader] Source: ${config.mysql.host}:${config.mysql.port}/${config.mysql.database}`,
+    );
     console.log(`[pgloader] Target: ${config.pg.host}:${config.pg.port}/${config.pg.database}`);
     console.log(`[pgloader] Staging schema: ${config.stagingSchema}`);
 

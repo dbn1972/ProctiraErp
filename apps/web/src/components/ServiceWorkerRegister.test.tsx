@@ -39,8 +39,7 @@ function restoreNodeEnv(): void {
   if (ORIGINAL_NODE_ENV === undefined) {
     delete (process.env as Record<string, string | undefined>).NODE_ENV;
   } else {
-    (process.env as Record<string, string | undefined>).NODE_ENV =
-      ORIGINAL_NODE_ENV;
+    (process.env as Record<string, string | undefined>).NODE_ENV = ORIGINAL_NODE_ENV;
   }
 }
 
@@ -63,10 +62,7 @@ function removeServiceWorkerMock() {
   }
 }
 
-const ORIGINAL_IS_SECURE_CONTEXT = Object.getOwnPropertyDescriptor(
-  window,
-  'isSecureContext',
-);
+const ORIGINAL_IS_SECURE_CONTEXT = Object.getOwnPropertyDescriptor(window, 'isSecureContext');
 
 function setSecureContext(value: boolean): void {
   Object.defineProperty(window, 'isSecureContext', {

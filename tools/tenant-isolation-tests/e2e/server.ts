@@ -84,7 +84,9 @@ export async function buildIsolationApp(options: BuildAppOptions = {}): Promise<
  * Fastify instance plus the resolved base URL so tests can build absolute
  * request URLs.
  */
-export async function startIsolationServer(port = Number(process.env['TENANT_E2E_PORT'] ?? 4711)): Promise<{
+export async function startIsolationServer(
+  port = Number(process.env['TENANT_E2E_PORT'] ?? 4711),
+): Promise<{
   app: FastifyInstance;
   baseUrl: string;
 }> {

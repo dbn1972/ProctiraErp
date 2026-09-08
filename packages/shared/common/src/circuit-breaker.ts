@@ -29,7 +29,7 @@ export interface CircuitBreakerOptions {
 export class CircuitBreakerError extends Error {
   constructor(
     public readonly circuitName: string,
-    public readonly state: CircuitState
+    public readonly state: CircuitState,
   ) {
     super(`Circuit breaker "${circuitName}" is ${state} — call rejected`);
     this.name = 'CircuitBreakerError';

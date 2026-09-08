@@ -197,8 +197,7 @@ function reducer(state: State, action: Action): State {
       return {
         ...state,
         roles: state.roles.filter((r) => r.id !== action.roleId),
-        selectedRoleId:
-          state.selectedRoleId === action.roleId ? null : state.selectedRoleId,
+        selectedRoleId: state.selectedRoleId === action.roleId ? null : state.selectedRoleId,
         recentChanges: [
           { timestamp: new Date().toISOString(), summary: action.summary },
           ...state.recentChanges,
@@ -220,7 +219,7 @@ export default function RolesPermissions(): JSX.Element {
   );
 
   const pendingForSelected = selectedRole
-    ? state.pendingPermissions[selectedRole.id] ?? selectedRole.permissions
+    ? (state.pendingPermissions[selectedRole.id] ?? selectedRole.permissions)
     : null;
   const hasUnsavedChanges =
     selectedRole != null && state.pendingPermissions[selectedRole.id] !== undefined;
@@ -249,18 +248,15 @@ export default function RolesPermissions(): JSX.Element {
 
   // ─── Users load ─────────────────────────────────────────────────────
 
-  const reloadUsers = useCallback(
-    async (search: string) => {
-      dispatch({ type: 'USERS_START' });
-      try {
-        const result = await listTenantUsers({ search, pageSize: 50 });
-        dispatch({ type: 'USERS_OK', users: result.data });
-      } catch {
-        dispatch({ type: 'USERS_OK', users: [] });
-      }
-    },
-    [],
-  );
+  const reloadUsers = useCallback(async (search: string) => {
+    dispatch({ type: 'USERS_START' });
+    try {
+      const result = await listTenantUsers({ search, pageSize: 50 });
+      dispatch({ type: 'USERS_OK', users: result.data });
+    } catch {
+      dispatch({ type: 'USERS_OK', users: [] });
+    }
+  }, []);
 
   // ─── Save handler ───────────────────────────────────────────────────
 
@@ -318,9 +314,8 @@ export default function RolesPermissions(): JSX.Element {
       <header>
         <h1 className="text-2xl font-semibold">Roles &amp; Permissions</h1>
         <p className="text-muted-foreground mt-1">
-          Manage tenant-scoped roles, permissions, and user assignments. Every
-          change is recorded as a high-risk audit event and applies on each
-          user&apos;s next request.
+          Manage tenant-scoped roles, permissions, and user assignments. Every change is recorded as
+          a high-risk audit event and applies on each user&apos;s next request.
         </p>
       </header>
 
@@ -412,8 +407,7 @@ export default function RolesPermissions(): JSX.Element {
             hasUnsavedChanges={hasUnsavedChanges}
             onSave={handleSave}
             onReset={() =>
-              selectedRole &&
-              dispatch({ type: 'RESET_PENDING', roleId: selectedRole.id })
+              selectedRole && dispatch({ type: 'RESET_PENDING', roleId: selectedRole.id })
             }
           />
         </TabsContent>
@@ -591,9 +585,7 @@ function PermissionMatrixView({
   if (!selectedRole) {
     return (
       <Alert>
-        <AlertDescription>
-          Select a role to edit its permissions.
-        </AlertDescription>
+        <AlertDescription>Select a role to edit its permissions.</AlertDescription>
       </Alert>
     );
   }
@@ -627,11 +619,7 @@ function PermissionMatrixView({
             </option>
           ))}
         </select>
-        {selectedRole.builtIn && (
-          <Badge variant="outline">
-            Built-in role — read-only
-          </Badge>
-        )}
+        {selectedRole.builtIn && <Badge variant="outline">Built-in role — read-only</Badge>}
         <div className="flex-1" />
         <Button
           type="button"
@@ -662,13 +650,9 @@ function PermissionMatrixView({
           </thead>
           <tbody>
             {sortedPermissions.map((permission) => {
-              const granted = roleHasPermission(
-                { permissions: effectivePermissions },
-                permission,
-              );
+              const granted = roleHasPermission({ permissions: effectivePermissions }, permission);
               const grantedExactly = effectivePermissions.some(
-                (p) =>
-                  p.resource === permission.resource && p.action === permission.action,
+                (p) => p.resource === permission.resource && p.action === permission.action,
               );
               const grantedViaWildcard = granted && !grantedExactly;
               const disabled = selectedRole.builtIn || grantedViaWildcard;
@@ -766,14 +750,15 @@ function UserAssignmentGrid({
                     <td className="py-2 px-3 font-medium">{user.displayName}</td>
                     <td className="py-2 px-3 text-muted-foreground">{user.email}</td>
                     <td className="py-2 px-3">
-                      <div className="flex flex-wrap gap-2" role="group" aria-label={`Roles for ${user.displayName}`}>
+                      <div
+                        className="flex flex-wrap gap-2"
+                        role="group"
+                        aria-label={`Roles for ${user.displayName}`}
+                      >
                         {roles.map((role) => {
                           const checked = draft.includes(role.id);
                           return (
-                            <label
-                              key={role.id}
-                              className="flex items-center gap-1 text-xs"
-                            >
+                            <label key={role.id} className="flex items-center gap-1 text-xs">
                               <Checkbox
                                 checked={checked}
                                 onCheckedChange={() => {

@@ -332,7 +332,4 @@ export interface DomainEventPayload {
 /**
  * Event handler function type.
  */
-export type EventHandler = (
-  event: DomainEventPayload,
-  context: HookContext,
-) => Promise<void>;
+export type EventHandler = (event: DomainEventPayload, context: HookContext) => Promise<void>;

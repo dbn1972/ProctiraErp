@@ -23,30 +23,40 @@ function createMockPrismaClient() {
       findUnique: vi.fn(async ({ where }: { where: { token: string } }) => {
         return tokens.get(where.token) ?? null;
       }),
-      update: vi.fn(async ({ where, data }: { where: { token: string }; data: Record<string, unknown> }) => {
-        const existing = tokens.get(where.token);
-        if (existing) {
-          Object.assign(existing, data);
-        }
-        return existing;
-      }),
-      updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
-        let count = 0;
-        for (const [, token] of tokens) {
-          let matches = true;
-          for (const [key, value] of Object.entries(where)) {
-            if (token[key] !== value) {
-              matches = false;
-              break;
+      update: vi.fn(
+        async ({ where, data }: { where: { token: string }; data: Record<string, unknown> }) => {
+          const existing = tokens.get(where.token);
+          if (existing) {
+            Object.assign(existing, data);
+          }
+          return existing;
+        },
+      ),
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: Record<string, unknown>;
+          data: Record<string, unknown>;
+        }) => {
+          let count = 0;
+          for (const [, token] of tokens) {
+            let matches = true;
+            for (const [key, value] of Object.entries(where)) {
+              if (token[key] !== value) {
+                matches = false;
+                break;
+              }
+            }
+            if (matches) {
+              Object.assign(token, data);
+              count++;
             }
           }
-          if (matches) {
-            Object.assign(token, data);
-            count++;
-          }
-        }
-        return { count };
-      }),
+          return { count };
+        },
+      ),
     },
     _tokens: tokens,
   };

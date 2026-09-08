@@ -163,8 +163,7 @@ test.describe('Install Wizard — live install API', () => {
   test.skip(!BACKEND_READY, 'E2E_BACKEND_READY is not set; skipping live install e2e.');
 
   test('status endpoint reachable when backend ready', async ({ request }) => {
-    const base =
-      process.env.NEXT_PUBLIC_INSTALL_API_URL ?? 'http://127.0.0.1:3000/install';
+    const base = process.env.NEXT_PUBLIC_INSTALL_API_URL ?? 'http://127.0.0.1:3000/install';
     const response = await request.get(`${base}/status`);
     expect(response.ok()).toBeTruthy();
   });

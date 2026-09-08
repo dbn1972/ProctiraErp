@@ -3,7 +3,9 @@ import { AwsKmsSecretAdapter, SecretAccessError } from './aws-kms-adapter.js';
 import type { AwsSecretsManagerClient } from './aws-kms-adapter.js';
 import type { AwsKmsConfig } from '../types.js';
 
-function createMockClient(overrides: Partial<AwsSecretsManagerClient> = {}): AwsSecretsManagerClient {
+function createMockClient(
+  overrides: Partial<AwsSecretsManagerClient> = {},
+): AwsSecretsManagerClient {
   return {
     getSecretValue: vi.fn().mockResolvedValue({
       SecretString: 'test-secret',
@@ -27,7 +29,7 @@ function createMockClient(overrides: Partial<AwsSecretsManagerClient> = {}): Aws
     describeSecret: vi.fn().mockResolvedValue({
       Name: 'test-key',
       CreatedDate: new Date('2024-01-01'),
-      VersionIdsToStages: { 'v1': ['AWSCURRENT'] },
+      VersionIdsToStages: { v1: ['AWSCURRENT'] },
     }),
     ...overrides,
   };
@@ -58,9 +60,11 @@ describe('AwsKmsSecretAdapter', () => {
 
     it('should return null when secret is not found', async () => {
       const client = createMockClient({
-        getSecretValue: vi.fn().mockRejectedValue(
-          Object.assign(new Error('Not found'), { name: 'ResourceNotFoundException' })
-        ),
+        getSecretValue: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error('Not found'), { name: 'ResourceNotFoundException' }),
+          ),
       });
       const adapter = new AwsKmsSecretAdapter(defaultConfig, client);
 
@@ -89,7 +93,7 @@ describe('AwsKmsSecretAdapter', () => {
 
       await expect(adapter.getSecret('my-secret')).rejects.toThrow(SecretAccessError);
       await expect(adapter.getSecret('my-secret')).rejects.toThrow(
-        /Failed to retrieve secret 'my-secret'/
+        /Failed to retrieve secret 'my-secret'/,
       );
     });
   });
@@ -112,9 +116,11 @@ describe('AwsKmsSecretAdapter', () => {
 
     it('should create a new secret when it does not exist', async () => {
       const client = createMockClient({
-        updateSecret: vi.fn().mockRejectedValue(
-          Object.assign(new Error('Not found'), { name: 'ResourceNotFoundException' })
-        ),
+        updateSecret: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error('Not found'), { name: 'ResourceNotFoundException' }),
+          ),
       });
       const adapter = new AwsKmsSecretAdapter(defaultConfig, client);
 
@@ -166,7 +172,7 @@ describe('AwsKmsSecretAdapter', () => {
 
       await expect(adapter.rotateSecret('my-secret')).rejects.toThrow(SecretAccessError);
       await expect(adapter.rotateSecret('my-secret')).rejects.toThrow(
-        /Cannot rotate secret.*without a new value/
+        /Cannot rotate secret.*without a new value/,
       );
     });
   });
@@ -174,9 +180,11 @@ describe('AwsKmsSecretAdapter', () => {
   describe('healthCheck', () => {
     it('should return healthy when service is reachable (ResourceNotFoundException)', async () => {
       const client = createMockClient({
-        describeSecret: vi.fn().mockRejectedValue(
-          Object.assign(new Error('Not found'), { name: 'ResourceNotFoundException' })
-        ),
+        describeSecret: vi
+          .fn()
+          .mockRejectedValue(
+            Object.assign(new Error('Not found'), { name: 'ResourceNotFoundException' }),
+          ),
       });
       const adapter = new AwsKmsSecretAdapter(defaultConfig, client);
 

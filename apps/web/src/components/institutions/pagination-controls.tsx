@@ -3,9 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-import {
-  Button,
-} from '@proctira/ui/components';
+import { Button } from '@proctira/ui/components';
 
 export interface PaginationControlsProps {
   page: number;
@@ -48,9 +46,7 @@ export function PaginationControls({
       aria-label="Pagination"
     >
       <p className="text-muted-foreground" aria-live="polite">
-        {totalItems === 0
-          ? 'No results'
-          : `Showing ${start}-${end} of ${totalItems}`}
+        {totalItems === 0 ? 'No results' : `Showing ${start}-${end} of ${totalItems}`}
       </p>
       <div className="flex items-center gap-2">
         <Button

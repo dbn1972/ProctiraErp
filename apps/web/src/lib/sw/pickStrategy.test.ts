@@ -59,9 +59,7 @@ describe('pickStrategy — read-heavy GETs use stale-while-revalidate', () => {
   }
 
   it('honours absolute URLs against the SWR matchers', () => {
-    expect(pickStrategy('GET', 'https://api.example.test/api/v1/students')).toBe(
-      'swr',
-    );
+    expect(pickStrategy('GET', 'https://api.example.test/api/v1/students')).toBe('swr');
   });
 });
 
@@ -73,24 +71,18 @@ describe('pickStrategy — write-sensitive / freshness-critical GETs use network
 
   it('classifies tenant branding as network-first', () => {
     expect(pickStrategy('GET', '/api/v1/tenant/branding')).toBe('network-first');
-    expect(pickStrategy('GET', '/api/v1/tenant/branding?v=2')).toBe(
-      'network-first',
-    );
+    expect(pickStrategy('GET', '/api/v1/tenant/branding?v=2')).toBe('network-first');
   });
 });
 
 describe('pickStrategy — static assets use cache-first', () => {
   it('caches Next.js content-hashed bundles', () => {
-    expect(pickStrategy('GET', '/_next/static/chunks/main-abc123.js')).toBe(
-      'cache-first',
-    );
+    expect(pickStrategy('GET', '/_next/static/chunks/main-abc123.js')).toBe('cache-first');
     expect(pickStrategy('GET', '/_next/static/css/app.css')).toBe('cache-first');
   });
 
   it('caches /static/* public assets', () => {
-    expect(pickStrategy('GET', '/static/illustrations/empty.svg')).toBe(
-      'cache-first',
-    );
+    expect(pickStrategy('GET', '/static/illustrations/empty.svg')).toBe('cache-first');
   });
 
   it('caches fonts by extension', () => {

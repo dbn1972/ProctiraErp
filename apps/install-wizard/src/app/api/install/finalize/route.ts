@@ -12,7 +12,10 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request): Promise<NextResponse> {
   const security = assertInstallSecurity(request);
   if (!security.ok) {
-    return NextResponse.json({ success: false, error: security.error }, { status: security.status });
+    return NextResponse.json(
+      { success: false, error: security.error },
+      { status: security.status },
+    );
   }
 
   const result = finalizeSession(security.session);

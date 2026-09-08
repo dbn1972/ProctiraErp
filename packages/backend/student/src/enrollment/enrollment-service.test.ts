@@ -14,7 +14,11 @@ import { NotFoundError, BusinessRuleError } from '@proctira/common';
 
 import { InMemoryEnrollmentRepository } from './in-memory-enrollment-repository.js';
 import { EnrollmentService } from './enrollment-service.js';
-import type { CreateEnrollmentInput, StudentTransferInput, UpdateEnrollmentStatusInput } from './schemas.js';
+import type {
+  CreateEnrollmentInput,
+  StudentTransferInput,
+  UpdateEnrollmentStatusInput,
+} from './schemas.js';
 
 // Helper to generate valid UUIDs for testing
 function uuid(): string {
@@ -178,9 +182,9 @@ describe('EnrollmentService', () => {
         effectiveDate: '2024-06-15',
       };
 
-      await expect(
-        service.updateEnrollmentStatus(TENANT_ID, fakeId, statusInput),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.updateEnrollmentStatus(TENANT_ID, fakeId, statusInput)).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw BusinessRuleError when enrollment is not ENROLLED', async () => {
@@ -445,10 +449,7 @@ describe('EnrollmentService', () => {
 
     it('should filter by status', async () => {
       const enrollment = await service.createEnrollment(TENANT_ID, validCreateInput());
-      await service.createEnrollment(
-        TENANT_ID,
-        validCreateInput({ studentId: uuid() }),
-      );
+      await service.createEnrollment(TENANT_ID, validCreateInput({ studentId: uuid() }));
 
       // Withdraw the first enrollment
       await service.updateEnrollmentStatus(TENANT_ID, enrollment.id, {

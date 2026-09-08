@@ -19,12 +19,7 @@
  *     permissions (Requirement 42 AC 5).
  */
 
-import {
-  BusinessRuleError,
-  ConflictError,
-  NotFoundError,
-  ValidationError,
-} from '@proctira/common';
+import { BusinessRuleError, ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -137,10 +132,7 @@ export class RolesService {
     return role;
   }
 
-  async createRole(
-    tenantId: string,
-    input: CreateRoleInput,
-  ): Promise<RoleEntity> {
+  async createRole(tenantId: string, input: CreateRoleInput): Promise<RoleEntity> {
     this.validateRoleName(input.name);
     this.validatePermissions(input.permissions);
 
@@ -185,11 +177,7 @@ export class RolesService {
    * - The new permissions take effect on the next request because the policy
    *   evaluator reads role permissions per-request from the repository.
    */
-  async updateRole(
-    tenantId: string,
-    id: string,
-    input: UpdateRoleInput,
-  ): Promise<RoleEntity> {
+  async updateRole(tenantId: string, id: string, input: UpdateRoleInput): Promise<RoleEntity> {
     const existing = await this.repository.findRoleById(tenantId, id);
     if (!existing) throw new NotFoundError(`Role with id '${id}' not found`);
     if (existing.builtIn) {
@@ -210,9 +198,7 @@ export class RolesService {
     const before = this.snapshot(existing);
     const updated = await this.repository.updateRole(tenantId, id, {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
-      ...(input.description !== undefined
-        ? { description: input.description ?? null }
-        : {}),
+      ...(input.description !== undefined ? { description: input.description ?? null } : {}),
       ...(input.permissions !== undefined
         ? { permissions: input.permissions.map((p) => ({ ...p })) }
         : {}),
@@ -228,7 +214,8 @@ export class RolesService {
       afterValues: this.snapshot(updated),
       metadata: {
         riskLevel: 'high',
-        change: input.permissions !== undefined ? 'role_permissions_changed' : 'role_metadata_changed',
+        change:
+          input.permissions !== undefined ? 'role_permissions_changed' : 'role_metadata_changed',
       },
     });
 

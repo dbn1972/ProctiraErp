@@ -75,9 +75,7 @@ export default async function EditStudentPage({ params }: PageProps) {
             Edit student: {student.firstName} {student.lastName}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {contextParts.length > 0
-              ? `${contextParts.join(' · ')} · `
-              : ''}
+            {contextParts.length > 0 ? `${contextParts.join(' · ')} · ` : ''}
             All changes are recorded in the audit trail with your name and timestamp.
           </p>
         </div>

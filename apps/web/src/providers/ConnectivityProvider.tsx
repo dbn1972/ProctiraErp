@@ -92,7 +92,7 @@ export function ConnectivityProvider({
   syncFetcher,
 }: ConnectivityProviderProps) {
   const [status, setStatus] = useState<ConnectivityStatus>(() =>
-    getInitialOnlineStatus() ? 'online' : 'offline'
+    getInitialOnlineStatus() ? 'online' : 'offline',
   );
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Re-entrancy guard so concurrent triggers (online event + manual
@@ -207,11 +207,7 @@ export function ConnectivityProvider({
     replaySyncQueue,
   };
 
-  return (
-    <ConnectivityContext.Provider value={value}>
-      {children}
-    </ConnectivityContext.Provider>
-  );
+  return <ConnectivityContext.Provider value={value}>{children}</ConnectivityContext.Provider>;
 }
 
 // ─── Conflict event dispatch ─────────────────────────────────────────────────

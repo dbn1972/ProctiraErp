@@ -205,9 +205,19 @@ describe('DataWarehouseService', () => {
     });
 
     it('should reject duplicate area external ID', async () => {
-      await service.createArea(tenantId, warehouseId, { name: 'A1', areaId: 'A1', gid: 'G1', level: 0 });
+      await service.createArea(tenantId, warehouseId, {
+        name: 'A1',
+        areaId: 'A1',
+        gid: 'G1',
+        level: 0,
+      });
       await expect(
-        service.createArea(tenantId, warehouseId, { name: 'A2', areaId: 'A1', gid: 'G2', level: 0 }),
+        service.createArea(tenantId, warehouseId, {
+          name: 'A2',
+          areaId: 'A1',
+          gid: 'G2',
+          level: 0,
+        }),
       ).rejects.toThrow(ConflictError);
     });
 
@@ -236,13 +246,25 @@ describe('DataWarehouseService', () => {
       await service.createUnit(tenantId, warehouseId, { name: 'Percent', gid: 'PCT' });
       await service.createSubgroup(tenantId, warehouseId, { name: 'Total', gid: 'SG_TOTAL' });
       await service.createTimePeriod(tenantId, warehouseId, { timePeriod: '2023' });
-      await service.createArea(tenantId, warehouseId, { name: 'India', areaId: 'IND', gid: 'AREA_IND', level: 0 });
+      await service.createArea(tenantId, warehouseId, {
+        name: 'India',
+        areaId: 'IND',
+        gid: 'AREA_IND',
+        level: 0,
+      });
     });
 
     it('should import valid data records', async () => {
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 95.5 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 95.5,
+          },
         ],
       });
 
@@ -254,7 +276,14 @@ describe('DataWarehouseService', () => {
     it('should reject records with non-existent indicator', async () => {
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NONEXISTENT', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 50 },
+          {
+            indicatorGid: 'NONEXISTENT',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 50,
+          },
         ],
       });
 
@@ -266,7 +295,14 @@ describe('DataWarehouseService', () => {
     it('should reject records with non-existent unit', async () => {
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'BADUNIT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 50 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'BADUNIT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 50,
+          },
         ],
       });
 
@@ -277,7 +313,14 @@ describe('DataWarehouseService', () => {
     it('should reject records with non-existent subgroup', async () => {
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'BAD_SG', areaId: 'IND', timePeriod: '2023', dataValue: 50 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'BAD_SG',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 50,
+          },
         ],
       });
 
@@ -288,7 +331,14 @@ describe('DataWarehouseService', () => {
     it('should reject records with non-existent area', async () => {
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'BADAREA', timePeriod: '2023', dataValue: 50 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'BADAREA',
+            timePeriod: '2023',
+            dataValue: 50,
+          },
         ],
       });
 
@@ -299,7 +349,14 @@ describe('DataWarehouseService', () => {
     it('should reject records with non-existent time period', async () => {
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '9999', dataValue: 50 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '9999',
+            dataValue: 50,
+          },
         ],
       });
 
@@ -311,14 +368,28 @@ describe('DataWarehouseService', () => {
       // First import succeeds
       await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 95.5 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 95.5,
+          },
         ],
       });
 
       // Second import with same combination should fail
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 96.0 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 96.0,
+          },
         ],
       });
 
@@ -330,8 +401,22 @@ describe('DataWarehouseService', () => {
     it('should detect duplicates within the same import batch', async () => {
       const result = await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 95.5 },
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 96.0 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 95.5,
+          },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 96.0,
+          },
         ],
       });
 
@@ -394,13 +479,39 @@ NER_001\tPCT\tSG_TOTAL\tIND\t2023\t95.5\tCensus`;
       await service.createSubgroup(tenantId, warehouseId, { name: 'Total', gid: 'SG_TOTAL' });
       await service.createTimePeriod(tenantId, warehouseId, { timePeriod: '2022' });
       await service.createTimePeriod(tenantId, warehouseId, { timePeriod: '2023' });
-      await service.createArea(tenantId, warehouseId, { name: 'India', areaId: 'IND', gid: 'AREA_IND', level: 0 });
+      await service.createArea(tenantId, warehouseId, {
+        name: 'India',
+        areaId: 'IND',
+        gid: 'AREA_IND',
+        level: 0,
+      });
 
       await service.importData(tenantId, warehouseId, 'csv', {
         records: [
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2022', dataValue: 90.0 },
-          { indicatorGid: 'NER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 95.5 },
-          { indicatorGid: 'GER_001', unitGid: 'PCT', subgroupGid: 'SG_TOTAL', areaId: 'IND', timePeriod: '2023', dataValue: 102.3 },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2022',
+            dataValue: 90.0,
+          },
+          {
+            indicatorGid: 'NER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 95.5,
+          },
+          {
+            indicatorGid: 'GER_001',
+            unitGid: 'PCT',
+            subgroupGid: 'SG_TOTAL',
+            areaId: 'IND',
+            timePeriod: '2023',
+            dataValue: 102.3,
+          },
         ],
       });
     });
@@ -411,7 +522,13 @@ NER_001\tPCT\tSG_TOTAL\tIND\t2023\t95.5\tCensus`;
     });
 
     it('should filter by time period', async () => {
-      const result = await service.queryData(tenantId, warehouseId, { timePeriods: ['2023'] }, 1, 50);
+      const result = await service.queryData(
+        tenantId,
+        warehouseId,
+        { timePeriods: ['2023'] },
+        1,
+        50,
+      );
       expect(result.total).toBe(2);
     });
 

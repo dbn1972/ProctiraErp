@@ -26,10 +26,7 @@ import {
   SelectValue,
   Textarea,
 } from '@proctira/ui/components';
-import {
-  transferFormSchema,
-  type TransferFormValues,
-} from '@/lib/validation/student-schema';
+import { transferFormSchema, type TransferFormValues } from '@/lib/validation/student-schema';
 
 import {
   getInstitutionGradesAction,
@@ -75,9 +72,7 @@ export function TransferForm({
   const [selectedAreaIds, setSelectedAreaIds] = useState<string[]>([]);
   const [grades, setGrades] = useState<{ id: string; name: string }[]>([]);
   const [periods, setPeriods] = useState<{ id: string; name: string }[]>([]);
-  const [serverState, setServerState] = useState<ActionState<{ transferId: string }> | null>(
-    null,
-  );
+  const [serverState, setServerState] = useState<ActionState<{ transferId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
 
   const defaultEnrollment = activeEnrollments[0];
@@ -114,9 +109,7 @@ export function TransferForm({
   const filteredInstitutions = useMemo(() => {
     if (selectedAreaIds.length === 0) return institutions;
     const selected = new Set(selectedAreaIds);
-    return institutions.filter(
-      (inst) => inst.areaId !== null && selected.has(inst.areaId),
-    );
+    return institutions.filter((inst) => inst.areaId !== null && selected.has(inst.areaId));
   }, [institutions, selectedAreaIds]);
 
   // When destination institution changes, fetch its grades and academic periods.
@@ -195,9 +188,7 @@ export function TransferForm({
       >
         <Select
           value={watch('sourceEnrollmentId')}
-          onValueChange={(value) =>
-            setValue('sourceEnrollmentId', value, { shouldValidate: true })
-          }
+          onValueChange={(value) => setValue('sourceEnrollmentId', value, { shouldValidate: true })}
         >
           <SelectTrigger id="sourceEnrollmentId">
             <SelectValue placeholder="Select source enrollment" />
@@ -300,9 +291,7 @@ export function TransferForm({
         >
           <Select
             value={watch('academicPeriodId')}
-            onValueChange={(value) =>
-              setValue('academicPeriodId', value, { shouldValidate: true })
-            }
+            onValueChange={(value) => setValue('academicPeriodId', value, { shouldValidate: true })}
             disabled={!destinationInstitutionId}
           >
             <SelectTrigger id="academicPeriodId">
@@ -370,12 +359,7 @@ export function TransferForm({
       </FormField>
 
       <div className="flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isPending}>
           Cancel
         </Button>
         <Button type="submit" disabled={isPending}>

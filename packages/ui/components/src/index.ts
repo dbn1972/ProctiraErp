@@ -15,14 +15,7 @@
  */
 
 // Layout / surfaces
-export {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from './Card';
+export { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from './Card';
 export { Separator } from './Separator';
 export { ScrollArea, ScrollBar } from './ScrollArea';
 export { Skeleton } from './Skeleton';
@@ -94,23 +87,13 @@ export {
   DropdownMenuSeparator,
 } from './DropdownMenu';
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor } from './Popover';
-export {
-  Tooltip,
-  TooltipTrigger,
-  TooltipContent,
-  TooltipProvider,
-} from './Tooltip';
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './Tooltip';
 
 // Display
 export { Alert, AlertTitle, AlertDescription } from './Alert';
 export { Badge, badgeVariants, type BadgeProps } from './Badge';
 export { Avatar, AvatarImage, AvatarFallback } from './Avatar';
-export {
-  Accordion,
-  AccordionItem,
-  AccordionTrigger,
-  AccordionContent,
-} from './Accordion';
+export { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './Accordion';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './Tabs';
 export {
   Table,
@@ -162,11 +145,7 @@ export {
   type PasswordRating,
   type PasswordStrengthRule,
 } from './PasswordStrengthMeter';
-export {
-  MfaCodeInput,
-  sanitizeOtp,
-  type MfaCodeInputProps,
-} from './MfaCodeInput';
+export { MfaCodeInput, sanitizeOtp, type MfaCodeInputProps } from './MfaCodeInput';
 
 // ProctiraERP-specific image wrapper (preserved from the original package).
 export { Img, type ImgProps } from './Img';

@@ -69,7 +69,7 @@ export function LanguageSwitcher({
       }
       setIsOpen(false);
     },
-    [onLanguageChange, onRtlToggle, isRtl]
+    [onLanguageChange, onRtlToggle, isRtl],
   );
 
   const handleRtlToggle = useCallback(() => {
@@ -78,8 +78,16 @@ export function LanguageSwitcher({
 
   if (variant === 'inline') {
     return (
-      <div className={`proctira-lang-switcher proctira-lang-switcher--inline ${className}`} role="group" aria-label="Language selection">
-        <ul className="proctira-lang-switcher__list" role="listbox" aria-label="Available languages">
+      <div
+        className={`proctira-lang-switcher proctira-lang-switcher--inline ${className}`}
+        role="group"
+        aria-label="Language selection"
+      >
+        <ul
+          className="proctira-lang-switcher__list"
+          role="listbox"
+          aria-label="Available languages"
+        >
           {languages.map((lang) => (
             <li key={lang.code} role="option" aria-selected={lang.code === currentLanguage}>
               <button
@@ -103,7 +111,9 @@ export function LanguageSwitcher({
             disabled={disabled}
             className="proctira-lang-switcher__rtl-toggle"
             aria-pressed={effectiveRtl}
-            aria-label={effectiveRtl ? 'Switch to left-to-right layout' : 'Switch to right-to-left layout'}
+            aria-label={
+              effectiveRtl ? 'Switch to left-to-right layout' : 'Switch to right-to-left layout'
+            }
           >
             {effectiveRtl ? 'RTL ✓' : 'RTL'}
           </button>
@@ -114,8 +124,15 @@ export function LanguageSwitcher({
 
   // Dropdown variant
   return (
-    <div ref={containerRef} className={`proctira-lang-switcher proctira-lang-switcher--dropdown ${className}`}>
-      <div className="proctira-lang-switcher__controls" role="group" aria-label="Language selection">
+    <div
+      ref={containerRef}
+      className={`proctira-lang-switcher proctira-lang-switcher--dropdown ${className}`}
+    >
+      <div
+        className="proctira-lang-switcher__controls"
+        role="group"
+        aria-label="Language selection"
+      >
         <button
           type="button"
           onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -139,7 +156,9 @@ export function LanguageSwitcher({
             disabled={disabled}
             className="proctira-lang-switcher__rtl-toggle"
             aria-pressed={effectiveRtl}
-            aria-label={effectiveRtl ? 'Switch to left-to-right layout' : 'Switch to right-to-left layout'}
+            aria-label={
+              effectiveRtl ? 'Switch to left-to-right layout' : 'Switch to right-to-left layout'
+            }
           >
             {effectiveRtl ? 'RTL ✓' : 'RTL'}
           </button>
@@ -147,13 +166,13 @@ export function LanguageSwitcher({
       </div>
 
       {isOpen && (
-        <ul className="proctira-lang-switcher__dropdown" role="listbox" aria-label="Available languages">
+        <ul
+          className="proctira-lang-switcher__dropdown"
+          role="listbox"
+          aria-label="Available languages"
+        >
           {languages.map((lang) => (
-            <li
-              key={lang.code}
-              role="option"
-              aria-selected={lang.code === currentLanguage}
-            >
+            <li key={lang.code} role="option" aria-selected={lang.code === currentLanguage}>
               <button
                 type="button"
                 onClick={() => handleLanguageSelect(lang)}
@@ -165,7 +184,14 @@ export function LanguageSwitcher({
                 {lang.flag && <span aria-hidden="true">{lang.flag}</span>}
                 <span className="proctira-lang-switcher__option-native">{lang.nativeName}</span>
                 <span className="proctira-lang-switcher__option-english">({lang.englishName})</span>
-                {lang.rtl && <span className="proctira-lang-switcher__rtl-badge" aria-label="Right-to-left language">RTL</span>}
+                {lang.rtl && (
+                  <span
+                    className="proctira-lang-switcher__rtl-badge"
+                    aria-label="Right-to-left language"
+                  >
+                    RTL
+                  </span>
+                )}
               </button>
             </li>
           ))}

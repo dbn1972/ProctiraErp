@@ -20,18 +20,19 @@ const alphanumericChar = fc.char().filter((c) => /^[a-zA-Z0-9]$/.test(c));
 /**
  * Arbitrary for valid tenant IDs (non-empty, no slashes, no whitespace-only).
  */
-const tenantIdArb = fc.stringOf(
-  fc.oneof(alphanumericChar, fc.constantFrom('-', '_')),
-  { minLength: 1, maxLength: 50 },
-).filter((s) => s.trim().length > 0);
+const tenantIdArb = fc
+  .stringOf(fc.oneof(alphanumericChar, fc.constantFrom('-', '_')), { minLength: 1, maxLength: 50 })
+  .filter((s) => s.trim().length > 0);
 
 /**
  * Arbitrary for valid object keys (non-empty, no leading slash after normalization).
  */
-const objectKeyArb = fc.stringOf(
-  fc.oneof(alphanumericChar, fc.constantFrom('/', '-', '_', '.')),
-  { minLength: 1, maxLength: 100 },
-).filter((s) => s.replace(/^\/+/, '').trim().length > 0);
+const objectKeyArb = fc
+  .stringOf(fc.oneof(alphanumericChar, fc.constantFrom('/', '-', '_', '.')), {
+    minLength: 1,
+    maxLength: 100,
+  })
+  .filter((s) => s.replace(/^\/+/, '').trim().length > 0);
 
 describe('Tenant Namespace Properties', () => {
   it('Property: buildTenantKey always produces keys starting with tenants/ prefix', () => {

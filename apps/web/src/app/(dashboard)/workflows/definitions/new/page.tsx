@@ -25,8 +25,8 @@ export default function NewWorkflowDefinitionPage() {
           New workflow definition
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Define the approval chain once — every matching request is then routed
-          step by step, with SLA tracking and escalation built in.
+          Define the approval chain once — every matching request is then routed step by step, with
+          SLA tracking and escalation built in.
         </p>
       </div>
 

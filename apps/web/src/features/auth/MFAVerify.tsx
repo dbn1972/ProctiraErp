@@ -164,9 +164,7 @@ export default function MFAVerify(): ReactElement {
             <h1 className="text-2xl font-semibold tracking-tight text-primary">
               {t('auth.twoFactorAuthentication')}
             </h1>
-            <p className="text-sm text-muted-foreground">
-              {t('auth.mfaSubtitle')}
-            </p>
+            <p className="text-sm text-muted-foreground">{t('auth.mfaSubtitle')}</p>
           </header>
 
           {formError && (
@@ -182,10 +180,7 @@ export default function MFAVerify(): ReactElement {
             aria-label={t('auth.twoFactorAuthentication')}
           >
             <div className="space-y-2">
-              <Label
-                htmlFor={codeInputId}
-                className="block text-center text-sm font-medium"
-              >
+              <Label htmlFor={codeInputId} className="block text-center text-sm font-medium">
                 {t('auth.verificationCode')}
               </Label>
               <div className="flex justify-center">
@@ -208,10 +203,7 @@ export default function MFAVerify(): ReactElement {
                   }
                 />
               </div>
-              <p
-                id={helpId}
-                className="text-center text-xs text-muted-foreground"
-              >
+              <p id={helpId} className="text-center text-xs text-muted-foreground">
                 {t('auth.mfaSubtitle')}
               </p>
             </div>
@@ -222,12 +214,7 @@ export default function MFAVerify(): ReactElement {
               className="w-full"
               data-testid="mfa-verify-submit"
             >
-              {isSubmitting && (
-                <Loader2
-                  className="me-2 h-4 w-4 animate-spin"
-                  aria-hidden="true"
-                />
-              )}
+              {isSubmitting && <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />}
               {isSubmitting ? t('auth.verifying') : t('auth.verify')}
             </Button>
           </form>

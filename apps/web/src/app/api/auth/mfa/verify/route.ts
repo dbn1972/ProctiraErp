@@ -17,18 +17,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { message: 'Invalid request body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
   const { mfaToken, code } = body;
   if (!mfaToken || !code) {
-    return NextResponse.json(
-      { message: 'Verification code is required.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Verification code is required.' }, { status: 400 });
   }
 
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';

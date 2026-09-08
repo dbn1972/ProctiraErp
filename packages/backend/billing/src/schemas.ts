@@ -66,9 +66,15 @@ export type EntitlementType = Static<typeof EntitlementTypeEnum>;
  * A feature included in a plan.
  */
 export const PlanFeatureSchema = Type.Object({
-  featureKey: Type.String({ minLength: 1, maxLength: 100, description: 'Unique feature identifier (e.g., "custom_fields", "bulk_import")' }),
+  featureKey: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Unique feature identifier (e.g., "custom_fields", "bulk_import")',
+  }),
   enabled: Type.Boolean({ description: 'Whether this feature is enabled in the plan' }),
-  description: Type.Optional(Type.String({ maxLength: 500, description: 'Human-readable feature description' })),
+  description: Type.Optional(
+    Type.String({ maxLength: 500, description: 'Human-readable feature description' }),
+  ),
 });
 
 export type PlanFeature = Static<typeof PlanFeatureSchema>;
@@ -77,9 +83,15 @@ export type PlanFeature = Static<typeof PlanFeatureSchema>;
  * A quota limit included in a plan.
  */
 export const PlanQuotaSchema = Type.Object({
-  metric: Type.String({ minLength: 1, maxLength: 100, description: 'Quota metric key (e.g., "students", "institutions", "api_calls_per_day")' }),
+  metric: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Quota metric key (e.g., "students", "institutions", "api_calls_per_day")',
+  }),
   limit: Type.Number({ minimum: 0, description: 'Maximum allowed value (-1 for unlimited)' }),
-  description: Type.Optional(Type.String({ maxLength: 500, description: 'Human-readable quota description' })),
+  description: Type.Optional(
+    Type.String({ maxLength: 500, description: 'Human-readable quota description' }),
+  ),
 });
 
 export type PlanQuota = Static<typeof PlanQuotaSchema>;
@@ -97,8 +109,12 @@ export const CreatePlanSchema = Type.Object({
   quotas: Type.Array(PlanQuotaSchema, { description: 'Quota limits for this plan' }),
   priceMonthly: Type.Optional(Type.Number({ minimum: 0, description: 'Monthly price in cents' })),
   priceYearly: Type.Optional(Type.Number({ minimum: 0, description: 'Yearly price in cents' })),
-  trialDays: Type.Optional(Type.Number({ minimum: 0, maximum: 365, default: 0, description: 'Number of trial days' })),
-  sortOrder: Type.Optional(Type.Number({ minimum: 0, default: 0, description: 'Display sort order' })),
+  trialDays: Type.Optional(
+    Type.Number({ minimum: 0, maximum: 365, default: 0, description: 'Number of trial days' }),
+  ),
+  sortOrder: Type.Optional(
+    Type.Number({ minimum: 0, default: 0, description: 'Display sort order' }),
+  ),
 });
 
 export type CreatePlanInput = Static<typeof CreatePlanSchema>;
@@ -109,11 +125,15 @@ export type CreatePlanInput = Static<typeof CreatePlanSchema>;
 export const UpdatePlanSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Plan name' })),
   description: Type.Optional(Type.String({ maxLength: 1000, description: 'Plan description' })),
-  features: Type.Optional(Type.Array(PlanFeatureSchema, { description: 'Features included in this plan' })),
+  features: Type.Optional(
+    Type.Array(PlanFeatureSchema, { description: 'Features included in this plan' }),
+  ),
   quotas: Type.Optional(Type.Array(PlanQuotaSchema, { description: 'Quota limits for this plan' })),
   priceMonthly: Type.Optional(Type.Number({ minimum: 0, description: 'Monthly price in cents' })),
   priceYearly: Type.Optional(Type.Number({ minimum: 0, description: 'Yearly price in cents' })),
-  trialDays: Type.Optional(Type.Number({ minimum: 0, maximum: 365, description: 'Number of trial days' })),
+  trialDays: Type.Optional(
+    Type.Number({ minimum: 0, maximum: 365, description: 'Number of trial days' }),
+  ),
   sortOrder: Type.Optional(Type.Number({ minimum: 0, description: 'Display sort order' })),
   status: Type.Optional(PlanStatusEnum),
 });
@@ -136,13 +156,25 @@ export type PlanParams = Static<typeof PlanParamsSchema>;
  * Schema for plan list query parameters.
  */
 export const PlanListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   tier: Type.Optional(PricingTierEnum),
   status: Type.Optional(PlanStatusEnum),
   search: Type.Optional(Type.String({ description: 'Search by name or description' })),
-  sortBy: Type.Optional(Type.String({ enum: ['name', 'tier', 'createdAt', 'sortOrder'], default: 'sortOrder', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' })),
+  sortBy: Type.Optional(
+    Type.String({
+      enum: ['name', 'tier', 'createdAt', 'sortOrder'],
+      default: 'sortOrder',
+      description: 'Sort field',
+    }),
+  ),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+  ),
 });
 
 export type PlanListQuery = Static<typeof PlanListQuerySchema>;
@@ -161,7 +193,9 @@ export const CreateSubscriptionSchema = Type.Object({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Plan UUID',
   }),
-  startTrial: Type.Optional(Type.Boolean({ default: false, description: 'Whether to start with a trial period' })),
+  startTrial: Type.Optional(
+    Type.Boolean({ default: false, description: 'Whether to start with a trial period' }),
+  ),
 });
 
 export type CreateSubscriptionInput = Static<typeof CreateSubscriptionSchema>;
@@ -228,8 +262,12 @@ export const GetUsageSchema = Type.Object({
     description: 'Tenant UUID',
   }),
   metric: Type.String({ minLength: 1, maxLength: 100, description: 'Usage metric key' }),
-  periodStart: Type.Optional(Type.String({ format: 'date-time', description: 'Period start (ISO 8601)' })),
-  periodEnd: Type.Optional(Type.String({ format: 'date-time', description: 'Period end (ISO 8601)' })),
+  periodStart: Type.Optional(
+    Type.String({ format: 'date-time', description: 'Period start (ISO 8601)' }),
+  ),
+  periodEnd: Type.Optional(
+    Type.String({ format: 'date-time', description: 'Period end (ISO 8601)' }),
+  ),
 });
 
 export type GetUsageInput = Static<typeof GetUsageSchema>;
@@ -281,11 +319,17 @@ export const SubscriptionResponseSchema = Type.Object({
   planId: Type.String({ description: 'Plan UUID' }),
   planName: Type.String({ description: 'Plan name' }),
   status: SubscriptionStatusEnum,
-  trialEndsAt: Type.Union([Type.String(), Type.Null()], { description: 'Trial end date (ISO 8601)' }),
+  trialEndsAt: Type.Union([Type.String(), Type.Null()], {
+    description: 'Trial end date (ISO 8601)',
+  }),
   currentPeriodStart: Type.String({ description: 'Current billing period start (ISO 8601)' }),
   currentPeriodEnd: Type.String({ description: 'Current billing period end (ISO 8601)' }),
-  cancelledAt: Type.Union([Type.String(), Type.Null()], { description: 'Cancellation date (ISO 8601)' }),
-  previousPlanId: Type.Union([Type.String(), Type.Null()], { description: 'Previous plan UUID (for upgrades/downgrades)' }),
+  cancelledAt: Type.Union([Type.String(), Type.Null()], {
+    description: 'Cancellation date (ISO 8601)',
+  }),
+  previousPlanId: Type.Union([Type.String(), Type.Null()], {
+    description: 'Previous plan UUID (for upgrades/downgrades)',
+  }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),
 });
@@ -298,10 +342,12 @@ export type SubscriptionResponse = Static<typeof SubscriptionResponseSchema>;
 export const EntitlementResponseSchema = Type.Object({
   allowed: Type.Boolean({ description: 'Whether the feature/quota is allowed' }),
   reason: Type.Optional(Type.String({ description: 'Reason for denial' })),
-  quota: Type.Optional(Type.Object({
-    used: Type.Number({ description: 'Current usage' }),
-    limit: Type.Number({ description: 'Maximum allowed (-1 for unlimited)' }),
-  })),
+  quota: Type.Optional(
+    Type.Object({
+      used: Type.Number({ description: 'Current usage' }),
+      limit: Type.Number({ description: 'Maximum allowed (-1 for unlimited)' }),
+    }),
+  ),
   featureFlag: Type.Optional(Type.Boolean({ description: 'Feature flag value' })),
 });
 
@@ -339,12 +385,15 @@ export type QuotaResult = Static<typeof QuotaResultSchema>;
  */
 export const DowngradeResultSchema = Type.Object({
   subscription: SubscriptionResponseSchema,
-  warnings: Type.Array(Type.Object({
-    metric: Type.String({ description: 'Affected metric' }),
-    currentUsage: Type.Number({ description: 'Current usage' }),
-    newLimit: Type.Number({ description: 'New plan limit' }),
-    message: Type.String({ description: 'Warning message' }),
-  }), { description: 'Warnings about data that may exceed new plan limits' }),
+  warnings: Type.Array(
+    Type.Object({
+      metric: Type.String({ description: 'Affected metric' }),
+      currentUsage: Type.Number({ description: 'Current usage' }),
+      newLimit: Type.Number({ description: 'New plan limit' }),
+      message: Type.String({ description: 'Warning message' }),
+    }),
+    { description: 'Warnings about data that may exceed new plan limits' },
+  ),
 });
 
 export type DowngradeResult = Static<typeof DowngradeResultSchema>;

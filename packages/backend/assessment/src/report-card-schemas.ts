@@ -23,10 +23,18 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
 export const CreateReportCardTemplateSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Template name' }),
   templateContent: Type.String({ minLength: 1, description: 'HTML/Handlebars template content' }),
-  isDefault: Type.Optional(Type.Boolean({ description: 'Whether this is the default template', default: false })),
-  includeLogo: Type.Optional(Type.Boolean({ description: 'Include institution logo', default: true })),
-  includeGradeSummary: Type.Optional(Type.Boolean({ description: 'Include overall grade summary', default: true })),
-  includeComments: Type.Optional(Type.Boolean({ description: 'Include teacher comments', default: true })),
+  isDefault: Type.Optional(
+    Type.Boolean({ description: 'Whether this is the default template', default: false }),
+  ),
+  includeLogo: Type.Optional(
+    Type.Boolean({ description: 'Include institution logo', default: true }),
+  ),
+  includeGradeSummary: Type.Optional(
+    Type.Boolean({ description: 'Include overall grade summary', default: true }),
+  ),
+  includeComments: Type.Optional(
+    Type.Boolean({ description: 'Include teacher comments', default: true }),
+  ),
 });
 
 export type CreateReportCardTemplateInput = Static<typeof CreateReportCardTemplateSchema>;
@@ -123,7 +131,9 @@ export type TeacherCommentsQuery = Static<typeof TeacherCommentsQuerySchema>;
 export const GenerateReportCardSchema = Type.Object({
   studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   academicPeriodId: Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
-  templateId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Template UUID (uses default if omitted)' })),
+  templateId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Template UUID (uses default if omitted)' }),
+  ),
   institutionId: Type.String({ pattern: UUID_PATTERN, description: 'Institution UUID' }),
 });
 
@@ -139,7 +149,9 @@ export const BulkGenerateReportCardSchema = Type.Object({
     description: 'Student UUIDs (max 500 per batch)',
   }),
   academicPeriodId: Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
-  templateId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Template UUID (uses default if omitted)' })),
+  templateId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Template UUID (uses default if omitted)' }),
+  ),
   institutionId: Type.String({ pattern: UUID_PATTERN, description: 'Institution UUID' }),
 });
 
@@ -165,7 +177,9 @@ export const ReportCardJobResponseSchema = Type.Object({
   templateId: Type.String({ description: 'Template UUID' }),
   institutionId: Type.String({ description: 'Institution UUID' }),
   status: ReportCardJobStatusEnum,
-  errorMessage: Type.Union([Type.String(), Type.Null()], { description: 'Error message if failed' }),
+  errorMessage: Type.Union([Type.String(), Type.Null()], {
+    description: 'Error message if failed',
+  }),
   outputUrl: Type.Union([Type.String(), Type.Null()], { description: 'URL to generated PDF' }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
   updatedAt: Type.String({ description: 'Last update timestamp (ISO 8601)' }),

@@ -16,8 +16,12 @@ vi.mock('@aws-sdk/client-s3', () => ({
   S3Client: vi.fn().mockImplementation(() => ({ send: mockSend })),
   PutObjectCommand: vi.fn().mockImplementation((params) => ({ ...params, _type: 'PutObject' })),
   GetObjectCommand: vi.fn().mockImplementation((params) => ({ ...params, _type: 'GetObject' })),
-  DeleteObjectCommand: vi.fn().mockImplementation((params) => ({ ...params, _type: 'DeleteObject' })),
-  ListObjectsV2Command: vi.fn().mockImplementation((params) => ({ ...params, _type: 'ListObjectsV2' })),
+  DeleteObjectCommand: vi
+    .fn()
+    .mockImplementation((params) => ({ ...params, _type: 'DeleteObject' })),
+  ListObjectsV2Command: vi
+    .fn()
+    .mockImplementation((params) => ({ ...params, _type: 'ListObjectsV2' })),
   HeadBucketCommand: vi.fn().mockImplementation((params) => ({ ...params, _type: 'HeadBucket' })),
 }));
 
@@ -125,8 +129,9 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
       it('should throw when object not found', async () => {
         mockSend.mockResolvedValueOnce({ Body: null });
 
-        await expect(adapter.download('tenants/tenant-001/missing.txt'))
-          .rejects.toThrow('Object not found');
+        await expect(adapter.download('tenants/tenant-001/missing.txt')).rejects.toThrow(
+          'Object not found',
+        );
       });
     });
 
@@ -134,8 +139,7 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
       it('should delete without throwing', async () => {
         mockSend.mockResolvedValueOnce({});
 
-        await expect(adapter.delete('tenants/tenant-001/file.txt'))
-          .resolves.toBeUndefined();
+        await expect(adapter.delete('tenants/tenant-001/file.txt')).resolves.toBeUndefined();
       });
     });
 
@@ -150,8 +154,18 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
       it('should return objects matching prefix', async () => {
         mockSend.mockResolvedValueOnce({
           Contents: [
-            { Key: 'tenants/tenant-001/file1.txt', Size: 100, LastModified: new Date('2024-01-01'), ETag: '"e1"' },
-            { Key: 'tenants/tenant-001/file2.txt', Size: 200, LastModified: new Date('2024-01-02'), ETag: '"e2"' },
+            {
+              Key: 'tenants/tenant-001/file1.txt',
+              Size: 100,
+              LastModified: new Date('2024-01-01'),
+              ETag: '"e1"',
+            },
+            {
+              Key: 'tenants/tenant-001/file2.txt',
+              Size: 200,
+              LastModified: new Date('2024-01-02'),
+              ETag: '"e2"',
+            },
           ],
           IsTruncated: false,
         });
@@ -166,9 +180,7 @@ function runContractTests(adapterName: string, createAdapter: () => StorageAdapt
 
       it('should handle pagination', async () => {
         mockSend.mockResolvedValueOnce({
-          Contents: [
-            { Key: 'tenants/tenant-001/file1.txt', Size: 100, LastModified: new Date() },
-          ],
+          Contents: [{ Key: 'tenants/tenant-001/file1.txt', Size: 100, LastModified: new Date() }],
           IsTruncated: true,
           NextContinuationToken: 'next-token',
         });
@@ -237,15 +249,23 @@ const { S3Adapter } = await import('../adapters/s3-adapter.js');
 const { MinIOAdapter } = await import('../adapters/minio-adapter.js');
 
 // Run contract tests for S3 adapter
-runContractTests('s3', () => new S3Adapter({
-  bucket: 'test-bucket',
-  region: 'us-east-1',
-}));
+runContractTests(
+  's3',
+  () =>
+    new S3Adapter({
+      bucket: 'test-bucket',
+      region: 'us-east-1',
+    }),
+);
 
 // Run contract tests for MinIO adapter
-runContractTests('minio', () => new MinIOAdapter({
-  endpoint: 'http://localhost:9000',
-  accessKey: 'minioadmin',
-  secretKey: 'minioadmin',
-  bucket: 'test-bucket',
-}));
+runContractTests(
+  'minio',
+  () =>
+    new MinIOAdapter({
+      endpoint: 'http://localhost:9000',
+      accessKey: 'minioadmin',
+      secretKey: 'minioadmin',
+      bucket: 'test-bucket',
+    }),
+);

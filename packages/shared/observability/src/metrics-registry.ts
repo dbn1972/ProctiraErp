@@ -6,13 +6,7 @@
  * The registry is exposed via GET /metrics by the observability Fastify
  * plugin so Prometheus can scrape it.
  */
-import {
-  Counter,
-  Gauge,
-  Histogram,
-  Registry,
-  collectDefaultMetrics,
-} from 'prom-client';
+import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 
 /**
  * Default Prometheus histogram buckets for HTTP request duration in seconds.

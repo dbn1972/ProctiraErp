@@ -34,14 +34,14 @@ describe('createSecretManager', () => {
         adapter: 'aws-kms',
         awsKms: { region: 'us-east-1', keyId: 'test-key' },
       },
-      { awsClient: mockClient }
+      { awsClient: mockClient },
     );
     expect(manager).toBeInstanceOf(AwsKmsSecretAdapter);
   });
 
   it('should throw when aws-kms config is missing', () => {
     expect(() => createSecretManager({ adapter: 'aws-kms' })).toThrow(
-      /AWS KMS configuration is required/
+      /AWS KMS configuration is required/,
     );
   });
 
@@ -50,7 +50,7 @@ describe('createSecretManager', () => {
       createSecretManager({
         adapter: 'aws-kms',
         awsKms: { region: 'us-east-1', keyId: 'test-key' },
-      })
+      }),
     ).toThrow(/AWS Secrets Manager client must be provided/);
   });
 
@@ -64,14 +64,14 @@ describe('createSecretManager', () => {
         adapter: 'vault',
         vault: { address: 'http://localhost:8200', token: 'test-token' },
       },
-      { vaultHttpClient: mockClient }
+      { vaultHttpClient: mockClient },
     );
     expect(manager).toBeInstanceOf(VaultSecretAdapter);
   });
 
   it('should throw when vault config is missing', () => {
     expect(() => createSecretManager({ adapter: 'vault' })).toThrow(
-      /Vault configuration is required/
+      /Vault configuration is required/,
     );
   });
 
@@ -80,13 +80,13 @@ describe('createSecretManager', () => {
       createSecretManager({
         adapter: 'vault',
         vault: { address: 'http://localhost:8200', token: 'test-token' },
-      })
+      }),
     ).toThrow(/Vault HTTP client must be provided/);
   });
 
   it('should throw for unsupported adapter', () => {
-    expect(() =>
-      createSecretManager({ adapter: 'unknown' as 'env' })
-    ).toThrow(/Unsupported secret manager adapter/);
+    expect(() => createSecretManager({ adapter: 'unknown' as 'env' })).toThrow(
+      /Unsupported secret manager adapter/,
+    );
   });
 });

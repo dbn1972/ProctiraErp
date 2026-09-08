@@ -121,7 +121,7 @@ export class AttendanceService {
     if (period.status !== 'active') {
       throw new BusinessRuleError(
         `The referenced academic period is not currently active. ` +
-        `Only active periods allow attendance operations.`,
+          `Only active periods allow attendance operations.`,
       );
     }
 
@@ -129,7 +129,10 @@ export class AttendanceService {
     this.validateAttendanceDate(input.date, period.startDate, period.endDate);
 
     // Validate recording mode
-    const config = await this.repository.getInstitutionAttendanceConfig(tenantId, input.institutionId);
+    const config = await this.repository.getInstitutionAttendanceConfig(
+      tenantId,
+      input.institutionId,
+    );
     if (config) {
       this.validateRecordingMode(config.recordingMode, input.subjectId, input.periodId);
     }
@@ -205,7 +208,7 @@ export class AttendanceService {
     if (period.status !== 'active') {
       throw new BusinessRuleError(
         `The referenced academic period is not currently active. ` +
-        `Only active periods allow attendance operations.`,
+          `Only active periods allow attendance operations.`,
       );
     }
 
@@ -213,7 +216,10 @@ export class AttendanceService {
     this.validateAttendanceDate(input.date, period.startDate, period.endDate);
 
     // Validate recording mode
-    const config = await this.repository.getInstitutionAttendanceConfig(tenantId, input.institutionId);
+    const config = await this.repository.getInstitutionAttendanceConfig(
+      tenantId,
+      input.institutionId,
+    );
     if (config) {
       this.validateRecordingMode(config.recordingMode, input.subjectId, input.periodId);
     }
@@ -303,17 +309,30 @@ export class AttendanceService {
     if (input.status === 'ON_LEAVE') {
       if (!input.leaveTypeId) {
         throw new ValidationError('Leave type is required when status is ON_LEAVE', [
-          { field: 'leaveTypeId', rule: 'required', message: 'Leave type is required when status is ON_LEAVE' },
+          {
+            field: 'leaveTypeId',
+            rule: 'required',
+            message: 'Leave type is required when status is ON_LEAVE',
+          },
         ]);
       }
 
       // Validate leave type exists and is active
-      const config = await this.repository.getInstitutionAttendanceConfig(tenantId, input.institutionId);
+      const config = await this.repository.getInstitutionAttendanceConfig(
+        tenantId,
+        input.institutionId,
+      );
       if (config) {
-        const leaveType = config.leaveTypes.find(lt => lt.id === input.leaveTypeId && lt.isActive);
+        const leaveType = config.leaveTypes.find(
+          (lt) => lt.id === input.leaveTypeId && lt.isActive,
+        );
         if (!leaveType) {
           throw new ValidationError('Invalid or inactive leave type', [
-            { field: 'leaveTypeId', rule: 'invalid', message: 'The specified leave type does not exist or is inactive' },
+            {
+              field: 'leaveTypeId',
+              rule: 'invalid',
+              message: 'The specified leave type does not exist or is inactive',
+            },
           ]);
         }
       }
@@ -379,8 +398,8 @@ export class AttendanceService {
     const existingRecords = await this.repository.listStudentAttendance(tenantId, classId, date);
 
     // Merge roster with existing attendance
-    return roster.map(entry => {
-      const attendanceRecord = existingRecords.find(r => r.studentId === entry.studentId);
+    return roster.map((entry) => {
+      const attendanceRecord = existingRecords.find((r) => r.studentId === entry.studentId);
       return {
         ...entry,
         attendance: attendanceRecord
@@ -443,14 +462,14 @@ export class AttendanceService {
     if (attendanceDate < periodStartDate) {
       throw new BusinessRuleError(
         `Attendance date ${date} is before the academic period start date. ` +
-        `The active period starts on ${periodStartDate.toISOString().slice(0, 10)}.`,
+          `The active period starts on ${periodStartDate.toISOString().slice(0, 10)}.`,
       );
     }
 
     if (attendanceDate > periodEndDate) {
       throw new BusinessRuleError(
         `Attendance date ${date} is after the academic period end date. ` +
-        `The active period ends on ${periodEndDate.toISOString().slice(0, 10)}.`,
+          `The active period ends on ${periodEndDate.toISOString().slice(0, 10)}.`,
       );
     }
   }
@@ -462,11 +481,7 @@ export class AttendanceService {
    * - subject-level: subjectId required
    * - period-level: periodId required
    */
-  validateRecordingMode(
-    mode: RecordingMode,
-    subjectId?: string,
-    periodId?: string,
-  ): void {
+  validateRecordingMode(mode: RecordingMode, subjectId?: string, periodId?: string): void {
     const errors: FieldError[] = [];
 
     switch (mode) {
@@ -494,10 +509,7 @@ export class AttendanceService {
     }
 
     if (errors.length > 0) {
-      throw new ValidationError(
-        `Recording mode '${mode}' requires additional fields`,
-        errors,
-      );
+      throw new ValidationError(`Recording mode '${mode}' requires additional fields`, errors);
     }
   }
 
@@ -519,8 +531,24 @@ export class AttendanceService {
     // Validate query parameters
     if (query.scope === 'student' && (!query.studentId || !query.classId)) {
       throw new ValidationError('Student scope requires studentId and classId', [
-        ...(!query.studentId ? [{ field: 'studentId', rule: 'required', message: 'studentId is required for student scope' }] : []),
-        ...(!query.classId ? [{ field: 'classId', rule: 'required', message: 'classId is required for student scope' }] : []),
+        ...(!query.studentId
+          ? [
+              {
+                field: 'studentId',
+                rule: 'required',
+                message: 'studentId is required for student scope',
+              },
+            ]
+          : []),
+        ...(!query.classId
+          ? [
+              {
+                field: 'classId',
+                rule: 'required',
+                message: 'classId is required for student scope',
+              },
+            ]
+          : []),
       ]);
     }
     if (query.scope === 'class' && !query.classId) {
@@ -530,13 +558,21 @@ export class AttendanceService {
     }
     if (query.scope === 'institution' && !query.institutionId) {
       throw new ValidationError('Institution scope requires institutionId', [
-        { field: 'institutionId', rule: 'required', message: 'institutionId is required for institution scope' },
+        {
+          field: 'institutionId',
+          rule: 'required',
+          message: 'institutionId is required for institution scope',
+        },
       ]);
     }
 
     if (query.startDate > query.endDate) {
       throw new ValidationError('startDate must be before or equal to endDate', [
-        { field: 'startDate', rule: 'range', message: 'startDate must be before or equal to endDate' },
+        {
+          field: 'startDate',
+          rule: 'range',
+          message: 'startDate must be before or equal to endDate',
+        },
       ]);
     }
 
@@ -557,13 +593,14 @@ export class AttendanceService {
       };
     }
 
-    const presentCount = records.filter(r => r.status === AttendanceStatus.PRESENT).length;
-    const absentCount = records.filter(r => r.status === AttendanceStatus.ABSENT).length;
-    const excusedCount = records.filter(r => r.status === AttendanceStatus.EXCUSED).length;
-    const lateCount = records.filter(r => r.status === AttendanceStatus.LATE).length;
+    const presentCount = records.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+    const absentCount = records.filter((r) => r.status === AttendanceStatus.ABSENT).length;
+    const excusedCount = records.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
+    const lateCount = records.filter((r) => r.status === AttendanceStatus.LATE).length;
 
     // Attendance percentage: (present + late) / total * 100, rounded to 2 decimal places
-    const attendancePercentage = Math.round(((presentCount + lateCount) / totalRecords) * 10000) / 100;
+    const attendancePercentage =
+      Math.round(((presentCount + lateCount) / totalRecords) * 10000) / 100;
     // Absence percentage: absent / total * 100, rounded to 2 decimal places
     const absencePercentage = Math.round((absentCount / totalRecords) * 10000) / 100;
 
@@ -663,9 +700,11 @@ export class AttendanceService {
   async getAttendanceAuditTrail(
     attendanceId: string,
     tenantId?: string,
-  ): Promise<Array<{ previousStatus: string | null; newStatus: string; changedBy: string; changedAt: Date }>> {
+  ): Promise<
+    Array<{ previousStatus: string | null; newStatus: string; changedBy: string; changedAt: Date }>
+  > {
     const entries = await this.repository.getAuditEntriesForAttendance(attendanceId, tenantId);
-    return entries.map(e => ({
+    return entries.map((e) => ({
       previousStatus: e.previousStatus,
       newStatus: e.newStatus,
       changedBy: e.changedBy,

@@ -28,11 +28,7 @@ import {
   type GradingSchemeFormValues,
 } from '@/lib/validation/assessment-schema';
 
-import {
-  createGradingSchemeAction,
-  updateGradingSchemeAction,
-  type ActionState,
-} from '../actions';
+import { createGradingSchemeAction, updateGradingSchemeAction, type ActionState } from '../actions';
 
 interface GradingSchemeFormProps {
   mode: 'create' | 'edit';
@@ -46,14 +42,9 @@ const SCHEME_TYPE_OPTIONS = [
   { value: 'competency', label: 'Competency levels' },
 ];
 
-export function GradingSchemeForm({
-  mode,
-  schemeId,
-  initialValues,
-}: GradingSchemeFormProps) {
+export function GradingSchemeForm({ mode, schemeId, initialValues }: GradingSchemeFormProps) {
   const router = useRouter();
-  const [serverState, setServerState] =
-    useState<ActionState<{ schemeId: string }> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<{ schemeId: string }> | null>(null);
   const [isPending, setIsPending] = useState(false);
   const [hydrated, setHydrated] = useState(false);
 
@@ -126,21 +117,11 @@ export function GradingSchemeForm({
       )}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <FormField
-          id="name"
-          label="Scheme name"
-          required
-          error={errors.name?.message ?? null}
-        >
+        <FormField id="name" label="Scheme name" required error={errors.name?.message ?? null}>
           <Input id="name" {...register('name')} />
         </FormField>
 
-        <FormField
-          id="type"
-          label="Scheme type"
-          required
-          error={errors.type?.message ?? null}
-        >
+        <FormField id="type" label="Scheme type" required error={errors.type?.message ?? null}>
           <Select
             value={type}
             onValueChange={(value) =>
@@ -304,19 +285,10 @@ export function GradingSchemeForm({
       </div>
 
       <div className="flex justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isPending}>
           Cancel
         </Button>
-        <Button
-          type="submit"
-          disabled={isPending}
-          data-testid="grading-scheme-submit"
-        >
+        <Button type="submit" disabled={isPending} data-testid="grading-scheme-submit">
           {isPending
             ? mode === 'create'
               ? 'Creating…'

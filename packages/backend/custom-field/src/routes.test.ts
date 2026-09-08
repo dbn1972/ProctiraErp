@@ -88,7 +88,11 @@ describe('Custom Field Routes', () => {
       };
 
       await app.inject({ method: 'POST', url: '/custom-fields/definitions', payload });
-      const response = await app.inject({ method: 'POST', url: '/custom-fields/definitions', payload });
+      const response = await app.inject({
+        method: 'POST',
+        url: '/custom-fields/definitions',
+        payload,
+      });
 
       expect(response.statusCode).toBe(409);
     });

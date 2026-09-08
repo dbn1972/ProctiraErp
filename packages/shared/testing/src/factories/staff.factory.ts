@@ -39,9 +39,6 @@ export function createStaff(overrides: Partial<Staff> = {}): Staff {
 /**
  * Creates a list of Staff entities.
  */
-export function createStaffList(
-  count: number = 5,
-  overrides: Partial<Staff> = {},
-): Staff[] {
+export function createStaffList(count: number = 5, overrides: Partial<Staff> = {}): Staff[] {
   return Array.from({ length: count }, () => createStaff(overrides));
 }

@@ -14,8 +14,8 @@ affects layout only; the keyboard model is the same in every case.
 
 ## Opening
 
-| Key | Action |
-| --- | --- |
+| Key               | Action                                                                        |
+| ----------------- | ----------------------------------------------------------------------------- |
 | `Enter` / `Space` | When focus is on `<SheetTrigger>`, activates the trigger and opens the sheet. |
 
 When the sheet opens, focus moves to the first tabbable element
@@ -24,15 +24,15 @@ target.
 
 ## Focus trap (while the sheet is open)
 
-| Key | Action |
-| --- | --- |
-| `Tab` | Cycles forward through focusable elements inside the sheet. Wraps. |
+| Key           | Action                                                              |
+| ------------- | ------------------------------------------------------------------- |
+| `Tab`         | Cycles forward through focusable elements inside the sheet. Wraps.  |
 | `Shift + Tab` | Cycles backward through focusable elements inside the sheet. Wraps. |
 
 ## Dismissal
 
-| Key | Action |
-| --- | --- |
+| Key      | Action                                                         |
+| -------- | -------------------------------------------------------------- |
 | `Escape` | Closes the sheet. Focus returns to the trigger that opened it. |
 
 The auto-rendered close button is also reachable via `Tab` and

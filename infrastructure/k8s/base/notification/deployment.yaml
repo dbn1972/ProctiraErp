@@ -36,11 +36,11 @@ spec:
               protocol: TCP
           env:
             - name: PORT
-              value: "3027"
+              value: '3027'
             - name: HOST
-              value: "0.0.0.0"
+              value: '0.0.0.0'
             - name: SERVICE_NAME
-              value: "notification-service"
+              value: 'notification-service'
           envFrom:
             - configMapRef:
                 name: proctira-config

@@ -104,10 +104,7 @@ export function isTokenExpired(token: string): boolean {
  * Builds the OAuth authorization URL for a given provider.
  * The route handler will redirect to the upstream OAuth provider.
  */
-export function getOAuthAuthorizeUrl(
-  provider: OAuthProvider,
-  returnTo?: string,
-): string {
+export function getOAuthAuthorizeUrl(provider: OAuthProvider, returnTo?: string): string {
   const params = new URLSearchParams({
     provider,
     ...(returnTo && { returnTo }),
@@ -119,10 +116,7 @@ export function getOAuthAuthorizeUrl(
  * Submits credentials to the login route. Returns a structured result that
  * tells the caller whether MFA is required.
  */
-export async function signIn(
-  email: string,
-  password: string,
-): Promise<SignInResult> {
+export async function signIn(email: string, password: string): Promise<SignInResult> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.LOGIN, {
       method: 'POST',
@@ -160,10 +154,7 @@ export async function signIn(
 /**
  * Verifies an MFA challenge code (TOTP or SMS).
  */
-export async function verifyMfa(
-  mfaToken: string,
-  code: string,
-): Promise<SignInResult> {
+export async function verifyMfa(mfaToken: string, code: string): Promise<SignInResult> {
   try {
     const response = await fetch(AUTH_ENDPOINTS.VERIFY_MFA, {
       method: 'POST',
@@ -302,9 +293,7 @@ export async function resetPassword(
 }
 
 /** Reads JSON from a Response without throwing on empty body. */
-async function safeJson<T = Record<string, unknown>>(
-  response: Response,
-): Promise<T> {
+async function safeJson<T = Record<string, unknown>>(response: Response): Promise<T> {
   try {
     const text = await response.text();
     return text ? (JSON.parse(text) as T) : ({} as T);

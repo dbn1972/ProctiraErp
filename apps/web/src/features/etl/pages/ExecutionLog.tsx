@@ -157,9 +157,7 @@ export default function ExecutionLog() {
     setIsLoadingDetail(true);
     setError(null);
     try {
-      const result = await browserGatewayFetch<ExecutionDetail>(
-        `/etl/executions/${execId}`,
-      );
+      const result = await browserGatewayFetch<ExecutionDetail>(`/etl/executions/${execId}`);
       setSelectedExecution(result);
     } catch (err) {
       if (err instanceof BrowserGatewayError) {
@@ -239,20 +237,27 @@ export default function ExecutionLog() {
               <span
                 className={`mt-1 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(selectedExecution.status)}`}
               >
-                {selectedExecution.status.charAt(0).toUpperCase() + selectedExecution.status.slice(1)}
+                {selectedExecution.status.charAt(0).toUpperCase() +
+                  selectedExecution.status.slice(1)}
               </span>
             </div>
             <div className="rounded-md border p-4">
               <p className="text-xs text-muted-foreground">Extracted</p>
-              <p className="mt-1 text-lg font-semibold">{selectedExecution.extractedCount.toLocaleString()}</p>
+              <p className="mt-1 text-lg font-semibold">
+                {selectedExecution.extractedCount.toLocaleString()}
+              </p>
             </div>
             <div className="rounded-md border p-4">
               <p className="text-xs text-muted-foreground">Loaded</p>
-              <p className="mt-1 text-lg font-semibold">{selectedExecution.loadedCount.toLocaleString()}</p>
+              <p className="mt-1 text-lg font-semibold">
+                {selectedExecution.loadedCount.toLocaleString()}
+              </p>
             </div>
             <div className="rounded-md border p-4">
               <p className="text-xs text-muted-foreground">Errors</p>
-              <p className={`mt-1 text-lg font-semibold ${selectedExecution.errorCount > 0 ? 'text-destructive' : ''}`}>
+              <p
+                className={`mt-1 text-lg font-semibold ${selectedExecution.errorCount > 0 ? 'text-destructive' : ''}`}
+              >
                 {selectedExecution.errorCount.toLocaleString()}
               </p>
             </div>
@@ -260,12 +265,25 @@ export default function ExecutionLog() {
 
           {/* Execution metadata */}
           <div className="rounded-md border p-4 text-sm space-y-1">
-            <p><span className="font-medium">Started:</span> {formatDate(selectedExecution.startedAt)}</p>
-            <p><span className="font-medium">Completed:</span> {formatDate(selectedExecution.completedAt)}</p>
-            <p><span className="font-medium">Duration:</span> {formatDuration(selectedExecution.startedAt, selectedExecution.completedAt)}</p>
-            <p><span className="font-medium">Triggered by:</span> {selectedExecution.triggeredBy}</p>
+            <p>
+              <span className="font-medium">Started:</span>{' '}
+              {formatDate(selectedExecution.startedAt)}
+            </p>
+            <p>
+              <span className="font-medium">Completed:</span>{' '}
+              {formatDate(selectedExecution.completedAt)}
+            </p>
+            <p>
+              <span className="font-medium">Duration:</span>{' '}
+              {formatDuration(selectedExecution.startedAt, selectedExecution.completedAt)}
+            </p>
+            <p>
+              <span className="font-medium">Triggered by:</span> {selectedExecution.triggeredBy}
+            </p>
             {selectedExecution.retryAttempt > 0 && (
-              <p><span className="font-medium">Retry attempt:</span> {selectedExecution.retryAttempt}</p>
+              <p>
+                <span className="font-medium">Retry attempt:</span> {selectedExecution.retryAttempt}
+              </p>
             )}
           </div>
 
@@ -308,7 +326,10 @@ export default function ExecutionLog() {
           {selectedExecution.logs.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-lg font-medium">Execution Log</h2>
-              <div className="rounded-md border max-h-96 overflow-y-auto" data-testid="execution-log-entries">
+              <div
+                className="rounded-md border max-h-96 overflow-y-auto"
+                data-testid="execution-log-entries"
+              >
                 {selectedExecution.logs.map((log, idx) => (
                   <div
                     key={idx}
@@ -317,9 +338,7 @@ export default function ExecutionLog() {
                     <span className="shrink-0 text-muted-foreground">
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </span>
-                    <span className="shrink-0 uppercase font-semibold w-12">
-                      {log.level}
-                    </span>
+                    <span className="shrink-0 uppercase font-semibold w-12">{log.level}</span>
                     <span className="break-all">{log.message}</span>
                   </div>
                 ))}
@@ -383,7 +402,9 @@ export default function ExecutionLog() {
                       <td className="px-4 py-3 text-right font-mono">
                         {exec.loadedCount.toLocaleString()}
                       </td>
-                      <td className={`px-4 py-3 text-right font-mono ${exec.errorCount > 0 ? 'text-destructive font-semibold' : ''}`}>
+                      <td
+                        className={`px-4 py-3 text-right font-mono ${exec.errorCount > 0 ? 'text-destructive font-semibold' : ''}`}
+                      >
                         {exec.errorCount.toLocaleString()}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">

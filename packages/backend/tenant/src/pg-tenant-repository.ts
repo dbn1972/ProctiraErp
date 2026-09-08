@@ -178,7 +178,10 @@ export class PgTenantRepository implements TenantRepository {
     return this.usage.put(tenantId, entity, tenantId);
   }
 
-  async updateUsage(tenantId: string, data: Partial<TenantUsageEntity>): Promise<TenantUsageEntity> {
+  async updateUsage(
+    tenantId: string,
+    data: Partial<TenantUsageEntity>,
+  ): Promise<TenantUsageEntity> {
     const existing = await this.getOrCreateUsage(tenantId);
     const updated: TenantUsageEntity = {
       ...existing,

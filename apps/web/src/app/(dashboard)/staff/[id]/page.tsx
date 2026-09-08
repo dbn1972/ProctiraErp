@@ -17,12 +17,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import {
-  Award,
-  GitBranch,
-  Pencil,
-  Plus,
-} from 'lucide-react';
+import { Award, GitBranch, Pencil, Plus } from 'lucide-react';
 
 import {
   Badge,
@@ -88,7 +83,11 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
 function readArr(cd: Record<string, unknown> | null | undefined, key: string): string[] {
   const v = cd?.[key];
   if (Array.isArray(v)) return v.filter((x): x is string => typeof x === 'string');
-  if (typeof v === 'string' && v.trim()) return v.split(',').map((s) => s.trim()).filter(Boolean);
+  if (typeof v === 'string' && v.trim())
+    return v
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
   return [];
 }
 
@@ -100,27 +99,27 @@ function readNum(cd: Record<string, unknown> | null | undefined, key: string): n
 /* ──────────────────────────────────────────── Status pill ── */
 
 const STATUS_PILL: Record<string, string> = {
-  ACTIVE:    'bg-emerald-50  text-emerald-700  dark:bg-emerald-950/40 dark:text-emerald-400',
-  INACTIVE:  'bg-zinc-100    text-zinc-600     dark:bg-zinc-800       dark:text-zinc-400',
-  ON_LEAVE:  'bg-amber-50    text-amber-700    dark:bg-amber-950/40   dark:text-amber-400',
+  ACTIVE: 'bg-emerald-50  text-emerald-700  dark:bg-emerald-950/40 dark:text-emerald-400',
+  INACTIVE: 'bg-zinc-100    text-zinc-600     dark:bg-zinc-800       dark:text-zinc-400',
+  ON_LEAVE: 'bg-amber-50    text-amber-700    dark:bg-amber-950/40   dark:text-amber-400',
   PROBATION: 'bg-sky-50      text-sky-700      dark:bg-sky-950/40     dark:text-sky-400',
   SUSPENDED: 'bg-red-50      text-red-700      dark:bg-red-950/40     dark:text-red-400',
-  RESIGNED:  'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
-  RETIRED:   'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
+  RESIGNED: 'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
+  RETIRED: 'bg-zinc-100    text-zinc-500     dark:bg-zinc-800       dark:text-zinc-400',
 };
 
 const STATUS_LABEL: Record<string, string> = {
-  ACTIVE:    'Active',
-  INACTIVE:  'Inactive',
-  ON_LEAVE:  'On leave',
+  ACTIVE: 'Active',
+  INACTIVE: 'Inactive',
+  ON_LEAVE: 'On leave',
   PROBATION: 'Probation',
   SUSPENDED: 'Suspended',
-  RESIGNED:  'Resigned',
-  RETIRED:   'Retired',
+  RESIGNED: 'Resigned',
+  RETIRED: 'Retired',
 };
 
 function StatusPill({ status }: { status: string }) {
-  const cls   = STATUS_PILL[status] ?? 'bg-zinc-100 text-zinc-500';
+  const cls = STATUS_PILL[status] ?? 'bg-zinc-100 text-zinc-500';
   const label = STATUS_LABEL[status] ?? status;
   return (
     <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', cls)}>
@@ -144,16 +143,19 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 
 function AssignmentCard({ assignment }: { assignment: Assignment }) {
   const classLabel = assignment.classId?.slice(0, 12) || '—';
-  const subject    = assignment.subjectId || '—';
-  const roleNote   = assignment.role !== 'SUBJECT_TEACHER' ? assignment.role : '';
+  const subject = assignment.subjectId || '—';
+  const roleNote = assignment.role !== 'SUBJECT_TEACHER' ? assignment.role : '';
   const room: string | null = null;
   const periods: number | null = null;
 
   const meta = [
     roleNote,
-    assignment.startDate && `Effective ${new Date(assignment.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
+    assignment.startDate &&
+      `Effective ${new Date(assignment.startDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`,
     room && `Room ${room}`,
-  ].filter(Boolean).join(' · ');
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-3">
@@ -187,10 +189,10 @@ interface ServiceEvent {
 
 const TL_DOT_COLORS: Record<string, string> = {
   assignment: 'bg-primary   text-primary-foreground',
-  appraisal:  'bg-emerald-500 text-white',
-  training:   'bg-primary   text-primary-foreground',
-  transfer:   'bg-amber-500 text-white',
-  join:       'bg-emerald-500 text-white',
+  appraisal: 'bg-emerald-500 text-white',
+  training: 'bg-primary   text-primary-foreground',
+  transfer: 'bg-amber-500 text-white',
+  join: 'bg-emerald-500 text-white',
 };
 
 function ServiceHistoryCard({ events }: { events: ServiceEvent[] }) {
@@ -291,7 +293,13 @@ function LeaveBalanceCard({ balances, staffId }: { balances: LeaveBalance[]; sta
 
 /* ──────────────────────────────────────────── Latest appraisal sidebar ── */
 
-function LatestAppraisalCard({ appraisal, staffId }: { appraisal: Appraisal | null; staffId: string }) {
+function LatestAppraisalCard({
+  appraisal,
+  staffId,
+}: {
+  appraisal: Appraisal | null;
+  staffId: string;
+}) {
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -313,10 +321,13 @@ function LatestAppraisalCard({ appraisal, staffId }: { appraisal: Appraisal | nu
         ) : (
           <p className="text-xs text-muted-foreground">No appraisals recorded yet.</p>
         )}
-        <Button asChild variant="ghost" size="sm" className="mt-3 w-full justify-start px-0 text-xs">
-          <Link href={`/staff/${staffId}/appraisals/new`}>
-            Start new appraisal →
-          </Link>
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="mt-3 w-full justify-start px-0 text-xs"
+        >
+          <Link href={`/staff/${staffId}/appraisals/new`}>Start new appraisal →</Link>
         </Button>
       </CardContent>
     </Card>
@@ -350,25 +361,21 @@ function OverviewTab({
 
   // Leave balance
   const rawLeave = cd['leaveBalance'];
-  const leaveBalances: LeaveBalance[] = Array.isArray(rawLeave)
-    ? (rawLeave as LeaveBalance[])
-    : [];
+  const leaveBalances: LeaveBalance[] = Array.isArray(rawLeave) ? (rawLeave as LeaveBalance[]) : [];
 
   // Latest appraisal
   const latestAppraisal = appraisals.length > 0 ? (appraisals[0] ?? null) : null;
 
   const qualification = readStr(cd, 'qualification');
-  const school        = readStr(cd, 'institutionName') || readStr(cd, 'schoolName');
-  const subjects      = readArr(cd, 'subjects');
-  const designation   = readStr(cd, 'designation') || staff.position;
-  const joinDate      = readStr(cd, 'joinDate') || readStr(cd, 'joinedDate');
+  const school = readStr(cd, 'institutionName') || readStr(cd, 'schoolName');
+  const subjects = readArr(cd, 'subjects');
+  const designation = readStr(cd, 'designation') || staff.position;
+  const joinDate = readStr(cd, 'joinDate') || readStr(cd, 'joinedDate');
 
   return (
     <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
-
       {/* Main */}
       <div className="space-y-5">
-
         {/* Teaching assignments */}
         <Card>
           <CardHeader className="pb-3">
@@ -393,9 +400,7 @@ function OverviewTab({
             {activeAssignments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No active assignments.</p>
             ) : (
-              activeAssignments.map((a) => (
-                <AssignmentCard key={a.id} assignment={a} />
-              ))
+              activeAssignments.map((a) => <AssignmentCard key={a.id} assignment={a} />)
             )}
             {totalPeriods > 0 && (
               <div className="pt-2">
@@ -415,7 +420,9 @@ function OverviewTab({
                           ? 'bg-emerald-500'
                           : 'bg-primary',
                     )}
-                    style={{ width: `${Math.min(100, (totalPeriods / maxPeriods) * 100).toFixed(1)}%` }}
+                    style={{
+                      width: `${Math.min(100, (totalPeriods / maxPeriods) * 100).toFixed(1)}%`,
+                    }}
                     role="progressbar"
                     aria-valuenow={totalPeriods}
                     aria-valuemin={0}
@@ -463,7 +470,9 @@ function OverviewTab({
               {joinDate && (
                 <FactRow label="Joining date">
                   {new Date(joinDate).toLocaleDateString('en-GB', {
-                    day: 'numeric', month: 'short', year: 'numeric',
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
                   })}
                 </FactRow>
               )}
@@ -498,8 +507,8 @@ function AssignmentsTab({ assignments, staffId }: { assignments: Assignment[]; s
         <div>
           <CardTitle>Assignments</CardTitle>
           <CardDescription>
-            Current and historical institution / class / subject assignments.
-            Active total: {totalAllocation}%.
+            Current and historical institution / class / subject assignments. Active total:{' '}
+            {totalAllocation}%.
           </CardDescription>
         </div>
         <Button asChild size="sm">
@@ -666,24 +675,29 @@ export default async function StaffProfilePage({ params }: PageProps) {
     notFound();
   }
 
-  const cd              = staff.customData ?? {};
-  const fullName        = `${staff.firstName} ${staff.lastName}`;
-  const initials        = `${staff.firstName.charAt(0)}${staff.lastName.charAt(0)}`.toUpperCase();
-  const palette         = avatarPalette(fullName);
-  const designation     = readStr(cd, 'designation') || staff.position;
-  const subjects        = readArr(cd, 'subjects');
-  const school          = readStr(cd, 'institutionName') || readStr(cd, 'schoolName');
-  const joinDate        = readStr(cd, 'joinDate') || readStr(cd, 'joinedDate');
-  const serviceYears    = joinDate
+  const cd = staff.customData ?? {};
+  const fullName = `${staff.firstName} ${staff.lastName}`;
+  const initials = `${staff.firstName.charAt(0)}${staff.lastName.charAt(0)}`.toUpperCase();
+  const palette = avatarPalette(fullName);
+  const designation = readStr(cd, 'designation') || staff.position;
+  const subjects = readArr(cd, 'subjects');
+  const school = readStr(cd, 'institutionName') || readStr(cd, 'schoolName');
+  const joinDate = readStr(cd, 'joinDate') || readStr(cd, 'joinedDate');
+  const serviceYears = joinDate
     ? Math.floor((Date.now() - new Date(joinDate).getTime()) / (1000 * 60 * 60 * 24 * 365))
     : null;
 
   // Build sub-meta line for profile head
   const subMetaParts = [
-    staff.identityNumber && <span key="id" className="font-mono">{staff.identityNumber}</span>,
+    staff.identityNumber && (
+      <span key="id" className="font-mono">
+        {staff.identityNumber}
+      </span>
+    ),
     (designation || subjects.length > 0) && (
       <span key="desig">
-        {designation}{subjects.length > 0 ? `, ${subjects.join(' & ')}` : ''}
+        {designation}
+        {subjects.length > 0 ? `, ${subjects.join(' & ')}` : ''}
       </span>
     ),
     school && <span key="school">{school}</span>,
@@ -694,7 +708,6 @@ export default async function StaffProfilePage({ params }: PageProps) {
 
   return (
     <section aria-labelledby="staff-profile-heading" className="space-y-6">
-
       {/* ── Profile head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
@@ -721,7 +734,11 @@ export default async function StaffProfilePage({ params }: PageProps) {
               <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-muted-foreground">
                 {subMetaParts.map((part, i) => (
                   <span key={i} className="flex items-center gap-1.5">
-                    {i > 0 && <span aria-hidden="true" className="select-none">·</span>}
+                    {i > 0 && (
+                      <span aria-hidden="true" className="select-none">
+                        ·
+                      </span>
+                    )}
                     {part}
                   </span>
                 ))}
@@ -799,11 +816,7 @@ export default async function StaffProfilePage({ params }: PageProps) {
         </TabsList>
 
         <TabsContent value="overview" className="pt-5">
-          <OverviewTab
-            staff={staff}
-            assignments={assignments}
-            appraisals={appraisals}
-          />
+          <OverviewTab staff={staff} assignments={assignments} appraisals={appraisals} />
         </TabsContent>
 
         <TabsContent value="assignments" className="space-y-4 pt-5">

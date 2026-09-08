@@ -10,8 +10,7 @@ import { loginAsTenantAdmin } from './fixtures/auth';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
-const INSTITUTION_ID =
-  process.env.E2E_INSTITUTION_ID ?? '2e0126f1-752b-4d63-ba57-633a83cc6508';
+const INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? '2e0126f1-752b-4d63-ba57-633a83cc6508';
 
 const GRADEBOOK_ROUTES: { id: string; path: string }[] = [
   {

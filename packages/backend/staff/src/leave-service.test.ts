@@ -62,12 +62,7 @@ describe('StaffLeaveService', () => {
       endDate: '2026-10-02',
     });
 
-    const rejected = await service.decideLeave(
-      TENANT_A,
-      leave.id,
-      { status: 'rejected' },
-      'hr-1',
-    );
+    const rejected = await service.decideLeave(TENANT_A, leave.id, { status: 'rejected' }, 'hr-1');
     expect(rejected.status).toBe('rejected');
     expect((await repo.getBalance(TENANT_A, STAFF_ID, 'annual'))?.balanceDays).toBe(5);
   });
@@ -109,12 +104,7 @@ describe('StaffLeaveService', () => {
       startDate: '2026-12-01',
       endDate: '2026-12-03',
     });
-    const approved = await service.decideLeave(
-      TENANT_A,
-      leave.id,
-      { status: 'approved' },
-      'hr-1',
-    );
+    const approved = await service.decideLeave(TENANT_A, leave.id, { status: 'approved' }, 'hr-1');
     expect(approved.status).toBe('approved');
     expect(await repo.getBalance(TENANT_A, STAFF_ID, 'unpaid')).toBeNull();
   });

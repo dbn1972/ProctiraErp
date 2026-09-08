@@ -118,19 +118,16 @@ export default function AttendanceMarking() {
       for (const [studentId, status] of records) {
         attendanceRecords.push({ studentId, status });
       }
-      const result = await browserGatewayFetch<BulkAttendanceResponse>(
-        '/attendance/student/bulk',
-        {
-          method: 'POST',
-          json: {
-            institutionId: 'current',
-            classId,
-            academicPeriodId: 'current',
-            date,
-            records: attendanceRecords,
-          },
+      const result = await browserGatewayFetch<BulkAttendanceResponse>('/attendance/student/bulk', {
+        method: 'POST',
+        json: {
+          institutionId: 'current',
+          classId,
+          academicPeriodId: 'current',
+          date,
+          records: attendanceRecords,
         },
-      );
+      });
       setSuccess(
         `Attendance saved: ${result.summary.totalRecorded} recorded, ${result.summary.totalUpdated} updated.`,
       );

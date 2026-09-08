@@ -31,7 +31,11 @@ export const TABLE_MAPPINGS: TableMapping[] = [
       { source: 'id', target: 'id' },
       { source: 'name', target: 'name' },
       { source: 'code', target: 'code' },
-      { source: 'area_level_id', target: 'level', transform: { type: 'cast', targetType: 'smallint' } },
+      {
+        source: 'area_level_id',
+        target: 'level',
+        transform: { type: 'cast', targetType: 'smallint' },
+      },
       { source: 'parent_id', target: 'parent_id' },
       { source: 'lft', target: 'lft' },
       { source: 'rght', target: 'rgt' },
@@ -61,9 +65,21 @@ export const TABLE_MAPPINGS: TableMapping[] = [
       { source: 'name', target: 'name' },
       { source: 'code', target: 'code' },
       { source: 'area_id', target: 'area_id' },
-      { source: 'institution_type_id', target: 'type', transform: { type: 'cast', targetType: 'varchar' } },
-      { source: 'institution_sector_id', target: 'sector', transform: { type: 'cast', targetType: 'varchar' } },
-      { source: 'institution_ownership_id', target: 'ownership', transform: { type: 'cast', targetType: 'varchar' } },
+      {
+        source: 'institution_type_id',
+        target: 'type',
+        transform: { type: 'cast', targetType: 'varchar' },
+      },
+      {
+        source: 'institution_sector_id',
+        target: 'sector',
+        transform: { type: 'cast', targetType: 'varchar' },
+      },
+      {
+        source: 'institution_ownership_id',
+        target: 'ownership',
+        transform: { type: 'cast', targetType: 'varchar' },
+      },
       {
         source: 'institution_status_id',
         target: 'status',
@@ -93,7 +109,7 @@ export const TABLE_MAPPINGS: TableMapping[] = [
     targetTable: 'students',
     legacyPkColumn: 'id',
     requiresUuidGeneration: true,
-    sourceFilter: "is_student = 1",
+    sourceFilter: 'is_student = 1',
     columns: [
       { source: 'id', target: 'id' },
       { source: 'first_name', target: 'first_name' },
@@ -122,7 +138,7 @@ export const TABLE_MAPPINGS: TableMapping[] = [
     targetTable: 'staff',
     legacyPkColumn: 'id',
     requiresUuidGeneration: true,
-    sourceFilter: "is_staff = 1",
+    sourceFilter: 'is_staff = 1',
     columns: [
       { source: 'id', target: 'id' },
       { source: 'first_name', target: 'first_name' },

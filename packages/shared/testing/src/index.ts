@@ -46,10 +46,7 @@ export type {
 } from './database/index.js';
 
 // Fixtures
-export {
-  createTenantFixture,
-  createMultiTenantFixture,
-} from './fixtures/index.js';
+export { createTenantFixture, createMultiTenantFixture } from './fixtures/index.js';
 
 export type {
   TenantFixture,

@@ -63,15 +63,29 @@ export interface AreaTreeNode {
 export interface AreaHierarchyDbClient {
   geographicArea: {
     findUnique(args: { where: { id: string } }): Promise<GeographicArea | null>;
-    findFirst(args: { where: Record<string, unknown>; orderBy?: Record<string, unknown> | Record<string, unknown>[] }): Promise<GeographicArea | null>;
-    findMany(args: { where: Record<string, unknown>; orderBy?: Record<string, unknown> | Record<string, unknown>[] }): Promise<GeographicArea[]>;
+    findFirst(args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown> | Record<string, unknown>[];
+    }): Promise<GeographicArea | null>;
+    findMany(args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown> | Record<string, unknown>[];
+    }): Promise<GeographicArea[]>;
     create(args: { data: Record<string, unknown> }): Promise<GeographicArea>;
     update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<GeographicArea>;
-    updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
+    updateMany(args: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<{ count: number }>;
     count(args: { where: Record<string, unknown> }): Promise<number>;
   };
   institution: {
-    findMany(args: { where: Record<string, unknown>; orderBy?: Record<string, unknown>; skip?: number; take?: number }): Promise<Institution[]>;
+    findMany(args: {
+      where: Record<string, unknown>;
+      orderBy?: Record<string, unknown>;
+      skip?: number;
+      take?: number;
+    }): Promise<Institution[]>;
     count(args: { where: Record<string, unknown> }): Promise<number>;
   };
 }
@@ -119,7 +133,7 @@ export class AreaHierarchyService {
       level = parent.level + 1;
       if (level >= MAX_AREA_DEPTH) {
         throw new BusinessRuleError(
-          `Maximum area hierarchy depth of ${MAX_AREA_DEPTH} levels exceeded. Current parent is at level ${parent.level}.`
+          `Maximum area hierarchy depth of ${MAX_AREA_DEPTH} levels exceeded. Current parent is at level ${parent.level}.`,
         );
       }
 
@@ -251,7 +265,7 @@ export class AreaHierarchyService {
       if (totalDepth >= MAX_AREA_DEPTH) {
         throw new BusinessRuleError(
           `Moving this area would exceed the maximum hierarchy depth of ${MAX_AREA_DEPTH} levels. ` +
-          `New parent is at level ${newParent.level}, subtree has depth ${subtreeDepth}.`
+            `New parent is at level ${newParent.level}, subtree has depth ${subtreeDepth}.`,
         );
       }
     }
@@ -396,9 +410,7 @@ export class AreaHierarchyService {
     }
 
     // Parse materialized path to get ancestor IDs
-    const ancestorIds = area.path
-      .split('/')
-      .filter((segment) => segment.length > 0);
+    const ancestorIds = area.path.split('/').filter((segment) => segment.length > 0);
 
     return [...ancestorIds, area.id];
   }
@@ -409,7 +421,7 @@ export class AreaHierarchyService {
   async getInstitutionsByArea(
     tenantId: string,
     areaId: string,
-    options: PaginationOptions
+    options: PaginationOptions,
   ): Promise<PaginatedResult<Institution>> {
     // Get all descendant area IDs (including the specified area)
     const areaIds = await this.getDescendantIds(tenantId, areaId);
@@ -444,7 +456,11 @@ export class AreaHierarchyService {
   /**
    * Check if targetId is a descendant of ancestorId.
    */
-  private async isDescendant(tenantId: string, targetId: string, ancestorId: string): Promise<boolean> {
+  private async isDescendant(
+    tenantId: string,
+    targetId: string,
+    ancestorId: string,
+  ): Promise<boolean> {
     const target = await this.db.geographicArea.findUnique({
       where: { id: targetId },
     });

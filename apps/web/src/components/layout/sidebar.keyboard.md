@@ -24,15 +24,15 @@ link.
 The sidebar uses the **native browser tab order** — there is no roving
 tab index. Each navigation link is independently focusable.
 
-| Key | Action |
-| --- | --- |
-| `Tab` | Move focus to the next navigation link. After the last link, focus leaves the sidebar (typically into the page header). |
-| `Shift + Tab` | Move focus to the previous navigation link. After the first link, focus leaves the sidebar. |
+| Key           | Action                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Tab`         | Move focus to the next navigation link. After the last link, focus leaves the sidebar (typically into the page header). |
+| `Shift + Tab` | Move focus to the previous navigation link. After the first link, focus leaves the sidebar.                             |
 
 ## Activating a link
 
-| Key | Action |
-| --- | --- |
+| Key     | Action                                    |
+| ------- | ----------------------------------------- |
 | `Enter` | Activates the focused link and navigates. |
 
 `Space` is intentionally **not** an activation key for anchor elements

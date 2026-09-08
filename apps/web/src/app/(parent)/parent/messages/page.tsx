@@ -3,13 +3,7 @@
  */
 import Link from 'next/link';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listChildren, listThreads } from '@/lib/api/parent-portal';
 import { CreateThreadForm } from './_components/create-thread-form';

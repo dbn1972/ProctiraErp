@@ -2,10 +2,7 @@ import { Suspense } from 'react';
 import dynamic from 'next/dynamic';
 
 const MfaSetupClient = dynamic(
-  () =>
-    import('../../(auth)/mfa-setup/mfa-setup-client').then(
-      (mod) => mod.MfaSetupClient,
-    ),
+  () => import('../../(auth)/mfa-setup/mfa-setup-client').then((mod) => mod.MfaSetupClient),
   { ssr: false },
 );
 

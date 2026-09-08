@@ -74,7 +74,11 @@ export class PgKeyedStore<T extends { id: string }> implements KeyedStore<T> {
   }
 }
 
-export interface PlatformAdminStores<TTenant extends { id: string }, TPlugin extends { id: string }, TBreakGlass extends { id: string }> {
+export interface PlatformAdminStores<
+  TTenant extends { id: string },
+  TPlugin extends { id: string },
+  TBreakGlass extends { id: string },
+> {
   tenants: KeyedStore<TTenant>;
   plugins: KeyedStore<TPlugin>;
   breakGlass: KeyedStore<TBreakGlass>;

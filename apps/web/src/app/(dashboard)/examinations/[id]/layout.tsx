@@ -20,10 +20,10 @@ interface LayoutProps {
 }
 
 const STATUS_PILL: Record<string, string> = {
-  OPEN:      'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-  DRAFT:     'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
+  OPEN: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  DRAFT: 'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
   COMPLETED: 'bg-violet-50  text-violet-700  dark:bg-violet-950/40  dark:text-violet-400',
-  CLOSED:    'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
+  CLOSED: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
   CANCELLED: 'bg-red-50     text-red-700     dark:bg-red-950/40     dark:text-red-400',
 };
 
@@ -40,7 +40,6 @@ export default async function ExaminationDetailLayout({ params, children }: Layo
 
   return (
     <section className="space-y-6">
-
       {/* ── Hero head ── */}
       <div className="flex flex-col gap-3">
         <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">

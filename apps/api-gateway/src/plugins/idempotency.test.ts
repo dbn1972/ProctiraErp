@@ -5,7 +5,9 @@ import idempotencyPlugin, { InMemoryIdempotencyStore, type RedisClient } from '.
 /**
  * In-memory Redis mock for testing the idempotency plugin.
  */
-function createMockRedis(): RedisClient & { store: Map<string, { value: string; expiresAt?: number }> } {
+function createMockRedis(): RedisClient & {
+  store: Map<string, { value: string; expiresAt?: number }>;
+} {
   const store = new Map<string, { value: string; expiresAt?: number }>();
 
   return {

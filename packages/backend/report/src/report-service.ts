@@ -16,11 +16,7 @@
  * - 17.5: RBAC-scoped data filtering
  * - 17.6: Scheduled report generation with delivery
  */
-import {
-  NotFoundError,
-  ValidationError,
-  BusinessRuleError,
-} from '@proctira/common';
+import { NotFoundError, ValidationError, BusinessRuleError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import type {
@@ -213,12 +209,7 @@ export class ReportService {
       // Store the file
       let fileUrl: string | null = null;
       if (this.fileStorage && fileBuffer) {
-        fileUrl = await this.fileStorage.store(
-          job.tenantId,
-          job.id,
-          job.format,
-          fileBuffer,
-        );
+        fileUrl = await this.fileStorage.store(job.tenantId, job.id, job.format, fileBuffer);
       }
 
       // Mark as completed
@@ -353,13 +344,9 @@ export class ReportService {
         if (startIdx !== -1 && endIdx !== -1) {
           if (conditionMet) {
             // Replace tags but keep content
-            const content = rendered.substring(
-              startIdx + sectionTag.length,
-              endIdx,
-            );
-            const renderedContent = content.replace(
-              /\{\{(\w+)\}\}/g,
-              (_m, k: string) => String(data[k] ?? ''),
+            const content = rendered.substring(startIdx + sectionTag.length, endIdx);
+            const renderedContent = content.replace(/\{\{(\w+)\}\}/g, (_m, k: string) =>
+              String(data[k] ?? ''),
             );
             rendered =
               rendered.substring(0, startIdx) +
@@ -367,9 +354,7 @@ export class ReportService {
               rendered.substring(endIdx + endTag.length);
           } else {
             // Remove the entire section
-            rendered =
-              rendered.substring(0, startIdx) +
-              rendered.substring(endIdx + endTag.length);
+            rendered = rendered.substring(0, startIdx) + rendered.substring(endIdx + endTag.length);
           }
         }
       }
@@ -399,13 +384,20 @@ export class ReportService {
 
     if (isNumeric && typeof actualValue === 'number') {
       switch (operator) {
-        case '>=': return actualValue >= numericValue;
-        case '<=': return actualValue <= numericValue;
-        case '>': return actualValue > numericValue;
-        case '<': return actualValue < numericValue;
-        case '==': return actualValue === numericValue;
-        case '!=': return actualValue !== numericValue;
-        default: return false;
+        case '>=':
+          return actualValue >= numericValue;
+        case '<=':
+          return actualValue <= numericValue;
+        case '>':
+          return actualValue > numericValue;
+        case '<':
+          return actualValue < numericValue;
+        case '==':
+          return actualValue === numericValue;
+        case '!=':
+          return actualValue !== numericValue;
+        default:
+          return false;
       }
     }
 
@@ -413,9 +405,12 @@ export class ReportService {
     const strValue = rawValue.replace(/^["']|["']$/g, '');
     const strActual = String(actualValue);
     switch (operator) {
-      case '==': return strActual === strValue;
-      case '!=': return strActual !== strValue;
-      default: return false;
+      case '==':
+        return strActual === strValue;
+      case '!=':
+        return strActual !== strValue;
+      default:
+        return false;
     }
   }
 
@@ -428,12 +423,12 @@ export class ReportService {
     const lines: string[] = [];
 
     // Header row
-    const headers = data.columns.map(c => c.label ?? c.name);
-    lines.push(headers.map(h => this.escapeCsvField(h)).join(','));
+    const headers = data.columns.map((c) => c.label ?? c.name);
+    lines.push(headers.map((h) => this.escapeCsvField(h)).join(','));
 
     // Data rows
     for (const row of data.rows) {
-      const values = data.columns.map(col => {
+      const values = data.columns.map((col) => {
         const val = row[col.name];
         if (val === null || val === undefined) return '';
         return this.escapeCsvField(String(val));
@@ -452,11 +447,11 @@ export class ReportService {
     // Default implementation produces TSV as a placeholder
     // Real implementation would use ExcelJS
     const lines: string[] = [];
-    const headers = data.columns.map(c => c.label ?? c.name);
+    const headers = data.columns.map((c) => c.label ?? c.name);
     lines.push(headers.join('\t'));
 
     for (const row of data.rows) {
-      const values = data.columns.map(col => {
+      const values = data.columns.map((col) => {
         const val = row[col.name];
         if (val === null || val === undefined) return '';
         return String(val);
@@ -475,12 +470,12 @@ export class ReportService {
     // Default implementation produces text as a placeholder
     // Real implementation would use PDFKit
     const lines: string[] = [];
-    const headers = data.columns.map(c => c.label ?? c.name);
+    const headers = data.columns.map((c) => c.label ?? c.name);
     lines.push(headers.join(' | '));
     lines.push('-'.repeat(80));
 
     for (const row of data.rows) {
-      const values = data.columns.map(col => {
+      const values = data.columns.map((col) => {
         const val = row[col.name];
         if (val === null || val === undefined) return '';
         return String(val);
@@ -503,10 +498,7 @@ export class ReportService {
   /**
    * Get report job status.
    */
-  async getReportStatus(
-    tenantId: string,
-    jobId: string,
-  ): Promise<ReportJobEntity> {
+  async getReportStatus(tenantId: string, jobId: string): Promise<ReportJobEntity> {
     const job = await this.repository.getJobById(tenantId, jobId);
     if (!job) {
       throw new NotFoundError(`Report job '${jobId}' not found`);
@@ -517,19 +509,14 @@ export class ReportService {
   /**
    * Download a completed report file.
    */
-  async downloadReport(
-    tenantId: string,
-    jobId: string,
-  ): Promise<Buffer> {
+  async downloadReport(tenantId: string, jobId: string): Promise<Buffer> {
     const job = await this.repository.getJobById(tenantId, jobId);
     if (!job) {
       throw new NotFoundError(`Report job '${jobId}' not found`);
     }
 
     if (job.status !== 'completed') {
-      throw new BusinessRuleError(
-        `Report job is not completed (current status: ${job.status})`,
-      );
+      throw new BusinessRuleError(`Report job is not completed (current status: ${job.status})`);
     }
 
     if (!this.fileStorage) {
@@ -623,10 +610,7 @@ export class ReportService {
   /**
    * Get a report template by ID.
    */
-  async getTemplate(
-    tenantId: string,
-    templateId: string,
-  ): Promise<ReportTemplateEntity> {
+  async getTemplate(tenantId: string, templateId: string): Promise<ReportTemplateEntity> {
     const template = await this.repository.getTemplateById(tenantId, templateId);
     if (!template) {
       throw new NotFoundError(`Report template '${templateId}' not found`);
@@ -663,11 +647,19 @@ export class ReportService {
 
     // Validate delivery recipients
     if (input.deliveryMethod === 'email') {
-      if ((!input.recipientEmails || input.recipientEmails.length === 0) &&
-          (!input.recipientUserIds || input.recipientUserIds.length === 0)) {
+      if (
+        (!input.recipientEmails || input.recipientEmails.length === 0) &&
+        (!input.recipientUserIds || input.recipientUserIds.length === 0)
+      ) {
         throw new ValidationError(
           'Email delivery requires at least one recipient email or user ID',
-          [{ field: 'recipientEmails', rule: 'required', message: 'At least one recipient required for email delivery' }],
+          [
+            {
+              field: 'recipientEmails',
+              rule: 'required',
+              message: 'At least one recipient required for email delivery',
+            },
+          ],
         );
       }
     }
@@ -736,10 +728,7 @@ export class ReportService {
   /**
    * Get a scheduled report by ID.
    */
-  async getSchedule(
-    tenantId: string,
-    scheduleId: string,
-  ): Promise<ScheduledReportEntity> {
+  async getSchedule(tenantId: string, scheduleId: string): Promise<ScheduledReportEntity> {
     const schedule = await this.repository.getScheduleById(tenantId, scheduleId);
     if (!schedule) {
       throw new NotFoundError(`Scheduled report '${scheduleId}' not found`);

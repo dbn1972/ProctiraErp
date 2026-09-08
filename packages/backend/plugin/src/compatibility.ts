@@ -67,12 +67,18 @@ function satisfiesComparator(version: SemverParts, comparator: string): boolean 
   const cmp = compareSemver(version, target);
 
   switch (operator) {
-    case '>=': return cmp >= 0;
-    case '<=': return cmp <= 0;
-    case '>': return cmp > 0;
-    case '<': return cmp < 0;
-    case '=': return cmp === 0;
-    default: return false;
+    case '>=':
+      return cmp >= 0;
+    case '<=':
+      return cmp <= 0;
+    case '>':
+      return cmp > 0;
+    case '<':
+      return cmp < 0;
+    case '=':
+      return cmp === 0;
+    default:
+      return false;
   }
 }
 
@@ -87,9 +93,15 @@ function expandCaret(version: SemverParts): string[] {
     return [`>=${version.major}.${version.minor}.${version.patch}`, `<${version.major + 1}.0.0`];
   }
   if (version.minor > 0) {
-    return [`>=${version.major}.${version.minor}.${version.patch}`, `<${version.major}.${version.minor + 1}.0`];
+    return [
+      `>=${version.major}.${version.minor}.${version.patch}`,
+      `<${version.major}.${version.minor + 1}.0`,
+    ];
   }
-  return [`>=${version.major}.${version.minor}.${version.patch}`, `<${version.major}.${version.minor}.${version.patch + 1}`];
+  return [
+    `>=${version.major}.${version.minor}.${version.patch}`,
+    `<${version.major}.${version.minor}.${version.patch + 1}`,
+  ];
 }
 
 /**
@@ -97,7 +109,10 @@ function expandCaret(version: SemverParts): string[] {
  * ~1.2.3 → >=1.2.3 <1.3.0
  */
 function expandTilde(version: SemverParts): string[] {
-  return [`>=${version.major}.${version.minor}.${version.patch}`, `<${version.major}.${version.minor + 1}.0`];
+  return [
+    `>=${version.major}.${version.minor}.${version.patch}`,
+    `<${version.major}.${version.minor + 1}.0`,
+  ];
 }
 
 /**
@@ -155,7 +170,10 @@ export interface CompatibilityResult {
 /**
  * Perform a full compatibility check and return a structured result.
  */
-export function validateCompatibility(productVersion: string, supportedRange: string): CompatibilityResult {
+export function validateCompatibility(
+  productVersion: string,
+  supportedRange: string,
+): CompatibilityResult {
   const compatible = checkCompatibility(productVersion, supportedRange);
   return {
     compatible,

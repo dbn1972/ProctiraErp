@@ -44,8 +44,8 @@ export default async function AttendanceReportsPage() {
             Attendance analytics
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Attendance percentage for a student, class, or institution over a
-            configurable date range. Percentages are rounded to two decimal places.
+            Attendance percentage for a student, class, or institution over a configurable date
+            range. Percentages are rounded to two decimal places.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -65,9 +65,7 @@ export default async function AttendanceReportsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Scope &amp; date range</CardTitle>
-          <CardDescription>
-            Choose the scope and date range, then run the report.
-          </CardDescription>
+          <CardDescription>Choose the scope and date range, then run the report.</CardDescription>
         </CardHeader>
         <CardContent>
           <AttendanceReportFilters

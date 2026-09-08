@@ -38,9 +38,7 @@ import type { ThemeTokens } from './schemas.js';
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
-export type BrandingValidationResult =
-  | { ok: true }
-  | { ok: false; errors: FieldError[] };
+export type BrandingValidationResult = { ok: true } | { ok: false; errors: FieldError[] };
 
 /**
  * Validate the publishable tenant theme tokens.
@@ -57,9 +55,7 @@ export type BrandingValidationResult =
  * non-data URLs are also skipped — content-shape probes happen at upload
  * time, not at publish time.
  */
-export function validateBrandingTokens(
-  tokens: ThemeTokens,
-): BrandingValidationResult {
+export function validateBrandingTokens(tokens: ThemeTokens): BrandingValidationResult {
   const errors: FieldError[] = [];
 
   if (Object.prototype.hasOwnProperty.call(tokens, '--tenant-primary')) {
@@ -83,18 +79,12 @@ export function validateBrandingTokens(
   }
 
   if (Object.prototype.hasOwnProperty.call(tokens, '--tenant-logo')) {
-    const fieldErrors = validateLogoToken(
-      tokens['--tenant-logo'],
-      'tokens.--tenant-logo',
-    );
+    const fieldErrors = validateLogoToken(tokens['--tenant-logo'], 'tokens.--tenant-logo');
     errors.push(...fieldErrors);
   }
 
   if (Object.prototype.hasOwnProperty.call(tokens, '--tenant-favicon')) {
-    const fieldErrors = validateFaviconToken(
-      tokens['--tenant-favicon'],
-      'tokens.--tenant-favicon',
-    );
+    const fieldErrors = validateFaviconToken(tokens['--tenant-favicon'], 'tokens.--tenant-favicon');
     errors.push(...fieldErrors);
   }
 
@@ -296,9 +286,7 @@ function srgbToLinear(c: number): number {
  * Compute the WCAG 2.1 relative luminance of an sRGB color.
  */
 export function relativeLuminance({ r, g, b }: RgbColor): number {
-  return (
-    0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b)
-  );
+  return 0.2126 * srgbToLinear(r) + 0.7152 * srgbToLinear(g) + 0.0722 * srgbToLinear(b);
 }
 
 /**
@@ -324,11 +312,7 @@ interface ImageProbe {
 }
 
 const ALLOWED_LOGO_MIMES = new Set(['image/svg+xml', 'image/png']);
-const ALLOWED_FAVICON_MIMES = new Set([
-  'image/x-icon',
-  'image/vnd.microsoft.icon',
-  'image/png',
-]);
+const ALLOWED_FAVICON_MIMES = new Set(['image/x-icon', 'image/vnd.microsoft.icon', 'image/png']);
 
 const LOGO_MAX_WIDTH = 200;
 const LOGO_MAX_HEIGHT = 60;
@@ -613,7 +597,10 @@ export function readSvgDimensions(source: string): ImageDimensions | null {
 
   const viewBox = matchAttr(svgTag, 'viewBox');
   if (viewBox) {
-    const parts = viewBox.trim().split(/[\s,]+/).map(Number);
+    const parts = viewBox
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
     if (parts.length >= 4 && parts.slice(0, 4).every((n) => !Number.isNaN(n))) {
       return { width: parts[2]!, height: parts[3]! };
     }
@@ -658,9 +645,7 @@ export function readPngDimensions(bytes: Uint8Array): ImageDimensions | null {
   }
 
   // IHDR must be the first chunk.
-  const ihdrType = String.fromCharCode(
-    bytes[12]!, bytes[13]!, bytes[14]!, bytes[15]!,
-  );
+  const ihdrType = String.fromCharCode(bytes[12]!, bytes[13]!, bytes[14]!, bytes[15]!);
   if (ihdrType !== 'IHDR') return null;
 
   const width = readUint32BE(bytes, 16);
@@ -670,11 +655,12 @@ export function readPngDimensions(bytes: Uint8Array): ImageDimensions | null {
 
 function readUint32BE(bytes: Uint8Array, offset: number): number {
   return (
-    (bytes[offset]! << 24) |
-    (bytes[offset + 1]! << 16) |
-    (bytes[offset + 2]! << 8) |
-    bytes[offset + 3]!
-  ) >>> 0;
+    ((bytes[offset]! << 24) |
+      (bytes[offset + 1]! << 16) |
+      (bytes[offset + 2]! << 8) |
+      bytes[offset + 3]!) >>>
+    0
+  );
 }
 
 /**

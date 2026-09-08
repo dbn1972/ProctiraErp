@@ -20,11 +20,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import {
-  ApiClientError,
-  listClassesByInstitution,
-  listGrades,
-} from '@/lib/institutions/api';
+import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
 import type { ClassSection, Grade } from '@/lib/institutions/types';
 
 interface GradesPageProps {
@@ -43,13 +39,9 @@ function readNum(cd: Record<string, unknown> | null | undefined, key: string): n
 }
 
 function UtilizationBar({ pct }: { pct: number }) {
-  const cls =
-    pct >= 95 ? 'bg-amber-500' :
-    pct >= 100 ? 'bg-red-500'  :
-                 'bg-emerald-500';
+  const cls = pct >= 95 ? 'bg-amber-500' : pct >= 100 ? 'bg-red-500' : 'bg-emerald-500';
   const textCls =
-    pct >= 95 ? 'text-amber-700 dark:text-amber-400' :
-                'text-emerald-700 dark:text-emerald-400';
+    pct >= 95 ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400';
   return (
     <div className="flex items-center gap-2">
       <div className="h-2 w-32 overflow-hidden rounded-full bg-muted">
@@ -82,13 +74,11 @@ export default async function InstitutionGradesPage({ params }: GradesPageProps)
 
   // Only show grades that are offered here (have ≥1 section), falling back to
   // the full catalog when no sections are configured yet.
-  const offered = data.classes.length > 0
-    ? data.grades.filter((g) => byGrade.has(g.id))
-    : data.grades;
+  const offered =
+    data.classes.length > 0 ? data.grades.filter((g) => byGrade.has(g.id)) : data.grades;
 
   return (
     <div className="space-y-4">
-
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -134,7 +124,9 @@ export default async function InstitutionGradesPage({ params }: GradesPageProps)
                   .sort((a, b) => a.order - b.order)
                   .map((grade) => {
                     const agg = byGrade.get(grade.id) ?? { sections: 0, capacity: 0 };
-                    const cd = (grade as unknown as { customData?: Record<string, unknown> }).customData ?? {};
+                    const cd =
+                      (grade as unknown as { customData?: Record<string, unknown> }).customData ??
+                      {};
                     const enrollment = readNum(cd, 'enrollment');
                     const utilization =
                       enrollment !== null && agg.capacity > 0
@@ -175,10 +167,20 @@ export default async function InstitutionGradesPage({ params }: GradesPageProps)
                         </TableCell>
                         <TableCell className="text-end">
                           <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label={`Edit ${grade.name}`}>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 p-0"
+                              aria-label={`Edit ${grade.name}`}
+                            >
                               <Pencil className="h-4 w-4" aria-hidden="true" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 p-0"
+                              aria-label="More actions"
+                            >
                               <MoreVertical className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           </div>

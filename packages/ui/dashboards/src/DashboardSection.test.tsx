@@ -16,9 +16,7 @@ describe('<DashboardSection />', () => {
       </DashboardSection>,
     );
 
-    expect(
-      screen.getByRole('heading', { level: 2, name: "Today's overview" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: "Today's overview" })).toBeInTheDocument();
     expect(screen.getByText('Last 24 hours')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'View all' })).toBeInTheDocument();
     expect(screen.getByTestId('body-child')).toBeInTheDocument();
@@ -39,10 +37,7 @@ describe('<DashboardSection />', () => {
       </DashboardSection>,
     );
 
-    expect(screen.getByTestId('section')).toHaveAttribute(
-      'data-state',
-      'loading',
-    );
+    expect(screen.getByTestId('section')).toHaveAttribute('data-state', 'loading');
     const skel = screen.getByTestId('dashboard-section-skeleton');
     expect(skel).toBeInTheDocument();
     expect(skel.children).toHaveLength(3);
@@ -51,12 +46,7 @@ describe('<DashboardSection />', () => {
 
   it('hides the body when collapsible and the user toggles the heading button', () => {
     render(
-      <DashboardSection
-        title="Today's overview"
-        collapsible
-        defaultExpanded
-        data-testid="section"
-      >
+      <DashboardSection title="Today's overview" collapsible defaultExpanded data-testid="section">
         <div data-testid="body-child">Hello</div>
       </DashboardSection>,
     );

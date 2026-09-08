@@ -18,14 +18,16 @@ export function readHeader(request: Request, name: string): string | null {
 /**
  * Validate double-submit CSRF + install-token against cookies / session store.
  */
-export function assertInstallSecurity(request: Request): {
-  ok: true;
-  session: InstallSession;
-} | {
-  ok: false;
-  status: number;
-  error: string;
-} {
+export function assertInstallSecurity(request: Request):
+  | {
+      ok: true;
+      session: InstallSession;
+    }
+  | {
+      ok: false;
+      status: number;
+      error: string;
+    } {
   const cookieStore = cookies();
   const csrfCookie = cookieStore.get(CSRF_COOKIE)?.value;
   const tokenCookie = cookieStore.get(INSTALL_TOKEN_COOKIE)?.value;

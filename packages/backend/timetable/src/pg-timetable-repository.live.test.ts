@@ -127,7 +127,9 @@ describe('PgTimetableRepository (live)', () => {
     expect(periods.map((p) => p.periodOrder)).toEqual([1, 2]);
     expect(periods[0]?.startTime.startsWith('08:00')).toBe(true);
 
-    const renamed = await repo.updateBellSchedule(a.tenantId, schedule.id, { name: 'Standard day v2' });
+    const renamed = await repo.updateBellSchedule(a.tenantId, schedule.id, {
+      name: 'Standard day v2',
+    });
     expect(renamed?.name).toBe('Standard day v2');
 
     // Cross-tenant: schedule and its periods are invisible and un-updatable.
@@ -138,7 +140,9 @@ describe('PgTimetableRepository (live)', () => {
 
     // Period delete, then schedule delete retires the remaining periods too.
     await repo.deletePeriod(a.tenantId, p1.id);
-    expect((await repo.listPeriods(a.tenantId, schedule.id)).map((p) => p.periodOrder)).toEqual([2]);
+    expect((await repo.listPeriods(a.tenantId, schedule.id)).map((p) => p.periodOrder)).toEqual([
+      2,
+    ]);
     await repo.deleteBellSchedule(a.tenantId, schedule.id);
     expect(await repo.getBellSchedule(a.tenantId, schedule.id)).toBeNull();
     expect(await repo.listPeriods(a.tenantId, schedule.id)).toEqual([]);

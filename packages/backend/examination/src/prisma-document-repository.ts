@@ -28,10 +28,7 @@ import type {
   DocumentRepository,
   SeatingAssignment,
 } from './document-repository.js';
-import type {
-  ExaminationCenter,
-  ExaminationSubject,
-} from './examination-repository.js';
+import type { ExaminationCenter, ExaminationSubject } from './examination-repository.js';
 import type {
   CandidateGradeResult,
   CandidateSubjectResult,
@@ -129,24 +126,18 @@ export class PrismaDocumentRepository implements DocumentRepository {
         }),
       ]);
       const studentById = new Map(students.map((s) => [s.id, s]));
-      const registrationByStudentId = new Map(
-        registrations.map((r) => [r.studentId, r]),
-      );
+      const registrationByStudentId = new Map(registrations.map((r) => [r.studentId, r]));
 
       return candidates.map((candidate) => {
         const student = studentById.get(candidate.studentId);
         const registration = registrationByStudentId.get(candidate.studentId);
         const subjectIds = registration
           ? jsonArray<string>(registration.subjectIds)
-          : jsonArray<CandidateSubjectResult>(candidate.subjectResults).map(
-              (r) => r.subjectId,
-            );
+          : jsonArray<CandidateSubjectResult>(candidate.subjectResults).map((r) => r.subjectId);
         return {
           id: candidate.id,
           studentId: candidate.studentId,
-          studentName: student
-            ? `${student.firstName} ${student.lastName}`
-            : candidate.studentId,
+          studentName: student ? `${student.firstName} ${student.lastName}` : candidate.studentId,
           rollNumber: candidate.id,
           centerId: candidate.centerId,
           centerName: centerNameById.get(candidate.centerId) ?? candidate.centerId,
@@ -247,9 +238,7 @@ export class PrismaDocumentRepository implements DocumentRepository {
         return {
           candidateId,
           studentId,
-          studentName: student
-            ? `${student.firstName} ${student.lastName}`
-            : studentId,
+          studentName: student ? `${student.firstName} ${student.lastName}` : studentId,
           rollNumber: candidateId,
           subjects: subjectRows.map(({ name, score, grade, passed }) => ({
             name,
@@ -342,10 +331,7 @@ export class PrismaDocumentRepository implements DocumentRepository {
     });
   }
 
-  async listJobs(
-    examinationId: string,
-    tenantId: string,
-  ): Promise<DocumentGenerationJob[]> {
+  async listJobs(examinationId: string, tenantId: string): Promise<DocumentGenerationJob[]> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const rows = (await tx.examinationDocumentJob.findMany({
         where: { examinationId, tenantId },

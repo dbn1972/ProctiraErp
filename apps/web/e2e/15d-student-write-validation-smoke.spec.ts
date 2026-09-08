@@ -9,7 +9,10 @@ import { setupFakeTenantSession } from './fixtures/fake-session';
 
 test.describe('Student write validation — ungated', () => {
   test.beforeEach(async ({ page }) => {
-    await setupFakeTenantSession(page, { sub: 'student-e2e-user', displayName: 'Student E2E Admin' });
+    await setupFakeTenantSession(page, {
+      sub: 'student-e2e-user',
+      displayName: 'Student E2E Admin',
+    });
   });
 
   test('/students/new validates required fields before submit', async ({ page }) => {

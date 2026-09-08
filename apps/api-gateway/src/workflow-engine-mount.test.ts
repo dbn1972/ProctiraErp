@@ -56,7 +56,13 @@ const definitionBody = {
   entityType: 'student_transfer',
   states: [
     { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
-    { id: 'review', name: 'Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'admin' },
+    {
+      id: 'review',
+      name: 'Review',
+      type: 'INTERMEDIATE',
+      assigneeType: 'role',
+      assigneeId: 'admin',
+    },
     { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
   ],
   transitions: [
@@ -78,7 +84,10 @@ describe('G-715 workflow engine mount', () => {
   });
 
   it('definition → instance → transition → audit all respond through the gateway', async () => {
-    const headers = { authorization: `Bearer ${signToken(app, 'admin')}`, 'x-tenant-id': TENANT_ID };
+    const headers = {
+      authorization: `Bearer ${signToken(app, 'admin')}`,
+      'x-tenant-id': TENANT_ID,
+    };
 
     const created = await app.inject({
       method: 'POST',
@@ -122,7 +131,11 @@ describe('G-715 workflow engine mount', () => {
     });
     expect(audit.statusCode).toBe(200);
 
-    const cases = await app.inject({ method: 'GET', url: '/api/v1/workflow-engine/cases', headers });
+    const cases = await app.inject({
+      method: 'GET',
+      url: '/api/v1/workflow-engine/cases',
+      headers,
+    });
     expect(cases.statusCode).toBe(200);
   });
 

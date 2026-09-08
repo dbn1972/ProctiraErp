@@ -3,10 +3,7 @@
  *
  * Used for unit testing without database dependencies.
  */
-import type {
-  AssessmentResultEntity,
-  AssessmentResultRepository,
-} from './result-repository.js';
+import type { AssessmentResultEntity, AssessmentResultRepository } from './result-repository.js';
 
 export class InMemoryAssessmentResultRepository implements AssessmentResultRepository {
   private results: AssessmentResultEntity[] = [];

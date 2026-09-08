@@ -34,9 +34,7 @@ export default async function ExaminationResultsPage({ params }: PageProps) {
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div>
           <CardTitle className="text-base">Results</CardTitle>
-          <CardDescription>
-            {results.length.toLocaleString()} entries.
-          </CardDescription>
+          <CardDescription>{results.length.toLocaleString()} entries.</CardDescription>
         </div>
         <div className="flex gap-2">
           <Button variant="outline">
@@ -75,9 +73,7 @@ export default async function ExaminationResultsPage({ params }: PageProps) {
                   </TableCell>
                   <TableCell className="font-medium">{result.studentName}</TableCell>
                   <TableCell className="text-right">
-                    {result.totalScore !== null
-                      ? `${result.totalScore} / ${result.maxScore}`
-                      : '—'}
+                    {result.totalScore !== null ? `${result.totalScore} / ${result.maxScore}` : '—'}
                   </TableCell>
                   <TableCell>{result.grade ?? '—'}</TableCell>
                   <TableCell>

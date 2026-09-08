@@ -21,15 +21,37 @@ const UUID_PATTERN = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
  * Eligibility criteria for a scholarship program.
  */
 export const EligibilityCriteriaSchema = Type.Object({
-  minGPA: Type.Optional(Type.Number({ minimum: 0, maximum: 4.0, description: 'Minimum GPA required' })),
-  maxAge: Type.Optional(Type.Number({ minimum: 1, maximum: 100, description: 'Maximum age of applicant' })),
-  genders: Type.Optional(Type.Array(Type.String({ enum: ['male', 'female', 'other'] }), { description: 'Eligible genders' })),
-  areaIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), { description: 'Eligible area IDs' })),
-  institutionIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), { description: 'Eligible institution IDs' })),
-  educationLevels: Type.Optional(Type.Array(Type.String(), { description: 'Eligible education levels' })),
-  maxFamilyIncome: Type.Optional(Type.Number({ minimum: 0, description: 'Maximum family income threshold' })),
-  requiredDocuments: Type.Optional(Type.Array(Type.String(), { description: 'Required document types for application' })),
-  customCriteria: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Additional custom eligibility criteria' })),
+  minGPA: Type.Optional(
+    Type.Number({ minimum: 0, maximum: 4.0, description: 'Minimum GPA required' }),
+  ),
+  maxAge: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, description: 'Maximum age of applicant' }),
+  ),
+  genders: Type.Optional(
+    Type.Array(Type.String({ enum: ['male', 'female', 'other'] }), {
+      description: 'Eligible genders',
+    }),
+  ),
+  areaIds: Type.Optional(
+    Type.Array(Type.String({ pattern: UUID_PATTERN }), { description: 'Eligible area IDs' }),
+  ),
+  institutionIds: Type.Optional(
+    Type.Array(Type.String({ pattern: UUID_PATTERN }), { description: 'Eligible institution IDs' }),
+  ),
+  educationLevels: Type.Optional(
+    Type.Array(Type.String(), { description: 'Eligible education levels' }),
+  ),
+  maxFamilyIncome: Type.Optional(
+    Type.Number({ minimum: 0, description: 'Maximum family income threshold' }),
+  ),
+  requiredDocuments: Type.Optional(
+    Type.Array(Type.String(), { description: 'Required document types for application' }),
+  ),
+  customCriteria: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), {
+      description: 'Additional custom eligibility criteria',
+    }),
+  ),
 });
 
 export type EligibilityCriteria = Static<typeof EligibilityCriteriaSchema>;
@@ -41,18 +63,36 @@ export type EligibilityCriteria = Static<typeof EligibilityCriteriaSchema>;
 export const CreateScholarshipProgramSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Program name' }),
   description: Type.Optional(Type.String({ maxLength: 2000, description: 'Program description' })),
-  applicationStartDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Application period start date (ISO date YYYY-MM-DD)' }),
-  applicationEndDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Application period end date (ISO date YYYY-MM-DD)' }),
-  totalSlots: Type.Number({ minimum: 1, maximum: 100000, description: 'Total available scholarship slots' }),
+  applicationStartDate: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Application period start date (ISO date YYYY-MM-DD)',
+  }),
+  applicationEndDate: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Application period end date (ISO date YYYY-MM-DD)',
+  }),
+  totalSlots: Type.Number({
+    minimum: 1,
+    maximum: 100000,
+    description: 'Total available scholarship slots',
+  }),
   amountPerRecipient: Type.Number({ minimum: 0, description: 'Scholarship amount per recipient' }),
-  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3, description: 'Currency code (ISO 4217)' })),
-  disbursementFrequency: Type.Optional(Type.String({
-    enum: ['one_time', 'monthly', 'quarterly', 'semester', 'annual'],
-    description: 'Disbursement frequency',
-  })),
+  currency: Type.Optional(
+    Type.String({ minLength: 3, maxLength: 3, description: 'Currency code (ISO 4217)' }),
+  ),
+  disbursementFrequency: Type.Optional(
+    Type.String({
+      enum: ['one_time', 'monthly', 'quarterly', 'semester', 'annual'],
+      description: 'Disbursement frequency',
+    }),
+  ),
   eligibility: EligibilityCriteriaSchema,
-  academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' })),
-  fundingSourceId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Funding source UUID' })),
+  academicPeriodId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
+  ),
+  fundingSourceId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Funding source UUID' }),
+  ),
 });
 
 export type CreateScholarshipProgramInput = Static<typeof CreateScholarshipProgramSchema>;
@@ -63,19 +103,40 @@ export type CreateScholarshipProgramInput = Static<typeof CreateScholarshipProgr
 export const UpdateScholarshipProgramSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Program name' })),
   description: Type.Optional(Type.String({ maxLength: 2000, description: 'Program description' })),
-  applicationStartDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Application period start date' })),
-  applicationEndDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Application period end date' })),
-  totalSlots: Type.Optional(Type.Number({ minimum: 1, maximum: 100000, description: 'Total available slots' })),
-  amountPerRecipient: Type.Optional(Type.Number({ minimum: 0, description: 'Amount per recipient' })),
-  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3, description: 'Currency code' })),
-  disbursementFrequency: Type.Optional(Type.String({
-    enum: ['one_time', 'monthly', 'quarterly', 'semester', 'annual'],
-    description: 'Disbursement frequency',
-  })),
+  applicationStartDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Application period start date',
+    }),
+  ),
+  applicationEndDate: Type.Optional(
+    Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Application period end date' }),
+  ),
+  totalSlots: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100000, description: 'Total available slots' }),
+  ),
+  amountPerRecipient: Type.Optional(
+    Type.Number({ minimum: 0, description: 'Amount per recipient' }),
+  ),
+  currency: Type.Optional(
+    Type.String({ minLength: 3, maxLength: 3, description: 'Currency code' }),
+  ),
+  disbursementFrequency: Type.Optional(
+    Type.String({
+      enum: ['one_time', 'monthly', 'quarterly', 'semester', 'annual'],
+      description: 'Disbursement frequency',
+    }),
+  ),
   eligibility: Type.Optional(EligibilityCriteriaSchema),
-  status: Type.Optional(Type.String({ enum: ['draft', 'open', 'closed', 'archived'], description: 'Program status' })),
-  academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' })),
-  fundingSourceId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Funding source UUID' })),
+  status: Type.Optional(
+    Type.String({ enum: ['draft', 'open', 'closed', 'archived'], description: 'Program status' }),
+  ),
+  academicPeriodId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
+  ),
+  fundingSourceId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Funding source UUID' }),
+  ),
 });
 
 export type UpdateScholarshipProgramInput = Static<typeof UpdateScholarshipProgramSchema>;
@@ -89,7 +150,9 @@ export const AcademicRecordSchema = Type.Object({
   institutionName: Type.String({ minLength: 1, maxLength: 255, description: 'Institution name' }),
   educationLevel: Type.String({ minLength: 1, maxLength: 100, description: 'Education level' }),
   gpa: Type.Optional(Type.Number({ minimum: 0, maximum: 4.0, description: 'GPA' })),
-  yearCompleted: Type.Optional(Type.Number({ minimum: 1900, maximum: 2100, description: 'Year completed' })),
+  yearCompleted: Type.Optional(
+    Type.Number({ minimum: 1900, maximum: 2100, description: 'Year completed' }),
+  ),
   fieldOfStudy: Type.Optional(Type.String({ maxLength: 255, description: 'Field of study' })),
 });
 
@@ -100,15 +163,24 @@ export type AcademicRecord = Static<typeof AcademicRecordSchema>;
  */
 export const FinancialInfoSchema = Type.Object({
   familyIncome: Type.Optional(Type.Number({ minimum: 0, description: 'Annual family income' })),
-  numberOfDependents: Type.Optional(Type.Number({ minimum: 0, maximum: 50, description: 'Number of dependents' })),
-  employmentStatus: Type.Optional(Type.String({
-    enum: ['employed', 'unemployed', 'self_employed', 'student'],
-    description: 'Employment status',
-  })),
-  otherScholarships: Type.Optional(Type.Array(Type.Object({
-    name: Type.String({ description: 'Scholarship name' }),
-    amount: Type.Number({ minimum: 0, description: 'Amount received' }),
-  }), { description: 'Other scholarships received' })),
+  numberOfDependents: Type.Optional(
+    Type.Number({ minimum: 0, maximum: 50, description: 'Number of dependents' }),
+  ),
+  employmentStatus: Type.Optional(
+    Type.String({
+      enum: ['employed', 'unemployed', 'self_employed', 'student'],
+      description: 'Employment status',
+    }),
+  ),
+  otherScholarships: Type.Optional(
+    Type.Array(
+      Type.Object({
+        name: Type.String({ description: 'Scholarship name' }),
+        amount: Type.Number({ minimum: 0, description: 'Amount received' }),
+      }),
+      { description: 'Other scholarships received' },
+    ),
+  ),
 });
 
 export type FinancialInfo = Static<typeof FinancialInfoSchema>;
@@ -117,7 +189,11 @@ export type FinancialInfo = Static<typeof FinancialInfoSchema>;
  * Document attached to an application.
  */
 export const ApplicationDocumentSchema = Type.Object({
-  documentType: Type.String({ minLength: 1, maxLength: 100, description: 'Document type (e.g., transcript, ID, recommendation)' }),
+  documentType: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Document type (e.g., transcript, ID, recommendation)',
+  }),
   fileName: Type.String({ minLength: 1, maxLength: 255, description: 'Original file name' }),
   fileUrl: Type.String({ minLength: 1, description: 'Storage URL for the document' }),
   fileSize: Type.Optional(Type.Number({ minimum: 0, description: 'File size in bytes' })),
@@ -133,12 +209,19 @@ export const CreateApplicationSchema = Type.Object({
   programId: Type.String({ pattern: UUID_PATTERN, description: 'Scholarship program UUID' }),
   applicantId: Type.String({ pattern: UUID_PATTERN, description: 'Applicant (student) UUID' }),
   institutionId: Type.String({ pattern: UUID_PATTERN, description: 'Current institution UUID' }),
-  academicRecords: Type.Array(AcademicRecordSchema, { minItems: 1, description: 'Academic records' }),
+  academicRecords: Type.Array(AcademicRecordSchema, {
+    minItems: 1,
+    description: 'Academic records',
+  }),
   financialInfo: FinancialInfoSchema,
   documents: Type.Array(ApplicationDocumentSchema, { description: 'Supporting documents' }),
-  personalStatement: Type.Optional(Type.String({ maxLength: 5000, description: 'Personal statement' })),
+  personalStatement: Type.Optional(
+    Type.String({ maxLength: 5000, description: 'Personal statement' }),
+  ),
   areaId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Applicant area UUID' })),
-  gender: Type.Optional(Type.String({ enum: ['male', 'female', 'other'], description: 'Applicant gender' })),
+  gender: Type.Optional(
+    Type.String({ enum: ['male', 'female', 'other'], description: 'Applicant gender' }),
+  ),
 });
 
 export type CreateApplicationInput = Static<typeof CreateApplicationSchema>;
@@ -152,11 +235,16 @@ export type CreateApplicationInput = Static<typeof CreateApplicationSchema>;
 export const CreateDisbursementSchema = Type.Object({
   applicationId: Type.String({ pattern: UUID_PATTERN, description: 'Approved application UUID' }),
   amount: Type.Number({ minimum: 0, description: 'Disbursement amount' }),
-  scheduledDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Scheduled payment date (YYYY-MM-DD)' }),
-  paymentMethod: Type.Optional(Type.String({
-    enum: ['bank_transfer', 'check', 'cash', 'mobile_money'],
-    description: 'Payment method',
-  })),
+  scheduledDate: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Scheduled payment date (YYYY-MM-DD)',
+  }),
+  paymentMethod: Type.Optional(
+    Type.String({
+      enum: ['bank_transfer', 'check', 'cash', 'mobile_money'],
+      description: 'Payment method',
+    }),
+  ),
   notes: Type.Optional(Type.String({ maxLength: 1000, description: 'Disbursement notes' })),
 });
 
@@ -170,8 +258,15 @@ export const UpdateDisbursementSchema = Type.Object({
     enum: ['scheduled', 'processing', 'paid', 'failed', 'cancelled'],
     description: 'Payment status',
   }),
-  paidDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Actual payment date (YYYY-MM-DD)' })),
-  transactionReference: Type.Optional(Type.String({ maxLength: 255, description: 'Payment transaction reference' })),
+  paidDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Actual payment date (YYYY-MM-DD)',
+    }),
+  ),
+  transactionReference: Type.Optional(
+    Type.String({ maxLength: 255, description: 'Payment transaction reference' }),
+  ),
   notes: Type.Optional(Type.String({ maxLength: 1000, description: 'Status update notes' })),
 });
 
@@ -186,10 +281,18 @@ export const RecipientComplianceSchema = Type.Object({
     enum: ['academic_performance', 'attendance', 'community_service', 'report_submission'],
     description: 'Type of compliance check',
   }),
-  status: Type.String({ enum: ['compliant', 'non_compliant', 'pending_review'], description: 'Compliance status' }),
-  evaluationDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Evaluation date (YYYY-MM-DD)' }),
+  status: Type.String({
+    enum: ['compliant', 'non_compliant', 'pending_review'],
+    description: 'Compliance status',
+  }),
+  evaluationDate: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Evaluation date (YYYY-MM-DD)',
+  }),
   details: Type.Optional(Type.String({ maxLength: 2000, description: 'Compliance details' })),
-  evaluatorId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Evaluator user UUID' })),
+  evaluatorId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Evaluator user UUID' }),
+  ),
 });
 
 export type RecipientComplianceInput = Static<typeof RecipientComplianceSchema>;
@@ -201,16 +304,34 @@ export type RecipientComplianceInput = Static<typeof RecipientComplianceSchema>;
  * Requirement 11.5: Generate reports on scholarship utilization by program, area, gender, and institution.
  */
 export const UtilizationReportQuerySchema = Type.Object({
-  programId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by program' })),
+  programId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by program' }),
+  ),
   areaId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by area' })),
-  gender: Type.Optional(Type.String({ enum: ['male', 'female', 'other'], description: 'Filter by gender' })),
-  institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by institution' })),
-  startDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Report period start date (YYYY-MM-DD)' })),
-  endDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Report period end date (YYYY-MM-DD)' })),
-  groupBy: Type.Optional(Type.String({
-    enum: ['program', 'area', 'gender', 'institution'],
-    description: 'Group results by dimension',
-  })),
+  gender: Type.Optional(
+    Type.String({ enum: ['male', 'female', 'other'], description: 'Filter by gender' }),
+  ),
+  institutionId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by institution' }),
+  ),
+  startDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Report period start date (YYYY-MM-DD)',
+    }),
+  ),
+  endDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Report period end date (YYYY-MM-DD)',
+    }),
+  ),
+  groupBy: Type.Optional(
+    Type.String({
+      enum: ['program', 'area', 'gender', 'institution'],
+      description: 'Group results by dimension',
+    }),
+  ),
 });
 
 export type UtilizationReportQuery = Static<typeof UtilizationReportQuerySchema>;
@@ -233,12 +354,18 @@ export type ScholarshipParams = Static<typeof ScholarshipParamsSchema>;
  * Schema for list query parameters.
  */
 export const ScholarshipListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   status: Type.Optional(Type.String({ description: 'Filter by status' })),
   search: Type.Optional(Type.String({ description: 'Search by name' })),
   sortBy: Type.Optional(Type.String({ default: 'createdAt', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'desc', description: 'Sort direction' })),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'desc', description: 'Sort direction' }),
+  ),
 });
 
 export type ScholarshipListQuery = Static<typeof ScholarshipListQuerySchema>;
@@ -313,14 +440,16 @@ export const UtilizationReportResponseSchema = Type.Object({
   totalDisbursed: Type.Number(),
   totalAmount: Type.Number(),
   currency: Type.String(),
-  breakdown: Type.Array(Type.Object({
-    groupKey: Type.String(),
-    groupValue: Type.String(),
-    applicationCount: Type.Number(),
-    approvedCount: Type.Number(),
-    disbursedAmount: Type.Number(),
-    utilizationRate: Type.Number(),
-  })),
+  breakdown: Type.Array(
+    Type.Object({
+      groupKey: Type.String(),
+      groupValue: Type.String(),
+      applicationCount: Type.Number(),
+      approvedCount: Type.Number(),
+      disbursedAmount: Type.Number(),
+      utilizationRate: Type.Number(),
+    }),
+  ),
   generatedAt: Type.String(),
 });
 

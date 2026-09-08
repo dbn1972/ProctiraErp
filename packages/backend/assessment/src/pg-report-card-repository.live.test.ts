@@ -127,7 +127,8 @@ describe.skipIf(!live)('Pg report-card repositories', () => {
     expect(c2.comment).toBe('Excellent progress');
     expect(await comments.findByStudentAndPeriod(tenantId, studentId, periodId)).toHaveLength(1);
     expect(
-      (await comments.findByStudentSubjectPeriod(tenantId, studentId, subjectId, periodId))?.comment,
+      (await comments.findByStudentSubjectPeriod(tenantId, studentId, subjectId, periodId))
+        ?.comment,
     ).toBe('Excellent progress');
 
     expect(await branding.findByInstitutionId(institutionId, tenantId)).toBeNull();
@@ -140,9 +141,7 @@ describe.skipIf(!live)('Pg report-card repositories', () => {
       contactPhone: null,
       contactEmail: 'office@demo.test',
     });
-    expect((await branding.findByInstitutionId(institutionId, tenantId))?.name).toBe(
-      'Demo School',
-    );
+    expect((await branding.findByInstitutionId(institutionId, tenantId))?.name).toBe('Demo School');
 
     const template = await templates.create({
       id: randomUUID(),

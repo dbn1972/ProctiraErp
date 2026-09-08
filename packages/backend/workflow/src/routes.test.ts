@@ -28,7 +28,13 @@ const validDefinitionBody = {
   entityType: 'student_transfer',
   states: [
     { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
-    { id: 'review', name: 'Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'admin' },
+    {
+      id: 'review',
+      name: 'Review',
+      type: 'INTERMEDIATE',
+      assigneeType: 'role',
+      assigneeId: 'admin',
+    },
     { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
   ],
   transitions: [
@@ -88,7 +94,13 @@ describe('Workflow Routes', () => {
           ...validDefinitionBody,
           states: [
             // No INITIAL state
-            { id: 'review', name: 'Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'admin' },
+            {
+              id: 'review',
+              name: 'Review',
+              type: 'INTERMEDIATE',
+              assigneeType: 'role',
+              assigneeId: 'admin',
+            },
             { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
           ],
         },
@@ -101,7 +113,11 @@ describe('Workflow Routes', () => {
   describe('GET /workflows', () => {
     it('should list workflow definitions', async () => {
       await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
-      await app.inject({ method: 'POST', url: '/workflows', payload: { ...validDefinitionBody, name: 'WF 2' } });
+      await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: { ...validDefinitionBody, name: 'WF 2' },
+      });
 
       const response = await app.inject({ method: 'GET', url: '/workflows' });
 
@@ -114,7 +130,11 @@ describe('Workflow Routes', () => {
 
   describe('GET /workflows/:id', () => {
     it('should return a workflow definition by ID', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: validDefinitionBody,
+      });
       const created = createRes.json();
 
       const response = await app.inject({ method: 'GET', url: `/workflows/${created.id}` });
@@ -135,7 +155,11 @@ describe('Workflow Routes', () => {
 
   describe('PUT /workflows/:id', () => {
     it('should update a workflow definition', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: validDefinitionBody,
+      });
       const created = createRes.json();
 
       const response = await app.inject({
@@ -151,7 +175,11 @@ describe('Workflow Routes', () => {
 
   describe('DELETE /workflows/:id', () => {
     it('should delete a workflow definition and return 204', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: validDefinitionBody,
+      });
       const created = createRes.json();
 
       const response = await app.inject({ method: 'DELETE', url: `/workflows/${created.id}` });
@@ -168,7 +196,11 @@ describe('Workflow Routes', () => {
 
   describe('POST /workflows/instances', () => {
     it('should create a workflow instance', async () => {
-      const createRes = await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
+      const createRes = await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: validDefinitionBody,
+      });
       const definition = createRes.json();
 
       const response = await app.inject({
@@ -192,7 +224,11 @@ describe('Workflow Routes', () => {
 
   describe('POST /workflows/instances/:instanceId/transition', () => {
     it('should transition a workflow instance', async () => {
-      const createDefRes = await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
+      const createDefRes = await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: validDefinitionBody,
+      });
       const definition = createDefRes.json();
 
       const createInstRes = await app.inject({
@@ -222,7 +258,11 @@ describe('Workflow Routes', () => {
     });
 
     it('should return 422 for invalid transition', async () => {
-      const createDefRes = await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
+      const createDefRes = await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: validDefinitionBody,
+      });
       const definition = createDefRes.json();
 
       const createInstRes = await app.inject({
@@ -253,7 +293,11 @@ describe('Workflow Routes', () => {
 
   describe('GET /workflows/instances/:instanceId/audit', () => {
     it('should return transition audit history', async () => {
-      const createDefRes = await app.inject({ method: 'POST', url: '/workflows', payload: validDefinitionBody });
+      const createDefRes = await app.inject({
+        method: 'POST',
+        url: '/workflows',
+        payload: validDefinitionBody,
+      });
       const definition = createDefRes.json();
 
       const createInstRes = await app.inject({

@@ -32,7 +32,7 @@
 | Web shells + sidebar                        | ☑    |                                                  |
 | Live create form + list from API            | ☑    | `transport.ts`, `NewRouteForm`, routes list page |
 | Live vehicle create + list                  | ☑    | `NewVehicleForm` + vehicles page                 |
-| Assignment create + list UIs                  | ☑    | `AssignmentForms` + assignments page             |
+| Assignment create + list UIs                | ☑    | `AssignmentForms` + assignments page             |
 
 ## Residual
 

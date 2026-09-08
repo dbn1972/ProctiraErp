@@ -17,10 +17,7 @@ declare module 'fastify' {
 }
 
 export const gradebookPlugin = fp(
-  async function gradebookPluginImpl(
-    fastify: FastifyInstance,
-    options: GradebookPluginOptions,
-  ) {
+  async function gradebookPluginImpl(fastify: FastifyInstance, options: GradebookPluginOptions) {
     const service = new GradebookService(options.repository);
     fastify.decorate('gradebookService', service);
     await registerGradebookRoutes(fastify, {

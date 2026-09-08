@@ -179,9 +179,11 @@ describe('validate', () => {
 
     it('handles array item field paths', () => {
       const schema = Type.Object({
-        items: Type.Array(Type.Object({
-          name: Type.String({ minLength: 1 }),
-        })),
+        items: Type.Array(
+          Type.Object({
+            name: Type.String({ minLength: 1 }),
+          }),
+        ),
       });
 
       const result = validate(schema, { items: [{ name: '' }] });

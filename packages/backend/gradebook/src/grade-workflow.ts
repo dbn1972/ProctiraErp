@@ -18,13 +18,7 @@ export const GRADE_WORKFLOW_STATUSES = [
 
 export type GradeWorkflowStatus = (typeof GRADE_WORKFLOW_STATUSES)[number];
 
-export const GRADE_WORKFLOW_ACTIONS = [
-  'submit',
-  'approve',
-  'reject',
-  'lock',
-  'reopen',
-] as const;
+export const GRADE_WORKFLOW_ACTIONS = ['submit', 'approve', 'reject', 'lock', 'reopen'] as const;
 
 export type GradeWorkflowAction = (typeof GRADE_WORKFLOW_ACTIONS)[number];
 

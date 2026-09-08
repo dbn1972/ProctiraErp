@@ -28,7 +28,9 @@ export const RecordAuditSchema = Type.Object({
   entityType: Type.String({ minLength: 1, maxLength: 100 }),
   entityId: Type.String({ minLength: 1, maxLength: 255 }),
   operation: AuditOperationEnum,
-  beforeValues: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
+  beforeValues: Type.Optional(
+    Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()]),
+  ),
   afterValues: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
   metadata: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Unknown()), Type.Null()])),
 });

@@ -182,10 +182,7 @@ export class PluginSandbox {
             NODE_ENV: 'sandbox',
             TZ: 'UTC',
           },
-          execArgv: [
-            '--loader', 'ts-node/esm',
-            '--no-warnings',
-          ],
+          execArgv: ['--loader', 'ts-node/esm', '--no-warnings'],
         });
 
         // Wall-time timeout (hard kill)
@@ -217,9 +214,14 @@ export class PluginSandbox {
 
         // Handle worker messages (execution results)
         worker.on('message', async (response: SandboxWorkerResponse) => {
-          const outcome = response.type === 'success' ? 'success' :
-            response.type === 'timeout' ? 'timeout' :
-            response.type === 'oom' ? 'oom' : 'error';
+          const outcome =
+            response.type === 'success'
+              ? 'success'
+              : response.type === 'timeout'
+                ? 'timeout'
+                : response.type === 'oom'
+                  ? 'oom'
+                  : 'error';
 
           const auditRecord = this.createAuditRecord(
             context,
@@ -247,8 +249,12 @@ export class PluginSandbox {
               success: false,
               error: {
                 message: response.error ?? 'Unknown execution error',
-                code: response.type === 'timeout' ? 'TIMEOUT' :
-                  response.type === 'oom' ? 'OOM' : 'EXECUTION_ERROR',
+                code:
+                  response.type === 'timeout'
+                    ? 'TIMEOUT'
+                    : response.type === 'oom'
+                      ? 'OOM'
+                      : 'EXECUTION_ERROR',
                 stack: response.stack,
               },
               metrics: {
@@ -348,7 +354,10 @@ export class PluginSandbox {
   /**
    * Validate that the execution context has required permissions.
    */
-  private validatePermissions(context: SandboxExecutionContext): { valid: boolean; reason?: string } {
+  private validatePermissions(context: SandboxExecutionContext): {
+    valid: boolean;
+    reason?: string;
+  } {
     if (!context.tenantId) {
       return { valid: false, reason: 'Execution context must include a tenantId' };
     }

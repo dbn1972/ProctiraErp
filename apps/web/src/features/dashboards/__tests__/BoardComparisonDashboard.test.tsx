@@ -24,11 +24,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     ResizeObserverStub as unknown as typeof globalThis.ResizeObserver;
 }
 
-import {
-  BOARD_COMPARISON_MOCK,
-  type BoardComparisonData,
-  type DashboardQueryResult,
-} from '../api';
+import { BOARD_COMPARISON_MOCK, type BoardComparisonData, type DashboardQueryResult } from '../api';
 
 const useBoardComparisonDataMock = vi.fn<
   [ReadonlyArray<string>?],
@@ -39,15 +35,12 @@ vi.mock('../api', async (importActual) => {
   const actual = await importActual<typeof import('../api')>();
   return {
     ...actual,
-    useBoardComparisonData: (codes?: ReadonlyArray<string>) =>
-      useBoardComparisonDataMock(codes),
+    useBoardComparisonData: (codes?: ReadonlyArray<string>) => useBoardComparisonDataMock(codes),
   };
 });
 
 async function renderPage() {
-  const { default: BoardComparisonDashboard } = await import(
-    '../pages/BoardComparisonDashboard'
-  );
+  const { default: BoardComparisonDashboard } = await import('../pages/BoardComparisonDashboard');
   return render(
     <MemoryRouter>
       <BoardComparisonDashboard />
@@ -73,12 +66,8 @@ describe('<BoardComparisonDashboard>', () => {
 
     // Each board card hosts a KPI tile per default-selected metric.
     const cbseCard = screen.getByTestId('board-comparison-board-card-cbse');
-    expect(
-      within(cbseCard).getByTestId('board-comparison-kpi-cbse-passRate'),
-    ).toBeTruthy();
-    expect(
-      within(cbseCard).getByTestId('board-comparison-kpi-cbse-attendance'),
-    ).toBeTruthy();
+    expect(within(cbseCard).getByTestId('board-comparison-kpi-cbse-passRate')).toBeTruthy();
+    expect(within(cbseCard).getByTestId('board-comparison-kpi-cbse-attendance')).toBeTruthy();
   });
 
   it('renders the radar and trend cards', async () => {
@@ -122,9 +111,7 @@ describe('<BoardComparisonDashboard>', () => {
     await renderPage();
 
     // Default selection uses all four — counter shows 4/4.
-    expect(
-      screen.getByTestId('board-comparison-selection-count').textContent,
-    ).toContain('4/4');
+    expect(screen.getByTestId('board-comparison-selection-count').textContent).toContain('4/4');
 
     // Mock only ships four boards, so we de-select one and reselect to
     // confirm the toggle is wired (the cap is exercised in the next
@@ -133,8 +120,6 @@ describe('<BoardComparisonDashboard>', () => {
     const checkbox = cbseToggle.querySelector('button[role="checkbox"]');
     expect(checkbox).not.toBeNull();
     fireEvent.click(checkbox!);
-    expect(
-      screen.getByTestId('board-comparison-selection-count').textContent,
-    ).toContain('3/4');
+    expect(screen.getByTestId('board-comparison-selection-count').textContent).toContain('3/4');
   });
 });

@@ -16,7 +16,12 @@ export { registrationPlugin } from './registration-plugin.js';
 export type { RegistrationPluginOptions } from './registration-plugin.js';
 
 // Service
-export { RegistrationService, generateTrackingNumber, validateDocuments, validateCustomFields } from './registration-service.js';
+export {
+  RegistrationService,
+  generateTrackingNumber,
+  validateDocuments,
+  validateCustomFields,
+} from './registration-service.js';
 
 // Repository
 export type {

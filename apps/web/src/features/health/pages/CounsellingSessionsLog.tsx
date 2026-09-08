@@ -119,8 +119,8 @@ export default function CounsellingSessionsLog() {
         <div className="text-5xl">🔒</div>
         <h1 className="text-2xl font-semibold">Access Denied</h1>
         <p className="text-muted-foreground text-center max-w-md">
-          You do not have permission to view counselling records. Only authorized
-          health personnel and the student&apos;s guardian may access this information.
+          You do not have permission to view counselling records. Only authorized health personnel
+          and the student&apos;s guardian may access this information.
         </p>
       </div>
     );
@@ -182,10 +182,14 @@ export default function CounsellingSessionsLog() {
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium">{formatDate(session.sessionDate)}</span>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SESSION_TYPE_STYLES[session.sessionType] ?? ''}`}>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SESSION_TYPE_STYLES[session.sessionType] ?? ''}`}
+                      >
                         {session.sessionType}
                       </span>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SESSION_STATUS_STYLES[session.status] ?? ''}`}>
+                      <span
+                        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SESSION_STATUS_STYLES[session.status] ?? ''}`}
+                      >
                         {session.status}
                       </span>
                       {session.followUpRequired && (
@@ -230,7 +234,9 @@ export default function CounsellingSessionsLog() {
                       {session.followUpRequired && (
                         <div className="text-sm">
                           <span className="font-medium text-muted-foreground">Follow-up Date:</span>{' '}
-                          {session.followUpDate ? formatDate(session.followUpDate) : 'Not scheduled'}
+                          {session.followUpDate
+                            ? formatDate(session.followUpDate)
+                            : 'Not scheduled'}
                         </div>
                       )}
                     </div>

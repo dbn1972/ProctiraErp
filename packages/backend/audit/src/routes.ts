@@ -101,7 +101,7 @@ function getClientIp(request: FastifyRequest): string {
   }
   const realIp = request.headers['x-real-ip'];
   if (realIp) {
-    return Array.isArray(realIp) ? realIp[0] ?? request.ip : realIp;
+    return Array.isArray(realIp) ? (realIp[0] ?? request.ip) : realIp;
   }
   return request.ip;
 }
@@ -194,7 +194,7 @@ export async function registerAuditRoutes(
       const { userId, userName } = getUserInfo(request);
       const ipAddress = getClientIp(request);
 
-      const inputs = result.data.entries.map(entry => ({
+      const inputs = result.data.entries.map((entry) => ({
         tenantId,
         entityType: entry.entityType,
         entityId: entry.entityId,
@@ -334,40 +334,46 @@ export async function registerAuditRoutes(
   });
 
   // POST /audit/archival/execute - Execute archival of expired entries
-  fastify.post(`${prefix}/archival/execute`, async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const tenantId = getTenantId(request);
-      const result = await auditService.executeArchival(tenantId);
-      return reply.status(200).send(formatArchivalResultResponse(result));
-    } catch (error: unknown) {
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          code: error.code,
-          message: error.message,
-          statusCode: error.statusCode,
-        });
+  fastify.post(
+    `${prefix}/archival/execute`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const tenantId = getTenantId(request);
+        const result = await auditService.executeArchival(tenantId);
+        return reply.status(200).send(formatArchivalResultResponse(result));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send({
+            code: error.code,
+            message: error.message,
+            statusCode: error.statusCode,
+          });
+        }
+        throw error;
       }
-      throw error;
-    }
-  });
+    },
+  );
 
   // GET /audit/archival/candidates - Get count of archival candidates
-  fastify.get(`${prefix}/archival/candidates`, async (request: FastifyRequest, reply: FastifyReply) => {
-    try {
-      const tenantId = getTenantId(request);
-      const count = await auditService.getArchivalCandidateCount(tenantId);
-      return reply.status(200).send({ count });
-    } catch (error: unknown) {
-      if (error instanceof AppError) {
-        return reply.status(error.statusCode).send({
-          code: error.code,
-          message: error.message,
-          statusCode: error.statusCode,
-        });
+  fastify.get(
+    `${prefix}/archival/candidates`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      try {
+        const tenantId = getTenantId(request);
+        const count = await auditService.getArchivalCandidateCount(tenantId);
+        return reply.status(200).send({ count });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send({
+            code: error.code,
+            message: error.message,
+            statusCode: error.statusCode,
+          });
+        }
+        throw error;
       }
-      throw error;
-    }
-  });
+    },
+  );
 
   // GET /audit/:id - Get a single audit log entry
   fastify.get(`${prefix}/:id`, async (request: FastifyRequest, reply: FastifyReply) => {

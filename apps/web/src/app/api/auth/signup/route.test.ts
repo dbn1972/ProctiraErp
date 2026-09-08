@@ -9,14 +9,7 @@
  *   • Missing required fields still return 400 (regression guard).
  *   • Missing terms acceptance still returns 400 (regression guard).
  */
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import { POST } from './route';
 
@@ -63,9 +56,7 @@ describe('POST /api/auth/signup — weak password rejection (Task 49.6)', () => 
   });
 
   it('rejects a weak password with 422 and code WEAK_PASSWORD', async () => {
-    const response = await POST(
-      makeRequest({ ...VALID_BASE, password: 'password' }),
-    );
+    const response = await POST(makeRequest({ ...VALID_BASE, password: 'password' }));
 
     expect(response.status).toBe(422);
     const body = await response.json();
@@ -76,9 +67,7 @@ describe('POST /api/auth/signup — weak password rejection (Task 49.6)', () => 
   });
 
   it('rejects a short common password with 422', async () => {
-    const response = await POST(
-      makeRequest({ ...VALID_BASE, password: '12345678' }),
-    );
+    const response = await POST(makeRequest({ ...VALID_BASE, password: '12345678' }));
 
     expect(response.status).toBe(422);
     const body = await response.json();
@@ -87,9 +76,7 @@ describe('POST /api/auth/signup — weak password rejection (Task 49.6)', () => 
   });
 
   it('forwards a strong password to the upstream Auth Service', async () => {
-    const response = await POST(
-      makeRequest({ ...VALID_BASE, password: 'Tr0ub4dor&3xQrSt' }),
-    );
+    const response = await POST(makeRequest({ ...VALID_BASE, password: 'Tr0ub4dor&3xQrSt' }));
 
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(1);

@@ -51,9 +51,7 @@ export class TranscriptImmutableError extends Error {
   }
 }
 
-export function isTranscriptImmutableError(
-  error: unknown,
-): error is TranscriptImmutableError {
+export function isTranscriptImmutableError(error: unknown): error is TranscriptImmutableError {
   return (
     error instanceof TranscriptImmutableError ||
     (typeof error === 'object' &&

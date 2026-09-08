@@ -16,15 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import {
-  getAssessmentItems,
-  listGradingSchemes,
-} from '@/lib/api/assessments';
-import {
-  listAcademicPeriods,
-  listSubjects,
-  type SubjectSummary,
-} from '@/lib/institutions/api';
+import { getAssessmentItems, listGradingSchemes } from '@/lib/api/assessments';
+import { listAcademicPeriods, listSubjects, type SubjectSummary } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 
 import { AssessmentItemsForm } from '../_components/assessment-items-form';
@@ -35,10 +28,7 @@ interface PageProps {
   searchParams?: Record<string, string | string[] | undefined>;
 }
 
-function readStringParam(
-  params: PageProps['searchParams'],
-  key: string,
-): string {
+function readStringParam(params: PageProps['searchParams'], key: string): string {
   if (!params) return '';
   const value = params[key];
   if (typeof value === 'string') return value;
@@ -50,15 +40,14 @@ export default async function AssessmentItemsPage({ searchParams }: PageProps) {
   const subjectId = readStringParam(searchParams, 'subjectId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');
 
-  const [schemesResponse, subjects, academicPeriods, existing] =
-    await Promise.all([
-      listGradingSchemes({ pageSize: 100 }),
-      listSubjects().catch(() => [] as SubjectSummary[]),
-      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
-      subjectId && academicPeriodId
-        ? getAssessmentItems(subjectId, academicPeriodId)
-        : Promise.resolve(null),
-    ]);
+  const [schemesResponse, subjects, academicPeriods, existing] = await Promise.all([
+    listGradingSchemes({ pageSize: 100 }),
+    listSubjects().catch(() => [] as SubjectSummary[]),
+    listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+    subjectId && academicPeriodId
+      ? getAssessmentItems(subjectId, academicPeriodId)
+      : Promise.resolve(null),
+  ]);
 
   return (
     <section aria-labelledby="items-heading" className="space-y-6">
@@ -70,15 +59,11 @@ export default async function AssessmentItemsPage({ searchParams }: PageProps) {
       </Button>
 
       <div>
-        <h1
-          id="items-heading"
-          className="text-3xl font-extrabold tracking-tight text-foreground"
-        >
+        <h1 id="items-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
           Assessment items
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Define up to 50 items per subject per academic period. Weights must
-          sum to exactly 100%.
+          Define up to 50 items per subject per academic period. Weights must sum to exactly 100%.
         </p>
       </div>
 
@@ -86,8 +71,8 @@ export default async function AssessmentItemsPage({ searchParams }: PageProps) {
         <CardHeader>
           <CardTitle className="text-base">Configuration</CardTitle>
           <CardDescription>
-            Choose subject, academic period, and grading scheme. Existing items
-            for that combination are pre-loaded.
+            Choose subject, academic period, and grading scheme. Existing items for that combination
+            are pre-loaded.
           </CardDescription>
         </CardHeader>
         <CardContent>

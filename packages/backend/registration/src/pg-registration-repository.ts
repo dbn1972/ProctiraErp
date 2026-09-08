@@ -13,10 +13,7 @@ import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
-import {
-  haversineKm,
-  type InMemoryInstitution,
-} from './in-memory-repository.js';
+import { haversineKm, type InMemoryInstitution } from './in-memory-repository.js';
 import type {
   InstitutionLocationFilter,
   RegistrationEntity,

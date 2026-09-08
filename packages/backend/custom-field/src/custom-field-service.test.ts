@@ -70,9 +70,7 @@ describe('CustomFieldService', () => {
 
       await service.createDefinition(TENANT_ID, input);
 
-      await expect(
-        service.createDefinition(TENANT_ID, input),
-      ).rejects.toThrow(ConflictError);
+      await expect(service.createDefinition(TENANT_ID, input)).rejects.toThrow(ConflictError);
     });
 
     it('should allow same field key for different entity types', async () => {
@@ -105,9 +103,7 @@ describe('CustomFieldService', () => {
         validationRules: {},
       };
 
-      await expect(
-        service.createDefinition(TENANT_ID, input),
-      ).rejects.toThrow(ValidationError);
+      await expect(service.createDefinition(TENANT_ID, input)).rejects.toThrow(ValidationError);
     });
   });
 
@@ -285,16 +281,22 @@ describe('CustomFieldService', () => {
 
       const entityId = '00000000-0000-4000-8000-000000000010';
 
-      await expect(
-        service.setValue(TENANT_ID, 'staff', entityId, def.id, 'value'),
-      ).rejects.toThrow(ValidationError);
+      await expect(service.setValue(TENANT_ID, 'staff', entityId, def.id, 'value')).rejects.toThrow(
+        ValidationError,
+      );
     });
 
     it('should throw NotFoundError for non-existent definition', async () => {
       const entityId = '00000000-0000-4000-8000-000000000010';
 
       await expect(
-        service.setValue(TENANT_ID, 'student', entityId, '00000000-0000-4000-8000-000000000099', 'value'),
+        service.setValue(
+          TENANT_ID,
+          'student',
+          entityId,
+          '00000000-0000-4000-8000-000000000099',
+          'value',
+        ),
       ).rejects.toThrow(NotFoundError);
     });
   });

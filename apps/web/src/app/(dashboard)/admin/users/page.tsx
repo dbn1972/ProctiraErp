@@ -58,15 +58,12 @@ export default async function AdminUsersPage() {
     <section aria-labelledby="users-heading" className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1
-            id="users-heading"
-            className="text-3xl font-extrabold tracking-tight text-foreground"
-          >
+          <h1 id="users-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
             Users
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {users.length.toLocaleString()} accounts ({activeCount.toLocaleString()} active)
-            · invites, roles, and security status.
+            {users.length.toLocaleString()} accounts ({activeCount.toLocaleString()} active) ·
+            invites, roles, and security status.
           </p>
         </div>
         <Button size="sm">
@@ -116,9 +113,7 @@ export default async function AdminUsersPage() {
                           <div className="truncate font-medium text-foreground">
                             {user.displayName}
                           </div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {user.email}
-                          </div>
+                          <div className="truncate text-xs text-muted-foreground">{user.email}</div>
                         </div>
                       </div>
                     </TableCell>
@@ -168,8 +163,7 @@ function UserStatus({ status }: { status: AdminUser['status'] }) {
   const map: Record<AdminUser['status'], { label: string; className: string }> = {
     ACTIVE: {
       label: 'Active',
-      className:
-        'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
+      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
     },
     SUSPENDED: {
       label: 'Suspended',

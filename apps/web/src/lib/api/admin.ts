@@ -278,9 +278,7 @@ export async function recordHighRiskAuditEvent(
 
 // ─── Roles ────────────────────────────────────────────────────────────────
 
-export async function listTenantRoles(
-  options: AdminClientOptions = {},
-): Promise<TenantRole[]> {
+export async function listTenantRoles(options: AdminClientOptions = {}): Promise<TenantRole[]> {
   const result = await adminFetch<{ data: TenantRole[] }>(
     ADMIN_API_ENDPOINTS.ROLES,
     { method: 'GET' },
@@ -398,15 +396,16 @@ export async function listTenantUsers(
     ? `${ADMIN_API_ENDPOINTS.USERS}?${params.toString()}`
     : ADMIN_API_ENDPOINTS.USERS;
 
-  const result = await adminFetch<PaginatedResponse<TenantUser>>(
-    url,
-    { method: 'GET' },
-    options,
-  );
+  const result = await adminFetch<PaginatedResponse<TenantUser>>(url, { method: 'GET' }, options);
   return (
     result ?? {
       data: [],
-      meta: { page: filters.page ?? 1, pageSize: filters.pageSize ?? 20, totalItems: 0, totalPages: 1 },
+      meta: {
+        page: filters.page ?? 1,
+        pageSize: filters.pageSize ?? 20,
+        totalItems: 0,
+        totalPages: 1,
+      },
     }
   );
 }

@@ -23,10 +23,7 @@ import {
   type ActionResult,
   type FieldError,
 } from '@/lib/institutions/actions';
-import {
-  institutionFormSchema,
-  type InstitutionFormValues,
-} from '@/lib/institutions/validation';
+import { institutionFormSchema, type InstitutionFormValues } from '@/lib/institutions/validation';
 import type { Institution } from '@/lib/institutions/types';
 
 interface SelectOption {
@@ -49,7 +46,7 @@ const PLACEHOLDER_UUID = '';
 function applyServerFieldErrors<T extends Record<string, unknown>>(
   setError: ReturnType<typeof useForm<T>>['setError'],
   fieldErrors: FieldError[] | undefined,
-  schemaKeys: ReadonlyArray<keyof T>
+  schemaKeys: ReadonlyArray<keyof T>,
 ) {
   if (!fieldErrors) return;
   for (const fieldError of fieldErrors) {
@@ -205,9 +202,7 @@ export function InstitutionForm({
               ))}
             </SelectContent>
           </Select>
-          {errors.areaId && (
-            <p className="text-sm text-destructive">{errors.areaId.message}</p>
-          )}
+          {errors.areaId && <p className="text-sm text-destructive">{errors.areaId.message}</p>}
         </div>
 
         <div className="space-y-2">
@@ -230,9 +225,7 @@ export function InstitutionForm({
               ))}
             </SelectContent>
           </Select>
-          {errors.typeId && (
-            <p className="text-sm text-destructive">{errors.typeId.message}</p>
-          )}
+          {errors.typeId && <p className="text-sm text-destructive">{errors.typeId.message}</p>}
         </div>
 
         <div className="space-y-2">
@@ -244,10 +237,7 @@ export function InstitutionForm({
             onValueChange={(value) => setValue('sectorId', value, { shouldValidate: true })}
             disabled={isPending}
           >
-            <SelectTrigger
-              id="sectorId"
-              aria-invalid={errors.sectorId ? 'true' : 'false'}
-            >
+            <SelectTrigger id="sectorId" aria-invalid={errors.sectorId ? 'true' : 'false'}>
               <SelectValue placeholder="Select a sector" />
             </SelectTrigger>
             <SelectContent>
@@ -258,9 +248,7 @@ export function InstitutionForm({
               ))}
             </SelectContent>
           </Select>
-          {errors.sectorId && (
-            <p className="text-sm text-destructive">{errors.sectorId.message}</p>
-          )}
+          {errors.sectorId && <p className="text-sm text-destructive">{errors.sectorId.message}</p>}
         </div>
 
         <div className="space-y-2">
@@ -272,10 +260,7 @@ export function InstitutionForm({
             onValueChange={(value) => setValue('ownershipId', value, { shouldValidate: true })}
             disabled={isPending}
           >
-            <SelectTrigger
-              id="ownershipId"
-              aria-invalid={errors.ownershipId ? 'true' : 'false'}
-            >
+            <SelectTrigger id="ownershipId" aria-invalid={errors.ownershipId ? 'true' : 'false'}>
               <SelectValue placeholder="Select an ownership" />
             </SelectTrigger>
             <SelectContent>
@@ -301,9 +286,7 @@ export function InstitutionForm({
           rows={3}
           aria-invalid={errors.address ? 'true' : 'false'}
         />
-        {errors.address && (
-          <p className="text-sm text-destructive">{errors.address.message}</p>
-        )}
+        {errors.address && <p className="text-sm text-destructive">{errors.address.message}</p>}
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -345,9 +328,7 @@ export function InstitutionForm({
             disabled={isPending}
             aria-invalid={errors.latitude ? 'true' : 'false'}
           />
-          {errors.latitude && (
-            <p className="text-sm text-destructive">{errors.latitude.message}</p>
-          )}
+          {errors.latitude && <p className="text-sm text-destructive">{errors.latitude.message}</p>}
         </div>
 
         <div className="space-y-2">
@@ -367,12 +348,7 @@ export function InstitutionForm({
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
+        <Button type="button" variant="outline" onClick={() => router.back()} disabled={isPending}>
           Cancel
         </Button>
         <Button type="submit" disabled={isPending}>

@@ -105,7 +105,10 @@ export function relativeLuminance(r: number, g: number, b: number): number {
  * Calculate contrast ratio between two colors per WCAG 2.1.
  * Returns a value between 1 and 21.
  */
-export function contrastRatio(color1: { r: number; g: number; b: number }, color2: { r: number; g: number; b: number }): number {
+export function contrastRatio(
+  color1: { r: number; g: number; b: number },
+  color2: { r: number; g: number; b: number },
+): number {
   const l1 = relativeLuminance(color1.r, color1.g, color1.b);
   const l2 = relativeLuminance(color2.r, color2.g, color2.b);
   const lighter = Math.max(l1, l2);
@@ -196,9 +199,8 @@ export function validateAccessibility(tokens: ThemeTokens): AccessibilityResult 
     const ratio = contrastRatio(fgRgb, bgRgb);
 
     // Use large text threshold if font size >= 18px or >= 14px bold
-    const threshold = tokens.typography.baseFontSize >= 18
-      ? WCAG_AA_LARGE_TEXT
-      : WCAG_AA_NORMAL_TEXT;
+    const threshold =
+      tokens.typography.baseFontSize >= 18 ? WCAG_AA_LARGE_TEXT : WCAG_AA_NORMAL_TEXT;
 
     if (ratio < threshold) {
       issues.push({

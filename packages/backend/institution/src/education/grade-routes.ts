@@ -63,25 +63,19 @@ export async function registerGradeRoutes(
     },
   );
 
-  fastify.get(
-    prefix,
-    async function listHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
-      const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
-      if (!tenantId) {
-        return reply.status(400).send({
-          code: 'TENANT_REQUIRED',
-          message: 'Tenant context is required',
-          statusCode: 400,
-        });
-      }
+  fastify.get(prefix, async function listHandler(request: FastifyRequest, reply: FastifyReply) {
+    const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
+    if (!tenantId) {
+      return reply.status(400).send({
+        code: 'TENANT_REQUIRED',
+        message: 'Tenant context is required',
+        statusCode: 400,
+      });
+    }
 
-      const grades = await service.list(tenantId);
-      return reply.status(200).send(grades.map(formatGradeResponse));
-    },
-  );
+    const grades = await service.list(tenantId);
+    return reply.status(200).send(grades.map(formatGradeResponse));
+  });
 
   fastify.get(
     `${prefix}/:id`,

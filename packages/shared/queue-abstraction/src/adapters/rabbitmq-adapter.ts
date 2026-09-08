@@ -47,19 +47,15 @@ export class RabbitMQAdapter implements QueueAdapter {
     await this.channel.prefetch(this.config.prefetchCount ?? 10);
 
     // Assert the main exchange
-    await this.channel.assertExchange(
-      this.config.exchange,
-      this.config.exchangeType ?? 'topic',
-      { durable: this.config.durable ?? true }
-    );
+    await this.channel.assertExchange(this.config.exchange, this.config.exchangeType ?? 'topic', {
+      durable: this.config.durable ?? true,
+    });
 
     // Assert the dead-letter exchange
     if (this.config.deadLetterExchange) {
-      await this.channel.assertExchange(
-        this.config.deadLetterExchange,
-        'topic',
-        { durable: this.config.durable ?? true }
-      );
+      await this.channel.assertExchange(this.config.deadLetterExchange, 'topic', {
+        durable: this.config.durable ?? true,
+      });
     }
 
     this.connected = true;
@@ -113,7 +109,7 @@ export class RabbitMQAdapter implements QueueAdapter {
       this.config.exchange,
       routingKey,
       Buffer.from(JSON.stringify(message)),
-      publishOptions
+      publishOptions,
     );
   }
 
@@ -122,10 +118,7 @@ export class RabbitMQAdapter implements QueueAdapter {
       throw new Error('RabbitMQAdapter is not connected. Call connect() first.');
     }
 
-    const queueName = buildTenantName(
-      options.groupId ?? 'shared',
-      `sub.${options.topic}`
-    );
+    const queueName = buildTenantName(options.groupId ?? 'shared', `sub.${options.topic}`);
 
     // Assert queue with dead-letter exchange
     await this.channel.assertQueue(queueName, {
@@ -137,11 +130,7 @@ export class RabbitMQAdapter implements QueueAdapter {
     });
 
     // Bind queue to exchange with the topic as routing key pattern
-    await this.channel.bindQueue(
-      queueName,
-      this.config.exchange,
-      options.topic
-    );
+    await this.channel.bindQueue(queueName, this.config.exchange, options.topic);
 
     const channel = this.channel;
     const autoAck = options.autoAck ?? false;
@@ -153,9 +142,7 @@ export class RabbitMQAdapter implements QueueAdapter {
 
         void (async () => {
           try {
-            const message = JSON.parse(
-              msg.content.toString()
-            ) as QueueMessage;
+            const message = JSON.parse(msg.content.toString()) as QueueMessage;
             await handler(message);
             if (!autoAck) {
               channel.ack(msg);
@@ -165,7 +152,7 @@ export class RabbitMQAdapter implements QueueAdapter {
           }
         })();
       },
-      { noAck: autoAck }
+      { noAck: autoAck },
     );
   }
 
@@ -182,10 +169,7 @@ export class RabbitMQAdapter implements QueueAdapter {
     }
 
     // For consume (competing consumers), use a shared queue name
-    const queueName = buildTenantName(
-      options.groupId ?? 'workers',
-      `task.${options.topic}`
-    );
+    const queueName = buildTenantName(options.groupId ?? 'workers', `task.${options.topic}`);
 
     // Assert queue with dead-letter exchange
     await this.channel.assertQueue(queueName, {
@@ -197,11 +181,7 @@ export class RabbitMQAdapter implements QueueAdapter {
     });
 
     // Bind queue to exchange
-    await this.channel.bindQueue(
-      queueName,
-      this.config.exchange,
-      options.topic
-    );
+    await this.channel.bindQueue(queueName, this.config.exchange, options.topic);
 
     const channel = this.channel;
     const autoAck = options.autoAck ?? false;
@@ -213,9 +193,7 @@ export class RabbitMQAdapter implements QueueAdapter {
 
         void (async () => {
           try {
-            const message = JSON.parse(
-              msg.content.toString()
-            ) as QueueMessage;
+            const message = JSON.parse(msg.content.toString()) as QueueMessage;
             await handler(message);
             if (!autoAck) {
               channel.ack(msg);
@@ -225,7 +203,7 @@ export class RabbitMQAdapter implements QueueAdapter {
           }
         })();
       },
-      { noAck: autoAck }
+      { noAck: autoAck },
     );
   }
 

@@ -132,7 +132,10 @@ export class InMemoryExaminationRepository implements ExaminationRepository {
     return true;
   }
 
-  async getStudentEnrollment(studentId: string, _tenantId: string): Promise<StudentEnrollment | null> {
+  async getStudentEnrollment(
+    studentId: string,
+    _tenantId: string,
+  ): Promise<StudentEnrollment | null> {
     return this.studentEnrollments.get(studentId) ?? null;
   }
 

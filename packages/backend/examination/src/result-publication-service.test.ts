@@ -40,12 +40,40 @@ function createTestExamination(overrides: Partial<ExaminationEntity> = {}): Exam
     endDate: '2025-06-15',
     status: 'IN_PROGRESS',
     subjects: [
-      { id: 'subj-math', examinationId: examId, name: 'Mathematics', code: 'MATH', maxScore: 100, gradingSchemeId: schemeId },
-      { id: 'subj-eng', examinationId: examId, name: 'English', code: 'ENG', maxScore: 100, gradingSchemeId: schemeId },
+      {
+        id: 'subj-math',
+        examinationId: examId,
+        name: 'Mathematics',
+        code: 'MATH',
+        maxScore: 100,
+        gradingSchemeId: schemeId,
+      },
+      {
+        id: 'subj-eng',
+        examinationId: examId,
+        name: 'English',
+        code: 'ENG',
+        maxScore: 100,
+        gradingSchemeId: schemeId,
+      },
     ],
     centers: [
-      { id: 'center-1', examinationId: examId, name: 'Center A', code: 'CTR-A', institutionId: uuid(), capacity: 200 },
-      { id: 'center-2', examinationId: examId, name: 'Center B', code: 'CTR-B', institutionId: uuid(), capacity: 150 },
+      {
+        id: 'center-1',
+        examinationId: examId,
+        name: 'Center A',
+        code: 'CTR-A',
+        institutionId: uuid(),
+        capacity: 200,
+      },
+      {
+        id: 'center-2',
+        examinationId: examId,
+        name: 'Center B',
+        code: 'CTR-B',
+        institutionId: uuid(),
+        capacity: 150,
+      },
     ],
     sessions: [],
     gradingSchemes: [
@@ -282,27 +310,21 @@ describe('ResultPublicationService', () => {
     });
 
     it('should throw NotFoundError if examination does not exist', async () => {
-      await expect(
-        service.publishResults(tenantId, uuid()),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.publishResults(tenantId, uuid())).rejects.toThrow(NotFoundError);
     });
 
     it('should throw BusinessRuleError if examination is in DRAFT status', async () => {
       const exam = createTestExamination({ status: 'DRAFT' });
       await examRepository.create(exam);
 
-      await expect(
-        service.publishResults(tenantId, exam.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.publishResults(tenantId, exam.id)).rejects.toThrow(BusinessRuleError);
     });
 
     it('should throw BusinessRuleError if examination is CANCELLED', async () => {
       const exam = createTestExamination({ status: 'CANCELLED' });
       await examRepository.create(exam);
 
-      await expect(
-        service.publishResults(tenantId, exam.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.publishResults(tenantId, exam.id)).rejects.toThrow(BusinessRuleError);
     });
 
     it('should handle examination with no candidates gracefully', async () => {
@@ -335,7 +357,13 @@ describe('ResultPublicationService', () => {
       const exam = createTestExamination({
         id: examId,
         subjects: [
-          { id: 'subj-math', examinationId: examId, name: 'Mathematics', code: 'MATH', maxScore: 100 }, // no gradingSchemeId
+          {
+            id: 'subj-math',
+            examinationId: examId,
+            name: 'Mathematics',
+            code: 'MATH',
+            maxScore: 100,
+          }, // no gradingSchemeId
         ],
         gradingSchemes: [
           {
@@ -521,18 +549,14 @@ describe('ResultPublicationService', () => {
     });
 
     it('should throw NotFoundError if examination does not exist', async () => {
-      await expect(
-        service.generateAnalysis(tenantId, uuid()),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.generateAnalysis(tenantId, uuid())).rejects.toThrow(NotFoundError);
     });
 
     it('should throw BusinessRuleError if results have not been published', async () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
 
-      await expect(
-        service.generateAnalysis(tenantId, exam.id),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.generateAnalysis(tenantId, exam.id)).rejects.toThrow(BusinessRuleError);
     });
   });
 
@@ -558,9 +582,7 @@ describe('ResultPublicationService', () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
 
-      await expect(
-        service.getAnalysis(tenantId, exam.id),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getAnalysis(tenantId, exam.id)).rejects.toThrow(NotFoundError);
     });
   });
 
@@ -582,9 +604,7 @@ describe('ResultPublicationService', () => {
       const exam = createTestExamination();
       await examRepository.create(exam);
 
-      await expect(
-        service.getPublicationResult(tenantId, exam.id),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getPublicationResult(tenantId, exam.id)).rejects.toThrow(NotFoundError);
     });
   });
 });

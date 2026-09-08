@@ -13,6 +13,7 @@ section is renamed to the version + date.
 
 ### Added
 
+- **G-733** — Repo-wide Prettier format + CI `format:check` gate (replaces tip-only formatting).
 - **G-723** — Visual regression baselines for desktop + iPad tablet + Pixel 5 mobile (login / redirect shells); `visual-regression.yml` runs all three projects.
 - **G-722** — Authenticated axe matrix on G-706 PR gate; institution fixture for timetable/gradebook/schedule.
 - **G-721** — Redesign hub i18n: `getTranslations` on fees/hostel/transport/library/health/scholarships; parity gate extended; `he` removed from `rtlLocales` (LanguageProvider still handles experimental RTL).

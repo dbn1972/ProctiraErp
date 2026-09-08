@@ -39,8 +39,9 @@ function Controlled({
 }
 
 function getCells(): HTMLInputElement[] {
-  return Array.from({ length: 6 }, (_, i) =>
-    screen.getByTestId(`mfa-code-input-cell-${i}`) as HTMLInputElement,
+  return Array.from(
+    { length: 6 },
+    (_, i) => screen.getByTestId(`mfa-code-input-cell-${i}`) as HTMLInputElement,
   );
 }
 
@@ -70,15 +71,11 @@ describe('<MfaCodeInput />', () => {
 
   it('uses the supplied digitLabel for translated labels', () => {
     render(
-      <MfaCodeInput
-        value=""
-        onChange={() => undefined}
-        digitLabel={(n) => `Position ${n}`}
-      />,
+      <MfaCodeInput value="" onChange={() => undefined} digitLabel={(n) => `Position ${n}`} />,
     );
-    expect(
-      screen.getByTestId('mfa-code-input-cell-0').getAttribute('aria-label'),
-    ).toBe('Position 1');
+    expect(screen.getByTestId('mfa-code-input-cell-0').getAttribute('aria-label')).toBe(
+      'Position 1',
+    );
   });
 
   it('applies a 48 px minimum touch target on every cell', () => {
@@ -234,9 +231,7 @@ describe('<MfaCodeInput />', () => {
   });
 
   it('disables every input when disabled is set', () => {
-    render(
-      <MfaCodeInput value="" onChange={() => undefined} disabled />,
-    );
+    render(<MfaCodeInput value="" onChange={() => undefined} disabled />);
     getCells().forEach((cell) => expect(cell.disabled).toBe(true));
   });
 

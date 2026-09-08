@@ -34,10 +34,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the policy service and routes.
  */
 export const policyPlugin = fp(
-  async function policyPluginImpl(
-    fastify: FastifyInstance,
-    options: PolicyPluginOptions,
-  ) {
+  async function policyPluginImpl(fastify: FastifyInstance, options: PolicyPluginOptions) {
     const { repository, prefix = '/policies' } = options;
 
     // Create policy service instance

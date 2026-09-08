@@ -120,7 +120,9 @@ describe('buildAssetUrl', () => {
 
       const result = buildAssetUrl(options, config);
 
-      expect(result.url).toBe('https://cdn.proctira.org/uploads/ministry-edu/photos/student-123.jpg');
+      expect(result.url).toBe(
+        'https://cdn.proctira.org/uploads/ministry-edu/photos/student-123.jpg',
+      );
       expect(result.path).toBe('/uploads/ministry-edu/photos/student-123.jpg');
     });
   });
@@ -137,7 +139,9 @@ describe('buildAssetUrl', () => {
 
       const result = buildAssetUrl(options, config);
 
-      expect(result.url).toBe('https://cdn.proctira.org/documents/district-1/reports/annual-2024.pdf?v=v2');
+      expect(result.url).toBe(
+        'https://cdn.proctira.org/documents/district-1/reports/annual-2024.pdf?v=v2',
+      );
       expect(result.path).toBe('/documents/district-1/reports/annual-2024.pdf');
       expect(result.versioned).toBe(true);
     });

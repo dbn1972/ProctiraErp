@@ -46,9 +46,7 @@ const uuidArb: fc.Arbitrary<string> = fc
 
 /** Generates a date string in YYYY-MM-DD format within a given range. */
 function dateStrArb(min: Date, max: Date): fc.Arbitrary<string> {
-  return fc
-    .date({ min, max })
-    .map((d) => d.toISOString().split('T')[0]!);
+  return fc.date({ min, max }).map((d) => d.toISOString().split('T')[0]!);
 }
 
 /** Generates a student name. */
@@ -82,22 +80,24 @@ function enrollmentArb(
   periodStart: Date,
   periodEnd: Date,
 ): fc.Arbitrary<TestEnrollment> {
-  return fc.record({
-    studentId: uuidArb,
-    studentName: studentNameArb,
-    enrollmentId: uuidArb,
-    classId: fc.constant(classId),
-    gradeId: fc.constant(gradeId),
-    startDate: dateStrArb(periodStart, periodEnd),
-    endDate: fc.oneof(
-      fc.constant(null), // Still enrolled (no end date)
-      dateStrArb(periodStart, periodEnd), // Ended within period
-    ),
-  }).filter((e) => {
-    // Ensure endDate >= startDate when endDate is not null
-    if (e.endDate === null) return true;
-    return e.endDate >= e.startDate;
-  });
+  return fc
+    .record({
+      studentId: uuidArb,
+      studentName: studentNameArb,
+      enrollmentId: uuidArb,
+      classId: fc.constant(classId),
+      gradeId: fc.constant(gradeId),
+      startDate: dateStrArb(periodStart, periodEnd),
+      endDate: fc.oneof(
+        fc.constant(null), // Still enrolled (no end date)
+        dateStrArb(periodStart, periodEnd), // Ended within period
+      ),
+    })
+    .filter((e) => {
+      // Ensure endDate >= startDate when endDate is not null
+      if (e.endDate === null) return true;
+      return e.endDate >= e.startDate;
+    });
 }
 
 // --- Roster Filtering Logic (mirrors what a real repository should do) ---
@@ -142,9 +142,7 @@ class DateAwareAttendanceRepository extends InMemoryAttendanceRepository {
     return this.enrollments
       .filter(
         (e) =>
-          e.classId === classId &&
-          e.startDate <= date &&
-          (e.endDate === null || e.endDate >= date),
+          e.classId === classId && e.startDate <= date && (e.endDate === null || e.endDate >= date),
       )
       .map((e) => ({
         studentId: e.studentId,
@@ -232,10 +230,12 @@ describe('Property 20: Attendance Roster Accuracy', () => {
         studentNameArb,
         uuidArb,
         // Generate enrollment that ended before a specific date
-        fc.record({
-          startDate: dateStrArb(PERIOD_START, new Date('2024-06-01')),
-          endDate: dateStrArb(PERIOD_START, new Date('2024-06-01')),
-        }).filter((r) => r.endDate >= r.startDate),
+        fc
+          .record({
+            startDate: dateStrArb(PERIOD_START, new Date('2024-06-01')),
+            endDate: dateStrArb(PERIOD_START, new Date('2024-06-01')),
+          })
+          .filter((r) => r.endDate >= r.startDate),
         // Attendance date is after the enrollment end date
         dateStrArb(new Date('2024-06-02'), PERIOD_END),
         async (studentId, studentName, enrollmentId, dates, attendanceDate) => {
@@ -385,9 +385,7 @@ describe('Property 22: Attendance Date Validation', () => {
     periodEnd.setFullYear(periodEnd.getFullYear() + 1);
 
     // Should not throw
-    expect(() =>
-      service.validateAttendanceDate(todayStr, periodStart, periodEnd),
-    ).not.toThrow();
+    expect(() => service.validateAttendanceDate(todayStr, periodStart, periodEnd)).not.toThrow();
   });
 
   it('accepts any past date within the active academic period', () => {
@@ -430,23 +428,20 @@ describe('Property 22: Attendance Date Validation', () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     fc.assert(
-      fc.property(
-        dateStrArb(tomorrow, periodEnd),
-        (futureDateStr) => {
-          // Should throw BusinessRuleError for any future date
-          expect(() =>
-            service.validateAttendanceDate(futureDateStr, periodStart, periodEnd),
-          ).toThrow(BusinessRuleError);
+      fc.property(dateStrArb(tomorrow, periodEnd), (futureDateStr) => {
+        // Should throw BusinessRuleError for any future date
+        expect(() => service.validateAttendanceDate(futureDateStr, periodStart, periodEnd)).toThrow(
+          BusinessRuleError,
+        );
 
-          // Verify error message indicates future attendance cannot be recorded
-          try {
-            service.validateAttendanceDate(futureDateStr, periodStart, periodEnd);
-          } catch (error: any) {
-            expect(error).toBeInstanceOf(BusinessRuleError);
-            expect(error.message.toLowerCase()).toContain('future');
-          }
-        },
-      ),
+        // Verify error message indicates future attendance cannot be recorded
+        try {
+          service.validateAttendanceDate(futureDateStr, periodStart, periodEnd);
+        } catch (error: any) {
+          expect(error).toBeInstanceOf(BusinessRuleError);
+          expect(error.message.toLowerCase()).toContain('future');
+        }
+      }),
       { numRuns: 100 },
     );
   });
@@ -468,15 +463,12 @@ describe('Property 22: Attendance Date Validation', () => {
     dayBeforePeriod.setDate(dayBeforePeriod.getDate() - 1);
 
     fc.assert(
-      fc.property(
-        dateStrArb(wayBefore, dayBeforePeriod),
-        (earlyDateStr) => {
-          // Should throw BusinessRuleError for dates before period start
-          expect(() =>
-            service.validateAttendanceDate(earlyDateStr, periodStart, periodEnd),
-          ).toThrow(BusinessRuleError);
-        },
-      ),
+      fc.property(dateStrArb(wayBefore, dayBeforePeriod), (earlyDateStr) => {
+        // Should throw BusinessRuleError for dates before period start
+        expect(() => service.validateAttendanceDate(earlyDateStr, periodStart, periodEnd)).toThrow(
+          BusinessRuleError,
+        );
+      }),
       { numRuns: 100 },
     );
   });
@@ -498,15 +490,12 @@ describe('Property 22: Attendance Date Validation', () => {
       const maxDate = new Date(Math.min(today.getTime(), new Date('2023-12-31').getTime()));
 
       fc.assert(
-        fc.property(
-          dateStrArb(dayAfterPeriod, maxDate),
-          (lateDateStr) => {
-            // Should throw BusinessRuleError for dates after period end
-            expect(() =>
-              service.validateAttendanceDate(lateDateStr, periodStart, periodEnd),
-            ).toThrow(BusinessRuleError);
-          },
-        ),
+        fc.property(dateStrArb(dayAfterPeriod, maxDate), (lateDateStr) => {
+          // Should throw BusinessRuleError for dates after period end
+          expect(() => service.validateAttendanceDate(lateDateStr, periodStart, periodEnd)).toThrow(
+            BusinessRuleError,
+          );
+        }),
         { numRuns: 100 },
       );
     }
@@ -564,9 +553,9 @@ describe('Property 22: Attendance Date Validation', () => {
           const shouldReject = isFuture || isBeforePeriod || isAfterPeriod;
 
           if (shouldReject) {
-            expect(() =>
-              service.validateAttendanceDate(dateStr, periodStart, periodEnd),
-            ).toThrow(BusinessRuleError);
+            expect(() => service.validateAttendanceDate(dateStr, periodStart, periodEnd)).toThrow(
+              BusinessRuleError,
+            );
           } else {
             expect(() =>
               service.validateAttendanceDate(dateStr, periodStart, periodEnd),

@@ -19,21 +19,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { LanguageProvider } from '@/providers/LanguageProvider';
-import {
-  BrandConfigProvider,
-  type Brand,
-} from '@/providers/BrandConfigProvider';
+import { BrandConfigProvider, type Brand } from '@/providers/BrandConfigProvider';
 import enMessages from '@/messages/en.json';
 
 import MFAVerify from './MFAVerify';
@@ -46,16 +37,13 @@ class ResizeObserverStub {
   disconnect(): void {}
 }
 if (typeof globalThis.ResizeObserver === 'undefined') {
-  globalThis.ResizeObserver =
-    ResizeObserverStub as unknown as typeof globalThis.ResizeObserver;
+  globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof globalThis.ResizeObserver;
 }
 
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/auth/session', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/auth/session')>(
-    '@/lib/auth/session',
-  );
+  const actual = await vi.importActual<typeof import('@/lib/auth/session')>('@/lib/auth/session');
   return {
     ...actual,
     verifyMfa: vi.fn(),
@@ -67,10 +55,7 @@ const mockVerifyMfa = vi.mocked(verifyMfa);
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
-const messages = enMessages as unknown as Record<
-  string,
-  Record<string, string>
->;
+const messages = enMessages as unknown as Record<string, Record<string, string>>;
 
 const SAMPLE_BRAND: Brand = {
   name: 'EduZo',
@@ -91,10 +76,7 @@ function renderMFAVerify({
 } = {}) {
   return render(
     <BrandConfigProvider initialBrand={SAMPLE_BRAND}>
-      <LanguageProvider
-        defaultLocale="en"
-        messagesByLocale={{ en: messages }}
-      >
+      <LanguageProvider defaultLocale="en" messagesByLocale={{ en: messages }}>
         <MemoryRouter initialEntries={[initialEntry]}>
           <Routes>
             <Route path="/auth/mfa-verify" element={<MFAVerify />} />
@@ -107,8 +89,9 @@ function renderMFAVerify({
 }
 
 function getCells(): HTMLInputElement[] {
-  return Array.from({ length: 6 }, (_, i) =>
-    screen.getByTestId(`mfa-code-input-cell-${i}`) as HTMLInputElement,
+  return Array.from(
+    { length: 6 },
+    (_, i) => screen.getByTestId(`mfa-code-input-cell-${i}`) as HTMLInputElement,
   );
 }
 
@@ -205,10 +188,7 @@ describe('<MFAVerify> — paste handling', () => {
     expect(cells.map((c) => c.value).join('')).toBe('123456');
 
     await waitFor(() => {
-      expect(mockVerifyMfa).toHaveBeenCalledWith(
-        'mfa-challenge-abc',
-        '123456',
-      );
+      expect(mockVerifyMfa).toHaveBeenCalledWith('mfa-challenge-abc', '123456');
     });
   });
 
@@ -222,7 +202,11 @@ describe('<MFAVerify> — paste handling', () => {
     fireEvent.paste(getCells()[0]!, {
       clipboardData: { getData: () => '12-34 56  ' },
     });
-    expect(getCells().map((c) => c.value).join('')).toBe('123456');
+    expect(
+      getCells()
+        .map((c) => c.value)
+        .join(''),
+    ).toBe('123456');
   });
 });
 
@@ -230,8 +214,7 @@ describe('<MFAVerify> — submission', () => {
   it('submits the assembled code to verifyMfa() and navigates to returnTo on success', async () => {
     mockVerifyMfa.mockResolvedValueOnce({ success: true });
     renderMFAVerify({
-      initialEntry:
-        '/auth/mfa-verify?token=mfa-challenge-abc&returnTo=%2Fapp%2Fstaff',
+      initialEntry: '/auth/mfa-verify?token=mfa-challenge-abc&returnTo=%2Fapp%2Fstaff',
     });
     const cells = getCells();
 
@@ -240,10 +223,7 @@ describe('<MFAVerify> — submission', () => {
     }
 
     await waitFor(() => {
-      expect(mockVerifyMfa).toHaveBeenCalledWith(
-        'mfa-challenge-abc',
-        '123456',
-      );
+      expect(mockVerifyMfa).toHaveBeenCalledWith('mfa-challenge-abc', '123456');
     });
 
     await waitFor(() => {
@@ -292,9 +272,7 @@ describe('<MFAVerify> — submission', () => {
   it('keeps the manual submit disabled until 6 digits are entered', async () => {
     mockVerifyMfa.mockResolvedValueOnce({ success: true });
     renderMFAVerify();
-    const button = screen.getByTestId(
-      'mfa-verify-submit',
-    ) as HTMLButtonElement;
+    const button = screen.getByTestId('mfa-verify-submit') as HTMLButtonElement;
     expect(button.disabled).toBe(true);
 
     const cells = getCells();
@@ -326,9 +304,7 @@ describe('<MFAVerify> — branding', () => {
   it('binds document.title to the active brand name via <DocumentTitle>', async () => {
     renderMFAVerify();
     await waitFor(() => {
-      expect(document.title).toBe(
-        `${messages.auth!.twoFactorAuthentication} | EduZo`,
-      );
+      expect(document.title).toBe(`${messages.auth!.twoFactorAuthentication} | EduZo`);
     });
   });
 });

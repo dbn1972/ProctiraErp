@@ -128,16 +128,12 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
       .map((e) => e.id);
 
     // Return in reverse insertion order (most recent first)
-    return this.historyEntries
-      .filter((h) => enrollmentIds.includes(h.enrollmentId))
-      .reverse();
+    return this.historyEntries.filter((h) => enrollmentIds.includes(h.enrollmentId)).reverse();
   }
 
   async getHistoryByEnrollmentId(enrollmentId: string): Promise<EnrollmentHistoryEntity[]> {
     // Return in reverse insertion order (most recent first)
-    return this.historyEntries
-      .filter((h) => h.enrollmentId === enrollmentId)
-      .reverse();
+    return this.historyEntries.filter((h) => h.enrollmentId === enrollmentId).reverse();
   }
 
   async createTransferRecord(
@@ -151,19 +147,13 @@ export class InMemoryEnrollmentRepository implements EnrollmentRepository {
     return record;
   }
 
-  async getTransferRecords(
-    tenantId: string,
-    studentId: string,
-  ): Promise<TransferRecordEntity[]> {
+  async getTransferRecords(tenantId: string, studentId: string): Promise<TransferRecordEntity[]> {
     return this.transferRecords
       .filter((r) => r.tenantId === tenantId && r.studentId === studentId)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 
-  async findInstitutionById(
-    id: string,
-    tenantId: string,
-  ): Promise<InstitutionLookup | null> {
+  async findInstitutionById(id: string, tenantId: string): Promise<InstitutionLookup | null> {
     const inst = this.institutions.get(id);
     if (!inst || inst.tenantId !== tenantId) {
       return null;

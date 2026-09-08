@@ -61,11 +61,7 @@ describe('transformRows', () => {
   });
 
   it('should apply type_cast transformation to boolean', () => {
-    const rows = [
-      { active: 'true' },
-      { active: '0' },
-      { active: 'yes' },
-    ];
+    const rows = [{ active: 'true' }, { active: '0' }, { active: 'yes' }];
     const mappings: FieldMapping[] = [
       {
         sourceField: 'active',
@@ -133,11 +129,7 @@ describe('transformRows', () => {
   });
 
   it('should apply lookup transformation', () => {
-    const rows = [
-      { status: 'A' },
-      { status: 'I' },
-      { status: 'X' },
-    ];
+    const rows = [{ status: 'A' }, { status: 'I' }, { status: 'X' }];
     const mappings: FieldMapping[] = [
       {
         sourceField: 'status',
@@ -289,9 +281,7 @@ describe('transformRows', () => {
 
   it('should handle missing source fields', () => {
     const rows = [{ name: 'John' }];
-    const mappings: FieldMapping[] = [
-      { sourceField: 'email', destinationField: 'email' },
-    ];
+    const mappings: FieldMapping[] = [{ sourceField: 'email', destinationField: 'email' }];
 
     const result = transformRows(rows, mappings);
 

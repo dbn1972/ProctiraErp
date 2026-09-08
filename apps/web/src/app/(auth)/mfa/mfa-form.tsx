@@ -95,7 +95,10 @@ export function MfaForm(): JSX.Element {
           </button>
         </p>
         <p>
-          <Link href="/login" className="inline-flex min-h-12 items-center text-muted-foreground hover:text-foreground">
+          <Link
+            href="/login"
+            className="inline-flex min-h-12 items-center text-muted-foreground hover:text-foreground"
+          >
             {t('backToSignIn')}
           </Link>
         </p>

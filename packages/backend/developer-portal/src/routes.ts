@@ -410,7 +410,10 @@ export async function registerDeveloperPortalRoutes(
   fastify.patch(
     `${prefix}/accounts/:accountId`,
     async function updateAccountHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams; Body: UpdateDeveloperAccountInput }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams;
+        Body: UpdateDeveloperAccountInput;
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(DeveloperAccountParamsSchema, request.params);
@@ -560,7 +563,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatApiKeyResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -584,7 +592,10 @@ export async function registerDeveloperPortalRoutes(
           code: 'VALIDATION_ERROR',
           message: 'Invalid parameters',
           statusCode: 400,
-          errors: [...(accountResult.success ? [] : accountResult.errors), ...(keyResult.success ? [] : keyResult.errors)],
+          errors: [
+            ...(accountResult.success ? [] : accountResult.errors),
+            ...(keyResult.success ? [] : keyResult.errors),
+          ],
         });
       }
 
@@ -714,7 +725,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatWebhookResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -750,7 +766,10 @@ export async function registerDeveloperPortalRoutes(
   fastify.patch(
     `${prefix}/accounts/:accountId/webhooks/:webhookId`,
     async function updateWebhookHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams & WebhookParams; Body: UpdateWebhookInput }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams & WebhookParams;
+        Body: UpdateWebhookInput;
+      }>,
       reply: FastifyReply,
     ) {
       const params = request.params;
@@ -766,7 +785,11 @@ export async function registerDeveloperPortalRoutes(
       }
 
       try {
-        const webhook = await service.updateWebhook(params.accountId, params.webhookId, bodyResult.data);
+        const webhook = await service.updateWebhook(
+          params.accountId,
+          params.webhookId,
+          bodyResult.data,
+        );
         return reply.status(200).send(formatWebhookResponse(webhook));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -808,7 +831,10 @@ export async function registerDeveloperPortalRoutes(
   fastify.get(
     `${prefix}/accounts/:accountId/webhooks/:webhookId/deliveries`,
     async function listDeliveriesHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams & WebhookParams; Querystring: WebhookDeliveryQuery }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams & WebhookParams;
+        Querystring: WebhookDeliveryQuery;
+      }>,
       reply: FastifyReply,
     ) {
       const params = request.params;
@@ -830,7 +856,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatDeliveryResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -988,7 +1019,10 @@ export async function registerDeveloperPortalRoutes(
   fastify.get(
     `${prefix}/accounts/:accountId/submissions`,
     async function listSubmissionsHandler(
-      request: FastifyRequest<{ Params: DeveloperAccountParams; Querystring: { page?: number; pageSize?: number; status?: string } }>,
+      request: FastifyRequest<{
+        Params: DeveloperAccountParams;
+        Querystring: { page?: number; pageSize?: number; status?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(DeveloperAccountParamsSchema, request.params);
@@ -1014,7 +1048,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatSubmissionResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );
@@ -1167,7 +1206,12 @@ export async function registerDeveloperPortalRoutes(
 
       return reply.status(200).send({
         data: result.data.map(formatMarketplaceResponse),
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
+        meta: {
+          page,
+          pageSize,
+          total: result.total,
+          totalPages: Math.ceil(result.total / pageSize),
+        },
       });
     },
   );

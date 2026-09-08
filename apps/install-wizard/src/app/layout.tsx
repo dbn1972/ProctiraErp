@@ -6,11 +6,7 @@ export const metadata: Metadata = {
   description: 'First-run configuration wizard for ProctiraERP Unified Platform',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen bg-gray-50 bg-[radial-gradient(700px_420px_at_50%_-10%,theme(colors.primary.50)_0%,transparent_55%)]">

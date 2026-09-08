@@ -29,7 +29,11 @@ export class GISService {
   /**
    * Create a new GIS layer linked to an area in the warehouse.
    */
-  async createLayer(tenantId: string, warehouseId: string, input: GISLayerInput): Promise<GISLayer> {
+  async createLayer(
+    tenantId: string,
+    warehouseId: string,
+    input: GISLayerInput,
+  ): Promise<GISLayer> {
     // Validate warehouse exists
     const warehouse = await this.warehouseRepository.findWarehouseById(warehouseId, tenantId);
     if (!warehouse) {
@@ -208,7 +212,7 @@ export class GISService {
       if (geoObj.type === 'FeatureCollection' && Array.isArray(geoObj.features)) {
         return (geoObj.features as Record<string, unknown>[]).map((feature, index) => ({
           id: uuidv4(),
-          type: (feature.geometry as Record<string, unknown>)?.type as string || 'Unknown',
+          type: ((feature.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
           geometry: feature.geometry as Record<string, unknown>,
           properties: (feature.properties as Record<string, unknown>) || {},
           index,
@@ -217,24 +221,28 @@ export class GISService {
 
       // Handle single Feature
       if (geoObj.type === 'Feature') {
-        return [{
-          id: uuidv4(),
-          type: (geoObj.geometry as Record<string, unknown>)?.type as string || 'Unknown',
-          geometry: geoObj.geometry as Record<string, unknown>,
-          properties: (geoObj.properties as Record<string, unknown>) || {},
-          index: 0,
-        }];
+        return [
+          {
+            id: uuidv4(),
+            type: ((geoObj.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
+            geometry: geoObj.geometry as Record<string, unknown>,
+            properties: (geoObj.properties as Record<string, unknown>) || {},
+            index: 0,
+          },
+        ];
       }
 
       // Handle bare geometry
       if (geoObj.type && geoObj.coordinates) {
-        return [{
-          id: uuidv4(),
-          type: geoObj.type as string,
-          geometry: geoObj as Record<string, unknown>,
-          properties: {},
-          index: 0,
-        }];
+        return [
+          {
+            id: uuidv4(),
+            type: geoObj.type as string,
+            geometry: geoObj as Record<string, unknown>,
+            properties: {},
+            index: 0,
+          },
+        ];
       }
 
       return [];
@@ -258,7 +266,7 @@ export class GISService {
       if (parsed && parsed.type === 'FeatureCollection' && Array.isArray(parsed.features)) {
         return (parsed.features as Record<string, unknown>[]).map((feature, index) => ({
           id: uuidv4(),
-          type: (feature.geometry as Record<string, unknown>)?.type as string || 'Unknown',
+          type: ((feature.geometry as Record<string, unknown>)?.type as string) || 'Unknown',
           geometry: feature.geometry as Record<string, unknown>,
           properties: (feature.properties as Record<string, unknown>) || {},
           index,

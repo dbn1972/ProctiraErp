@@ -69,54 +69,52 @@ describe('Score Validation and Grade Calculation', () => {
       .chain(({ minValue, maxValue }) => {
         // Generate 2-5 non-overlapping thresholds covering the range
         const range = maxValue - minValue;
-        return fc
-          .integer({ min: 2, max: Math.min(5, range) })
-          .chain((numThresholds) => {
-            // Generate split points to divide the range into non-overlapping thresholds
-            // Each threshold gets at least 1 unit of range
-            return fc
-              .array(fc.integer({ min: 1, max: range }), {
-                minLength: numThresholds,
-                maxLength: numThresholds,
-              })
-              .map((rawSplits) => {
-                // Normalize splits to sum to range
-                const rawSum = rawSplits.reduce((s, v) => s + v, 0);
-                let allocated = rawSplits.map((v) => Math.max(1, Math.floor((v / rawSum) * range)));
-                let currentSum = allocated.reduce((s, v) => s + v, 0);
-                let diff = range - currentSum;
-                let idx = 0;
-                while (diff > 0) {
-                  allocated[idx % numThresholds]!++;
-                  diff--;
-                  idx++;
+        return fc.integer({ min: 2, max: Math.min(5, range) }).chain((numThresholds) => {
+          // Generate split points to divide the range into non-overlapping thresholds
+          // Each threshold gets at least 1 unit of range
+          return fc
+            .array(fc.integer({ min: 1, max: range }), {
+              minLength: numThresholds,
+              maxLength: numThresholds,
+            })
+            .map((rawSplits) => {
+              // Normalize splits to sum to range
+              const rawSum = rawSplits.reduce((s, v) => s + v, 0);
+              let allocated = rawSplits.map((v) => Math.max(1, Math.floor((v / rawSum) * range)));
+              let currentSum = allocated.reduce((s, v) => s + v, 0);
+              let diff = range - currentSum;
+              let idx = 0;
+              while (diff > 0) {
+                allocated[idx % numThresholds]!++;
+                diff--;
+                idx++;
+              }
+              while (diff < 0) {
+                const target = allocated.findIndex((v) => v > 1);
+                if (target >= 0) {
+                  allocated[target]!--;
                 }
-                while (diff < 0) {
-                  const target = allocated.findIndex((v) => v > 1);
-                  if (target >= 0) {
-                    allocated[target]!--;
-                  }
-                  diff++;
-                }
+                diff++;
+              }
 
-                // Build thresholds from allocated sizes
-                const grades = ['A', 'B', 'C', 'D', 'E', 'F'].slice(0, numThresholds);
-                const thresholds: Array<{ grade: string; minScore: number; maxScore: number }> = [];
-                let cursor = minValue;
-                // Build from lowest to highest
-                for (let i = numThresholds - 1; i >= 0; i--) {
-                  const size = allocated[i]!;
-                  thresholds.push({
-                    grade: grades[i]!,
-                    minScore: cursor,
-                    maxScore: cursor + size - 1,
-                  });
-                  cursor += size;
-                }
+              // Build thresholds from allocated sizes
+              const grades = ['A', 'B', 'C', 'D', 'E', 'F'].slice(0, numThresholds);
+              const thresholds: Array<{ grade: string; minScore: number; maxScore: number }> = [];
+              let cursor = minValue;
+              // Build from lowest to highest
+              for (let i = numThresholds - 1; i >= 0; i--) {
+                const size = allocated[i]!;
+                thresholds.push({
+                  grade: grades[i]!,
+                  minScore: cursor,
+                  maxScore: cursor + size - 1,
+                });
+                cursor += size;
+              }
 
-                return { minValue, maxValue, thresholds };
-              });
-          });
+              return { minValue, maxValue, thresholds };
+            });
+        });
       });
   }
 
@@ -125,42 +123,40 @@ describe('Score Validation and Grade Calculation', () => {
    * score ranges within the grading scheme bounds.
    */
   function assessmentItemsArbitrary(minScore: number, maxScore: number) {
-    return fc
-      .integer({ min: 1, max: 5 })
-      .chain((count) => {
-        // Generate weights summing to 100 (in cents for precision)
-        return fc
-          .array(fc.integer({ min: 1, max: 10000 }), {
-            minLength: count,
-            maxLength: count,
-          })
-          .map((rawWeights) => {
-            const rawSum = rawWeights.reduce((s, v) => s + v, 0);
-            let allocated = rawWeights.map((v) => Math.max(1, Math.floor((v / rawSum) * 10000)));
-            let currentSum = allocated.reduce((s, v) => s + v, 0);
-            let diff = 10000 - currentSum;
-            let idx = 0;
-            while (diff > 0) {
-              allocated[idx % count]!++;
-              diff--;
-              idx++;
+    return fc.integer({ min: 1, max: 5 }).chain((count) => {
+      // Generate weights summing to 100 (in cents for precision)
+      return fc
+        .array(fc.integer({ min: 1, max: 10000 }), {
+          minLength: count,
+          maxLength: count,
+        })
+        .map((rawWeights) => {
+          const rawSum = rawWeights.reduce((s, v) => s + v, 0);
+          let allocated = rawWeights.map((v) => Math.max(1, Math.floor((v / rawSum) * 10000)));
+          let currentSum = allocated.reduce((s, v) => s + v, 0);
+          let diff = 10000 - currentSum;
+          let idx = 0;
+          while (diff > 0) {
+            allocated[idx % count]!++;
+            diff--;
+            idx++;
+          }
+          while (diff < 0) {
+            const target = allocated.findIndex((v) => v > 1);
+            if (target >= 0) {
+              allocated[target]!--;
             }
-            while (diff < 0) {
-              const target = allocated.findIndex((v) => v > 1);
-              if (target >= 0) {
-                allocated[target]!--;
-              }
-              diff++;
-            }
+            diff++;
+          }
 
-            return allocated.map((cents, i) => ({
-              name: `Item ${i + 1}`,
-              weight: cents / 100,
-              minScore,
-              maxScore,
-            }));
-          });
-      });
+          return allocated.map((cents, i) => ({
+            name: `Item ${i + 1}`,
+            weight: cents / 100,
+            minScore,
+            maxScore,
+          }));
+        });
+    });
   }
 
   it('should accept any score within the assessment item defined min/max range', async () => {
@@ -202,7 +198,8 @@ describe('Score Validation and Grade Calculation', () => {
 
           // For each item, generate a score within the valid range and verify it's accepted
           for (const item of createdItems) {
-            const validScore = schemeConfig.minValue +
+            const validScore =
+              schemeConfig.minValue +
               Math.floor(Math.random() * (schemeConfig.maxValue - schemeConfig.minValue + 1));
 
             const result = await resultService.enterSingleResult(tenantId, {
@@ -327,7 +324,8 @@ describe('Score Validation and Grade Calculation', () => {
           // Enter scores for each item (random valid scores)
           const scores: number[] = [];
           for (const item of createdItems) {
-            const score = schemeConfig.minValue +
+            const score =
+              schemeConfig.minValue +
               Math.floor(Math.random() * (schemeConfig.maxValue - schemeConfig.minValue + 1));
             scores.push(score);
 
@@ -371,80 +369,77 @@ describe('Score Validation and Grade Calculation', () => {
 
   it('should correctly assign grades based on threshold boundaries', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        gradingSchemeArbitrary(),
-        async (schemeConfig) => {
-          // Create grading scheme
-          const scheme = await assessmentService.createGradingScheme(tenantId, {
-            name: `Scheme-${uuidv4()}`,
-            type: 'numeric',
-            minValue: schemeConfig.minValue,
-            maxValue: schemeConfig.maxValue,
-            thresholds: schemeConfig.thresholds,
-          });
+      fc.asyncProperty(gradingSchemeArbitrary(), async (schemeConfig) => {
+        // Create grading scheme
+        const scheme = await assessmentService.createGradingScheme(tenantId, {
+          name: `Scheme-${uuidv4()}`,
+          type: 'numeric',
+          minValue: schemeConfig.minValue,
+          maxValue: schemeConfig.maxValue,
+          thresholds: schemeConfig.thresholds,
+        });
 
-          // Create a single assessment item covering the full range
-          const createdItems = await assessmentService.defineAssessmentItems(tenantId, {
+        // Create a single assessment item covering the full range
+        const createdItems = await assessmentService.defineAssessmentItems(tenantId, {
+          subjectId,
+          academicPeriodId,
+          gradingSchemeId: scheme.id,
+          items: [
+            {
+              name: 'Full Range Item',
+              weight: 100,
+              minScore: schemeConfig.minValue,
+              maxScore: schemeConfig.maxValue,
+            },
+          ],
+        });
+
+        const item = createdItems[0]!;
+
+        // For each threshold, pick a score within that threshold's range
+        // and verify the correct grade is assigned
+        for (const threshold of schemeConfig.thresholds) {
+          // Pick the midpoint of the threshold range
+          const score = Math.floor((threshold.minScore + threshold.maxScore) / 2);
+
+          // Clear previous results
+          resultRepo.clear();
+
+          await resultService.enterSingleResult(tenantId, {
+            studentId,
+            assessmentItemId: item.id,
             subjectId,
             academicPeriodId,
-            gradingSchemeId: scheme.id,
-            items: [
-              {
-                name: 'Full Range Item',
-                weight: 100,
-                minScore: schemeConfig.minValue,
-                maxScore: schemeConfig.maxValue,
-              },
-            ],
+            score,
           });
 
-          const item = createdItems[0]!;
+          const result = await resultService.calculateStudentGrade(
+            tenantId,
+            studentId,
+            subjectId,
+            academicPeriodId,
+          );
 
-          // For each threshold, pick a score within that threshold's range
-          // and verify the correct grade is assigned
-          for (const threshold of schemeConfig.thresholds) {
-            // Pick the midpoint of the threshold range
-            const score = Math.floor((threshold.minScore + threshold.maxScore) / 2);
+          // With a single item at weight 100% and minScore/maxScore matching the scheme,
+          // the weighted average equals the score itself.
+          // The normalized score = ((score - min) / (max - min)) * 100
+          // The weighted average = min + (normalizedScore / 100) * (max - min) = score
+          expect(result.weightedAverage).toBe(score);
 
-            // Clear previous results
-            resultRepo.clear();
+          // Verify the grade matches the threshold that contains this score
+          // Find which threshold the weighted average falls into
+          const matchingThreshold = schemeConfig.thresholds.find(
+            (t) => result.weightedAverage >= t.minScore && result.weightedAverage <= t.maxScore,
+          );
 
-            await resultService.enterSingleResult(tenantId, {
-              studentId,
-              assessmentItemId: item.id,
-              subjectId,
-              academicPeriodId,
-              score,
-            });
-
-            const result = await resultService.calculateStudentGrade(
-              tenantId,
-              studentId,
-              subjectId,
-              academicPeriodId,
-            );
-
-            // With a single item at weight 100% and minScore/maxScore matching the scheme,
-            // the weighted average equals the score itself.
-            // The normalized score = ((score - min) / (max - min)) * 100
-            // The weighted average = min + (normalizedScore / 100) * (max - min) = score
-            expect(result.weightedAverage).toBe(score);
-
-            // Verify the grade matches the threshold that contains this score
-            // Find which threshold the weighted average falls into
-            const matchingThreshold = schemeConfig.thresholds.find(
-              (t) => result.weightedAverage >= t.minScore && result.weightedAverage <= t.maxScore,
-            );
-
-            if (matchingThreshold) {
-              expect(result.grade).toBe(matchingThreshold.grade);
-            } else {
-              // If no threshold matches (score falls in a gap), grade should be 'Ungraded'
-              expect(result.grade).toBe('Ungraded');
-            }
+          if (matchingThreshold) {
+            expect(result.grade).toBe(matchingThreshold.grade);
+          } else {
+            // If no threshold matches (score falls in a gap), grade should be 'Ungraded'
+            expect(result.grade).toBe('Ungraded');
           }
-        },
-      ),
+        }
+      }),
       { numRuns: 50 },
     );
   });

@@ -53,8 +53,7 @@ export default function ContactPage() {
               Send us a message
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Fill in the form and the right team will respond within two
-              business days.
+              Fill in the form and the right team will respond within two business days.
             </p>
             <div className="mt-6">
               <ContactForm />
@@ -73,9 +72,7 @@ export default function ContactPage() {
                     <Icon aria-hidden="true" className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-base font-bold text-foreground">
-                      {channel.title}
-                    </p>
+                    <p className="text-base font-bold text-foreground">{channel.title}</p>
                     {channel.href ? (
                       <a
                         href={channel.href}
@@ -84,9 +81,7 @@ export default function ContactPage() {
                         {channel.body}
                       </a>
                     ) : (
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {channel.body}
-                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">{channel.body}</p>
                     )}
                   </div>
                 </div>
@@ -98,13 +93,10 @@ export default function ContactPage() {
                 <Clock aria-hidden="true" className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-base font-bold text-foreground">
-                  Response times
-                </p>
+                <p className="text-base font-bold text-foreground">Response times</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Sales enquiries within two business days. Live-deployment
-                  incidents are handled through the support helpline for your
-                  edition.
+                  Sales enquiries within two business days. Live-deployment incidents are handled
+                  through the support helpline for your edition.
                 </p>
               </div>
             </div>
@@ -125,8 +117,8 @@ export default function ContactPage() {
             Prefer to start hands-on?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Self-host the open-source platform today — most teams have a working
-            evaluation stack running in under an hour.
+            Self-host the open-source platform today — most teams have a working evaluation stack
+            running in under an hour.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">

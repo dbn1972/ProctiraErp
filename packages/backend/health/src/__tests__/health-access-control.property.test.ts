@@ -49,9 +49,7 @@ describe('Health Service - Access Control (Property)', () => {
         fc.array(fc.uuid(), { minLength: 0, maxLength: 5 }),
         (userId, studentId, roles, otherGuardianStudentIds) => {
           // Ensure the guardian list does NOT contain the target student
-          const guardianOfStudentIds = otherGuardianStudentIds.filter(
-            id => id !== studentId,
-          );
+          const guardianOfStudentIds = otherGuardianStudentIds.filter((id) => id !== studentId);
 
           const context: HealthAccessContext = {
             userId,

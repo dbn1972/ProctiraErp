@@ -23,14 +23,7 @@ describe('<KpiCardWithTrend />', () => {
   });
 
   it('renders skeletons (including the sparkline placeholder) while loading', () => {
-    render(
-      <KpiCardWithTrend
-        label="Attendance"
-        value="92.4%"
-        loading
-        data-testid="kpi"
-      />,
-    );
+    render(<KpiCardWithTrend label="Attendance" value="92.4%" loading data-testid="kpi" />);
 
     const card = screen.getByTestId('kpi');
     expect(card).toHaveAttribute('data-state', 'loading');
@@ -41,36 +34,19 @@ describe('<KpiCardWithTrend />', () => {
   });
 
   it('hides the sparkline when fewer than two data points are available (empty/short series)', () => {
-    render(
-      <KpiCardWithTrend
-        label="Attendance"
-        value="92.4%"
-        series={[]}
-        data-testid="kpi"
-      />,
-    );
+    render(<KpiCardWithTrend label="Attendance" value="92.4%" series={[]} data-testid="kpi" />);
     expect(screen.queryByTestId('kpi-sparkline')).toBeNull();
 
     // Single-point series is treated the same way — there's nothing to draw.
     render(
-      <KpiCardWithTrend
-        label="Attendance"
-        value="92.4%"
-        series={[42]}
-        data-testid="kpi-single"
-      />,
+      <KpiCardWithTrend label="Attendance" value="92.4%" series={[42]} data-testid="kpi-single" />,
     );
     expect(screen.queryByTestId('kpi-sparkline')).toBeNull();
   });
 
   it('renders an error state with role="alert" when error is set', () => {
     render(
-      <KpiCardWithTrend
-        label="Attendance"
-        value="—"
-        error={new Error('boom')}
-        data-testid="kpi"
-      />,
+      <KpiCardWithTrend label="Attendance" value="—" error={new Error('boom')} data-testid="kpi" />,
     );
 
     const card = screen.getByTestId('kpi');

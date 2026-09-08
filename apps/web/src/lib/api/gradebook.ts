@@ -295,10 +295,9 @@ export async function listGradingScales(
 ): Promise<GradebookLoadResult<GradingScale[]>> {
   try {
     const qs = boardId ? `?boardId=${encodeURIComponent(boardId)}` : '';
-    const result = await gatewayFetch<{ data: GradingScale[] }>(
-      `/gradebook/grading-scales${qs}`,
-      { next: { revalidate: 0 } },
-    );
+    const result = await gatewayFetch<{ data: GradingScale[] }>(`/gradebook/grading-scales${qs}`, {
+      next: { revalidate: 0 },
+    });
     return { ok: true, data: result.data?.data ?? [] };
   } catch (error) {
     return { ok: false, ...mapError(error) };
@@ -378,9 +377,7 @@ export async function createBoardExportJob(input: {
   return result.data;
 }
 
-export async function getBoardExportJob(
-  id: string,
-): Promise<GradebookLoadResult<BoardExportJob>> {
+export async function getBoardExportJob(id: string): Promise<GradebookLoadResult<BoardExportJob>> {
   try {
     const result = await gatewayFetch<BoardExportJob>(`/gradebook/board-exports/${id}`, {
       next: { revalidate: 0 },

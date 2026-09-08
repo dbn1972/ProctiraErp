@@ -54,7 +54,7 @@ export function InstitutionTabs({ institutionId, counts }: InstitutionTabsProps)
               'inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
               isActive
                 ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )}
           >
             {tab.label}

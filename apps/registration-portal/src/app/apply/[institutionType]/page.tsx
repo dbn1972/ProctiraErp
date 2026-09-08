@@ -21,10 +21,7 @@ export default async function ApplyPersonalPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <ApplyHeader institutionType={params.institutionType} />
-      <PersonalInfoForm
-        institutionType={params.institutionType}
-        customFields={customFields}
-      />
+      <PersonalInfoForm institutionType={params.institutionType} customFields={customFields} />
     </div>
   );
 }
@@ -33,7 +30,9 @@ function ApplyHeader({ institutionType }: { institutionType: string }) {
   const t = useTranslations('registration');
   return (
     <div className="text-center">
-      <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">{institutionType}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-primary-600">
+        {institutionType}
+      </p>
       <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-gray-900">{t('title')}</h1>
       <p className="mt-2 text-sm text-gray-600">{t('subtitle')}</p>
     </div>

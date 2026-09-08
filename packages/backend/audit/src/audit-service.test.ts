@@ -262,7 +262,7 @@ describe('AuditService', () => {
       });
 
       expect(result.data).toHaveLength(2);
-      expect(result.data.every(e => e.entityType === 'student')).toBe(true);
+      expect(result.data.every((e) => e.entityType === 'student')).toBe(true);
     });
 
     it('should filter by operation', async () => {
@@ -282,7 +282,7 @@ describe('AuditService', () => {
       });
 
       expect(result.data).toHaveLength(2);
-      expect(result.data.every(e => e.userId === 'user-1')).toBe(true);
+      expect(result.data.every((e) => e.userId === 'user-1')).toBe(true);
     });
 
     it('should isolate by tenant', async () => {
@@ -346,9 +346,9 @@ describe('AuditService', () => {
     });
 
     it('should throw NotFoundError for non-existent entry', async () => {
-      await expect(
-        service.getAuditEntry('tenant-1', 'non-existent-id'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getAuditEntry('tenant-1', 'non-existent-id')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 

@@ -9,11 +9,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { ReportService } from './report-service.js';
 import { InMemoryReportRepository } from './in-memory-repository.js';
 import { registerReportRoutes } from './routes.js';
-import type {
-  ReportDataSource,
-  ReportUserContext,
-  ReportDataResult,
-} from './report-repository.js';
+import type { ReportDataSource, ReportUserContext, ReportDataResult } from './report-repository.js';
 import type { AggregationConfig } from './schemas.js';
 
 // ─── Test Helpers ────────────────────────────────────────────────────────────

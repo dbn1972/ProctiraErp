@@ -96,11 +96,11 @@ export interface EntitlementMiddlewareOptions {
  * These can be overridden via EntitlementMiddlewareOptions.
  */
 export const DEFAULT_TIER_RATE_LIMITS: Record<string, TierRateLimitConfig> = {
-  free: { maxRequests: 100, windowMs: 60_000 },       // 100 req/min
-  starter: { maxRequests: 500, windowMs: 60_000 },    // 500 req/min
+  free: { maxRequests: 100, windowMs: 60_000 }, // 100 req/min
+  starter: { maxRequests: 500, windowMs: 60_000 }, // 500 req/min
   professional: { maxRequests: 2000, windowMs: 60_000 }, // 2000 req/min
-  enterprise: { maxRequests: 10000, windowMs: 60_000 },  // 10000 req/min
-  custom: { maxRequests: 10000, windowMs: 60_000 },      // Same as enterprise by default
+  enterprise: { maxRequests: 10000, windowMs: 60_000 }, // 10000 req/min
+  custom: { maxRequests: 10000, windowMs: 60_000 }, // Same as enterprise by default
 };
 
 // ─── In-Memory Rate Limit Store ──────────────────────────────────────────────
@@ -281,10 +281,7 @@ export function createEntitlementMiddleware(options: EntitlementMiddlewareOption
    * Returns 402 if no active subscription.
    */
   function requireQuota(metric: string, increment: number = 1): preHandlerHookHandler {
-    return async function quotaGuard(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ): Promise<void> {
+    return async function quotaGuard(request: FastifyRequest, reply: FastifyReply): Promise<void> {
       const tenantId = resolveTenantId(request);
       if (!tenantId) {
         reply.status(401).send({

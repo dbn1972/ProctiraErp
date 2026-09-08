@@ -102,17 +102,14 @@ export default function AssessmentResultsEntry() {
     setError(null);
     setSuccess(null);
     try {
-      const response = await browserGatewayFetch<BulkResultEntryResponse>(
-        '/results/bulk',
-        {
-          method: 'POST',
-          json: {
-            subjectId,
-            academicPeriodId,
-            results,
-          },
+      const response = await browserGatewayFetch<BulkResultEntryResponse>('/results/bulk', {
+        method: 'POST',
+        json: {
+          subjectId,
+          academicPeriodId,
+          results,
         },
-      );
+      });
       if (response.errorCount > 0) {
         setError(
           `${response.errorCount} entries had errors. ${response.successCount} saved successfully.`,

@@ -98,7 +98,7 @@ describe('FormBuilder', () => {
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith(
         expect.objectContaining({ firstName: 'John', email: 'john@example.com' }),
-        expect.anything()
+        expect.anything(),
       );
     });
   });
@@ -196,7 +196,7 @@ describe('FormBuilder', () => {
         schema={basicSchema}
         onSubmit={vi.fn()}
         defaultValues={{ firstName: 'Jane', email: 'jane@test.com' }}
-      />
+      />,
     );
 
     expect(screen.getByLabelText(/first name/i)).toHaveValue('Jane');

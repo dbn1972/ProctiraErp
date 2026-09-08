@@ -23,10 +23,10 @@ import { listExaminations, type Examination } from '@/lib/api/examinations';
 export const dynamic = 'force-dynamic';
 
 const STATUS_PILL: Record<string, string> = {
-  OPEN:      'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-  DRAFT:     'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
+  OPEN: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  DRAFT: 'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
   COMPLETED: 'bg-violet-50  text-violet-700  dark:bg-violet-950/40  dark:text-violet-400',
-  CLOSED:    'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
+  CLOSED: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
   CANCELLED: 'bg-red-50     text-red-700     dark:bg-red-950/40     dark:text-red-400',
 };
 
@@ -50,7 +50,6 @@ export default async function ExaminationsPage() {
 
   return (
     <section aria-labelledby="examinations-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -130,11 +129,19 @@ export default async function ExaminationsPage() {
                           </Link>
                         </Button>
                         <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-                          <Link href={`/examinations/${exam.id}/candidates`} aria-label={`Candidates for ${exam.name}`}>
+                          <Link
+                            href={`/examinations/${exam.id}/candidates`}
+                            aria-label={`Candidates for ${exam.name}`}
+                          >
                             <Users className="h-4 w-4" aria-hidden="true" />
                           </Link>
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 p-0" aria-label="More actions">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 p-0"
+                          aria-label="More actions"
+                        >
                           <MoreVertical className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </div>

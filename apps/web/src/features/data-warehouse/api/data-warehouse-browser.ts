@@ -8,9 +8,7 @@
  * Validates: Requirements 15.1, 15.3, 15.4, 15.5
  */
 
-import {
-  browserGatewayFetch,
-} from '@/lib/api/browser-gateway';
+import { browserGatewayFetch } from '@/lib/api/browser-gateway';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -155,7 +153,10 @@ export async function fetchUnits(indicatorId: string, signal?: AbortSignal): Pro
 /**
  * Fetch subgroups for a given indicator.
  */
-export async function fetchSubgroups(indicatorId: string, signal?: AbortSignal): Promise<Subgroup[]> {
+export async function fetchSubgroups(
+  indicatorId: string,
+  signal?: AbortSignal,
+): Promise<Subgroup[]> {
   const result = await browserGatewayFetch<{ data: Subgroup[] }>(
     `/data-warehouse/indicators/${encodeURIComponent(indicatorId)}/subgroups`,
     { signal },
@@ -188,10 +189,9 @@ export async function fetchIUSCombinations(params?: {
  * Fetch available time periods.
  */
 export async function fetchTimePeriods(signal?: AbortSignal): Promise<TimePeriod[]> {
-  const result = await browserGatewayFetch<{ data: TimePeriod[] }>(
-    '/data-warehouse/time-periods',
-    { signal },
-  );
+  const result = await browserGatewayFetch<{ data: TimePeriod[] }>('/data-warehouse/time-periods', {
+    signal,
+  });
   return result.data;
 }
 
@@ -202,14 +202,11 @@ export async function queryData(
   params: DataQueryParams,
   signal?: AbortSignal,
 ): Promise<DataQueryResult> {
-  const result = await browserGatewayFetch<DataQueryResult>(
-    '/data-warehouse/query',
-    {
-      method: 'POST',
-      json: params,
-      signal,
-    },
-  );
+  const result = await browserGatewayFetch<DataQueryResult>('/data-warehouse/query', {
+    method: 'POST',
+    json: params,
+    signal,
+  });
   return result;
 }
 
@@ -217,10 +214,9 @@ export async function queryData(
  * Fetch available GIS layers.
  */
 export async function fetchGISLayers(signal?: AbortSignal): Promise<GISLayer[]> {
-  const result = await browserGatewayFetch<{ data: GISLayer[] }>(
-    '/data-warehouse/gis/layers',
-    { signal },
-  );
+  const result = await browserGatewayFetch<{ data: GISLayer[] }>('/data-warehouse/gis/layers', {
+    signal,
+  });
   return result.data;
 }
 
@@ -246,13 +242,10 @@ export async function exportData(
   params: DataQueryParams & { format: 'xlsx' | 'csv' | 'di7' },
   signal?: AbortSignal,
 ): Promise<{ downloadUrl: string }> {
-  const result = await browserGatewayFetch<{ downloadUrl: string }>(
-    '/data-warehouse/export',
-    {
-      method: 'POST',
-      json: params,
-      signal,
-    },
-  );
+  const result = await browserGatewayFetch<{ downloadUrl: string }>('/data-warehouse/export', {
+    method: 'POST',
+    json: params,
+    signal,
+  });
   return result;
 }

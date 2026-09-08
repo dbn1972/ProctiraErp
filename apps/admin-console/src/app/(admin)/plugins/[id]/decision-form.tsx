@@ -7,10 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-import {
-  pluginDecisionAction,
-  type PluginDecisionState,
-} from '../actions';
+import { pluginDecisionAction, type PluginDecisionState } from '../actions';
 
 const initialState: PluginDecisionState = {};
 

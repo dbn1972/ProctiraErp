@@ -11,8 +11,8 @@ technologies. The contract below mirrors the
 
 ## Opening
 
-| Key | Action |
-| --- | --- |
+| Key               | Action                                                                          |
+| ----------------- | ------------------------------------------------------------------------------- |
 | `Enter` / `Space` | When focus is on `<DialogTrigger>`, activates the trigger and opens the dialog. |
 
 When the dialog opens:
@@ -26,15 +26,15 @@ When the dialog opens:
 
 ## Focus trap (while the dialog is open)
 
-| Key | Action |
-| --- | --- |
-| `Tab` | Move focus to the next focusable element inside the dialog. Wraps from the last to the first focusable element. |
+| Key           | Action                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `Tab`         | Move focus to the next focusable element inside the dialog. Wraps from the last to the first focusable element.     |
 | `Shift + Tab` | Move focus to the previous focusable element inside the dialog. Wraps from the first to the last focusable element. |
 
 ## Dismissal
 
-| Key | Action |
-| --- | --- |
+| Key      | Action                                                                                 |
+| -------- | -------------------------------------------------------------------------------------- |
 | `Escape` | Closes the dialog. Focus returns to the element that opened it (the original trigger). |
 
 The Radix close button (rendered automatically by `<DialogContent>`)

@@ -9,15 +9,8 @@
  */
 
 // Tenant Resolution
-export {
-  resolveTenantId,
-  isValidUuid,
-  TenantResolutionError,
-} from './tenant-resolution.js';
-export type {
-  TenantResolutionResult,
-  TenantResolutionOptions,
-} from './tenant-resolution.js';
+export { resolveTenantId, isValidUuid, TenantResolutionError } from './tenant-resolution.js';
+export type { TenantResolutionResult, TenantResolutionOptions } from './tenant-resolution.js';
 
 // Fastify Plugin
 export { tenantPlugin } from './fastify-plugin.js';

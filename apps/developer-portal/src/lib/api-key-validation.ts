@@ -4,11 +4,7 @@
  * and reject unsafe / reserved names before any future mint path.
  */
 
-export const API_KEY_SCOPES = [
-  'students:read',
-  'attendance:write',
-  'webhooks:manage',
-] as const;
+export const API_KEY_SCOPES = ['students:read', 'attendance:write', 'webhooks:manage'] as const;
 
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
 
@@ -23,15 +19,7 @@ export interface ApiKeyRequestErrors {
 }
 
 const NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9 _.-]{1,62}[a-zA-Z0-9]$/;
-const RESERVED_NAMES = new Set([
-  'admin',
-  'root',
-  'system',
-  'default',
-  'test',
-  'null',
-  'undefined',
-]);
+const RESERVED_NAMES = new Set(['admin', 'root', 'system', 'default', 'test', 'null', 'undefined']);
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
@@ -40,9 +28,7 @@ function asString(value: unknown): string {
 /**
  * Validate a demo API-key request. Returns field errors or null when valid.
  */
-export function validateApiKeyRequest(
-  input: ApiKeyRequestInput,
-): ApiKeyRequestErrors | null {
+export function validateApiKeyRequest(input: ApiKeyRequestInput): ApiKeyRequestErrors | null {
   const name = asString(input.name).trim();
   const scope = asString(input.scope).trim();
   const errors: ApiKeyRequestErrors = {};

@@ -47,10 +47,7 @@ export function TenantsFilter({ status, search }: TenantsFilterProps) {
           }}
         />
       </div>
-      <Select
-        value={status}
-        onValueChange={(value) => pushParams({ status: value })}
-      >
+      <Select value={status} onValueChange={(value) => pushParams({ status: value })}>
         <SelectTrigger className="w-44">
           <SelectValue placeholder="All statuses" />
         </SelectTrigger>

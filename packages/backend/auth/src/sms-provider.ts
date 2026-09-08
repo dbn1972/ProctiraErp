@@ -32,9 +32,7 @@ export class ConsoleSmsProvider implements SmsProvider {
   async send(message: SmsMessage): Promise<void> {
     // Dev flows read the code from MFA_EXPOSE_OTP's debugCode, not from logs.
     // eslint-disable-next-line no-console
-    console.info(
-      `[sms:console] to=${maskPhone(message.to)} body=${redactOtpDigits(message.body)}`,
-    );
+    console.info(`[sms:console] to=${maskPhone(message.to)} body=${redactOtpDigits(message.body)}`);
   }
 }
 

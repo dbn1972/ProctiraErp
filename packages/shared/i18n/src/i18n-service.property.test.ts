@@ -61,7 +61,16 @@ const currencyAmountArb: fc.Arbitrary<number> = fc.double({
 
 /** Generates a valid ISO 4217 currency code. */
 const currencyCodeArb: fc.Arbitrary<string> = fc.constantFrom(
-  'USD', 'EUR', 'GBP', 'JPY', 'SAR', 'AED', 'INR', 'CNY', 'AUD', 'CAD',
+  'USD',
+  'EUR',
+  'GBP',
+  'JPY',
+  'SAR',
+  'AED',
+  'INR',
+  'CNY',
+  'AUD',
+  'CAD',
 );
 
 /**
@@ -129,72 +138,64 @@ describe('Property 29: Translation Fallback Chain', () => {
 
   it('should fall back to tenant default when key is missing in user locale', () => {
     fc.assert(
-      fc.property(
-        translationKeyArb,
-        translationValueArb,
-        (key, tenantValue) => {
-          // Key exists only in tenant default locale (fr), not in user locale (ar)
-          const config: I18nConfig = {
-            supportedLocales: [...SUPPORTED_LOCALES],
-            defaultLocale: 'en',
-            fallbackLocale: 'en',
-            tenantDefaultLocale: 'fr',
-          };
+      fc.property(translationKeyArb, translationValueArb, (key, tenantValue) => {
+        // Key exists only in tenant default locale (fr), not in user locale (ar)
+        const config: I18nConfig = {
+          supportedLocales: [...SUPPORTED_LOCALES],
+          defaultLocale: 'en',
+          fallbackLocale: 'en',
+          tenantDefaultLocale: 'fr',
+        };
 
-          const frMap = buildTranslationMap([[key, tenantValue]]);
+        const frMap = buildTranslationMap([[key, tenantValue]]);
 
-          const service = new I18nServiceImpl({
-            config,
-            translations: {
-              ar: {},
-              fr: frMap,
-              en: {},
-            },
-          });
+        const service = new I18nServiceImpl({
+          config,
+          translations: {
+            ar: {},
+            fr: frMap,
+            en: {},
+          },
+        });
 
-          service.setLocale('ar');
-          const result = service.translate(key);
+        service.setLocale('ar');
+        const result = service.translate(key);
 
-          // Should fall back to tenant default (fr) and find the value
-          expect(result).toBe(tenantValue);
-        },
-      ),
+        // Should fall back to tenant default (fr) and find the value
+        expect(result).toBe(tenantValue);
+      }),
       { numRuns: 100 },
     );
   });
 
   it('should fall back to platform default when key is missing in user locale and tenant default', () => {
     fc.assert(
-      fc.property(
-        translationKeyArb,
-        translationValueArb,
-        (key, platformValue) => {
-          // Key exists only in platform default (en), not in user locale (ar) or tenant default (fr)
-          const config: I18nConfig = {
-            supportedLocales: [...SUPPORTED_LOCALES],
-            defaultLocale: 'en',
-            fallbackLocale: 'en',
-            tenantDefaultLocale: 'fr',
-          };
+      fc.property(translationKeyArb, translationValueArb, (key, platformValue) => {
+        // Key exists only in platform default (en), not in user locale (ar) or tenant default (fr)
+        const config: I18nConfig = {
+          supportedLocales: [...SUPPORTED_LOCALES],
+          defaultLocale: 'en',
+          fallbackLocale: 'en',
+          tenantDefaultLocale: 'fr',
+        };
 
-          const enMap = buildTranslationMap([[key, platformValue]]);
+        const enMap = buildTranslationMap([[key, platformValue]]);
 
-          const service = new I18nServiceImpl({
-            config,
-            translations: {
-              ar: {},
-              fr: {},
-              en: enMap,
-            },
-          });
+        const service = new I18nServiceImpl({
+          config,
+          translations: {
+            ar: {},
+            fr: {},
+            en: enMap,
+          },
+        });
 
-          service.setLocale('ar');
-          const result = service.translate(key);
+        service.setLocale('ar');
+        const result = service.translate(key);
 
-          // Should fall back to platform default (en) and find the value
-          expect(result).toBe(platformValue);
-        },
-      ),
+        // Should fall back to platform default (en) and find the value
+        expect(result).toBe(platformValue);
+      }),
       { numRuns: 100 },
     );
   });
@@ -336,47 +337,38 @@ describe('Property 30: Locale-Specific Formatting', () => {
 
   it('should format numbers consistently with Intl.NumberFormat for any locale', () => {
     fc.assert(
-      fc.property(
-        localeArb,
-        numberArb,
-        (locale, value) => {
-          const service = createService(locale);
-          const formatted = service.formatNumber(value);
+      fc.property(localeArb, numberArb, (locale, value) => {
+        const service = createService(locale);
+        const formatted = service.formatNumber(value);
 
-          // The formatted output must be a non-empty string
-          expect(formatted.length).toBeGreaterThan(0);
+        // The formatted output must be a non-empty string
+        expect(formatted.length).toBeGreaterThan(0);
 
-          // Must match Intl.NumberFormat for that locale
-          const expected = new Intl.NumberFormat(locale, { style: 'decimal' }).format(value);
-          expect(formatted).toBe(expected);
-        },
-      ),
+        // Must match Intl.NumberFormat for that locale
+        const expected = new Intl.NumberFormat(locale, { style: 'decimal' }).format(value);
+        expect(formatted).toBe(expected);
+      }),
       { numRuns: 100 },
     );
   });
 
   it('should format currency consistently with Intl.NumberFormat currency style for any locale', () => {
     fc.assert(
-      fc.property(
-        localeArb,
-        currencyAmountArb,
-        currencyCodeArb,
-        (locale, amount, currency) => {
-          const service = createService(locale);
-          const formatted = service.formatCurrency(amount, currency);
+      fc.property(localeArb, currencyAmountArb, currencyCodeArb, (locale, amount, currency) => {
+        const service = createService(locale);
+        const formatted = service.formatCurrency(amount, currency);
 
-          // The formatted output must be a non-empty string
-          expect(formatted.length).toBeGreaterThan(0);
+        // The formatted output must be a non-empty string
+        expect(formatted.length).toBeGreaterThan(0);
 
-          // Must match Intl.NumberFormat with currency style for that locale
-          const expected = new Intl.NumberFormat(locale, {
-            style: 'currency',
-            currency,
-            currencyDisplay: 'symbol',
-          }).format(amount);
-          expect(formatted).toBe(expected);
-        },
-      ),
+        // Must match Intl.NumberFormat with currency style for that locale
+        const expected = new Intl.NumberFormat(locale, {
+          style: 'currency',
+          currency,
+          currencyDisplay: 'symbol',
+        }).format(amount);
+        expect(formatted).toBe(expected);
+      }),
       { numRuns: 100 },
     );
   });

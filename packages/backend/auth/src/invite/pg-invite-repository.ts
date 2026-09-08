@@ -14,7 +14,9 @@ export class PgUserInviteRepository implements UserInviteRepository {
     this.invites = new PgDocumentCollection<UserInviteEntity>(pool, 'auth.invites');
   }
 
-  async create(entity: Omit<UserInviteEntity, 'createdAt' | 'updatedAt'>): Promise<UserInviteEntity> {
+  async create(
+    entity: Omit<UserInviteEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<UserInviteEntity> {
     const now = new Date();
     const record: UserInviteEntity = { ...entity, createdAt: now, updatedAt: now };
     return this.invites.put(record.id, record, record.tenantId);

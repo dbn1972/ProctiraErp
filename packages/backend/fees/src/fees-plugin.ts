@@ -249,11 +249,7 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         try {
-          const plan = await feesService.createFeePlan(
-            tenantId,
-            getActorId(request),
-            result.data,
-          );
+          const plan = await feesService.createFeePlan(tenantId, getActorId(request), result.data);
           return reply.status(201).send(formatPlan(plan));
         } catch (error: unknown) {
           if (error instanceof AppError) {
@@ -403,11 +399,7 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         try {
-          const paid = await feesService.recordPayment(
-            tenantId,
-            getActorId(request),
-            result.data,
-          );
+          const paid = await feesService.recordPayment(tenantId, getActorId(request), result.data);
           return reply.status(201).send({
             invoice: formatInvoice(paid.invoice),
             payment: formatPayment(paid.payment),

@@ -59,7 +59,9 @@ function schemaSqlPath(): string {
   return candidates[0]!;
 }
 
-export async function ensureCounsellingSchema(pool: PgPoolLike = getSharedCounsellingPool()!): Promise<void> {
+export async function ensureCounsellingSchema(
+  pool: PgPoolLike = getSharedCounsellingPool()!,
+): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for counselling schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
@@ -102,8 +104,10 @@ export class PgCounsellingStore {
 
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
-    return withPgTenant(this.pool, tenantId, (client) =>
-      client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    return withPgTenant(
+      this.pool,
+      tenantId,
+      (client) => client.query(text, values) as unknown as Promise<pg.QueryResult>,
     );
   }
 
@@ -116,7 +120,9 @@ export class PgCounsellingStore {
   ): Promise<CounsellingSessionEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.query(data.tenantId, `INSERT INTO counselling_sessions (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO counselling_sessions (
         id, tenant_id, student_id, counsellor_id, session_date, session_type,
         reason, case_notes, outcome, follow_up_required, follow_up_date, status,
         created_at, updated_at
@@ -161,7 +167,9 @@ export class PgCounsellingStore {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.query(tenantId, `UPDATE counselling_sessions SET
+    const result = await this.query(
+      tenantId,
+      `UPDATE counselling_sessions SET
         counsellor_id = $3,
         session_date = $4::date,
         session_type = $5,
@@ -195,7 +203,9 @@ export class PgCounsellingStore {
 
   async findById(id: string, tenantId: string): Promise<CounsellingSessionEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM counselling_sessions WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM counselling_sessions WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -204,7 +214,9 @@ export class PgCounsellingStore {
 
   async listByStudent(tenantId: string, studentId: string): Promise<CounsellingSessionEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM counselling_sessions
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM counselling_sessions
        WHERE tenant_id = $1 AND student_id = $2
        ORDER BY session_date DESC`,
       [tenantId, studentId],
@@ -214,7 +226,9 @@ export class PgCounsellingStore {
 
   async listByTenant(tenantId: string): Promise<CounsellingSessionEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM counselling_sessions
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM counselling_sessions
        WHERE tenant_id = $1
        ORDER BY session_date DESC`,
       [tenantId],

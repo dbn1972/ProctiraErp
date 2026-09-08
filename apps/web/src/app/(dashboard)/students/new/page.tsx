@@ -40,8 +40,8 @@ export default async function NewStudentPage() {
             Add student
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Capture personal details, guardian information, and first enrollment.
-            National ID is used for duplicate detection across the district.
+            Capture personal details, guardian information, and first enrollment. National ID is
+            used for duplicate detection across the district.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -60,11 +60,7 @@ export default async function NewStudentPage() {
         </div>
       </div>
 
-      <StudentForm
-        mode="create"
-        initialValues={EMPTY_VALUES}
-        customFields={customFields}
-      />
+      <StudentForm mode="create" initialValues={EMPTY_VALUES} customFields={customFields} />
     </section>
   );
 }

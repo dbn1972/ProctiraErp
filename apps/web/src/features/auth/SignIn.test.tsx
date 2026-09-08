@@ -17,21 +17,12 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import { LanguageProvider } from '@/providers/LanguageProvider';
-import {
-  BrandConfigProvider,
-  type Brand,
-} from '@/providers/BrandConfigProvider';
+import { BrandConfigProvider, type Brand } from '@/providers/BrandConfigProvider';
 import enMessages from '@/messages/en.json';
 
 import SignIn, { buildOAuthHref } from './SignIn';
@@ -52,9 +43,7 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 // ─── Mocks ──────────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/auth/session', async () => {
-  const actual = await vi.importActual<
-    typeof import('@/lib/auth/session')
-  >('@/lib/auth/session');
+  const actual = await vi.importActual<typeof import('@/lib/auth/session')>('@/lib/auth/session');
   return {
     ...actual,
     signIn: vi.fn(),
@@ -66,10 +55,7 @@ const mockSignIn = vi.mocked(signIn);
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
-const messages = enMessages as unknown as Record<
-  string,
-  Record<string, string>
->;
+const messages = enMessages as unknown as Record<string, Record<string, string>>;
 
 const SAMPLE_BRAND: Brand = {
   name: 'EduZo',
@@ -92,21 +78,12 @@ function renderSignIn({
 } = {}) {
   return render(
     <BrandConfigProvider initialBrand={brand}>
-      <LanguageProvider
-        defaultLocale="en"
-        messagesByLocale={{ en: messages }}
-      >
+      <LanguageProvider defaultLocale="en" messagesByLocale={{ en: messages }}>
         <MemoryRouter initialEntries={[initialEntry]}>
           <Routes>
             <Route path="/auth/signin" element={<SignIn />} />
-            <Route
-              path="/auth/mfa-verify"
-              element={<div data-testid="mfa-page">MFA</div>}
-            />
-            <Route
-              path="/auth/forgot-password"
-              element={<div>forgot</div>}
-            />
+            <Route path="/auth/mfa-verify" element={<div data-testid="mfa-page">MFA</div>} />
+            <Route path="/auth/forgot-password" element={<div>forgot</div>} />
           </Routes>
         </MemoryRouter>
       </LanguageProvider>
@@ -171,9 +148,7 @@ describe('<SignIn> — buildOAuthHref helper', () => {
   });
 
   it('omits returnTo when empty', () => {
-    expect(buildOAuthHref('apple', '')).toBe(
-      '/api/auth/oauth/authorize?provider=apple',
-    );
+    expect(buildOAuthHref('apple', '')).toBe('/api/auth/oauth/authorize?provider=apple');
   });
 });
 
@@ -226,10 +201,7 @@ describe('<SignIn> — happy path submit', () => {
     clickSubmit();
 
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith(
-        'admin@school.edu',
-        'CorrectHorse9',
-      );
+      expect(mockSignIn).toHaveBeenCalledWith('admin@school.edu', 'CorrectHorse9');
     });
 
     await waitFor(() => {
@@ -297,9 +269,7 @@ describe('<SignIn> — federated provider buttons', () => {
     renderSignIn({ initialEntry: '/auth/signin?returnTo=%2Fapp%2Fdashboard' });
 
     const google = screen.getByTestId('signin-oauth-google') as HTMLAnchorElement;
-    const microsoft = screen.getByTestId(
-      'signin-oauth-microsoft',
-    ) as HTMLAnchorElement;
+    const microsoft = screen.getByTestId('signin-oauth-microsoft') as HTMLAnchorElement;
     const apple = screen.getByTestId('signin-oauth-apple') as HTMLAnchorElement;
 
     // jsdom resolves anchor.href to an absolute URL; we only need the
@@ -336,9 +306,7 @@ describe('<SignIn> — brand binding', () => {
 
   it('substitutes the brand name into the welcome subtitle', () => {
     renderSignIn({ brand: SAMPLE_BRAND });
-    expect(
-      screen.getByText('Sign in to EduZo to continue.'),
-    ).toBeTruthy();
+    expect(screen.getByText('Sign in to EduZo to continue.')).toBeTruthy();
   });
 });
 

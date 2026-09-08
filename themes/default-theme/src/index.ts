@@ -32,7 +32,8 @@ import { darkTokens } from './dark.js';
  */
 export const defaultTheme: ThemeDefinition = defineTheme({
   name: 'ProctiraERP Default',
-  description: 'The default ProctiraERP platform theme with professional blue palette and full dark mode support',
+  description:
+    'The default ProctiraERP platform theme with professional blue palette and full dark mode support',
   level: 'platform',
   tokens: lightTokens,
   darkTokens: darkTokens,

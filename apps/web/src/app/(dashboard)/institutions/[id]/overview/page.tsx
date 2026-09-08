@@ -29,10 +29,7 @@ import {
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { getInstitution } from '@/lib/institutions/api';
-import {
-  loadAreaOptions,
-  loadTypeOptions,
-} from '@/lib/institutions/lookups';
+import { loadAreaOptions, loadTypeOptions } from '@/lib/institutions/lookups';
 
 interface OverviewPageProps {
   params: { id: string };
@@ -41,7 +38,12 @@ interface OverviewPageProps {
 /* ──────────────────────────────── helpers ── */
 
 function nameFor(options: { id: string; name: string }[], id: string): string {
-  return options.find((o) => o.id === id)?.name.replace(/^(—\s)+/, '').trim() ?? '';
+  return (
+    options
+      .find((o) => o.id === id)
+      ?.name.replace(/^(—\s)+/, '')
+      .trim() ?? ''
+  );
 }
 
 function readStr(cd: Record<string, unknown> | null | undefined, key: string): string {
@@ -204,9 +206,7 @@ function RecentActivity({ items }: { items: ActivityItem[] }) {
                 </div>
                 <div className={cn('min-w-0 pb-4', i === items.length - 1 && 'pb-0')}>
                   <p className="text-sm font-medium leading-snug text-foreground">{item.title}</p>
-                  {item.meta && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">{item.meta}</p>
-                  )}
+                  {item.meta && <p className="mt-0.5 text-xs text-muted-foreground">{item.meta}</p>}
                 </div>
               </li>
             ))}
@@ -242,13 +242,15 @@ export default async function InstitutionOverviewPage({ params }: OverviewPagePr
   const typeName = nameFor(types, institution.typeId);
 
   const studentCount = readNum(cd, 'studentCount');
-  const staffCount   = readNum(cd, 'staffCount');
-  const attendance   = readNum(cd, 'attendance');
-  const classrooms   = readNum(cd, 'classroomCount');
+  const staffCount = readNum(cd, 'staffCount');
+  const attendance = readNum(cd, 'attendance');
+  const classrooms = readNum(cd, 'classroomCount');
 
   const rawEnroll = cd['enrollmentByGrade'];
   const enrollment: GradeEnrollment[] = Array.isArray(rawEnroll)
-    ? (rawEnroll as GradeEnrollment[]).filter((e) => e && typeof e.grade === 'string' && typeof e.count === 'number')
+    ? (rawEnroll as GradeEnrollment[]).filter(
+        (e) => e && typeof e.grade === 'string' && typeof e.count === 'number',
+      )
     : [];
 
   const rawActivity = cd['recentActivity'];
@@ -256,10 +258,10 @@ export default async function InstitutionOverviewPage({ params }: OverviewPagePr
     ? (rawActivity as ActivityItem[]).filter((a) => a && typeof a.title === 'string')
     : [];
 
-  const medium      = readStr(cd, 'medium');
+  const medium = readStr(cd, 'medium');
   const established = readStr(cd, 'established') || (readNum(cd, 'established')?.toString() ?? '');
-  const shift       = readStr(cd, 'shift');
-  const headmaster  = readStr(cd, 'headmaster');
+  const shift = readStr(cd, 'shift');
+  const headmaster = readStr(cd, 'headmaster');
 
   return (
     <div className="space-y-6">
@@ -281,7 +283,6 @@ export default async function InstitutionOverviewPage({ params }: OverviewPagePr
       )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-
         {/* ── Main column ── */}
         <div className="space-y-6">
           {/* KPI grid */}
@@ -348,7 +349,10 @@ export default async function InstitutionOverviewPage({ params }: OverviewPagePr
               <dl>
                 <FactRow label="Phone">
                   {institution.contactPhone ? (
-                    <a href={`tel:${institution.contactPhone}`} className="text-primary hover:underline">
+                    <a
+                      href={`tel:${institution.contactPhone}`}
+                      className="text-primary hover:underline"
+                    >
                       {institution.contactPhone}
                     </a>
                   ) : (
@@ -357,7 +361,10 @@ export default async function InstitutionOverviewPage({ params }: OverviewPagePr
                 </FactRow>
                 <FactRow label="Email">
                   {institution.contactEmail ? (
-                    <a href={`mailto:${institution.contactEmail}`} className="break-all text-primary hover:underline">
+                    <a
+                      href={`mailto:${institution.contactEmail}`}
+                      className="break-all text-primary hover:underline"
+                    >
                       {institution.contactEmail}
                     </a>
                   ) : (
@@ -365,7 +372,9 @@ export default async function InstitutionOverviewPage({ params }: OverviewPagePr
                   )}
                 </FactRow>
                 <FactRow label="Address">
-                  {institution.address || <span className="text-muted-foreground">Not on file</span>}
+                  {institution.address || (
+                    <span className="text-muted-foreground">Not on file</span>
+                  )}
                 </FactRow>
                 {institution.latitude !== null && institution.longitude !== null && (
                   <FactRow label="Coordinates">

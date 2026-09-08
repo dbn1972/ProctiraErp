@@ -8,7 +8,7 @@ import { Kafka } from 'kafkajs';
 
 import type { DomainEvent, EventHandler } from '../types';
 
-import type { KafkaConfig} from './config';
+import type { KafkaConfig } from './config';
 import { DEFAULT_KAFKA_CONFIG, buildTenantTopic } from './config';
 
 export interface ConsumerSubscription {
@@ -88,9 +88,7 @@ export class KafkaEventConsumer {
     this.subscriptions.push(subscription);
 
     // Register handler in the map
-    const key = subscription.eventType
-      ? `${topic}:${subscription.eventType}`
-      : topic;
+    const key = subscription.eventType ? `${topic}:${subscription.eventType}` : topic;
 
     const existing = this.handlerMap.get(key) ?? [];
     existing.push(subscription.handler);

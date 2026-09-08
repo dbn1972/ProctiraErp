@@ -38,10 +38,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the attendance service and routes.
  */
 export const attendancePlugin = fp(
-  async function attendancePluginImpl(
-    fastify: FastifyInstance,
-    options: AttendancePluginOptions,
-  ) {
+  async function attendancePluginImpl(fastify: FastifyInstance, options: AttendancePluginOptions) {
     const { repository, prefix = '/attendance' } = options;
 
     // Create attendance service instance

@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  loadJwtSecretPair,
-  secretForKid,
-  verifySecretCandidates,
-} from './jwt-secrets.js';
+import { loadJwtSecretPair, secretForKid, verifySecretCandidates } from './jwt-secrets.js';
 
 describe('G-504 JWT dual-secret helpers', () => {
   it('loads current + previous from env', () => {

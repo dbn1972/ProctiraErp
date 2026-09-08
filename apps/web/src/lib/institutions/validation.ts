@@ -6,14 +6,10 @@
  */
 import { z } from 'zod';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 const uuid = (label: string) =>
-  z
-    .string()
-    .min(1, `${label} is required`)
-    .regex(UUID_PATTERN, `${label} must be a valid UUID`);
+  z.string().min(1, `${label} is required`).regex(UUID_PATTERN, `${label} must be a valid UUID`);
 
 const optionalString = (max: number) =>
   z
@@ -36,18 +32,12 @@ const optionalCoordinate = (min: number, max: number, label: string) =>
     })
     .refine(
       (value) => value === undefined || (!Number.isNaN(value) && value >= min && value <= max),
-      `${label} must be between ${min} and ${max}`
+      `${label} must be between ${min} and ${max}`,
     );
 
 export const institutionFormSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(255, 'Name must be 255 characters or fewer'),
-  code: z
-    .string()
-    .min(1, 'Code is required')
-    .max(50, 'Code must be 50 characters or fewer'),
+  name: z.string().min(1, 'Name is required').max(255, 'Name must be 255 characters or fewer'),
+  code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
   areaId: uuid('Area'),
   typeId: uuid('Type'),
   sectorId: uuid('Sector'),
@@ -70,20 +60,10 @@ export type InstitutionFormParsed = z.output<typeof institutionFormSchema>;
 
 export const academicPeriodFormSchema = z
   .object({
-    name: z
-      .string()
-      .min(1, 'Name is required')
-      .max(100, 'Name must be 100 characters or fewer'),
-    code: z
-      .string()
-      .min(1, 'Code is required')
-      .max(50, 'Code must be 50 characters or fewer'),
-    startDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
-    endDate: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format'),
+    name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+    code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Start date must be in YYYY-MM-DD format'),
+    endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'End date must be in YYYY-MM-DD format'),
     status: z.enum(['active', 'inactive', 'archived']).optional(),
   })
   .refine((data) => data.endDate >= data.startDate, {

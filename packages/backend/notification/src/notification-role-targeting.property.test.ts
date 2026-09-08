@@ -47,30 +47,38 @@ interface TestScenario {
   queryAreaIds: string[];
 }
 
-const arbTestScenario: fc.Arbitrary<TestScenario> = fc.record({
-  allRoles: arbUuidSet(2, 5),
-  allAreas: arbUuidSet(2, 5),
-}).chain(({ allRoles, allAreas }) => {
-  // Generate users with random role/area assignments from the pool
-  const arbUser = fc.record({
-    id: arbUuid,
-    roleIds: fc.subarray(allRoles, { minLength: 1, maxLength: allRoles.length }),
-    areaIds: fc.subarray(allAreas, { minLength: 1, maxLength: allAreas.length }),
-    institutionIds: fc.constant([] as string[]),
-  });
+const arbTestScenario: fc.Arbitrary<TestScenario> = fc
+  .record({
+    allRoles: arbUuidSet(2, 5),
+    allAreas: arbUuidSet(2, 5),
+  })
+  .chain(({ allRoles, allAreas }) => {
+    // Generate users with random role/area assignments from the pool
+    const arbUser = fc.record({
+      id: arbUuid,
+      roleIds: fc.subarray(allRoles, { minLength: 1, maxLength: allRoles.length }),
+      areaIds: fc.subarray(allAreas, { minLength: 1, maxLength: allAreas.length }),
+      institutionIds: fc.constant([] as string[]),
+    });
 
-  return fc.record({
-    allRoles: fc.constant(allRoles),
-    allAreas: fc.constant(allAreas),
-    users: fc.uniqueArray(arbUser, {
-      minLength: 3,
-      maxLength: 10,
-      selector: (u) => u.id,
-    }),
-    queryRoleIds: fc.subarray(allRoles, { minLength: 1, maxLength: Math.min(2, allRoles.length) }),
-    queryAreaIds: fc.subarray(allAreas, { minLength: 1, maxLength: Math.min(2, allAreas.length) }),
+    return fc.record({
+      allRoles: fc.constant(allRoles),
+      allAreas: fc.constant(allAreas),
+      users: fc.uniqueArray(arbUser, {
+        minLength: 3,
+        maxLength: 10,
+        selector: (u) => u.id,
+      }),
+      queryRoleIds: fc.subarray(allRoles, {
+        minLength: 1,
+        maxLength: Math.min(2, allRoles.length),
+      }),
+      queryAreaIds: fc.subarray(allAreas, {
+        minLength: 1,
+        maxLength: Math.min(2, allAreas.length),
+      }),
+    });
   });
-});
 
 // --- Helpers ---
 
@@ -177,7 +185,7 @@ describe('Property 31: Notification Role-Based Targeting', () => {
           if (!actualRecipients.has(expectedId)) {
             throw new Error(
               `User ${expectedId} matches role criteria but did NOT receive notification. ` +
-              `Query roles: [${scenario.queryRoleIds.join(', ')}]`,
+                `Query roles: [${scenario.queryRoleIds.join(', ')}]`,
             );
           }
         }
@@ -187,7 +195,7 @@ describe('Property 31: Notification Role-Based Targeting', () => {
           if (!expected.has(actualId)) {
             throw new Error(
               `User ${actualId} does NOT match role criteria but received notification. ` +
-              `Query roles: [${scenario.queryRoleIds.join(', ')}]`,
+                `Query roles: [${scenario.queryRoleIds.join(', ')}]`,
             );
           }
         }
@@ -222,7 +230,7 @@ describe('Property 31: Notification Role-Based Targeting', () => {
           if (!actualRecipients.has(expectedId)) {
             throw new Error(
               `User ${expectedId} matches area criteria but did NOT receive notification. ` +
-              `Query areas: [${scenario.queryAreaIds.join(', ')}]`,
+                `Query areas: [${scenario.queryAreaIds.join(', ')}]`,
             );
           }
         }
@@ -232,7 +240,7 @@ describe('Property 31: Notification Role-Based Targeting', () => {
           if (!expected.has(actualId)) {
             throw new Error(
               `User ${actualId} does NOT match area criteria but received notification. ` +
-              `Query areas: [${scenario.queryAreaIds.join(', ')}]`,
+                `Query areas: [${scenario.queryAreaIds.join(', ')}]`,
             );
           }
         }
@@ -271,7 +279,7 @@ describe('Property 31: Notification Role-Based Targeting', () => {
           if (!actualRecipients.has(expectedId)) {
             throw new Error(
               `User ${expectedId} matches role OR area criteria but did NOT receive notification. ` +
-              `Query roles: [${scenario.queryRoleIds.join(', ')}], areas: [${scenario.queryAreaIds.join(', ')}]`,
+                `Query roles: [${scenario.queryRoleIds.join(', ')}], areas: [${scenario.queryAreaIds.join(', ')}]`,
             );
           }
         }
@@ -281,7 +289,7 @@ describe('Property 31: Notification Role-Based Targeting', () => {
           if (!expected.has(actualId)) {
             throw new Error(
               `User ${actualId} does NOT match role OR area criteria but received notification. ` +
-              `Query roles: [${scenario.queryRoleIds.join(', ')}], areas: [${scenario.queryAreaIds.join(', ')}]`,
+                `Query roles: [${scenario.queryRoleIds.join(', ')}], areas: [${scenario.queryAreaIds.join(', ')}]`,
             );
           }
         }
@@ -319,7 +327,7 @@ describe('Property 31: Notification Role-Based Targeting', () => {
           if (actualRecipients.has(user.id)) {
             throw new Error(
               `User ${user.id} does NOT match role criteria [${scenario.queryRoleIds.join(', ')}] ` +
-              `(user roles: [${user.roleIds.join(', ')}]) but received notification`,
+                `(user roles: [${user.roleIds.join(', ')}]) but received notification`,
             );
           }
         }

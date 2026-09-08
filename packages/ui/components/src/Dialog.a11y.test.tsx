@@ -33,12 +33,11 @@ beforeAll(() => {
   // jsdom doesn't ship one, so we install a no-op shim before any
   // dialog renders.
   if (!('ResizeObserver' in globalThis)) {
-    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      } as unknown as typeof ResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
   }
 });
 
@@ -53,8 +52,8 @@ describe('<Dialog /> — axe-core WCAG 2.1 AA gate', () => {
           <DialogHeader>
             <DialogTitle>Confirm enrollment</DialogTitle>
             <DialogDescription>
-              This will enroll the student for the upcoming academic
-              period and notify the homeroom teacher.
+              This will enroll the student for the upcoming academic period and notify the homeroom
+              teacher.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

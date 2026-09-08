@@ -316,7 +316,10 @@ export async function registerTenantRoutes(
       }
 
       try {
-        const tenant = await tenantService.decommissionTenant(paramsResult.data.id, bodyResult.data);
+        const tenant = await tenantService.decommissionTenant(
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send(tenantService.formatTenantResponse(tenant));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -459,9 +462,7 @@ export async function registerTenantRoutes(
 
       try {
         const domains = await tenantService.listDomains(paramsResult.data.id);
-        return reply.status(200).send(
-          domains.map((d) => tenantService.formatDomainResponse(d)),
-        );
+        return reply.status(200).send(domains.map((d) => tenantService.formatDomainResponse(d)));
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

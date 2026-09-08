@@ -36,7 +36,9 @@ export interface GoogleProviderOptions {
 /**
  * Extract user profile from Google's userinfo response.
  */
-export const extractGoogleUserInfo: UserInfoExtractor = (data: Record<string, unknown>): ExternalUserProfile => {
+export const extractGoogleUserInfo: UserInfoExtractor = (
+  data: Record<string, unknown>,
+): ExternalUserProfile => {
   const sub = data['sub'] as string | undefined;
   const email = data['email'] as string | undefined;
   const name = data['name'] as string | undefined;

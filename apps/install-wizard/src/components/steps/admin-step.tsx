@@ -86,7 +86,9 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="admin-first" className="label">First Name</label>
+              <label htmlFor="admin-first" className="label">
+                First Name
+              </label>
               <input
                 id="admin-first"
                 type="text"
@@ -95,10 +97,14 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
                 onChange={(e) => setConfig((prev) => ({ ...prev, firstName: e.target.value }))}
                 placeholder="Admin"
               />
-              {validationErrors.firstName && <p className="error-text">{validationErrors.firstName}</p>}
+              {validationErrors.firstName && (
+                <p className="error-text">{validationErrors.firstName}</p>
+              )}
             </div>
             <div>
-              <label htmlFor="admin-last" className="label">Last Name</label>
+              <label htmlFor="admin-last" className="label">
+                Last Name
+              </label>
               <input
                 id="admin-last"
                 type="text"
@@ -107,10 +113,14 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
                 onChange={(e) => setConfig((prev) => ({ ...prev, lastName: e.target.value }))}
                 placeholder="User"
               />
-              {validationErrors.lastName && <p className="error-text">{validationErrors.lastName}</p>}
+              {validationErrors.lastName && (
+                <p className="error-text">{validationErrors.lastName}</p>
+              )}
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="admin-email" className="label">Email Address</label>
+              <label htmlFor="admin-email" className="label">
+                Email Address
+              </label>
               <input
                 id="admin-email"
                 type="email"
@@ -122,7 +132,9 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
               {validationErrors.email && <p className="error-text">{validationErrors.email}</p>}
             </div>
             <div>
-              <label htmlFor="admin-pass" className="label">Password</label>
+              <label htmlFor="admin-pass" className="label">
+                Password
+              </label>
               <input
                 id="admin-pass"
                 type="password"
@@ -131,10 +143,14 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
                 onChange={(e) => setConfig((prev) => ({ ...prev, password: e.target.value }))}
                 placeholder="Min. 8 characters"
               />
-              {validationErrors.password && <p className="error-text">{validationErrors.password}</p>}
+              {validationErrors.password && (
+                <p className="error-text">{validationErrors.password}</p>
+              )}
             </div>
             <div>
-              <label htmlFor="admin-confirm" className="label">Confirm Password</label>
+              <label htmlFor="admin-confirm" className="label">
+                Confirm Password
+              </label>
               <input
                 id="admin-confirm"
                 type="password"
@@ -143,7 +159,9 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter password"
               />
-              {validationErrors.confirmPassword && <p className="error-text">{validationErrors.confirmPassword}</p>}
+              {validationErrors.confirmPassword && (
+                <p className="error-text">{validationErrors.confirmPassword}</p>
+              )}
             </div>
           </div>
         </div>
@@ -155,7 +173,9 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
           </h3>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="tenant-name" className="label">Tenant Name</label>
+              <label htmlFor="tenant-name" className="label">
+                Tenant Name
+              </label>
               <input
                 id="tenant-name"
                 type="text"
@@ -164,10 +184,14 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
                 onChange={(e) => handleTenantNameChange(e.target.value)}
                 placeholder="My Organization"
               />
-              {validationErrors.tenantName && <p className="error-text">{validationErrors.tenantName}</p>}
+              {validationErrors.tenantName && (
+                <p className="error-text">{validationErrors.tenantName}</p>
+              )}
             </div>
             <div>
-              <label htmlFor="tenant-slug" className="label">Tenant Slug (subdomain)</label>
+              <label htmlFor="tenant-slug" className="label">
+                Tenant Slug (subdomain)
+              </label>
               <input
                 id="tenant-slug"
                 type="text"
@@ -177,9 +201,14 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
                 placeholder="my-organization"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Access URL: <code className="bg-gray-100 px-1 rounded">{config.tenantSlug || 'slug'}.proctira.org</code>
+                Access URL:{' '}
+                <code className="bg-gray-100 px-1 rounded">
+                  {config.tenantSlug || 'slug'}.proctira.org
+                </code>
               </p>
-              {validationErrors.tenantSlug && <p className="error-text">{validationErrors.tenantSlug}</p>}
+              {validationErrors.tenantSlug && (
+                <p className="error-text">{validationErrors.tenantSlug}</p>
+              )}
             </div>
           </div>
         </div>
@@ -205,7 +234,9 @@ export function AdminStep({ onComplete, onBack }: AdminStepProps) {
           </button>
           <button
             type="button"
-            onClick={() => { void handleSubmit(); }}
+            onClick={() => {
+              void handleSubmit();
+            }}
             disabled={submitting}
             className="btn-primary"
           >
@@ -228,7 +259,11 @@ function LoadingSpinner() {
   return (
     <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   );
 }

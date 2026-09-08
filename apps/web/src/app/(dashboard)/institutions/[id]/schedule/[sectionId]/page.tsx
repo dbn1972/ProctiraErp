@@ -13,11 +13,7 @@ import {
   SectionPublishControls,
   WithdrawStudentButton,
 } from '@/components/timetable/section-roster-controls';
-import {
-  formatCodeNameLabel,
-  formatPersonLabel,
-  resolveEntityLabel,
-} from '@/lib/entity-label';
+import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listStaff } from '@/lib/api/staff';
 import { listStudents } from '@/lib/api/students';
 import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api/timetable';
@@ -106,9 +102,7 @@ export default async function SectionRosterPage({ params }: PageProps) {
           >
             ← Master schedule
           </Link>
-          <h2 className="mt-2 text-lg font-bold tracking-tight text-foreground">
-            {section.name}
-          </h2>
+          <h2 className="mt-2 text-lg font-bold tracking-tight text-foreground">{section.name}</h2>
           <p className="text-sm text-muted-foreground">
             {section.code} · {section.status}
             {section.publishedAt ? ` · published ${section.publishedAt.slice(0, 10)}` : ''}

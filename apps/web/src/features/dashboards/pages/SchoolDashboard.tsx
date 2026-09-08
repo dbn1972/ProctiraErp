@@ -66,21 +66,17 @@ export default function SchoolDashboard() {
   const { data, isLoading, error } = useSchoolDashboard();
 
   const kpis = data?.kpis;
-  const utilization = kpis
-    ? staffUtilization(kpis.staffOnDuty, kpis.totalStaff)
-    : 0;
+  const utilization = kpis ? staffUtilization(kpis.staffOnDuty, kpis.totalStaff) : 0;
 
   // Map the API tasks into the `<TaskChecklist>` payload. Toggling is a
   // visual no-op for now (real persistence lands in 60.3); we still
   // pass the handler so the checkboxes are interactive.
-  const tasks: ReadonlyArray<ChecklistTask> = (data?.pendingTasks ?? []).map(
-    (t) => ({
-      id: t.id,
-      title: t.title,
-      meta: t.due ? `Due ${t.due}` : undefined,
-      completed: t.completed,
-    }),
-  );
+  const tasks: ReadonlyArray<ChecklistTask> = (data?.pendingTasks ?? []).map((t) => ({
+    id: t.id,
+    title: t.title,
+    meta: t.due ? `Due ${t.due}` : undefined,
+    completed: t.completed,
+  }));
 
   return (
     <div className="space-y-6 p-6" data-testid="school-dashboard">
@@ -91,9 +87,7 @@ export default function SchoolDashboard() {
         data-testid="school-dashboard-header"
       >
         <div>
-          <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">
-            School Dashboard
-          </h1>
+          <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">School Dashboard</h1>
           <p className="text-sm text-[hsl(var(--muted-foreground))]">
             Principal view — today&apos;s overview for your institution.
           </p>
@@ -104,16 +98,11 @@ export default function SchoolDashboard() {
       </header>
 
       {/* KPI grid */}
-      <DashboardSection
-        title="At a glance"
-        description="Live KPIs for your institution"
-      >
+      <DashboardSection title="At a glance" description="Live KPIs for your institution">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label="Total enrollment"
-            value={
-              kpis ? NUMBER_FORMAT.format(kpis.totalStudents) : '—'
-            }
+            value={kpis ? NUMBER_FORMAT.format(kpis.totalStudents) : '—'}
             icon={<Users className="h-5 w-5" aria-hidden="true" />}
             description="Students currently enrolled"
             loading={isLoading}
@@ -134,9 +123,7 @@ export default function SchoolDashboard() {
             value={kpis ? formatPercent(utilization) : '—'}
             icon={<UsersRound className="h-5 w-5" aria-hidden="true" />}
             description={
-              kpis
-                ? `${kpis.staffOnDuty} of ${kpis.totalStaff} staff on duty`
-                : undefined
+              kpis ? `${kpis.staffOnDuty} of ${kpis.totalStaff} staff on duty` : undefined
             }
             loading={isLoading}
             error={error}
@@ -155,10 +142,7 @@ export default function SchoolDashboard() {
       </DashboardSection>
 
       {/* Quick actions */}
-      <DashboardSection
-        title="Quick actions"
-        description="Shortcuts to the workflows you use most"
-      >
+      <DashboardSection title="Quick actions" description="Shortcuts to the workflows you use most">
         <div className="flex flex-wrap gap-3">
           <Button asChild data-testid="action-mark-attendance">
             <Link to="/app/attendance/today">
@@ -192,9 +176,7 @@ export default function SchoolDashboard() {
             <Card data-testid="recent-activity">
               <CardHeader className="space-y-0 pb-2">
                 <CardTitle className="text-base">Latest events</CardTitle>
-                <CardDescription>
-                  Newest updates appear first
-                </CardDescription>
+                <CardDescription>Newest updates appear first</CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 {data.recentActivity.length === 0 ? (

@@ -41,7 +41,7 @@ class RBACMockDataSource implements ReportDataSource {
     // RBAC filtering: only return rows whose areaId is in user's accessible areas
     const accessibleAreas = new Set(userContext.accessibleAreaIds);
 
-    const filteredRows = this.allRows.filter(row => {
+    const filteredRows = this.allRows.filter((row) => {
       const rowArea = row['areaId'] as string;
       return accessibleAreas.has(rowArea);
     });
@@ -92,7 +92,7 @@ describe('Report Service - RBAC Scope Filtering (Property)', () => {
           }
 
           // Ensure there's at least one row in an inaccessible area
-          if (!allRows.some(r => inaccessibleAreas.includes(r['areaId'] as string))) {
+          if (!allRows.some((r) => inaccessibleAreas.includes(r['areaId'] as string))) {
             allRows.push({
               id: uuidv4(),
               areaId: inaccessibleAreas[0],

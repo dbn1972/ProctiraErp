@@ -62,7 +62,12 @@ async function buildGateway(target: string, timeoutMs?: number): Promise<Fastify
   const app = Fastify();
   await app.register(serviceRouter, {
     services: {
-      students: { prefix: '/students', target, healthCheck: '/health', ...(timeoutMs ? { timeoutMs } : {}) },
+      students: {
+        prefix: '/students',
+        target,
+        healthCheck: '/health',
+        ...(timeoutMs ? { timeoutMs } : {}),
+      },
     },
     versionPrefix: '/api/v1',
   });
@@ -97,7 +102,11 @@ describe('service-router proxy', () => {
       method: 'POST',
       url: '/api/v1/students/echo',
       payload,
-      headers: { 'content-type': 'application/json', authorization: 'Bearer t', 'x-tenant-id': 'tenant-1' },
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer t',
+        'x-tenant-id': 'tenant-1',
+      },
     });
 
     expect(res.statusCode).toBe(201);

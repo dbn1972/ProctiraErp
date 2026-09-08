@@ -54,15 +54,14 @@ export interface ExternalIdentityStore {
   /**
    * Find an existing identity link by email within a tenant.
    */
-  findByEmail(
-    email: string,
-    tenantId: string,
-  ): Promise<ExternalIdentityLink | null>;
+  findByEmail(email: string, tenantId: string): Promise<ExternalIdentityLink | null>;
 
   /**
    * Create a new identity link.
    */
-  create(link: Omit<ExternalIdentityLink, 'createdAt' | 'lastUsedAt'>): Promise<ExternalIdentityLink>;
+  create(
+    link: Omit<ExternalIdentityLink, 'createdAt' | 'lastUsedAt'>,
+  ): Promise<ExternalIdentityLink>;
 
   /**
    * Update the last used timestamp for an identity link.
@@ -148,7 +147,10 @@ export class ExternalAuthHandler {
    * Initiate authentication with an external provider.
    * Returns the redirect URL for the user.
    */
-  async initiateAuth(providerId: string, tenantId: string): Promise<{ redirectUrl: string; state: string }> {
+  async initiateAuth(
+    providerId: string,
+    tenantId: string,
+  ): Promise<{ redirectUrl: string; state: string }> {
     const provider = this.providerRegistry.getProvider(providerId);
     const result = await provider.initiateAuth(tenantId);
     return { redirectUrl: result.redirectUrl, state: result.state };
@@ -181,11 +183,7 @@ export class ExternalAuthHandler {
     });
 
     // Issue platform JWT tokens
-    const tokens = await this.tokenService.issueTokenPair(
-      user,
-      session.id,
-      clientInfo?.ipAddress,
-    );
+    const tokens = await this.tokenService.issueTokenPair(user, session.id, clientInfo?.ipAddress);
 
     return {
       tokens,

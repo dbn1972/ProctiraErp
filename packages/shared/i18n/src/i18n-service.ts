@@ -38,10 +38,7 @@ function resolveKey(map: TranslationMap, key: string): string | undefined {
  * Interpolates parameters into a translation string.
  * Replaces {{paramName}} placeholders with provided values.
  */
-function interpolate(
-  template: string,
-  params?: Record<string, string>,
-): string {
+function interpolate(template: string, params?: Record<string, string>): string {
   if (!params) return template;
 
   return template.replace(/\{\{(\w+)\}\}/g, (match, paramName: string) => {
@@ -123,11 +120,7 @@ export class I18nServiceImpl implements I18nService {
     return new Intl.NumberFormat(this.currentLocale, intlOptions).format(value);
   }
 
-  formatCurrency(
-    amount: number,
-    currency: string,
-    options?: CurrencyFormatOptions,
-  ): string {
+  formatCurrency(amount: number, currency: string, options?: CurrencyFormatOptions): string {
     const intlOptions: Intl.NumberFormatOptions = {
       style: 'currency',
       currency,
@@ -175,9 +168,7 @@ export class I18nServiceImpl implements I18nService {
     return chain;
   }
 
-  private getDateFormatOptions(
-    style: DateFormatStyle,
-  ): Intl.DateTimeFormatOptions {
+  private getDateFormatOptions(style: DateFormatStyle): Intl.DateTimeFormatOptions {
     switch (style) {
       case 'short':
         return { year: 'numeric', month: 'numeric', day: 'numeric' };

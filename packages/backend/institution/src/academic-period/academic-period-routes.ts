@@ -11,7 +11,10 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import { AcademicPeriodService } from './academic-period-service.js';
-import type { CreateAcademicPeriodDto, UpdateAcademicPeriodDto } from './academic-period-schemas.js';
+import type {
+  CreateAcademicPeriodDto,
+  UpdateAcademicPeriodDto,
+} from './academic-period-schemas.js';
 
 export interface AcademicPeriodRoutesOptions {
   service: AcademicPeriodService;

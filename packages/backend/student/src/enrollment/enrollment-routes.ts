@@ -29,7 +29,11 @@ import {
   type StudentParams,
   type EnrollmentListQuery,
 } from './schemas.js';
-import type { EnrollmentEntity, EnrollmentHistoryEntity, TransferRecordEntity } from './enrollment-repository.js';
+import type {
+  EnrollmentEntity,
+  EnrollmentHistoryEntity,
+  TransferRecordEntity,
+} from './enrollment-repository.js';
 
 /**
  * Options for registering enrollment routes.
@@ -178,15 +182,16 @@ export async function registerEnrollmentRoutes(
         institutionId: query.institutionId,
         academicPeriodId: query.academicPeriodId,
       };
-      if (query.status === 'ENROLLED' || query.status === 'TRANSFERRED' || query.status === 'WITHDRAWN' || query.status === 'GRADUATED') {
+      if (
+        query.status === 'ENROLLED' ||
+        query.status === 'TRANSFERRED' ||
+        query.status === 'WITHDRAWN' ||
+        query.status === 'GRADUATED'
+      ) {
         filter.status = query.status;
       }
 
-      const result = await enrollmentService.listEnrollments(
-        tenantId,
-        filter,
-        { page, pageSize },
-      );
+      const result = await enrollmentService.listEnrollments(tenantId, filter, { page, pageSize });
 
       return reply.status(200).send({
         data: result.data.map(formatEnrollmentResponse),
@@ -225,7 +230,10 @@ export async function registerEnrollmentRoutes(
       }
 
       try {
-        const enrollment = await enrollmentService.getEnrollmentById(tenantId, paramsResult.data.id);
+        const enrollment = await enrollmentService.getEnrollmentById(
+          tenantId,
+          paramsResult.data.id,
+        );
         return reply.status(200).send(formatEnrollmentResponse(enrollment));
       } catch (error: unknown) {
         if (error instanceof AppError) {

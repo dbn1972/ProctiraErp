@@ -254,9 +254,7 @@ describe('StudentService', () => {
       const created = await service.create(TENANT_ID, input);
 
       const updateInput: UpdateStudentInput = {
-        guardians: [
-          { firstName: 'Robert', lastName: 'Doe', relationship: 'father' },
-        ],
+        guardians: [{ firstName: 'Robert', lastName: 'Doe', relationship: 'father' }],
       };
       const updated = await service.update(TENANT_ID, created.id, updateInput);
 
@@ -333,25 +331,23 @@ describe('StudentService', () => {
       await service.create(TENANT_ID, validCreateInput({ firstName: 'Alice', lastName: 'Smith' }));
       await service.create(TENANT_ID, validCreateInput({ firstName: 'Bob', lastName: 'Jones' }));
 
-      const result = await service.list(
-        TENANT_ID,
-        { search: 'alice' },
-        { page: 1, pageSize: 20 },
-      );
+      const result = await service.list(TENANT_ID, { search: 'alice' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].firstName).toBe('Alice');
     });
 
     it('should filter by search term (national ID)', async () => {
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Alice', nationalId: 'NID-ABC' }));
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Bob', nationalId: 'NID-XYZ' }));
-
-      const result = await service.list(
+      await service.create(
         TENANT_ID,
-        { search: 'ABC' },
-        { page: 1, pageSize: 20 },
+        validCreateInput({ firstName: 'Alice', nationalId: 'NID-ABC' }),
       );
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Bob', nationalId: 'NID-XYZ' }),
+      );
+
+      const result = await service.list(TENANT_ID, { search: 'ABC' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].nationalId).toBe('NID-ABC');
@@ -381,7 +377,10 @@ describe('StudentService', () => {
 
   describe('search', () => {
     it('should find students by first name', async () => {
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Alexander', lastName: 'Hamilton' }));
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Alexander', lastName: 'Hamilton' }),
+      );
       await service.create(TENANT_ID, validCreateInput({ firstName: 'Bob', lastName: 'Smith' }));
 
       const result = await service.search(TENANT_ID, 'Alexander', { page: 1, pageSize: 20 });
@@ -391,7 +390,10 @@ describe('StudentService', () => {
     });
 
     it('should find students by last name', async () => {
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'John', lastName: 'Hamilton' }));
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'John', lastName: 'Hamilton' }),
+      );
       await service.create(TENANT_ID, validCreateInput({ firstName: 'Bob', lastName: 'Smith' }));
 
       const result = await service.search(TENANT_ID, 'Hamilton', { page: 1, pageSize: 20 });
@@ -401,8 +403,14 @@ describe('StudentService', () => {
     });
 
     it('should find students by national ID', async () => {
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Alice', nationalId: 'NID-SEARCH-001' }));
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Bob', nationalId: 'NID-OTHER-002' }));
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Alice', nationalId: 'NID-SEARCH-001' }),
+      );
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Bob', nationalId: 'NID-OTHER-002' }),
+      );
 
       const result = await service.search(TENANT_ID, 'SEARCH-001', { page: 1, pageSize: 20 });
 
@@ -412,7 +420,10 @@ describe('StudentService', () => {
 
     it('should return paginated search results', async () => {
       for (let i = 0; i < 5; i++) {
-        await service.create(TENANT_ID, validCreateInput({ firstName: `John${i}`, lastName: 'Doe' }));
+        await service.create(
+          TENANT_ID,
+          validCreateInput({ firstName: `John${i}`, lastName: 'Doe' }),
+        );
       }
 
       const result = await service.search(TENANT_ID, 'Doe', { page: 1, pageSize: 2 });

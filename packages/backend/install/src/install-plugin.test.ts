@@ -141,12 +141,25 @@ describe('installPlugin (Fastify routes)', () => {
       await app.inject({
         method: 'POST',
         url: '/install/configure/database',
-        payload: { provider: 'postgresql', host: 'localhost', port: 5432, database: 'proctira', username: 'admin', password: 'secret' },
+        payload: {
+          provider: 'postgresql',
+          host: 'localhost',
+          port: 5432,
+          database: 'proctira',
+          username: 'admin',
+          password: 'secret',
+        },
       });
       await app.inject({
         method: 'POST',
         url: '/install/configure/storage',
-        payload: { adapter: 'minio', bucket: 'files', endpoint: 'http://localhost:9000', accessKeyId: 'admin', secretAccessKey: 'secret' },
+        payload: {
+          adapter: 'minio',
+          bucket: 'files',
+          endpoint: 'http://localhost:9000',
+          accessKeyId: 'admin',
+          secretAccessKey: 'secret',
+        },
       });
       await app.inject({
         method: 'POST',
@@ -156,7 +169,10 @@ describe('installPlugin (Fastify routes)', () => {
       await app.inject({
         method: 'POST',
         url: '/install/configure/queue',
-        payload: { backend: 'rabbitmq', rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' } },
+        payload: {
+          backend: 'rabbitmq',
+          rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' },
+        },
       });
 
       const response = await app.inject({
@@ -317,12 +333,25 @@ describe('installPlugin (Fastify routes)', () => {
       await app.inject({
         method: 'POST',
         url: '/install/configure/database',
-        payload: { provider: 'postgresql', host: 'localhost', port: 5432, database: 'proctira', username: 'admin', password: 'secret' },
+        payload: {
+          provider: 'postgresql',
+          host: 'localhost',
+          port: 5432,
+          database: 'proctira',
+          username: 'admin',
+          password: 'secret',
+        },
       });
       await app.inject({
         method: 'POST',
         url: '/install/configure/storage',
-        payload: { adapter: 'minio', bucket: 'files', endpoint: 'http://localhost:9000', accessKeyId: 'admin', secretAccessKey: 'secret' },
+        payload: {
+          adapter: 'minio',
+          bucket: 'files',
+          endpoint: 'http://localhost:9000',
+          accessKeyId: 'admin',
+          secretAccessKey: 'secret',
+        },
       });
       await app.inject({
         method: 'POST',
@@ -332,7 +361,10 @@ describe('installPlugin (Fastify routes)', () => {
       await app.inject({
         method: 'POST',
         url: '/install/configure/queue',
-        payload: { backend: 'rabbitmq', rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' } },
+        payload: {
+          backend: 'rabbitmq',
+          rabbitmq: { url: 'amqp://localhost:5672', exchange: 'proctira' },
+        },
       });
 
       const response = await app.inject({

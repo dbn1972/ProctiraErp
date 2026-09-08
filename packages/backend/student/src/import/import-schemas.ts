@@ -12,7 +12,9 @@ export const ImportOptionsSchema = Type.Object({
     { description: 'How to handle detected duplicates: skip, update existing, or create new' },
   ),
   async: Type.Optional(
-    Type.Boolean({ description: 'Force async processing via queue (auto-determined for large files)' }),
+    Type.Boolean({
+      description: 'Force async processing via queue (auto-determined for large files)',
+    }),
   ),
 });
 

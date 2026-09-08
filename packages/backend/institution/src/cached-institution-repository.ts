@@ -25,7 +25,9 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     private readonly cache?: CacheClient,
   ) {}
 
-  async create(data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>): Promise<InstitutionEntity> {
+  async create(
+    data: Omit<InstitutionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<InstitutionEntity> {
     const result = await this.delegate.create(data);
     if (this.cache) {
       // Invalidate area-based list caches for this tenant
@@ -34,7 +36,11 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     return result;
   }
 
-  async update(id: string, tenantId: string, data: Partial<InstitutionEntity>): Promise<InstitutionEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<InstitutionEntity>,
+  ): Promise<InstitutionEntity | null> {
     const result = await this.delegate.update(id, tenantId, data);
     if (result && this.cache) {
       // Invalidate the entity cache and area-based list caches
@@ -63,7 +69,11 @@ export class CachedInstitutionRepository implements InstitutionRepository {
     return this.delegate.findByCode(code);
   }
 
-  async findByNameInArea(name: string, areaId: string, tenantId: string): Promise<InstitutionEntity | null> {
+  async findByNameInArea(
+    name: string,
+    areaId: string,
+    tenantId: string,
+  ): Promise<InstitutionEntity | null> {
     // Name-in-area lookups are not cached (used for uniqueness checks during writes)
     return this.delegate.findByNameInArea(name, areaId, tenantId);
   }

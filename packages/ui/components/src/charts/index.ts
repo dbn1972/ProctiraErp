@@ -74,11 +74,7 @@ export {
   type ChartTokenName,
 } from './useChartPalette';
 
-export {
-  ThemedXAxis,
-  ThemedYAxis,
-  ThemedCartesianGrid,
-} from './ThemedAxis';
+export { ThemedXAxis, ThemedYAxis, ThemedCartesianGrid } from './ThemedAxis';
 
 export { ThemedTooltip } from './ThemedTooltip';
 

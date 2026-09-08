@@ -98,12 +98,16 @@ export interface LedgerTrialBalance {
 /** Thrown when a journal's debits and credits do not balance. */
 export class UnbalancedJournalError extends Error {
   constructor(journalId: string, debitCents: number, creditCents: number) {
-    super(`Fee ledger journal ${journalId} is unbalanced (debit ${debitCents} <> credit ${creditCents})`);
+    super(
+      `Fee ledger journal ${journalId} is unbalanced (debit ${debitCents} <> credit ${creditCents})`,
+    );
     this.name = 'UnbalancedJournalError';
   }
 }
 
-export function assertJournalBalanced(entries: ReadonlyArray<Pick<FeeLedgerEntryEntity, 'journalId' | 'side' | 'amountCents'>>): void {
+export function assertJournalBalanced(
+  entries: ReadonlyArray<Pick<FeeLedgerEntryEntity, 'journalId' | 'side' | 'amountCents'>>,
+): void {
   const byJournal = new Map<string, { debit: number; credit: number }>();
   for (const e of entries) {
     const acc = byJournal.get(e.journalId) ?? { debit: 0, credit: 0 };

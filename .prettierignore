@@ -13,3 +13,10 @@ infrastructure/helm/**/templates/**
 tools/dod-checks/reports/baseline.json
 tools/dod-checks/reports/dod-report.json
 *.tsbuildinfo
+
+# Playwright / visual artifacts (binary + ephemeral)
+**/test-results/**
+**/playwright-report/**
+**/*.spec.ts-snapshots/**
+*.png
+*.zip

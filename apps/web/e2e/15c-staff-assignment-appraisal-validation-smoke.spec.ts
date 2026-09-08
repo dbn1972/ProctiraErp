@@ -15,9 +15,7 @@ test.describe('Staff assignment / appraisal validation — ungated', () => {
     await setupFakeTenantSession(page, { sub: 'staff-e2e-user', displayName: 'Staff E2E Admin' });
   });
 
-  test('/staff/[id]/assignments/new validates required fields before submit', async ({
-    page,
-  }) => {
+  test('/staff/[id]/assignments/new validates required fields before submit', async ({ page }) => {
     const response = await page.goto(`/staff/${STAFF_ID}/assignments/new`, {
       waitUntil: 'domcontentloaded',
     });
@@ -35,18 +33,13 @@ test.describe('Staff assignment / appraisal validation — ungated', () => {
     await expect(page.getByText('Must be a valid UUID').first()).toBeVisible();
   });
 
-  test('/staff/[id]/appraisals/new validates required fields before submit', async ({
-    page,
-  }) => {
+  test('/staff/[id]/appraisals/new validates required fields before submit', async ({ page }) => {
     const response = await page.goto(`/staff/${STAFF_ID}/appraisals/new`, {
       waitUntil: 'domcontentloaded',
     });
     expect(response?.status() ?? 500).toBeLessThan(400);
     await expect(page.getByRole('heading', { name: /new appraisal/i })).toBeVisible();
-    await expect(page.getByTestId('staff-appraisal-form')).toHaveAttribute(
-      'data-hydrated',
-      'true',
-    );
+    await expect(page.getByTestId('staff-appraisal-form')).toHaveAttribute('data-hydrated', 'true');
 
     await page.locator('#appraisalDate').fill('');
     const scoreInput = page.locator('#scores\\.0\\.score');

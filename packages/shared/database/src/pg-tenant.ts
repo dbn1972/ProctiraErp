@@ -19,7 +19,10 @@
 
 /** Minimal queryable surface (pg.Pool, PoolClient, or test double). */
 export interface PgQueryable {
-  query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] } & Record<string, unknown>>;
+  query: (
+    text: string,
+    values?: unknown[],
+  ) => Promise<{ rows: unknown[] } & Record<string, unknown>>;
 }
 
 /** Pool that can check out a client (real pg.Pool). */

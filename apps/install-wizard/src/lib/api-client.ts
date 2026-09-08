@@ -209,7 +209,9 @@ class InstallApiClient {
     return response.json() as Promise<BootstrapResult>;
   }
 
-  async createAdminAccount(config: AdminAccountConfig): Promise<{ success: boolean; error?: string }> {
+  async createAdminAccount(
+    config: AdminAccountConfig,
+  ): Promise<{ success: boolean; error?: string }> {
     await this.ensureSession();
     const response = await fetch(`${this.baseUrl}/admin`, {
       method: 'POST',
@@ -241,7 +243,8 @@ class InstallApiClient {
       return {
         success: false,
         step: data.step ?? path,
-        message: data.message ?? data.error ?? `Request failed: ${response.statusText || response.status}`,
+        message:
+          data.message ?? data.error ?? `Request failed: ${response.statusText || response.status}`,
         error: data.error ?? response.statusText,
       };
     }

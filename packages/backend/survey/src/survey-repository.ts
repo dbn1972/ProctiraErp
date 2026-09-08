@@ -80,7 +80,11 @@ export interface SurveyRepository {
   create(data: Omit<SurveyEntity, 'createdAt' | 'updatedAt'>): Promise<SurveyEntity>;
 
   /** Update an existing survey */
-  update(id: string, tenantId: string, data: Partial<Omit<SurveyEntity, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>>): Promise<SurveyEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<Omit<SurveyEntity, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<SurveyEntity | null>;
 
   /** Find a survey by ID within a tenant */
   findById(id: string, tenantId: string): Promise<SurveyEntity | null>;
@@ -124,10 +128,16 @@ export interface DistributionRecordEntity {
  */
 export interface DistributionRepository {
   /** Create distribution records for multiple institutions */
-  createMany(records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[]): Promise<DistributionRecordEntity[]>;
+  createMany(
+    records: Omit<DistributionRecordEntity, 'createdAt' | 'updatedAt'>[],
+  ): Promise<DistributionRecordEntity[]>;
 
   /** Find distribution record for a specific survey and institution */
-  findBySurveyAndInstitution(tenantId: string, surveyId: string, institutionId: string): Promise<DistributionRecordEntity | null>;
+  findBySurveyAndInstitution(
+    tenantId: string,
+    surveyId: string,
+    institutionId: string,
+  ): Promise<DistributionRecordEntity | null>;
 
   /** Find all distribution records for a survey */
   findBySurvey(tenantId: string, surveyId: string): Promise<DistributionRecordEntity[]>;
@@ -136,7 +146,11 @@ export interface DistributionRepository {
   findIncompleteBySurvey(tenantId: string, surveyId: string): Promise<DistributionRecordEntity[]>;
 
   /** Update a distribution record */
-  update(id: string, tenantId: string, data: Partial<Pick<DistributionRecordEntity, 'status' | 'submittedAt' | 'remindersSent'>>): Promise<DistributionRecordEntity | null>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<DistributionRecordEntity, 'status' | 'submittedAt' | 'remindersSent'>>,
+  ): Promise<DistributionRecordEntity | null>;
 
   /** Count distribution records by status for a survey */
   countByStatus(tenantId: string, surveyId: string): Promise<Record<CompletionStatus, number>>;
@@ -174,7 +188,11 @@ export interface SubmissionRepository {
   findBySurvey(tenantId: string, surveyId: string): Promise<SubmissionEntity[]>;
 
   /** Find submission for a specific survey and institution */
-  findBySurveyAndInstitution(tenantId: string, surveyId: string, institutionId: string): Promise<SubmissionEntity | null>;
+  findBySurveyAndInstitution(
+    tenantId: string,
+    surveyId: string,
+    institutionId: string,
+  ): Promise<SubmissionEntity | null>;
 }
 
 // ─── Institution Lookup Interface ────────────────────────────────────────────

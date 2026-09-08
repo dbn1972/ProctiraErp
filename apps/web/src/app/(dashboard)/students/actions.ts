@@ -97,9 +97,7 @@ export async function updateStudentAction(
 
 /* ------------------------------------------------------------------- Delete */
 
-export async function deleteStudentAction(
-  studentId: string,
-): Promise<ActionState> {
+export async function deleteStudentAction(studentId: string): Promise<ActionState> {
   try {
     await deleteStudent(studentId);
     revalidatePath('/students');
@@ -234,9 +232,7 @@ function stripDocumentBlanks(d: StudentFormValues['identityDocuments'][number]) 
   return out;
 }
 
-function zodFlatten(
-  fieldErrors: Record<string, string[] | undefined>,
-): Record<string, string> {
+function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fieldErrors)) {
     if (value && value.length > 0 && value[0]) out[key] = value[0];
@@ -256,7 +252,6 @@ function toErrorState<T = unknown>(error: unknown, fallback: string): ActionStat
   }
   return { status: 'error', message: fallback };
 }
-
 
 /* ----------------------------------------------------- Lookup helpers */
 

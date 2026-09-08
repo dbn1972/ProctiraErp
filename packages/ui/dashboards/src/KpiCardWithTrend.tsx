@@ -79,11 +79,7 @@ interface SparkPoint {
 
 function TrendChip({ trend }: { trend: KpiTrend }) {
   const Icon =
-    trend.direction === 'up'
-      ? ArrowUpRight
-      : trend.direction === 'down'
-        ? ArrowDownRight
-        : Minus;
+    trend.direction === 'up' ? ArrowUpRight : trend.direction === 'down' ? ArrowDownRight : Minus;
   const tone =
     trend.direction === 'up'
       ? 'text-[hsl(var(--success))]'
@@ -92,10 +88,7 @@ function TrendChip({ trend }: { trend: KpiTrend }) {
         : 'text-[hsl(var(--muted-foreground))]';
   return (
     <span
-      className={cn(
-        'inline-flex items-center gap-1 text-sm font-medium',
-        tone,
-      )}
+      className={cn('inline-flex items-center gap-1 text-sm font-medium', tone)}
       aria-label={trend.ariaLabel ?? trend.label}
       data-testid="kpi-trend"
       data-direction={trend.direction}
@@ -168,9 +161,7 @@ export function KpiCardWithTrend({
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <p className="text-sm text-[hsl(var(--destructive))]">
-            Unable to load this metric.
-          </p>
+          <p className="text-sm text-[hsl(var(--destructive))]">Unable to load this metric.</p>
         </CardContent>
       </Card>
     );
@@ -183,20 +174,13 @@ export function KpiCardWithTrend({
   const showSparkline = data.length >= 2;
 
   return (
-    <Card
-      className={cn('overflow-hidden', className)}
-      data-testid={dataTestId}
-      data-state="ready"
-    >
+    <Card className={cn('overflow-hidden', className)} data-testid={dataTestId} data-state="ready">
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-[hsl(var(--muted-foreground))]">
           {label}
         </CardTitle>
         {icon ? (
-          <span
-            className="text-[hsl(var(--muted-foreground))]"
-            aria-hidden="true"
-          >
+          <span className="text-[hsl(var(--muted-foreground))]" aria-hidden="true">
             {icon}
           </span>
         ) : null}
@@ -210,16 +194,10 @@ export function KpiCardWithTrend({
         </div>
         {trend ? <TrendChip trend={trend} /> : null}
         {description ? (
-          <p className="text-sm text-[hsl(var(--muted-foreground))]">
-            {description}
-          </p>
+          <p className="text-sm text-[hsl(var(--muted-foreground))]">{description}</p>
         ) : null}
         {showSparkline ? (
-          <div
-            style={{ height: sparklineHeight }}
-            data-testid="kpi-sparkline"
-            aria-hidden="true"
-          >
+          <div style={{ height: sparklineHeight }} data-testid="kpi-sparkline" aria-hidden="true">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data as SparkPoint[]}>
                 <Line

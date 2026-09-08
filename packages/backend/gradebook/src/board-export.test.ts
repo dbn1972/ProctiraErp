@@ -168,9 +168,9 @@ describe('GradebookService board exports', () => {
     });
     expect(file.body.toString('utf8')).toContain('NID-1');
 
-    await expect(
-      service.downloadBoardExport(TENANT_B, done.id, 'csv'),
-    ).rejects.toThrow(/not found/i);
+    await expect(service.downloadBoardExport(TENANT_B, done.id, 'csv')).rejects.toThrow(
+      /not found/i,
+    );
 
     const audits = service.listAudits(TENANT);
     expect(audits.some((a) => a.action === 'board_export.create')).toBe(true);

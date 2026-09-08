@@ -137,7 +137,7 @@ export class CacheClient {
           'MATCH',
           prefixedPattern,
           'COUNT',
-          100
+          100,
         );
         cursor = nextCursor;
 

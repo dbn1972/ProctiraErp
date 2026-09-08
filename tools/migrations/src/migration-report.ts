@@ -74,7 +74,7 @@ export interface MigrationReport {
  * with target migrated data.
  */
 export async function generateMigrationReport(
-  config: MigrationConfig
+  config: MigrationConfig,
 ): Promise<MigrationStepResult> {
   const startTime = Date.now();
   const errors: MigrationStepResult['errors'] = [];
@@ -121,13 +121,12 @@ export async function generateMigrationReport(
       const tableDuration = Date.now() - tableStart;
       console.log(
         `[report]   ${mapping.sourceTable} → ${mapping.targetTable}: ` +
-          `${stats.migratedRowCount}/${stats.sourceRowCount} rows (${tableDuration}ms)`
+          `${stats.migratedRowCount}/${stats.sourceRowCount} rows (${tableDuration}ms)`,
       );
     }
 
     const totalSkipped = totalSourceRows - totalMigratedRows;
-    const successRate =
-      totalSourceRows > 0 ? (totalMigratedRows / totalSourceRows) * 100 : 100;
+    const successRate = totalSourceRows > 0 ? (totalMigratedRows / totalSourceRows) * 100 : 100;
 
     const report: MigrationReport = {
       generatedAt: new Date().toISOString(),
@@ -149,12 +148,7 @@ export async function generateMigrationReport(
       },
       tables: tableStats,
       unmigrated: allUnmigrated,
-      status:
-        successRate === 100
-          ? 'complete'
-          : successRate >= 95
-            ? 'partial'
-            : 'failed',
+      status: successRate === 100 ? 'complete' : successRate >= 95 ? 'partial' : 'failed',
     };
 
     // Print report summary
@@ -208,7 +202,7 @@ export async function generateMigrationReport(
 async function collectTableStats(
   client: PoolClient,
   mapping: TableMapping,
-  config: MigrationConfig
+  config: MigrationConfig,
 ): Promise<TableMigrationStats> {
   const tableStart = Date.now();
   const unmigrated: UnmigratedRecord[] = [];
@@ -218,7 +212,7 @@ async function collectTableStats(
   let sourceRowCount = 0;
   try {
     const sourceResult = await client.query(
-      `SELECT COUNT(*) as count FROM "${config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`
+      `SELECT COUNT(*) as count FROM "${config.stagingSchema}"."${mapping.sourceTable}" ${filterClause}`,
     );
     sourceRowCount = parseInt(sourceResult.rows[0].count, 10);
   } catch {
@@ -230,7 +224,7 @@ async function collectTableStats(
   let migratedRowCount = 0;
   try {
     const targetResult = await client.query(
-      `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${mapping.targetTable}"`
+      `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${mapping.targetTable}"`,
     );
     migratedRowCount = parseInt(targetResult.rows[0].count, 10);
   } catch {
@@ -239,17 +233,12 @@ async function collectTableStats(
 
   // Identify unmigrated rows by finding source IDs not in target
   if (sourceRowCount > migratedRowCount) {
-    const unmigratedRecords = await identifyUnmigratedRows(
-      client,
-      mapping,
-      config
-    );
+    const unmigratedRecords = await identifyUnmigratedRows(client, mapping, config);
     unmigrated.push(...unmigratedRecords);
   }
 
   const durationMs = Date.now() - tableStart;
-  const rowsPerSecond =
-    durationMs > 0 ? Math.round((migratedRowCount / durationMs) * 1000) : 0;
+  const rowsPerSecond = durationMs > 0 ? Math.round((migratedRowCount / durationMs) * 1000) : 0;
 
   return {
     sourceTable: mapping.sourceTable,
@@ -269,7 +258,7 @@ async function collectTableStats(
 async function identifyUnmigratedRows(
   client: PoolClient,
   mapping: TableMapping,
-  config: MigrationConfig
+  config: MigrationConfig,
 ): Promise<UnmigratedRecord[]> {
   const unmigrated: UnmigratedRecord[] = [];
   const limit = 100; // Cap detailed analysis to first 100 unmigrated rows
@@ -292,12 +281,7 @@ async function identifyUnmigratedRows(
 
     // For each unmigrated row, determine the reason
     for (const row of result.rows) {
-      const reason = await diagnoseUnmigratedRow(
-        client,
-        mapping,
-        row.legacy_id,
-        config
-      );
+      const reason = await diagnoseUnmigratedRow(client, mapping, row.legacy_id, config);
       unmigrated.push(reason);
     }
   } catch {
@@ -320,7 +304,7 @@ async function diagnoseUnmigratedRow(
   client: PoolClient,
   mapping: TableMapping,
   legacyId: number | string,
-  config: MigrationConfig
+  config: MigrationConfig,
 ): Promise<UnmigratedRecord> {
   // Check for NULL required fields
   for (const col of mapping.columns) {
@@ -328,7 +312,7 @@ async function diagnoseUnmigratedRow(
       try {
         const result = await client.query(
           `SELECT "${col.source}" FROM "${config.stagingSchema}"."${mapping.sourceTable}" WHERE "${mapping.legacyPkColumn}" = $1`,
-          [legacyId]
+          [legacyId],
         );
         if (result.rows.length > 0 && result.rows[0][col.source] === null) {
           return {
@@ -352,12 +336,12 @@ async function diagnoseUnmigratedRow(
          FROM "${config.stagingSchema}"."${mapping.sourceTable}" s
          WHERE s."${mapping.legacyPkColumn}" = $1
            AND s."${fk.column}" IS NOT NULL`,
-        [legacyId]
+        [legacyId],
       );
       if (result.rows.length > 0) {
         const fkValue = result.rows[0].fk_value;
         const refResult = await client.query(
-          `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${fk.targetReferencesTable}" WHERE id IS NOT NULL`
+          `SELECT COUNT(*) as count FROM "${config.pg.schema}"."${fk.targetReferencesTable}" WHERE id IS NOT NULL`,
         );
         if (parseInt(refResult.rows[0].count, 10) === 0) {
           return {
@@ -379,7 +363,7 @@ async function diagnoseUnmigratedRow(
       try {
         const result = await client.query(
           `SELECT "${col.source}" FROM "${config.stagingSchema}"."${mapping.sourceTable}" WHERE "${mapping.legacyPkColumn}" = $1`,
-          [legacyId]
+          [legacyId],
         );
         if (result.rows.length > 0) {
           const value = String(result.rows[0][col.source]);

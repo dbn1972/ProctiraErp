@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * ThemeProvider — Theme mode context (Design Section B, Requirement 36)
@@ -169,8 +169,7 @@ function useResolvedStorageKey(override?: string): string {
     const { brand } = useBrand();
     // The `Brand` interface in BrandConfigProvider exposes `slug` today;
     // future tenants may add an explicit `shortName` field. Either works.
-    brandShortName =
-      (brand as { shortName?: string }).shortName ?? brand.slug ?? undefined;
+    brandShortName = (brand as { shortName?: string }).shortName ?? brand.slug ?? undefined;
   } catch {
     brandShortName = undefined;
   }

@@ -32,9 +32,7 @@ describe('Notification Routes', () => {
     service = new NotificationService(repository);
 
     // Seed test users
-    repository.seedUsers([
-      { id: userId1, roleIds: [roleId1], areaIds: [], institutionIds: [] },
-    ]);
+    repository.seedUsers([{ id: userId1, roleIds: [roleId1], areaIds: [], institutionIds: [] }]);
 
     // Create a template
     await repository.createTemplate({

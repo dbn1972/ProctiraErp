@@ -216,9 +216,7 @@ export class PrismaExaminationRepository implements ExaminationRepository {
       const page = Math.max(1, pagination.page);
       const pageSize = Math.max(1, pagination.pageSize);
       const sortBy =
-        pagination.sortBy && SORTABLE_COLUMNS.has(pagination.sortBy)
-          ? pagination.sortBy
-          : 'name';
+        pagination.sortBy && SORTABLE_COLUMNS.has(pagination.sortBy) ? pagination.sortBy : 'name';
       const sortOrder = pagination.sortOrder ?? 'asc';
 
       const [totalItems, rows] = await Promise.all([
@@ -283,9 +281,7 @@ export class PrismaExaminationRepository implements ExaminationRepository {
     });
   }
 
-  async createCandidateRegistration(
-    data: CandidateRegistration,
-  ): Promise<CandidateRegistration> {
+  async createCandidateRegistration(data: CandidateRegistration): Promise<CandidateRegistration> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
       const row = (await tx.examinationCandidateRegistration.create({
         data: {

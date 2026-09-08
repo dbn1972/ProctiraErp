@@ -64,7 +64,10 @@ export interface PdfGenerator {
  */
 export class SimplePdfGenerator implements PdfGenerator {
   private newFlow(examination: ExaminationInfo, title: string): PdfFlow {
-    const doc = new PdfDocument({ title: `${title} - ${examination.name}`, author: 'ProctiraERP Examinations' });
+    const doc = new PdfDocument({
+      title: `${title} - ${examination.name}`,
+      author: 'ProctiraERP Examinations',
+    });
     return new PdfFlow(doc, {
       header: `${examination.name} (${examination.code})`,
       footer: `${title} - Page {page} of {pages}`,

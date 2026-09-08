@@ -23,10 +23,19 @@ export { examinationPlugin } from './examination-plugin.js';
 export type { ExaminationPluginOptions } from './examination-plugin.js';
 
 // Service
-export { ExaminationService, MIN_DAYS_IN_FUTURE, MAX_GRADING_SCHEMES, MIN_GRADING_SCHEMES } from './examination-service.js';
+export {
+  ExaminationService,
+  MIN_DAYS_IN_FUTURE,
+  MAX_GRADING_SCHEMES,
+  MIN_GRADING_SCHEMES,
+} from './examination-service.js';
 
 // Result Publication Service
-export { ResultPublicationService, MAX_PUBLICATION_DURATION_MS, SCORE_DISTRIBUTION_BUCKETS } from './result-publication-service.js';
+export {
+  ResultPublicationService,
+  MAX_PUBLICATION_DURATION_MS,
+  SCORE_DISTRIBUTION_BUCKETS,
+} from './result-publication-service.js';
 
 // Document Generation Service
 export {

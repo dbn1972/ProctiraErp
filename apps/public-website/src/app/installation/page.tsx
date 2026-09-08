@@ -1,23 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  ArrowRight,
-  BookOpen,
-  Boxes,
-  Cloud,
-  Code2,
-  Layers,
-  Server,
-} from 'lucide-react';
+import { ArrowRight, BookOpen, Boxes, Cloud, Code2, Layers, Server } from 'lucide-react';
 
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export const dynamic = 'force-static';
 
@@ -208,45 +195,26 @@ export default function InstallationPage() {
           System requirements
         </h2>
         <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
-          Sized for a mid-size district deployment. Smaller pilots run
-          comfortably on a fraction of this.
+          Sized for a mid-size district deployment. Smaller pilots run comfortably on a fraction of
+          this.
         </p>
         <div className="mt-8 overflow-hidden rounded-2xl border border-border bg-card">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-border bg-secondary/50">
               <tr>
-                <th className="px-5 py-3 font-semibold text-foreground">
-                  Component
-                </th>
-                <th className="px-5 py-3 font-semibold text-foreground">
-                  Minimum
-                </th>
-                <th className="px-5 py-3 font-semibold text-foreground">
-                  Recommended
-                </th>
-                <th className="px-5 py-3 font-semibold text-foreground">
-                  Notes
-                </th>
+                <th className="px-5 py-3 font-semibold text-foreground">Component</th>
+                <th className="px-5 py-3 font-semibold text-foreground">Minimum</th>
+                <th className="px-5 py-3 font-semibold text-foreground">Recommended</th>
+                <th className="px-5 py-3 font-semibold text-foreground">Notes</th>
               </tr>
             </thead>
             <tbody>
               {REQUIREMENTS.map((row) => (
-                <tr
-                  key={row.component}
-                  className="border-b border-border last:border-b-0"
-                >
-                  <td className="px-5 py-4 font-semibold text-foreground">
-                    {row.component}
-                  </td>
-                  <td className="px-5 py-4 text-muted-foreground">
-                    {row.minimum}
-                  </td>
-                  <td className="px-5 py-4 text-muted-foreground">
-                    {row.recommended}
-                  </td>
-                  <td className="px-5 py-4 text-muted-foreground">
-                    {row.notes}
-                  </td>
+                <tr key={row.component} className="border-b border-border last:border-b-0">
+                  <td className="px-5 py-4 font-semibold text-foreground">{row.component}</td>
+                  <td className="px-5 py-4 text-muted-foreground">{row.minimum}</td>
+                  <td className="px-5 py-4 text-muted-foreground">{row.recommended}</td>
+                  <td className="px-5 py-4 text-muted-foreground">{row.notes}</td>
                 </tr>
               ))}
             </tbody>
@@ -273,8 +241,8 @@ export default function InstallationPage() {
               Four ways to deploy
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              From a single-server pilot to a state-scale cluster — pick the
-              path that matches your team.
+              From a single-server pilot to a state-scale cluster — pick the path that matches your
+              team.
             </p>
           </div>
           <div className="mt-12 grid gap-6 md:grid-cols-2">
@@ -293,9 +261,7 @@ export default function InstallationPage() {
                       {option.badge}
                     </span>
                   </div>
-                  <p className="mt-3 leading-relaxed text-muted-foreground">
-                    {option.description}
-                  </p>
+                  <p className="mt-3 leading-relaxed text-muted-foreground">{option.description}</p>
                   <CodeCard code={option.code} />
                 </Card>
               );
@@ -322,8 +288,8 @@ export default function InstallationPage() {
             A boring, dependable architecture
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Stateless web and API layers in front of PostgreSQL, Redis, and a
-            background queue. Nothing exotic — by design.
+            Stateless web and API layers in front of PostgreSQL, Redis, and a background queue.
+            Nothing exotic — by design.
           </p>
         </div>
         <div className="mx-auto mt-10 grid max-w-4xl gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -401,8 +367,8 @@ export default function InstallationPage() {
             Need help with a large rollout?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            Our deployment engineers can take a district from kick-off to live
-            attendance. We can do the same for you.
+            Our deployment engineers can take a district from kick-off to live attendance. We can do
+            the same for you.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">

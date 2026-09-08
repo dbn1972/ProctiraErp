@@ -1,21 +1,8 @@
-import {
-  Database,
-  HardDrive,
-  KeyRound,
-  Layers,
-  Radio,
-  Zap,
-} from 'lucide-react';
+import { Database, HardDrive, KeyRound, Layers, Radio, Zap } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/page-header';
 import { StubDataBanner } from '@/components/stub-data-banner';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
 import {
   Table,
@@ -25,10 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  getSystemHealth,
-  type AdapterHealth,
-} from '@/lib/api/health';
+import { getSystemHealth, type AdapterHealth } from '@/lib/api/health';
 import { requireRole } from '@/lib/auth/server';
 import { formatDateTime } from '@/lib/utils';
 
@@ -75,9 +59,7 @@ export default async function HealthPage() {
                   </div>
                   <StatusBadge status={adapter.status} />
                 </div>
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {adapter.note}
-                </p>
+                <p className="mt-3 text-xs text-muted-foreground">{adapter.note}</p>
                 <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
                   <span>
                     latency{' '}
@@ -103,9 +85,7 @@ export default async function HealthPage() {
           <Card>
             <CardHeader>
               <CardTitle>Queue lag</CardTitle>
-              <CardDescription>
-                Backlog depth and message age per queue.
-              </CardDescription>
+              <CardDescription>Backlog depth and message age per queue.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -120,18 +100,14 @@ export default async function HealthPage() {
                 <TableBody>
                   {health.queues.map((queue) => (
                     <TableRow key={queue.queue}>
-                      <TableCell className="font-mono text-xs">
-                        {queue.queue}
-                      </TableCell>
+                      <TableCell className="font-mono text-xs">{queue.queue}</TableCell>
                       <TableCell className="text-end tabular-nums">
                         {queue.depth.toLocaleString()}
                       </TableCell>
                       <TableCell className="text-end font-mono text-xs tabular-nums">
                         {queue.ageSeconds}s
                       </TableCell>
-                      <TableCell className="text-end tabular-nums">
-                        {queue.consumerCount}
-                      </TableCell>
+                      <TableCell className="text-end tabular-nums">{queue.consumerCount}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -142,9 +118,7 @@ export default async function HealthPage() {
           <Card>
             <CardHeader>
               <CardTitle>Error rates</CardTitle>
-              <CardDescription>
-                Errors per million over the last 5 minutes.
-              </CardDescription>
+              <CardDescription>Errors per million over the last 5 minutes.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -158,9 +132,7 @@ export default async function HealthPage() {
                 <TableBody>
                   {health.errors.map((error) => (
                     <TableRow key={error.service}>
-                      <TableCell className="font-mono text-xs">
-                        {error.service}
-                      </TableCell>
+                      <TableCell className="font-mono text-xs">{error.service}</TableCell>
                       <TableCell className="text-end font-mono text-xs tabular-nums">
                         {error.errorPerMillion.toLocaleString()}
                       </TableCell>
@@ -212,9 +184,7 @@ function SummaryRow({
   return (
     <div className="flex items-center justify-between border-b border-border pb-2 last:border-b-0 last:pb-0">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={`text-sm font-semibold tabular-nums ${toneClass}`}>
-        {value}
-      </span>
+      <span className={`text-sm font-semibold tabular-nums ${toneClass}`}>{value}</span>
     </div>
   );
 }

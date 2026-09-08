@@ -30,7 +30,11 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...warehouse };
   }
 
-  async updateWarehouse(id: string, tenantId: string, updates: Partial<Warehouse>): Promise<Warehouse> {
+  async updateWarehouse(
+    id: string,
+    tenantId: string,
+    updates: Partial<Warehouse>,
+  ): Promise<Warehouse> {
     const existing = this.warehouses.get(id);
     if (!existing || existing.tenantId !== tenantId) {
       throw new Error(`Warehouse not found: ${id}`);
@@ -56,12 +60,19 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...warehouse };
   }
 
-  async listWarehouses(tenantId: string, filter: ListFilter, page: number, pageSize: number): Promise<ListResult<Warehouse>> {
+  async listWarehouses(
+    tenantId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<ListResult<Warehouse>> {
     let results = Array.from(this.warehouses.values()).filter((w) => w.tenantId === tenantId);
     if (filter.search) {
       const search = filter.search.toLowerCase();
       results = results.filter(
-        (w) => w.name.toLowerCase().includes(search) || (w.description && w.description.toLowerCase().includes(search)),
+        (w) =>
+          w.name.toLowerCase().includes(search) ||
+          (w.description && w.description.toLowerCase().includes(search)),
       );
     }
     const total = results.length;
@@ -77,7 +88,12 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...indicator };
   }
 
-  async updateIndicator(id: string, warehouseId: string, tenantId: string, updates: Partial<Indicator>): Promise<Indicator> {
+  async updateIndicator(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+    updates: Partial<Indicator>,
+  ): Promise<Indicator> {
     const existing = this.indicators.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
       throw new Error(`Indicator not found: ${id}`);
@@ -95,7 +111,11 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     this.indicators.delete(id);
   }
 
-  async findIndicatorById(id: string, warehouseId: string, tenantId: string): Promise<Indicator | null> {
+  async findIndicatorById(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+  ): Promise<Indicator | null> {
     const indicator = this.indicators.get(id);
     if (!indicator || indicator.warehouseId !== warehouseId || indicator.tenantId !== tenantId) {
       return null;
@@ -103,14 +123,24 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...indicator };
   }
 
-  async findIndicatorByGid(gid: string, warehouseId: string, tenantId: string): Promise<Indicator | null> {
+  async findIndicatorByGid(
+    gid: string,
+    warehouseId: string,
+    tenantId: string,
+  ): Promise<Indicator | null> {
     const indicator = Array.from(this.indicators.values()).find(
       (i) => i.gid === gid && i.warehouseId === warehouseId && i.tenantId === tenantId,
     );
     return indicator ? { ...indicator } : null;
   }
 
-  async listIndicators(warehouseId: string, tenantId: string, filter: ListFilter, page: number, pageSize: number): Promise<ListResult<Indicator>> {
+  async listIndicators(
+    warehouseId: string,
+    tenantId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<ListResult<Indicator>> {
     let results = Array.from(this.indicators.values()).filter(
       (i) => i.warehouseId === warehouseId && i.tenantId === tenantId,
     );
@@ -131,7 +161,12 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...unit };
   }
 
-  async updateUnit(id: string, warehouseId: string, tenantId: string, updates: Partial<Unit>): Promise<Unit> {
+  async updateUnit(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+    updates: Partial<Unit>,
+  ): Promise<Unit> {
     const existing = this.units.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
       throw new Error(`Unit not found: ${id}`);
@@ -164,7 +199,13 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return unit ? { ...unit } : null;
   }
 
-  async listUnits(warehouseId: string, tenantId: string, filter: ListFilter, page: number, pageSize: number): Promise<ListResult<Unit>> {
+  async listUnits(
+    warehouseId: string,
+    tenantId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<ListResult<Unit>> {
     let results = Array.from(this.units.values()).filter(
       (u) => u.warehouseId === warehouseId && u.tenantId === tenantId,
     );
@@ -185,7 +226,12 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...subgroup };
   }
 
-  async updateSubgroup(id: string, warehouseId: string, tenantId: string, updates: Partial<Subgroup>): Promise<Subgroup> {
+  async updateSubgroup(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+    updates: Partial<Subgroup>,
+  ): Promise<Subgroup> {
     const existing = this.subgroups.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
       throw new Error(`Subgroup not found: ${id}`);
@@ -203,7 +249,11 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     this.subgroups.delete(id);
   }
 
-  async findSubgroupById(id: string, warehouseId: string, tenantId: string): Promise<Subgroup | null> {
+  async findSubgroupById(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+  ): Promise<Subgroup | null> {
     const subgroup = this.subgroups.get(id);
     if (!subgroup || subgroup.warehouseId !== warehouseId || subgroup.tenantId !== tenantId) {
       return null;
@@ -211,14 +261,24 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...subgroup };
   }
 
-  async findSubgroupByGid(gid: string, warehouseId: string, tenantId: string): Promise<Subgroup | null> {
+  async findSubgroupByGid(
+    gid: string,
+    warehouseId: string,
+    tenantId: string,
+  ): Promise<Subgroup | null> {
     const subgroup = Array.from(this.subgroups.values()).find(
       (s) => s.gid === gid && s.warehouseId === warehouseId && s.tenantId === tenantId,
     );
     return subgroup ? { ...subgroup } : null;
   }
 
-  async listSubgroups(warehouseId: string, tenantId: string, filter: ListFilter, page: number, pageSize: number): Promise<ListResult<Subgroup>> {
+  async listSubgroups(
+    warehouseId: string,
+    tenantId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<ListResult<Subgroup>> {
     let results = Array.from(this.subgroups.values()).filter(
       (s) => s.warehouseId === warehouseId && s.tenantId === tenantId,
     );
@@ -239,7 +299,12 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...timePeriod };
   }
 
-  async updateTimePeriod(id: string, warehouseId: string, tenantId: string, updates: Partial<TimePeriod>): Promise<TimePeriod> {
+  async updateTimePeriod(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+    updates: Partial<TimePeriod>,
+  ): Promise<TimePeriod> {
     const existing = this.timePeriods.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
       throw new Error(`TimePeriod not found: ${id}`);
@@ -257,7 +322,11 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     this.timePeriods.delete(id);
   }
 
-  async findTimePeriodById(id: string, warehouseId: string, tenantId: string): Promise<TimePeriod | null> {
+  async findTimePeriodById(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+  ): Promise<TimePeriod | null> {
     const tp = this.timePeriods.get(id);
     if (!tp || tp.warehouseId !== warehouseId || tp.tenantId !== tenantId) {
       return null;
@@ -265,14 +334,24 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...tp };
   }
 
-  async findTimePeriodByLabel(label: string, warehouseId: string, tenantId: string): Promise<TimePeriod | null> {
+  async findTimePeriodByLabel(
+    label: string,
+    warehouseId: string,
+    tenantId: string,
+  ): Promise<TimePeriod | null> {
     const tp = Array.from(this.timePeriods.values()).find(
       (t) => t.timePeriod === label && t.warehouseId === warehouseId && t.tenantId === tenantId,
     );
     return tp ? { ...tp } : null;
   }
 
-  async listTimePeriods(warehouseId: string, tenantId: string, filter: ListFilter, page: number, pageSize: number): Promise<ListResult<TimePeriod>> {
+  async listTimePeriods(
+    warehouseId: string,
+    tenantId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<ListResult<TimePeriod>> {
     let results = Array.from(this.timePeriods.values()).filter(
       (t) => t.warehouseId === warehouseId && t.tenantId === tenantId,
     );
@@ -293,7 +372,12 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...area };
   }
 
-  async updateArea(id: string, warehouseId: string, tenantId: string, updates: Partial<Area>): Promise<Area> {
+  async updateArea(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+    updates: Partial<Area>,
+  ): Promise<Area> {
     const existing = this.areas.get(id);
     if (!existing || existing.warehouseId !== warehouseId || existing.tenantId !== tenantId) {
       throw new Error(`Area not found: ${id}`);
@@ -319,14 +403,24 @@ export class InMemoryWarehouseRepository implements WarehouseRepository {
     return { ...area };
   }
 
-  async findAreaByExternalId(areaId: string, warehouseId: string, tenantId: string): Promise<Area | null> {
+  async findAreaByExternalId(
+    areaId: string,
+    warehouseId: string,
+    tenantId: string,
+  ): Promise<Area | null> {
     const area = Array.from(this.areas.values()).find(
       (a) => a.areaId === areaId && a.warehouseId === warehouseId && a.tenantId === tenantId,
     );
     return area ? { ...area } : null;
   }
 
-  async listAreas(warehouseId: string, tenantId: string, filter: ListFilter, page: number, pageSize: number): Promise<ListResult<Area>> {
+  async listAreas(
+    warehouseId: string,
+    tenantId: string,
+    filter: ListFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<ListResult<Area>> {
     let results = Array.from(this.areas.values()).filter(
       (a) => a.warehouseId === warehouseId && a.tenantId === tenantId,
     );

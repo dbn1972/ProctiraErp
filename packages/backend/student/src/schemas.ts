@@ -19,7 +19,11 @@ import { Type, type Static } from '@sinclair/typebox';
  * Schema for a contact entry.
  */
 export const ContactSchema = Type.Object({
-  type: Type.String({ minLength: 1, maxLength: 50, description: 'Contact type (e.g., phone, email, address)' }),
+  type: Type.String({
+    minLength: 1,
+    maxLength: 50,
+    description: 'Contact type (e.g., phone, email, address)',
+  }),
   value: Type.String({ minLength: 1, maxLength: 255, description: 'Contact value' }),
   isPrimary: Type.Boolean({ default: false, description: 'Whether this is the primary contact' }),
 });
@@ -31,26 +35,40 @@ export const GuardianSchema = Type.Object({
   id: Type.Optional(Type.String({ description: 'Guardian ID (auto-generated if not provided)' })),
   firstName: Type.String({ minLength: 1, maxLength: 100, description: 'Guardian first name' }),
   lastName: Type.String({ minLength: 1, maxLength: 100, description: 'Guardian last name' }),
-  relationship: Type.String({ minLength: 1, maxLength: 50, description: 'Relationship to student (e.g., father, mother, uncle)' }),
+  relationship: Type.String({
+    minLength: 1,
+    maxLength: 50,
+    description: 'Relationship to student (e.g., father, mother, uncle)',
+  }),
   contactPhone: Type.Optional(Type.String({ maxLength: 50, description: 'Guardian phone number' })),
-  contactEmail: Type.Optional(Type.String({
-    pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
-    maxLength: 254,
-    description: 'Guardian email address',
-  })),
+  contactEmail: Type.Optional(
+    Type.String({
+      pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
+      maxLength: 254,
+      description: 'Guardian email address',
+    }),
+  ),
 });
 
 /**
  * Schema for an identity document entry.
  */
 export const IdentityDocumentSchema = Type.Object({
-  type: Type.String({ minLength: 1, maxLength: 50, description: 'Document type (e.g., passport, birth_certificate)' }),
+  type: Type.String({
+    minLength: 1,
+    maxLength: 50,
+    description: 'Document type (e.g., passport, birth_certificate)',
+  }),
   number: Type.String({ minLength: 1, maxLength: 100, description: 'Document number' }),
-  issuingCountry: Type.Optional(Type.String({ maxLength: 100, description: 'Country that issued the document' })),
-  expiryDate: Type.Optional(Type.String({
-    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
-    description: 'Document expiry date (YYYY-MM-DD)',
-  })),
+  issuingCountry: Type.Optional(
+    Type.String({ maxLength: 100, description: 'Country that issued the document' }),
+  ),
+  expiryDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Document expiry date (YYYY-MM-DD)',
+    }),
+  ),
 });
 
 /**
@@ -65,12 +83,18 @@ export const CreateStudentSchema = Type.Object({
     description: 'Date of birth (YYYY-MM-DD)',
   }),
   gender: Type.String({ minLength: 1, maxLength: 20, description: 'Gender' }),
-  nationalId: Type.Optional(Type.String({ maxLength: 50, description: 'National identification number' })),
+  nationalId: Type.Optional(
+    Type.String({ maxLength: 50, description: 'National identification number' }),
+  ),
   nationality: Type.Optional(Type.String({ maxLength: 100, description: 'Nationality' })),
   contacts: Type.Optional(Type.Array(ContactSchema, { description: 'Contact information' })),
   guardians: Type.Optional(Type.Array(GuardianSchema, { description: 'Guardian information' })),
-  identityDocuments: Type.Optional(Type.Array(IdentityDocumentSchema, { description: 'Identity documents' })),
-  customData: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Custom fields (JSONB)' })),
+  identityDocuments: Type.Optional(
+    Type.Array(IdentityDocumentSchema, { description: 'Identity documents' }),
+  ),
+  customData: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), { description: 'Custom fields (JSONB)' }),
+  ),
 });
 
 export type CreateStudentInput = Static<typeof CreateStudentSchema>;
@@ -80,25 +104,35 @@ export type CreateStudentInput = Static<typeof CreateStudentSchema>;
  * All fields are optional — only provided fields are updated.
  */
 export const UpdateStudentSchema = Type.Object({
-  firstName: Type.Optional(Type.String({ minLength: 1, maxLength: 100, description: 'Student first name' })),
-  lastName: Type.Optional(Type.String({ minLength: 1, maxLength: 100, description: 'Student last name' })),
-  dateOfBirth: Type.Optional(Type.String({
-    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
-    description: 'Date of birth (YYYY-MM-DD)',
-  })),
+  firstName: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 100, description: 'Student first name' }),
+  ),
+  lastName: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 100, description: 'Student last name' }),
+  ),
+  dateOfBirth: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Date of birth (YYYY-MM-DD)',
+    }),
+  ),
   gender: Type.Optional(Type.String({ minLength: 1, maxLength: 20, description: 'Gender' })),
-  nationalId: Type.Optional(Type.Union([
-    Type.String({ maxLength: 50 }),
-    Type.Null(),
-  ], { description: 'National identification number' })),
-  nationality: Type.Optional(Type.Union([
-    Type.String({ maxLength: 100 }),
-    Type.Null(),
-  ], { description: 'Nationality' })),
+  nationalId: Type.Optional(
+    Type.Union([Type.String({ maxLength: 50 }), Type.Null()], {
+      description: 'National identification number',
+    }),
+  ),
+  nationality: Type.Optional(
+    Type.Union([Type.String({ maxLength: 100 }), Type.Null()], { description: 'Nationality' }),
+  ),
   contacts: Type.Optional(Type.Array(ContactSchema, { description: 'Contact information' })),
   guardians: Type.Optional(Type.Array(GuardianSchema, { description: 'Guardian information' })),
-  identityDocuments: Type.Optional(Type.Array(IdentityDocumentSchema, { description: 'Identity documents' })),
-  customData: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Custom fields (JSONB)' })),
+  identityDocuments: Type.Optional(
+    Type.Array(IdentityDocumentSchema, { description: 'Identity documents' }),
+  ),
+  customData: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), { description: 'Custom fields (JSONB)' }),
+  ),
 });
 
 export type UpdateStudentInput = Static<typeof UpdateStudentSchema>;
@@ -107,12 +141,24 @@ export type UpdateStudentInput = Static<typeof UpdateStudentSchema>;
  * Schema for student list query parameters.
  */
 export const StudentListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   gender: Type.Optional(Type.String({ description: 'Filter by gender' })),
   search: Type.Optional(Type.String({ description: 'Search by name or national ID' })),
-  sortBy: Type.Optional(Type.String({ enum: ['firstName', 'lastName', 'dateOfBirth', 'createdAt'], default: 'lastName', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' })),
+  sortBy: Type.Optional(
+    Type.String({
+      enum: ['firstName', 'lastName', 'dateOfBirth', 'createdAt'],
+      default: 'lastName',
+      description: 'Sort field',
+    }),
+  ),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+  ),
 });
 
 export type StudentListQuery = Static<typeof StudentListQuerySchema>;
@@ -121,9 +167,16 @@ export type StudentListQuery = Static<typeof StudentListQuerySchema>;
  * Schema for full-text search query parameters.
  */
 export const StudentSearchQuerySchema = Type.Object({
-  q: Type.String({ minLength: 1, description: 'Search query (matches student name and national ID)' }),
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  q: Type.String({
+    minLength: 1,
+    description: 'Search query (matches student name and national ID)',
+  }),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
 });
 
 export type StudentSearchQuery = Static<typeof StudentSearchQuerySchema>;
@@ -149,7 +202,9 @@ export const StudentResponseSchema = Type.Object({
   lastName: Type.String({ description: 'Student last name' }),
   dateOfBirth: Type.String({ description: 'Date of birth (YYYY-MM-DD)' }),
   gender: Type.String({ description: 'Gender' }),
-  nationalId: Type.Union([Type.String(), Type.Null()], { description: 'National identification number' }),
+  nationalId: Type.Union([Type.String(), Type.Null()], {
+    description: 'National identification number',
+  }),
   nationality: Type.Union([Type.String(), Type.Null()], { description: 'Nationality' }),
   contacts: Type.Array(ContactSchema, { description: 'Contact information' }),
   guardians: Type.Array(GuardianSchema, { description: 'Guardian information' }),

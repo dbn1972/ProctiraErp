@@ -58,9 +58,7 @@ export default async function TenantConfigPage() {
               <CardTitle className="text-base">Identity</CardTitle>
               <CardDescription>
                 Tenant ID{' '}
-                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                  {config.tenantId}
-                </code>
+                <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{config.tenantId}</code>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -128,9 +126,7 @@ export default async function TenantConfigPage() {
           <Card className="max-w-[860px]">
             <CardHeader>
               <CardTitle className="text-base">Contact</CardTitle>
-              <CardDescription>
-                Public contact details surfaced in support flows.
-              </CardDescription>
+              <CardDescription>Public contact details surfaced in support flows.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <FormField id="tenant-email" label="Email">

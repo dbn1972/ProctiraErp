@@ -2,7 +2,7 @@
 
 ProctiraERP uses **two** schema layers:
 
-1. **Prisma** (`packages/shared/database`) — shared platform tables and migrations  
+1. **Prisma** (`packages/shared/database`) — shared platform tables and migrations
 2. **Domain SQL** (`db/sql/[0-9]*.sql`) — module schemas (health, SIS, transport, …) that services expect on live Postgres
 
 If only Prisma is applied, raw-SQL modules fall back to in-memory stores in tests (gap **G-002**).
@@ -73,4 +73,3 @@ sets `app.current_tenant_id` for alignment with Prisma RLS.
 Reference wiring: `packages/backend/staff/src/pg-leave-repository.ts`.
 Other `pg-*-repository` modules must adopt the same pattern when touching
 RLS-protected tables. See also `tools/tenant-isolation-tests` (raw-sql-rls unit).
-

@@ -235,7 +235,10 @@ describe('StaffService', () => {
     it('should return paginated results', async () => {
       // Create 5 staff records
       for (let i = 0; i < 5; i++) {
-        await service.create(TENANT_ID, validCreateInput({ firstName: `Staff${i}`, identityNumber: `ID-${i}` }));
+        await service.create(
+          TENANT_ID,
+          validCreateInput({ firstName: `Staff${i}`, identityNumber: `ID-${i}` }),
+        );
       }
 
       const result = await service.list(TENANT_ID, {}, { page: 1, pageSize: 3 });
@@ -251,19 +254,21 @@ describe('StaffService', () => {
       const input1 = validCreateInput({ firstName: 'Active', identityNumber: 'ID-ACTIVE' });
       await service.create(TENANT_ID, input1);
 
-      const result = await service.list(
-        TENANT_ID,
-        { status: 'ACTIVE' },
-        { page: 1, pageSize: 20 },
-      );
+      const result = await service.list(TENANT_ID, { status: 'ACTIVE' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.status).toBe('ACTIVE');
     });
 
     it('should filter by position', async () => {
-      await service.create(TENANT_ID, validCreateInput({ position: 'Teacher', identityNumber: 'ID-T1' }));
-      await service.create(TENANT_ID, validCreateInput({ position: 'Principal', identityNumber: 'ID-P1' }));
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ position: 'Teacher', identityNumber: 'ID-T1' }),
+      );
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ position: 'Principal', identityNumber: 'ID-P1' }),
+      );
 
       const result = await service.list(
         TENANT_ID,
@@ -276,36 +281,46 @@ describe('StaffService', () => {
     });
 
     it('should search by first name', async () => {
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Alice', identityNumber: 'ID-A1' }));
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Bob', identityNumber: 'ID-B1' }));
-
-      const result = await service.list(
+      await service.create(
         TENANT_ID,
-        { search: 'alice' },
-        { page: 1, pageSize: 20 },
+        validCreateInput({ firstName: 'Alice', identityNumber: 'ID-A1' }),
       );
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Bob', identityNumber: 'ID-B1' }),
+      );
+
+      const result = await service.list(TENANT_ID, { search: 'alice' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.firstName).toBe('Alice');
     });
 
     it('should search by last name', async () => {
-      await service.create(TENANT_ID, validCreateInput({ lastName: 'Smith', identityNumber: 'ID-S1' }));
-      await service.create(TENANT_ID, validCreateInput({ lastName: 'Johnson', identityNumber: 'ID-J1' }));
-
-      const result = await service.list(
+      await service.create(
         TENANT_ID,
-        { search: 'smith' },
-        { page: 1, pageSize: 20 },
+        validCreateInput({ lastName: 'Smith', identityNumber: 'ID-S1' }),
       );
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ lastName: 'Johnson', identityNumber: 'ID-J1' }),
+      );
+
+      const result = await service.list(TENANT_ID, { search: 'smith' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.lastName).toBe('Smith');
     });
 
     it('should search by full name', async () => {
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'John', lastName: 'Smith', identityNumber: 'ID-JS1' }));
-      await service.create(TENANT_ID, validCreateInput({ firstName: 'Jane', lastName: 'Doe', identityNumber: 'ID-JD1' }));
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'John', lastName: 'Smith', identityNumber: 'ID-JS1' }),
+      );
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ firstName: 'Jane', lastName: 'Doe', identityNumber: 'ID-JD1' }),
+      );
 
       const result = await service.list(
         TENANT_ID,
@@ -322,11 +337,7 @@ describe('StaffService', () => {
       await service.create(TENANT_ID, validCreateInput({ identityNumber: 'NAT-12345' }));
       await service.create(TENANT_ID, validCreateInput({ identityNumber: 'NAT-67890' }));
 
-      const result = await service.list(
-        TENANT_ID,
-        { search: '12345' },
-        { page: 1, pageSize: 20 },
-      );
+      const result = await service.list(TENANT_ID, { search: '12345' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0]!.identityNumber).toBe('NAT-12345');
@@ -336,8 +347,14 @@ describe('StaffService', () => {
       const tenant1 = uuid();
       const tenant2 = uuid();
 
-      await service.create(tenant1, validCreateInput({ firstName: 'Tenant1Staff', identityNumber: 'ID-T1S' }));
-      await service.create(tenant2, validCreateInput({ firstName: 'Tenant2Staff', identityNumber: 'ID-T2S' }));
+      await service.create(
+        tenant1,
+        validCreateInput({ firstName: 'Tenant1Staff', identityNumber: 'ID-T1S' }),
+      );
+      await service.create(
+        tenant2,
+        validCreateInput({ firstName: 'Tenant2Staff', identityNumber: 'ID-T2S' }),
+      );
 
       const result = await service.list(tenant1, {}, { page: 1, pageSize: 20 });
 

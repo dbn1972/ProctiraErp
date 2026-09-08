@@ -114,19 +114,14 @@ const translationKeyArb = fc.constantFrom(...ALL_EN_KEYS);
 const localeArb = fc.constantFrom(...REGISTERED_LOCALES);
 
 /** Arbitrary that picks a random non-English locale */
-const nonEnLocaleArb = fc.constantFrom(
-  ...REGISTERED_LOCALES.filter((l) => l !== 'en'),
-);
+const nonEnLocaleArb = fc.constantFrom(...REGISTERED_LOCALES.filter((l) => l !== 'en'));
 
 // ─── Test Wrapper ────────────────────────────────────────────────────────────
 
 function createWrapper(locale: string) {
   return function Wrapper({ children }: { children: React.ReactNode }) {
     return (
-      <LanguageProvider
-        defaultLocale={locale as 'en'}
-        messagesByLocale={ALL_LOCALE_CATALOGS}
-      >
+      <LanguageProvider defaultLocale={locale as 'en'} messagesByLocale={ALL_LOCALE_CATALOGS}>
         {children}
       </LanguageProvider>
     );
@@ -138,96 +133,78 @@ function createWrapper(locale: string) {
 describe('Property F-4: i18n Key Resolution', () => {
   it('every English catalog key resolves to a non-empty string for any registered locale (no raw keys, no empty strings)', () => {
     fc.assert(
-      fc.property(
-        translationKeyArb,
-        localeArb,
-        (key, locale) => {
-          const { result, unmount } = renderHook(() => useLanguage(), {
-            wrapper: createWrapper(locale),
-          });
+      fc.property(translationKeyArb, localeArb, (key, locale) => {
+        const { result, unmount } = renderHook(() => useLanguage(), {
+          wrapper: createWrapper(locale),
+        });
 
-          // Build dummy params for keys with ICU placeholders
-          const enValue = resolveKey(
-            enMessages as unknown as TranslationMap,
-            key,
-          );
-          const placeholders = enValue ? extractPlaceholders(enValue) : [];
-          const params: Record<string, string | number> = {};
-          for (const p of placeholders) {
-            params[p] = `test_${p}`;
-          }
+        // Build dummy params for keys with ICU placeholders
+        const enValue = resolveKey(enMessages as unknown as TranslationMap, key);
+        const placeholders = enValue ? extractPlaceholders(enValue) : [];
+        const params: Record<string, string | number> = {};
+        for (const p of placeholders) {
+          params[p] = `test_${p}`;
+        }
 
-          const resolved = result.current.t(key, Object.keys(params).length > 0 ? params : undefined);
+        const resolved = result.current.t(key, Object.keys(params).length > 0 ? params : undefined);
 
-          // Property 1: resolved value must NOT be empty
-          expect(resolved.length).toBeGreaterThan(0);
+        // Property 1: resolved value must NOT be empty
+        expect(resolved.length).toBeGreaterThan(0);
 
-          // Property 2: resolved value must NOT be the raw key itself
-          // (which would mean the fallback chain failed entirely)
-          expect(resolved).not.toBe(key);
+        // Property 2: resolved value must NOT be the raw key itself
+        // (which would mean the fallback chain failed entirely)
+        expect(resolved).not.toBe(key);
 
-          unmount();
-        },
-      ),
+        unmount();
+      }),
       { numRuns: 200 },
     );
   });
 
   it('the fallback chain resolves missing keys in non-English locales to the English value (no bleed-through of raw keys)', () => {
     fc.assert(
-      fc.property(
-        translationKeyArb,
-        nonEnLocaleArb,
-        (key, locale) => {
-          const { result, unmount } = renderHook(() => useLanguage(), {
-            wrapper: createWrapper(locale),
-          });
+      fc.property(translationKeyArb, nonEnLocaleArb, (key, locale) => {
+        const { result, unmount } = renderHook(() => useLanguage(), {
+          wrapper: createWrapper(locale),
+        });
 
-          // Build dummy params for keys with ICU placeholders
-          const enValue = resolveKey(
-            enMessages as unknown as TranslationMap,
-            key,
+        // Build dummy params for keys with ICU placeholders
+        const enValue = resolveKey(enMessages as unknown as TranslationMap, key);
+        const placeholders = enValue ? extractPlaceholders(enValue) : [];
+        const params: Record<string, string | number> = {};
+        for (const p of placeholders) {
+          params[p] = `test_${p}`;
+        }
+
+        const resolved = result.current.t(key, Object.keys(params).length > 0 ? params : undefined);
+        const localeCatalog = ALL_LOCALE_CATALOGS[locale];
+        const localValue = resolveKey(localeCatalog, key);
+
+        if (localValue !== undefined) {
+          // Key exists in the active locale — resolved should be the
+          // locale-specific value (with placeholders interpolated)
+          const expectedInterpolated = localValue.replace(/\{(\w+)\}/g, (match, name: string) =>
+            params[name] !== undefined ? String(params[name]) : match,
           );
-          const placeholders = enValue ? extractPlaceholders(enValue) : [];
-          const params: Record<string, string | number> = {};
-          for (const p of placeholders) {
-            params[p] = `test_${p}`;
-          }
+          expect(resolved).toBe(expectedInterpolated);
+        } else {
+          // Key is missing in the active locale — fallback chain should
+          // resolve to the English value (never the raw key)
+          expect(resolved).not.toBe(key);
+          expect(resolved.length).toBeGreaterThan(0);
 
-          const resolved = result.current.t(key, Object.keys(params).length > 0 ? params : undefined);
-          const localeCatalog = ALL_LOCALE_CATALOGS[locale];
-          const localValue = resolveKey(localeCatalog, key);
-
-          if (localValue !== undefined) {
-            // Key exists in the active locale — resolved should be the
-            // locale-specific value (with placeholders interpolated)
-            const expectedInterpolated = localValue.replace(
-              /\{(\w+)\}/g,
-              (match, name: string) =>
-                params[name] !== undefined ? String(params[name]) : match,
+          // The resolved value should match the English catalog value
+          // (with placeholders interpolated)
+          if (enValue) {
+            const expectedEnInterpolated = enValue.replace(/\{(\w+)\}/g, (match, name: string) =>
+              params[name] !== undefined ? String(params[name]) : match,
             );
-            expect(resolved).toBe(expectedInterpolated);
-          } else {
-            // Key is missing in the active locale — fallback chain should
-            // resolve to the English value (never the raw key)
-            expect(resolved).not.toBe(key);
-            expect(resolved.length).toBeGreaterThan(0);
-
-            // The resolved value should match the English catalog value
-            // (with placeholders interpolated)
-            if (enValue) {
-              const expectedEnInterpolated = enValue.replace(
-                /\{(\w+)\}/g,
-                (match, name: string) =>
-                  params[name] !== undefined ? String(params[name]) : match,
-              );
-              expect(resolved).toBe(expectedEnInterpolated);
-            }
+            expect(resolved).toBe(expectedEnInterpolated);
           }
+        }
 
-          unmount();
-        },
-      ),
+        unmount();
+      }),
       { numRuns: 300 },
     );
   });
@@ -250,10 +227,7 @@ describe('Property F-4: i18n Key Resolution', () => {
 
           // After switching, all keys should still resolve without raw keys
           for (const key of keys) {
-            const enValue = resolveKey(
-              enMessages as unknown as TranslationMap,
-              key,
-            );
+            const enValue = resolveKey(enMessages as unknown as TranslationMap, key);
             const placeholders = enValue ? extractPlaceholders(enValue) : [];
             const params: Record<string, string | number> = {};
             for (const p of placeholders) {
@@ -280,34 +254,31 @@ describe('Property F-4: i18n Key Resolution', () => {
 
   it('every registered locale has complete coverage of the English key set or falls back gracefully', () => {
     fc.assert(
-      fc.property(
-        nonEnLocaleArb,
-        (locale) => {
-          const { result, unmount } = renderHook(() => useLanguage(), {
-            wrapper: createWrapper(locale),
-          });
+      fc.property(nonEnLocaleArb, (locale) => {
+        const { result, unmount } = renderHook(() => useLanguage(), {
+          wrapper: createWrapper(locale),
+        });
 
-          // For every key in the English catalog, the locale either:
-          // 1. Has its own translation (key exists in locale catalog), OR
-          // 2. The fallback chain resolves it to the English value (not raw key)
-          //
-          // We verify this by checking that t() never returns the raw key.
-          // Sample a subset of keys to keep the test fast
-          const sampleSize = Math.min(ALL_EN_KEYS.length, 50);
-          const sampledKeys = ALL_EN_KEYS.slice(0, sampleSize);
+        // For every key in the English catalog, the locale either:
+        // 1. Has its own translation (key exists in locale catalog), OR
+        // 2. The fallback chain resolves it to the English value (not raw key)
+        //
+        // We verify this by checking that t() never returns the raw key.
+        // Sample a subset of keys to keep the test fast
+        const sampleSize = Math.min(ALL_EN_KEYS.length, 50);
+        const sampledKeys = ALL_EN_KEYS.slice(0, sampleSize);
 
-          for (const key of sampledKeys) {
-            const resolved = result.current.t(key);
-            // The resolved value must never be the raw key
-            expect(resolved).not.toBe(key);
-            // The resolved value must never be empty
-            expect(resolved.length).toBeGreaterThan(0);
-          }
+        for (const key of sampledKeys) {
+          const resolved = result.current.t(key);
+          // The resolved value must never be the raw key
+          expect(resolved).not.toBe(key);
+          // The resolved value must never be empty
+          expect(resolved.length).toBeGreaterThan(0);
+        }
 
-          unmount();
-          return true;
-        },
-      ),
+        unmount();
+        return true;
+      }),
       { numRuns: 50 },
     );
   });

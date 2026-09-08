@@ -61,10 +61,7 @@ const DEFAULT_OPTIONS: Required<TenantResolutionOptions> = {
  * Extracts tenant ID from JWT claims on the request.
  * Requires the request to have been authenticated (request.user populated).
  */
-function resolveFromJwt(
-  request: FastifyRequest,
-  jwtClaimField: string,
-): string | undefined {
+function resolveFromJwt(request: FastifyRequest, jwtClaimField: string): string | undefined {
   const user = (request as unknown as { user?: Record<string, unknown> }).user;
   if (!user) return undefined;
 
@@ -78,10 +75,7 @@ function resolveFromJwt(
 /**
  * Extracts tenant ID from the X-Tenant-ID request header.
  */
-function resolveFromHeader(
-  request: FastifyRequest,
-  headerName: string,
-): string | undefined {
+function resolveFromHeader(request: FastifyRequest, headerName: string): string | undefined {
   const headerValue = request.headers[headerName];
   if (typeof headerValue === 'string' && headerValue.length > 0) {
     return headerValue.trim();
@@ -98,10 +92,7 @@ function resolveFromHeader(
  * - Host is the base domain itself (no subdomain)
  * - Host is localhost or an IP address
  */
-function resolveFromSubdomain(
-  request: FastifyRequest,
-  baseDomain: string,
-): string | undefined {
+function resolveFromSubdomain(request: FastifyRequest, baseDomain: string): string | undefined {
   const host = request.hostname || request.headers['host'];
   if (!host || typeof host !== 'string') return undefined;
 
@@ -158,9 +149,7 @@ export function resolveTenantId(
   const jwtTenantId = resolveFromJwt(request, opts.jwtClaimField);
   if (jwtTenantId) {
     if (opts.requireUuid && !isValidUuid(jwtTenantId)) {
-      throw new TenantResolutionError(
-        `Invalid tenant ID format in JWT claim: ${jwtTenantId}`,
-      );
+      throw new TenantResolutionError(`Invalid tenant ID format in JWT claim: ${jwtTenantId}`);
     }
     return { tenantId: jwtTenantId, source: 'jwt' };
   }

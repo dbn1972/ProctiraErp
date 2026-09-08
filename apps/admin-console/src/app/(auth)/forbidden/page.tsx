@@ -8,11 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
  * /forbidden — shown when an operator's role is not allowed in the requested
  * area. The audit log records the redirect.
  */
-export default function ForbiddenPage({
-  searchParams,
-}: {
-  searchParams: { area?: string };
-}) {
+export default function ForbiddenPage({ searchParams }: { searchParams: { area?: string } }) {
   const area = searchParams?.area ?? 'this area';
   return (
     <div className="flex min-h-screen items-center justify-center px-6 py-12">
@@ -29,8 +25,8 @@ export default function ForbiddenPage({
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Your assigned platform role does not include access to{' '}
-            <strong className="text-foreground">{area}</strong>. If you believe
-            this is incorrect, contact the security team.
+            <strong className="text-foreground">{area}</strong>. If you believe this is incorrect,
+            contact the security team.
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             This attempt was recorded to the audit log.

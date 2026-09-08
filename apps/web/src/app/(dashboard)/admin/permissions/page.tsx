@@ -38,8 +38,8 @@ export default async function AdminPermissionsPage() {
             Permissions
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {permissions.length.toLocaleString()} granular permissions across modules.
-            Assign permissions to roles to grant access.
+            {permissions.length.toLocaleString()} granular permissions across modules. Assign
+            permissions to roles to grant access.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">

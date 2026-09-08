@@ -86,7 +86,12 @@ function mapCertification(row: Row): CertificationEntity {
 function paginate<T>(data: T[], totalItems: number, p: PaginationOptions): PaginatedResult<T> {
   return {
     data,
-    meta: { page: p.page, pageSize: p.pageSize, totalItems, totalPages: Math.ceil(totalItems / p.pageSize) },
+    meta: {
+      page: p.page,
+      pageSize: p.pageSize,
+      totalItems,
+      totalPages: Math.ceil(totalItems / p.pageSize),
+    },
   };
 }
 
@@ -100,7 +105,9 @@ abstract class PgBase {
 }
 
 export class PgTrainingProgramRepository extends PgBase implements TrainingProgramRepository {
-  async create(data: Omit<TrainingProgramEntity, 'createdAt' | 'updatedAt'>): Promise<TrainingProgramEntity> {
+  async create(
+    data: Omit<TrainingProgramEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TrainingProgramEntity> {
     return this.run(data.tenantId, async (c) => {
       const res = await c.query(
         `INSERT INTO hr_training_programs
@@ -125,13 +132,20 @@ export class PgTrainingProgramRepository extends PgBase implements TrainingProgr
 
   async findById(id: string, tenantId: string): Promise<TrainingProgramEntity | null> {
     return this.run(tenantId, async (c) => {
-      const res = await c.query(`SELECT * FROM hr_training_programs WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+      const res = await c.query(
+        `SELECT * FROM hr_training_programs WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
       const row = res.rows[0] as Row | undefined;
       return row ? mapProgram(row) : null;
     });
   }
 
-  async update(id: string, tenantId: string, data: Partial<TrainingProgramEntity>): Promise<TrainingProgramEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<TrainingProgramEntity>,
+  ): Promise<TrainingProgramEntity | null> {
     return this.run(tenantId, async (c) => {
       const res = await c.query(
         `UPDATE hr_training_programs SET
@@ -164,7 +178,11 @@ export class PgTrainingProgramRepository extends PgBase implements TrainingProgr
     });
   }
 
-  async list(tenantId: string, search: string | undefined, p: PaginationOptions): Promise<PaginatedResult<TrainingProgramEntity>> {
+  async list(
+    tenantId: string,
+    search: string | undefined,
+    p: PaginationOptions,
+  ): Promise<PaginatedResult<TrainingProgramEntity>> {
     return this.run(tenantId, async (c) => {
       const params: unknown[] = [tenantId];
       let where = 'tenant_id = $1';
@@ -172,25 +190,44 @@ export class PgTrainingProgramRepository extends PgBase implements TrainingProgr
         params.push(`%${search.toLowerCase()}%`);
         where += ` AND LOWER(name) LIKE $${params.length}`;
       }
-      const total = await c.query(`SELECT COUNT(*)::int AS n FROM hr_training_programs WHERE ${where}`, params);
+      const total = await c.query(
+        `SELECT COUNT(*)::int AS n FROM hr_training_programs WHERE ${where}`,
+        params,
+      );
       const rows = await c.query(
         `SELECT * FROM hr_training_programs WHERE ${where}
          ORDER BY start_date DESC, created_at DESC, id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, p.pageSize, (p.page - 1) * p.pageSize],
       );
-      return paginate((rows.rows as Row[]).map(mapProgram), Number((total.rows[0] as { n: number }).n), p);
+      return paginate(
+        (rows.rows as Row[]).map(mapProgram),
+        Number((total.rows[0] as { n: number }).n),
+        p,
+      );
     });
   }
 }
 
 export class PgTrainingSessionRepository extends PgBase implements TrainingSessionRepository {
-  async create(data: Omit<TrainingSessionEntity, 'createdAt' | 'updatedAt'>): Promise<TrainingSessionEntity> {
+  async create(
+    data: Omit<TrainingSessionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TrainingSessionEntity> {
     return this.run(data.tenantId, async (c) => {
       const res = await c.query(
         `INSERT INTO hr_training_sessions
            (id, tenant_id, program_id, title, session_date, start_time, end_time, location, instructor_name)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-        [data.id, data.tenantId, data.programId, data.title, data.date, data.startTime, data.endTime, data.location, data.instructorName],
+        [
+          data.id,
+          data.tenantId,
+          data.programId,
+          data.title,
+          data.date,
+          data.startTime,
+          data.endTime,
+          data.location,
+          data.instructorName,
+        ],
       );
       return mapSession(res.rows[0] as Row);
     });
@@ -198,13 +235,20 @@ export class PgTrainingSessionRepository extends PgBase implements TrainingSessi
 
   async findById(id: string, tenantId: string): Promise<TrainingSessionEntity | null> {
     return this.run(tenantId, async (c) => {
-      const res = await c.query(`SELECT * FROM hr_training_sessions WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+      const res = await c.query(
+        `SELECT * FROM hr_training_sessions WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
       const row = res.rows[0] as Row | undefined;
       return row ? mapSession(row) : null;
     });
   }
 
-  async listByProgram(tenantId: string, programId: string, p: PaginationOptions): Promise<PaginatedResult<TrainingSessionEntity>> {
+  async listByProgram(
+    tenantId: string,
+    programId: string,
+    p: PaginationOptions,
+  ): Promise<PaginatedResult<TrainingSessionEntity>> {
     return this.run(tenantId, async (c) => {
       const total = await c.query(
         `SELECT COUNT(*)::int AS n FROM hr_training_sessions WHERE tenant_id = $1 AND program_id = $2`,
@@ -215,13 +259,19 @@ export class PgTrainingSessionRepository extends PgBase implements TrainingSessi
          ORDER BY session_date, start_time NULLS LAST, id LIMIT $3 OFFSET $4`,
         [tenantId, programId, p.pageSize, (p.page - 1) * p.pageSize],
       );
-      return paginate((rows.rows as Row[]).map(mapSession), Number((total.rows[0] as { n: number }).n), p);
+      return paginate(
+        (rows.rows as Row[]).map(mapSession),
+        Number((total.rows[0] as { n: number }).n),
+        p,
+      );
     });
   }
 }
 
 export class PgTrainingAttendanceRepository extends PgBase implements TrainingAttendanceRepository {
-  async create(data: Omit<TrainingAttendanceEntity, 'createdAt'>): Promise<TrainingAttendanceEntity> {
+  async create(
+    data: Omit<TrainingAttendanceEntity, 'createdAt'>,
+  ): Promise<TrainingAttendanceEntity> {
     return this.run(data.tenantId, async (c) => {
       const res = await c.query(
         `INSERT INTO hr_training_attendance (id, tenant_id, session_id, staff_id, status, comment)
@@ -235,7 +285,11 @@ export class PgTrainingAttendanceRepository extends PgBase implements TrainingAt
     });
   }
 
-  async findBySessionAndStaff(sessionId: string, staffId: string, tenantId: string): Promise<TrainingAttendanceEntity | null> {
+  async findBySessionAndStaff(
+    sessionId: string,
+    staffId: string,
+    tenantId: string,
+  ): Promise<TrainingAttendanceEntity | null> {
     return this.run(tenantId, async (c) => {
       const res = await c.query(
         `SELECT * FROM hr_training_attendance WHERE tenant_id = $1 AND session_id = $2 AND staff_id = $3`,
@@ -268,13 +322,24 @@ export class PgTrainingAttendanceRepository extends PgBase implements TrainingAt
 }
 
 export class PgCertificationRepository extends PgBase implements CertificationRepository {
-  async create(data: Omit<CertificationEntity, 'createdAt' | 'updatedAt'>): Promise<CertificationEntity> {
+  async create(
+    data: Omit<CertificationEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<CertificationEntity> {
     return this.run(data.tenantId, async (c) => {
       const res = await c.query(
         `INSERT INTO hr_certifications
            (id, tenant_id, staff_id, program_id, certification_name, issued_date, expiry_date, status)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [data.id, data.tenantId, data.staffId, data.programId, data.certificationName, data.issuedDate, data.expiryDate, data.status],
+        [
+          data.id,
+          data.tenantId,
+          data.staffId,
+          data.programId,
+          data.certificationName,
+          data.issuedDate,
+          data.expiryDate,
+          data.status,
+        ],
       );
       return mapCertification(res.rows[0] as Row);
     });
@@ -282,13 +347,20 @@ export class PgCertificationRepository extends PgBase implements CertificationRe
 
   async findById(id: string, tenantId: string): Promise<CertificationEntity | null> {
     return this.run(tenantId, async (c) => {
-      const res = await c.query(`SELECT * FROM hr_certifications WHERE id = $1 AND tenant_id = $2`, [id, tenantId]);
+      const res = await c.query(
+        `SELECT * FROM hr_certifications WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
       const row = res.rows[0] as Row | undefined;
       return row ? mapCertification(row) : null;
     });
   }
 
-  async update(id: string, tenantId: string, data: Partial<CertificationEntity>): Promise<CertificationEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<CertificationEntity>,
+  ): Promise<CertificationEntity | null> {
     return this.run(tenantId, async (c) => {
       const res = await c.query(
         `UPDATE hr_certifications SET
@@ -312,7 +384,11 @@ export class PgCertificationRepository extends PgBase implements CertificationRe
     });
   }
 
-  async list(tenantId: string, filter: CertificationFilter, p: PaginationOptions): Promise<PaginatedResult<CertificationEntity>> {
+  async list(
+    tenantId: string,
+    filter: CertificationFilter,
+    p: PaginationOptions,
+  ): Promise<PaginatedResult<CertificationEntity>> {
     return this.run(tenantId, async (c) => {
       const params: unknown[] = [tenantId];
       const where = ['tenant_id = $1'];
@@ -329,17 +405,27 @@ export class PgCertificationRepository extends PgBase implements CertificationRe
         where.push(`program_id = $${params.length}`);
       }
       const clause = where.join(' AND ');
-      const total = await c.query(`SELECT COUNT(*)::int AS n FROM hr_certifications WHERE ${clause}`, params);
+      const total = await c.query(
+        `SELECT COUNT(*)::int AS n FROM hr_certifications WHERE ${clause}`,
+        params,
+      );
       const rows = await c.query(
         `SELECT * FROM hr_certifications WHERE ${clause}
          ORDER BY issued_date DESC, created_at DESC, id LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
         [...params, p.pageSize, (p.page - 1) * p.pageSize],
       );
-      return paginate((rows.rows as Row[]).map(mapCertification), Number((total.rows[0] as { n: number }).n), p);
+      return paginate(
+        (rows.rows as Row[]).map(mapCertification),
+        Number((total.rows[0] as { n: number }).n),
+        p,
+      );
     });
   }
 
-  async findExpiredCertifications(tenantId: string, asOfDate: string): Promise<CertificationEntity[]> {
+  async findExpiredCertifications(
+    tenantId: string,
+    asOfDate: string,
+  ): Promise<CertificationEntity[]> {
     return this.run(tenantId, async (c) => {
       const res = await c.query(
         `SELECT * FROM hr_certifications

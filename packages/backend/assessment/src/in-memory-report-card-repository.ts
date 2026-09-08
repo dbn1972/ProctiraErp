@@ -21,7 +21,9 @@ import type {
 export class InMemoryReportCardTemplateRepository implements ReportCardTemplateRepository {
   private templates: ReportCardTemplateEntity[] = [];
 
-  async create(data: Omit<ReportCardTemplateEntity, 'createdAt' | 'updatedAt'>): Promise<ReportCardTemplateEntity> {
+  async create(
+    data: Omit<ReportCardTemplateEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ReportCardTemplateEntity> {
     const entity: ReportCardTemplateEntity = {
       ...data,
       createdAt: new Date(),
@@ -83,7 +85,9 @@ export class InMemoryReportCardTemplateRepository implements ReportCardTemplateR
 export class InMemoryTeacherCommentRepository implements TeacherCommentRepository {
   private comments: TeacherCommentEntity[] = [];
 
-  async upsert(data: Omit<TeacherCommentEntity, 'createdAt' | 'updatedAt'>): Promise<TeacherCommentEntity> {
+  async upsert(
+    data: Omit<TeacherCommentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TeacherCommentEntity> {
     // Check if a comment already exists for this student+subject+period
     const existingIndex = this.comments.findIndex(
       (c) =>
@@ -164,9 +168,8 @@ export class InMemoryInstitutionBrandingRepository implements InstitutionBrandin
     tenantId: string,
   ): Promise<InstitutionBrandingEntity | null> {
     return (
-      this.brandings.find(
-        (b) => b.institutionId === institutionId && b.tenantId === tenantId,
-      ) ?? null
+      this.brandings.find((b) => b.institutionId === institutionId && b.tenantId === tenantId) ??
+      null
     );
   }
 

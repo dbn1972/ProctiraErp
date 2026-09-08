@@ -55,16 +55,21 @@ export class S3Adapter implements StorageAdapter {
       region: config.region,
       ...(config.endpoint && { endpoint: config.endpoint }),
       ...(config.forcePathStyle && { forcePathStyle: config.forcePathStyle }),
-      ...(config.accessKeyId && config.secretAccessKey && {
-        credentials: {
-          accessKeyId: config.accessKeyId,
-          secretAccessKey: config.secretAccessKey,
-        },
-      }),
+      ...(config.accessKeyId &&
+        config.secretAccessKey && {
+          credentials: {
+            accessKeyId: config.accessKeyId,
+            secretAccessKey: config.secretAccessKey,
+          },
+        }),
     });
   }
 
-  async upload(key: string, data: Buffer | Readable, options: UploadOptions): Promise<StorageResult> {
+  async upload(
+    key: string,
+    data: Buffer | Readable,
+    options: UploadOptions,
+  ): Promise<StorageResult> {
     const namespacedKey = buildTenantKey(options.tenantId, key);
     const encryption = options.encryption ?? this.defaultEncryption;
     const kmsKeyId = options.kmsKeyId ?? this.defaultKmsKeyId;

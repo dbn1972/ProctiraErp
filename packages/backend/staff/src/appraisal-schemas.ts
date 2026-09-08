@@ -34,8 +34,16 @@ export enum AppraisalStatus {
 export const AppraisalCriterionSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 200, description: 'Criterion name' }),
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Criterion description' })),
-  weight: Type.Number({ minimum: 0, maximum: 100, description: 'Weight percentage for this criterion' }),
-  maxScore: Type.Number({ minimum: 1, maximum: 100, description: 'Maximum score for this criterion' }),
+  weight: Type.Number({
+    minimum: 0,
+    maximum: 100,
+    description: 'Weight percentage for this criterion',
+  }),
+  maxScore: Type.Number({
+    minimum: 1,
+    maximum: 100,
+    description: 'Maximum score for this criterion',
+  }),
 });
 
 export type AppraisalCriterionInput = Static<typeof AppraisalCriterionSchema>;
@@ -64,7 +72,9 @@ export type CreateAppraisalTemplateInput = Static<typeof CreateAppraisalTemplate
 export const AppraisalScoreEntrySchema = Type.Object({
   criterionName: Type.String({ minLength: 1, description: 'Name of the criterion being scored' }),
   score: Type.Number({ minimum: 0, description: 'Score awarded for this criterion' }),
-  comment: Type.Optional(Type.String({ maxLength: 500, description: 'Comment for this criterion' })),
+  comment: Type.Optional(
+    Type.String({ maxLength: 500, description: 'Comment for this criterion' }),
+  ),
 });
 
 export type AppraisalScoreEntry = Static<typeof AppraisalScoreEntrySchema>;
@@ -80,7 +90,9 @@ export const CreateAppraisalSchema = Type.Object({
     minItems: 1,
     description: 'Scores for each criterion',
   }),
-  overallComment: Type.Optional(Type.String({ maxLength: 1000, description: 'Overall appraisal comment' })),
+  overallComment: Type.Optional(
+    Type.String({ maxLength: 1000, description: 'Overall appraisal comment' }),
+  ),
 });
 
 export type CreateAppraisalInput = Static<typeof CreateAppraisalSchema>;
@@ -118,12 +130,18 @@ export type AppraisalTemplateParams = Static<typeof AppraisalTemplateParamsSchem
 export const AppraisalListQuerySchema = Type.Object({
   page: Type.Optional(Type.Number({ minimum: 1, default: 1 })),
   pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20 })),
-  staffId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff member' })),
-  templateId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Filter by template' })),
-  status: Type.Optional(Type.String({
-    enum: ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'REJECTED'],
-    description: 'Filter by status',
-  })),
+  staffId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by staff member' }),
+  ),
+  templateId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Filter by template' }),
+  ),
+  status: Type.Optional(
+    Type.String({
+      enum: ['DRAFT', 'SUBMITTED', 'IN_REVIEW', 'APPROVED', 'REJECTED'],
+      description: 'Filter by status',
+    }),
+  ),
 });
 
 export type AppraisalListQuery = Static<typeof AppraisalListQuerySchema>;
@@ -136,11 +154,13 @@ export const AppraisalResponseSchema = Type.Object({
   staffId: Type.String(),
   templateId: Type.String(),
   appraisalDate: Type.String(),
-  scores: Type.Array(Type.Object({
-    criterionName: Type.String(),
-    score: Type.Number(),
-    comment: Type.Union([Type.String(), Type.Null()]),
-  })),
+  scores: Type.Array(
+    Type.Object({
+      criterionName: Type.String(),
+      score: Type.Number(),
+      comment: Type.Union([Type.String(), Type.Null()]),
+    }),
+  ),
   totalScore: Type.Number(),
   overallComment: Type.Union([Type.String(), Type.Null()]),
   status: Type.String(),
@@ -159,12 +179,14 @@ export const AppraisalTemplateResponseSchema = Type.Object({
   name: Type.String(),
   description: Type.Union([Type.String(), Type.Null()]),
   academicPeriodId: Type.String(),
-  criteria: Type.Array(Type.Object({
-    name: Type.String(),
-    description: Type.Union([Type.String(), Type.Null()]),
-    weight: Type.Number(),
-    maxScore: Type.Number(),
-  })),
+  criteria: Type.Array(
+    Type.Object({
+      name: Type.String(),
+      description: Type.Union([Type.String(), Type.Null()]),
+      weight: Type.Number(),
+      maxScore: Type.Number(),
+    }),
+  ),
   scoreMin: Type.Number(),
   scoreMax: Type.Number(),
   createdAt: Type.String(),

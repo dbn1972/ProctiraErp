@@ -21,7 +21,10 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { CustomFieldService } from './custom-field-service.js';
-import type { CustomFieldEntityType, CustomFieldValidationRules } from './custom-field-repository.js';
+import type {
+  CustomFieldEntityType,
+  CustomFieldValidationRules,
+} from './custom-field-repository.js';
 import {
   CreateCustomFieldDefinitionSchema,
   UpdateCustomFieldDefinitionSchema,
@@ -161,7 +164,10 @@ export async function registerCustomFieldRoutes(
   fastify.put(
     `${prefix}/definitions/:id`,
     async function updateDefinitionHandler(
-      request: FastifyRequest<{ Params: CustomFieldDefinitionParams; Body: UpdateCustomFieldDefinitionInput }>,
+      request: FastifyRequest<{
+        Params: CustomFieldDefinitionParams;
+        Body: UpdateCustomFieldDefinitionInput;
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(CustomFieldDefinitionParamsSchema, request.params);
@@ -279,7 +285,10 @@ export async function registerCustomFieldRoutes(
       }
 
       try {
-        const definition = await customFieldService.getDefinitionById(tenantId, paramsResult.data.id);
+        const definition = await customFieldService.getDefinitionById(
+          tenantId,
+          paramsResult.data.id,
+        );
         return reply.status(200).send(formatDefinitionResponse(definition));
       } catch (error: unknown) {
         if (error instanceof AppError) {
@@ -340,7 +349,10 @@ export async function registerCustomFieldRoutes(
   fastify.put(
     `${prefix}/values/:entityType/:entityId`,
     async function bulkSetValuesHandler(
-      request: FastifyRequest<{ Params: EntityValuesParams; Body: { values: Record<string, unknown> } }>,
+      request: FastifyRequest<{
+        Params: EntityValuesParams;
+        Body: { values: Record<string, unknown> };
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(EntityValuesParamsSchema, request.params);
@@ -368,7 +380,13 @@ export async function registerCustomFieldRoutes(
           code: 'VALIDATION_ERROR',
           message: 'values field is required and must be an object',
           statusCode: 400,
-          errors: [{ field: 'values', message: 'values is required and must be an object', rule: 'required' }],
+          errors: [
+            {
+              field: 'values',
+              message: 'values is required and must be an object',
+              rule: 'required',
+            },
+          ],
         });
       }
 

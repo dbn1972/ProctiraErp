@@ -279,7 +279,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/registrations'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (014_admissions_crm_schema.sql) incl. waitlist/interview CRM when DATABASE_URL set; else in-memory (G-205/G-717).',
+    notes:
+      'Raw pg (014_admissions_crm_schema.sql) incl. waitlist/interview CRM when DATABASE_URL set; else in-memory (G-205/G-717).',
     registrarName: 'registration',
   },
   {

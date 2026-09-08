@@ -151,7 +151,9 @@ function ApprovalsPanel({ approvals }: { approvals: WorkflowApproval[] | null })
         <div className="mt-4 flex flex-col items-center gap-1 py-6 text-center">
           <Inbox className="h-8 w-8 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
           <p className="text-sm font-medium">All caught up</p>
-          <p className="text-xs text-[hsl(var(--muted-foreground))]">No approvals waiting on you.</p>
+          <p className="text-xs text-[hsl(var(--muted-foreground))]">
+            No approvals waiting on you.
+          </p>
         </div>
       ) : (
         <ul className="mt-3 space-y-2">
@@ -210,17 +212,9 @@ function KpiCard({
         </p>
       </div>
       {value === null ? (
-        <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">
-          Currently unavailable
-        </p>
+        <p className="mt-3 text-sm text-[hsl(var(--muted-foreground))]">Currently unavailable</p>
       ) : (
-        <p
-          className={`mt-2 font-bold tracking-tight ${
-            small ? 'text-lg' : 'text-3xl'
-          }`}
-        >
-          {value}
-        </p>
+        <p className={`mt-2 font-bold tracking-tight ${small ? 'text-lg' : 'text-3xl'}`}>{value}</p>
       )}
     </Link>
   );

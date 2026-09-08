@@ -52,9 +52,7 @@ const SETUP_PAYLOAD = {
  * Walks the candidate paths and returns the first one that responds
  * 2xx; returns `null` when none are available so the spec can skip.
  */
-async function findSetupRoute(page: import('@playwright/test').Page): Promise<
-  string | null
-> {
+async function findSetupRoute(page: import('@playwright/test').Page): Promise<string | null> {
   for (const path of SETUP_PATHS) {
     const response = await page.goto(path);
     if (response && response.status() < 400) {

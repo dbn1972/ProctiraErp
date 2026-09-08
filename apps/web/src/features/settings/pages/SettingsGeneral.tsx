@@ -113,9 +113,7 @@ function buildSchema(t: (key: string, params?: Record<string, string | number>) 
       .trim()
       .min(1, t('settings.general.errors.brandNameRequired'))
       .max(40, t('settings.general.errors.brandNameTooLong')),
-    defaultLanguage: z
-      .string()
-      .min(1, t('settings.general.errors.defaultLanguageRequired')),
+    defaultLanguage: z.string().min(1, t('settings.general.errors.defaultLanguageRequired')),
     defaultThemeMode: z.enum(themeModeValues),
     notificationsEmail: z
       .string()
@@ -123,9 +121,7 @@ function buildSchema(t: (key: string, params?: Record<string, string | number>) 
       .min(1, t('settings.general.errors.notificationsEmailRequired'))
       .email(t('settings.general.errors.notificationsEmailInvalid'))
       .max(254),
-    tenantTimezone: z
-      .string()
-      .min(1, t('settings.general.errors.tenantTimezoneRequired')),
+    tenantTimezone: z.string().min(1, t('settings.general.errors.tenantTimezoneRequired')),
   });
 }
 
@@ -209,11 +205,7 @@ export default function SettingsGeneral({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setLoadError(
-          err instanceof Error
-            ? err.message
-            : t('settings.general.loadFailed'),
-        );
+        setLoadError(err instanceof Error ? err.message : t('settings.general.loadFailed'));
         setLoading(false);
       });
     return () => {
@@ -250,11 +242,7 @@ export default function SettingsGeneral({
 
   if (loading) {
     return (
-      <div
-        className="space-y-6 p-6"
-        role="status"
-        aria-label={t('common.loading')}
-      >
+      <div className="space-y-6 p-6" role="status" aria-label={t('common.loading')}>
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-96" />
         <Skeleton className="h-64 w-full" />
@@ -276,12 +264,8 @@ export default function SettingsGeneral({
   return (
     <div className="p-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-foreground">
-          {t('settings.general.title')}
-        </h1>
-        <p className="mt-1 text-muted-foreground">
-          {t('settings.general.description')}
-        </p>
+        <h1 className="text-2xl font-semibold text-foreground">{t('settings.general.title')}</h1>
+        <p className="mt-1 text-muted-foreground">{t('settings.general.description')}</p>
       </header>
 
       {submitState.kind === 'error' && (
@@ -365,11 +349,10 @@ export default function SettingsGeneral({
           <Select
             value={themeMode}
             onValueChange={(value) =>
-              setValue(
-                'defaultThemeMode',
-                value as SettingsGeneralFormValues['defaultThemeMode'],
-                { shouldDirty: true, shouldValidate: true },
-              )
+              setValue('defaultThemeMode', value as SettingsGeneralFormValues['defaultThemeMode'], {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
             }
           >
             <SelectTrigger
@@ -380,15 +363,9 @@ export default function SettingsGeneral({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="light">
-                {t('settings.general.themeMode.light')}
-              </SelectItem>
-              <SelectItem value="dark">
-                {t('settings.general.themeMode.dark')}
-              </SelectItem>
-              <SelectItem value="system">
-                {t('settings.general.themeMode.system')}
-              </SelectItem>
+              <SelectItem value="light">{t('settings.general.themeMode.light')}</SelectItem>
+              <SelectItem value="dark">{t('settings.general.themeMode.dark')}</SelectItem>
+              <SelectItem value="system">{t('settings.general.themeMode.system')}</SelectItem>
             </SelectContent>
           </Select>
         </FormField>
@@ -451,9 +428,7 @@ export default function SettingsGeneral({
             data-testid="settings-general-submit"
             className="min-h-[48px]"
           >
-            {isSubmitting
-              ? t('settings.general.saving')
-              : t('settings.general.save')}
+            {isSubmitting ? t('settings.general.saving') : t('settings.general.save')}
           </Button>
         </div>
       </form>

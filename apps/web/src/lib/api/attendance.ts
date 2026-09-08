@@ -115,26 +115,25 @@ export async function getClassRoster(
     `/attendance/roster?${params.toString()}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
-export async function getAttendanceConfig(
-  institutionId: string,
-): Promise<AttendanceConfig | null> {
-  const result = await gatewayFetch<AttendanceConfig>(
-    `/attendance/config/${institutionId}`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 60 } },
-  );
+export async function getAttendanceConfig(institutionId: string): Promise<AttendanceConfig | null> {
+  const result = await gatewayFetch<AttendanceConfig>(`/attendance/config/${institutionId}`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 60 },
+  });
   return result.ok ? result.data : null;
 }
 
 export async function recordBulkAttendance(
   input: BulkAttendanceInput,
 ): Promise<BulkAttendanceResponse> {
-  const result = await gatewayFetch<BulkAttendanceResponse>(
-    '/attendance/student/bulk',
-    { method: 'POST', json: input },
-  );
+  const result = await gatewayFetch<BulkAttendanceResponse>('/attendance/student/bulk', {
+    method: 'POST',
+    json: input,
+  });
   if (!result.data) throw new Error('Empty response from attendance-service');
   return result.data;
 }

@@ -12,11 +12,7 @@
  */
 import { MarketingHeader } from '@/components/layout/marketing-header';
 
-export default function PublicLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50 text-foreground">
       <MarketingHeader />

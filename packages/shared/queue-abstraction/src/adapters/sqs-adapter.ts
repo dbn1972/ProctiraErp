@@ -96,8 +96,8 @@ export class SQSAdapter implements QueueAdapter {
     const queueUrl = await this.getOrCreateQueueUrl(queueName);
 
     const messageAttributes: Record<string, { DataType: string; StringValue: string }> = {
-      'tenantId': { DataType: 'String', StringValue: message.tenantId },
-      'messageType': { DataType: 'String', StringValue: message.type },
+      tenantId: { DataType: 'String', StringValue: message.tenantId },
+      messageType: { DataType: 'String', StringValue: message.type },
     };
 
     if (message.metadata?.correlationId) {
@@ -174,7 +174,7 @@ export class SQSAdapter implements QueueAdapter {
           new GetQueueAttributesCommand({
             QueueUrl: firstUrl,
             AttributeNames: ['ApproximateNumberOfMessages'],
-          })
+          }),
         );
       }
 
@@ -212,9 +212,7 @@ export class SQSAdapter implements QueueAdapter {
     const sqsQueueName = queueName.replace(/\./g, '-');
 
     try {
-      const result = await this.client.send(
-        new GetQueueUrlCommand({ QueueName: sqsQueueName })
-      );
+      const result = await this.client.send(new GetQueueUrlCommand({ QueueName: sqsQueueName }));
       const url = result.QueueUrl!;
       this.queueUrlCache.set(queueName, url);
       return url;
@@ -235,7 +233,7 @@ export class SQSAdapter implements QueueAdapter {
         new CreateQueueCommand({
           QueueName: sqsQueueName,
           Attributes: attributes,
-        })
+        }),
       );
 
       const url = createResult.QueueUrl!;
@@ -247,11 +245,7 @@ export class SQSAdapter implements QueueAdapter {
   /**
    * Long-poll messages from an SQS queue and dispatch to handler.
    */
-  private pollMessages(
-    queueUrl: string,
-    handler: MessageHandler,
-    maxConcurrent: number
-  ): void {
+  private pollMessages(queueUrl: string, handler: MessageHandler, maxConcurrent: number): void {
     if (!this.pollingActive || !this.client) return;
 
     const poll = async (): Promise<void> => {
@@ -264,7 +258,7 @@ export class SQSAdapter implements QueueAdapter {
             MaxNumberOfMessages: Math.min(maxConcurrent, this.config.maxNumberOfMessages ?? 10),
             WaitTimeSeconds: this.config.waitTimeSeconds ?? 20,
             MessageAttributeNames: ['All'],
-          })
+          }),
         );
 
         if (result.Messages && result.Messages.length > 0) {
@@ -281,7 +275,7 @@ export class SQSAdapter implements QueueAdapter {
                   new DeleteMessageCommand({
                     QueueUrl: queueUrl,
                     ReceiptHandle: sqsMessage.ReceiptHandle!,
-                  })
+                  }),
                 );
               }
             } catch {
@@ -298,7 +292,9 @@ export class SQSAdapter implements QueueAdapter {
 
       // Schedule next poll
       if (this.pollingActive) {
-        const timer = setTimeout(() => { void poll(); }, 100);
+        const timer = setTimeout(() => {
+          void poll();
+        }, 100);
         this.pollingTimers.push(timer);
       }
     };

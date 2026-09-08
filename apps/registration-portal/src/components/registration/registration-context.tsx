@@ -150,10 +150,7 @@ export function RegistrationProvider({
     }
     setDraft((prev) => ({
       ...prev,
-      documents: [
-        ...prev.documents.filter((d) => d.documentType !== meta.documentType),
-        meta,
-      ],
+      documents: [...prev.documents.filter((d) => d.documentType !== meta.documentType), meta],
     }));
   }, []);
 

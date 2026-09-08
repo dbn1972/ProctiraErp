@@ -64,7 +64,11 @@ describe('cookies — Secure flag resolution (G-719)', () => {
   });
 
   it('keeps every auth cookie httpOnly + lax + path=/', () => {
-    for (const opts of [accessTokenCookieOptions(), refreshTokenCookieOptions(), clearCookieOptions()]) {
+    for (const opts of [
+      accessTokenCookieOptions(),
+      refreshTokenCookieOptions(),
+      clearCookieOptions(),
+    ]) {
       expect(opts.httpOnly).toBe(true);
       expect(opts.sameSite).toBe('lax');
       expect(opts.path).toBe('/');

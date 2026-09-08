@@ -17,17 +17,7 @@ export const defaultLocale = 'en';
  * mr (Marathi), bn (Bengali), gu (Gujarati), kn (Kannada).
  * Additional: ar (Arabic) — has `messages/ar.json`.
  */
-export const locales = [
-  'en',
-  'hi',
-  'ta',
-  'te',
-  'mr',
-  'bn',
-  'gu',
-  'kn',
-  'ar',
-] as const;
+export const locales = ['en', 'hi', 'ta', 'te', 'mr', 'bn', 'gu', 'kn', 'ar'] as const;
 
 export type Locale = (typeof locales)[number];
 

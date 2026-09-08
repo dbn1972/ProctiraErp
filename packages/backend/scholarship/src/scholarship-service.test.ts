@@ -20,7 +20,9 @@ function makeUuid(): string {
   return 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
 }
 
-function makeProgramInput(overrides: Partial<CreateScholarshipProgramInput> = {}): CreateScholarshipProgramInput {
+function makeProgramInput(
+  overrides: Partial<CreateScholarshipProgramInput> = {},
+): CreateScholarshipProgramInput {
   return {
     name: 'Merit Scholarship 2024',
     applicationStartDate: '2024-01-01',
@@ -35,7 +37,10 @@ function makeProgramInput(overrides: Partial<CreateScholarshipProgramInput> = {}
   };
 }
 
-function makeApplicationInput(programId: string, overrides: Partial<CreateApplicationInput> = {}): CreateApplicationInput {
+function makeApplicationInput(
+  programId: string,
+  overrides: Partial<CreateApplicationInput> = {},
+): CreateApplicationInput {
   return {
     programId,
     applicantId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22',
@@ -53,7 +58,11 @@ function makeApplicationInput(programId: string, overrides: Partial<CreateApplic
       numberOfDependents: 3,
     },
     documents: [
-      { documentType: 'transcript', fileName: 'transcript.pdf', fileUrl: '/uploads/transcript.pdf' },
+      {
+        documentType: 'transcript',
+        fileName: 'transcript.pdf',
+        fileUrl: '/uploads/transcript.pdf',
+      },
       { documentType: 'recommendation_letter', fileName: 'rec.pdf', fileUrl: '/uploads/rec.pdf' },
     ],
     gender: 'female',
@@ -122,18 +131,18 @@ describe('ScholarshipService', () => {
     });
 
     it('should throw NotFoundError for non-existent program', async () => {
-      await expect(
-        service.updateProgram(TENANT_ID, makeUuid(), { name: 'Test' }),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.updateProgram(TENANT_ID, makeUuid(), { name: 'Test' })).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('should throw BusinessRuleError for archived program', async () => {
       const program = await service.createProgram(TENANT_ID, makeProgramInput());
       await service.updateProgram(TENANT_ID, program.id, { status: 'archived' });
 
-      await expect(
-        service.updateProgram(TENANT_ID, program.id, { name: 'Test' }),
-      ).rejects.toThrow(BusinessRuleError);
+      await expect(service.updateProgram(TENANT_ID, program.id, { name: 'Test' })).rejects.toThrow(
+        BusinessRuleError,
+      );
     });
   });
 
@@ -188,7 +197,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(mockDate);
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
 
         expect(application.id).toBeDefined();
         expect(application.programId).toBe(program.id);
@@ -209,10 +221,13 @@ describe('ScholarshipService', () => {
     });
 
     it('should throw BusinessRuleError if application period is not active', async () => {
-      const program = await service.createProgram(TENANT_ID, makeProgramInput({
-        applicationStartDate: '2025-01-01',
-        applicationEndDate: '2025-06-30',
-      }));
+      const program = await service.createProgram(
+        TENANT_ID,
+        makeProgramInput({
+          applicationStartDate: '2025-01-01',
+          applicationEndDate: '2025-06-30',
+        }),
+      );
       await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
 
       // Current date is before application period
@@ -274,14 +289,16 @@ describe('ScholarshipService', () => {
       try {
         const input = makeApplicationInput(program.id, {
           documents: [
-            { documentType: 'transcript', fileName: 'transcript.pdf', fileUrl: '/uploads/transcript.pdf' },
+            {
+              documentType: 'transcript',
+              fileName: 'transcript.pdf',
+              fileUrl: '/uploads/transcript.pdf',
+            },
             // Missing 'recommendation_letter'
           ],
         });
 
-        await expect(
-          service.submitApplication(TENANT_ID, input),
-        ).rejects.toThrow(ValidationError);
+        await expect(service.submitApplication(TENANT_ID, input)).rejects.toThrow(ValidationError);
       } finally {
         vi.useRealTimers();
       }
@@ -297,7 +314,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
         const approved = await service.approveApplication(TENANT_ID, application.id);
 
         expect(approved.status).toBe('approved');
@@ -319,12 +339,15 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
         await service.approveApplication(TENANT_ID, application.id);
 
-        await expect(
-          service.approveApplication(TENANT_ID, application.id),
-        ).rejects.toThrow(BusinessRuleError);
+        await expect(service.approveApplication(TENANT_ID, application.id)).rejects.toThrow(
+          BusinessRuleError,
+        );
       } finally {
         vi.useRealTimers();
       }
@@ -340,7 +363,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
         const rejected = await service.rejectApplication(TENANT_ID, application.id);
 
         expect(rejected.status).toBe('rejected');
@@ -362,7 +388,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
         await service.approveApplication(TENANT_ID, application.id);
 
         const disbursement = await service.createDisbursement(TENANT_ID, {
@@ -389,7 +418,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
 
         await expect(
           service.createDisbursement(TENANT_ID, {
@@ -413,7 +445,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
         await service.approveApplication(TENANT_ID, application.id);
 
         const disbursement = await service.createDisbursement(TENANT_ID, {
@@ -448,7 +483,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
         await service.approveApplication(TENANT_ID, application.id);
 
         const record = await service.recordCompliance(TENANT_ID, {
@@ -475,7 +513,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
 
         await expect(
           service.recordCompliance(TENANT_ID, {
@@ -502,7 +543,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
         await service.approveApplication(TENANT_ID, application.id);
 
         // Create a paid disbursement
@@ -539,7 +583,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        await service.submitApplication(TENANT_ID, makeApplicationInput(program.id, { gender: 'female' }));
+        await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id, { gender: 'female' }),
+        );
 
         const report = await service.getUtilizationReport(TENANT_ID, {
           gender: 'male',
@@ -564,7 +611,10 @@ describe('ScholarshipService', () => {
       vi.setSystemTime(new Date('2024-03-15'));
 
       try {
-        const application = await service.submitApplication(TENANT_ID, makeApplicationInput(program.id));
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
 
         expect(application.workflowInstanceId).toBe('workflow-instance-001');
         expect(application.status).toBe('under_review');
@@ -575,7 +625,9 @@ describe('ScholarshipService', () => {
 
     it('should handle workflow engine failure gracefully', async () => {
       const failingWorkflowEngine: WorkflowEngineClient = {
-        createInstance: async () => { throw new Error('Workflow engine unavailable'); },
+        createInstance: async () => {
+          throw new Error('Workflow engine unavailable');
+        },
       };
       const serviceWithFailingWf = new ScholarshipService(repository, failingWorkflowEngine);
 

@@ -86,7 +86,10 @@ function createMockDb() {
     return areas.filter((a) => matchesWhere(a, where));
   }
 
-  function sortAreas(list: GeographicArea[], orderBy: Record<string, unknown> | Record<string, unknown>[]): GeographicArea[] {
+  function sortAreas(
+    list: GeographicArea[],
+    orderBy: Record<string, unknown> | Record<string, unknown>[],
+  ): GeographicArea[] {
     const sorted = [...list];
     const orderByObj = Array.isArray(orderBy) ? orderBy[0] : orderBy;
     if (!orderByObj) return sorted;
@@ -110,7 +113,10 @@ function createMockDb() {
         return areas.find((a) => a.id === args.where.id) ?? null;
       },
 
-      findFirst: async (args: { where: Record<string, unknown>; orderBy?: Record<string, unknown> | Record<string, unknown>[] }) => {
+      findFirst: async (args: {
+        where: Record<string, unknown>;
+        orderBy?: Record<string, unknown> | Record<string, unknown>[];
+      }) => {
         let filtered = filterAreas(args.where);
         if (args.orderBy) {
           filtered = sortAreas(filtered, args.orderBy);
@@ -118,7 +124,10 @@ function createMockDb() {
         return filtered[0] ?? null;
       },
 
-      findMany: async (args: { where: Record<string, unknown>; orderBy?: Record<string, unknown> | Record<string, unknown>[] }) => {
+      findMany: async (args: {
+        where: Record<string, unknown>;
+        orderBy?: Record<string, unknown> | Record<string, unknown>[];
+      }) => {
         let filtered = filterAreas(args.where);
         if (args.orderBy) {
           filtered = sortAreas(filtered, args.orderBy);
@@ -158,14 +167,18 @@ function createMockDb() {
         return area;
       },
 
-      updateMany: async (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => {
         let count = 0;
         for (const area of areas) {
           if (matchesWhere(area, args.where)) {
             for (const [key, value] of Object.entries(args.data)) {
               if (typeof value === 'object' && value !== null && 'increment' in value) {
                 (area as Record<string, unknown>)[key] =
-                  ((area as Record<string, unknown>)[key] as number) + (value as { increment: number }).increment;
+                  ((area as Record<string, unknown>)[key] as number) +
+                  (value as { increment: number }).increment;
               } else {
                 (area as Record<string, unknown>)[key] = value;
               }
@@ -210,10 +223,7 @@ interface CreateAreaOp {
 const randomTreeOpsArb: fc.Arbitrary<CreateAreaOp[]> = fc
   .integer({ min: 5, max: 20 })
   .chain((numOps) => {
-    return fc.array(
-      fc.nat(),
-      { minLength: numOps, maxLength: numOps },
-    ).map((parentSeeds) => {
+    return fc.array(fc.nat(), { minLength: numOps, maxLength: numOps }).map((parentSeeds) => {
       const ops: CreateAreaOp[] = [];
       for (let i = 0; i < parentSeeds.length; i++) {
         const parentSeed = parentSeeds[i]!;
@@ -258,117 +268,109 @@ describe('Property 9: Area Hierarchy Depth Constraint', () => {
 
   it('no area node in the hierarchy ever exceeds MAX_AREA_DEPTH (10) levels after any sequence of creations', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        randomTreeOpsArb,
-        async (ops) => {
-          const db = createMockDb();
-          const service = new AreaHierarchyService(db);
-          const createdIds: (string | null)[] = [];
+      fc.asyncProperty(randomTreeOpsArb, async (ops) => {
+        const db = createMockDb();
+        const service = new AreaHierarchyService(db);
+        const createdIds: (string | null)[] = [];
 
-          for (const op of ops) {
-            // Resolve parent ID from index, skipping rejected/failed entries
-            let parentId: string | undefined;
-            if (op.parentIndex !== null && op.parentIndex < createdIds.length) {
-              const resolvedId = createdIds[op.parentIndex];
-              if (resolvedId !== null) {
-                parentId = resolvedId;
-              }
-            }
-
-            try {
-              const area = await service.create({
-                tenantId: TENANT_ID,
-                name: op.name,
-                code: op.code,
-                parentId,
-              });
-              createdIds.push(area.id);
-
-              // Invariant: any successfully created area must have level < MAX_AREA_DEPTH
-              expect(area.level).toBeLessThan(MAX_AREA_DEPTH);
-            } catch (error) {
-              if (error instanceof BusinessRuleError) {
-                // Expected: depth constraint violation — node was correctly rejected
-                createdIds.push(null);
-              } else if (error instanceof ConflictError) {
-                // Duplicate code — not relevant to depth constraint
-                createdIds.push(null);
-              } else if (error instanceof NotFoundError) {
-                // Parent not found — not relevant to depth constraint
-                createdIds.push(null);
-              } else {
-                throw error;
-              }
+        for (const op of ops) {
+          // Resolve parent ID from index, skipping rejected/failed entries
+          let parentId: string | undefined;
+          if (op.parentIndex !== null && op.parentIndex < createdIds.length) {
+            const resolvedId = createdIds[op.parentIndex];
+            if (resolvedId !== null) {
+              parentId = resolvedId;
             }
           }
 
-          // Final invariant: verify all areas in the store have level < MAX_AREA_DEPTH
-          const allAreas = db.getAreas();
-          for (const area of allAreas) {
+          try {
+            const area = await service.create({
+              tenantId: TENANT_ID,
+              name: op.name,
+              code: op.code,
+              parentId,
+            });
+            createdIds.push(area.id);
+
+            // Invariant: any successfully created area must have level < MAX_AREA_DEPTH
             expect(area.level).toBeLessThan(MAX_AREA_DEPTH);
+          } catch (error) {
+            if (error instanceof BusinessRuleError) {
+              // Expected: depth constraint violation — node was correctly rejected
+              createdIds.push(null);
+            } else if (error instanceof ConflictError) {
+              // Duplicate code — not relevant to depth constraint
+              createdIds.push(null);
+            } else if (error instanceof NotFoundError) {
+              // Parent not found — not relevant to depth constraint
+              createdIds.push(null);
+            } else {
+              throw error;
+            }
           }
-        },
-      ),
+        }
+
+        // Final invariant: verify all areas in the store have level < MAX_AREA_DEPTH
+        const allAreas = db.getAreas();
+        for (const area of allAreas) {
+          expect(area.level).toBeLessThan(MAX_AREA_DEPTH);
+        }
+      }),
       { numRuns: 100 },
     );
   });
 
   it('a linear chain of exactly MAX_AREA_DEPTH levels succeeds, but the next level is rejected', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        linearChainArb,
-        async ({ targetDepth, ops }) => {
-          const db = createMockDb();
-          const service = new AreaHierarchyService(db);
-          const createdIds: string[] = [];
-          let rejectedAtLevel: number | null = null;
+      fc.asyncProperty(linearChainArb, async ({ targetDepth, ops }) => {
+        const db = createMockDb();
+        const service = new AreaHierarchyService(db);
+        const createdIds: string[] = [];
+        let rejectedAtLevel: number | null = null;
 
-          for (let i = 0; i < ops.length; i++) {
-            const op = ops[i]!;
-            const parentId = op.parentIndex !== null
-              ? createdIds[op.parentIndex]
-              : undefined;
+        for (let i = 0; i < ops.length; i++) {
+          const op = ops[i]!;
+          const parentId = op.parentIndex !== null ? createdIds[op.parentIndex] : undefined;
 
-            try {
-              const area = await service.create({
-                tenantId: TENANT_ID,
-                name: op.name,
-                code: op.code,
-                parentId,
-              });
-              createdIds.push(area.id);
-            } catch (error) {
-              if (error instanceof BusinessRuleError) {
-                rejectedAtLevel = i;
-                break; // Stop after first rejection in a linear chain
-              } else {
-                throw error;
-              }
+          try {
+            const area = await service.create({
+              tenantId: TENANT_ID,
+              name: op.name,
+              code: op.code,
+              parentId,
+            });
+            createdIds.push(area.id);
+          } catch (error) {
+            if (error instanceof BusinessRuleError) {
+              rejectedAtLevel = i;
+              break; // Stop after first rejection in a linear chain
+            } else {
+              throw error;
             }
           }
+        }
 
-          if (targetDepth <= MAX_AREA_DEPTH) {
-            // All operations should succeed — no rejection
-            expect(rejectedAtLevel).toBeNull();
-            // The deepest node should be at level targetDepth - 1 (0-indexed)
-            const allAreas = db.getAreas();
-            if (allAreas.length > 0) {
-              const maxLevel = Math.max(...allAreas.map((a) => a.level));
-              expect(maxLevel).toBe(targetDepth - 1);
-            }
-          } else {
-            // The operation at index MAX_AREA_DEPTH should be rejected
-            // (that's the 11th node, which would be at level 10)
-            expect(rejectedAtLevel).toBe(MAX_AREA_DEPTH);
-          }
-
-          // Invariant: no stored area exceeds the depth limit
+        if (targetDepth <= MAX_AREA_DEPTH) {
+          // All operations should succeed — no rejection
+          expect(rejectedAtLevel).toBeNull();
+          // The deepest node should be at level targetDepth - 1 (0-indexed)
           const allAreas = db.getAreas();
-          for (const area of allAreas) {
-            expect(area.level).toBeLessThan(MAX_AREA_DEPTH);
+          if (allAreas.length > 0) {
+            const maxLevel = Math.max(...allAreas.map((a) => a.level));
+            expect(maxLevel).toBe(targetDepth - 1);
           }
-        },
-      ),
+        } else {
+          // The operation at index MAX_AREA_DEPTH should be rejected
+          // (that's the 11th node, which would be at level 10)
+          expect(rejectedAtLevel).toBe(MAX_AREA_DEPTH);
+        }
+
+        // Invariant: no stored area exceeds the depth limit
+        const allAreas = db.getAreas();
+        for (const area of allAreas) {
+          expect(area.level).toBeLessThan(MAX_AREA_DEPTH);
+        }
+      }),
       { numRuns: 100 },
     );
   });

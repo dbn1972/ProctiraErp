@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buildTenantQueue, buildTenantRoutingKey, DEFAULT_RABBITMQ_CONFIG } from '../rabbitmq/config';
+import {
+  buildTenantQueue,
+  buildTenantRoutingKey,
+  DEFAULT_RABBITMQ_CONFIG,
+} from '../rabbitmq/config';
 import type { TaskMessage } from '../types';
 
 // Create mock objects at module level using vi.hoisted
@@ -49,7 +53,7 @@ describe('RabbitMQ Config', () => {
   describe('buildTenantRoutingKey', () => {
     it('should build a tenant-prefixed routing key', () => {
       expect(buildTenantRoutingKey('tenant-001', 'report.generate')).toBe(
-        'tenant.tenant-001.report.generate'
+        'tenant.tenant-001.report.generate',
       );
     });
   });
@@ -111,9 +115,7 @@ describe('RabbitMQPublisher', () => {
   });
 
   it('should throw when publishing without connection', async () => {
-    await expect(publisher.publish(testTask)).rejects.toThrow(
-      'RabbitMQPublisher is not connected'
-    );
+    await expect(publisher.publish(testTask)).rejects.toThrow('RabbitMQPublisher is not connected');
   });
 
   it('should publish a task message', async () => {
@@ -128,7 +130,7 @@ describe('RabbitMQPublisher', () => {
         priority: 5,
         messageId: 'task-001',
         contentType: 'application/json',
-      })
+      }),
     );
   });
 
@@ -148,7 +150,7 @@ describe('RabbitMQPublisher', () => {
         headers: expect.objectContaining({
           'x-delay': 5000,
         }),
-      })
+      }),
     );
   });
 
@@ -168,7 +170,7 @@ describe('RabbitMQPublisher', () => {
 
   it('should throw when ensuring queue without connection', async () => {
     await expect(publisher.ensureQueue('t1', 'q1', 'r1')).rejects.toThrow(
-      'RabbitMQPublisher is not connected'
+      'RabbitMQPublisher is not connected',
     );
   });
 });
@@ -212,7 +214,7 @@ describe('RabbitMQSubscriber', () => {
         queueName: 'reports',
         routingPattern: 'report.*',
         handler: async () => {},
-      })
+      }),
     ).rejects.toThrow('RabbitMQSubscriber is not connected');
   });
 
@@ -227,7 +229,7 @@ describe('RabbitMQSubscriber', () => {
     expect(subscriber.isConsuming()).toBe(true);
     expect(mocks.mockChannel.consume).toHaveBeenCalledWith(
       'tenant.tenant-001.reports',
-      expect.any(Function)
+      expect.any(Function),
     );
   });
 
@@ -244,17 +246,19 @@ describe('RabbitMQSubscriber', () => {
     // DLQ should be named with .dlq suffix
     expect(mocks.mockChannel.assertQueue).toHaveBeenCalledWith(
       'tenant.tenant-001.reports.dlq',
-      expect.objectContaining({ durable: true })
+      expect.objectContaining({ durable: true }),
     );
   });
 
   it('should acknowledge successful messages', async () => {
     // Capture the message handler
     let messageHandler: ((msg: unknown) => Promise<void>) | undefined;
-    mocks.mockChannel.consume.mockImplementation(async (_queue: string, handler: (msg: unknown) => Promise<void>) => {
-      messageHandler = handler;
-      return { consumerTag: 'tag-1' };
-    });
+    mocks.mockChannel.consume.mockImplementation(
+      async (_queue: string, handler: (msg: unknown) => Promise<void>) => {
+        messageHandler = handler;
+        return { consumerTag: 'tag-1' };
+      },
+    );
 
     await subscriber.connect();
     await subscriber.subscribe({
@@ -275,7 +279,7 @@ describe('RabbitMQSubscriber', () => {
           type: 'report.generate',
           payload: {},
           options: { priority: 5, delay: 0, maxRetries: 3, retryCount: 0 },
-        })
+        }),
       ),
       fields: { routingKey: 'tenant.tenant-001.report.generate' },
       properties: { headers: {} },
@@ -287,10 +291,12 @@ describe('RabbitMQSubscriber', () => {
 
   it('should nack messages that exceed max retries', async () => {
     let messageHandler: ((msg: unknown) => Promise<void>) | undefined;
-    mocks.mockChannel.consume.mockImplementation(async (_queue: string, handler: (msg: unknown) => Promise<void>) => {
-      messageHandler = handler;
-      return { consumerTag: 'tag-1' };
-    });
+    mocks.mockChannel.consume.mockImplementation(
+      async (_queue: string, handler: (msg: unknown) => Promise<void>) => {
+        messageHandler = handler;
+        return { consumerTag: 'tag-1' };
+      },
+    );
 
     await subscriber.connect();
     await subscriber.subscribe({
@@ -311,7 +317,7 @@ describe('RabbitMQSubscriber', () => {
           type: 'report.generate',
           payload: {},
           options: { priority: 5, delay: 0, maxRetries: 3, retryCount: 3 },
-        })
+        }),
       ),
       fields: { routingKey: 'tenant.tenant-001.report.generate' },
       properties: { headers: {} },
@@ -324,10 +330,12 @@ describe('RabbitMQSubscriber', () => {
 
   it('should retry messages that have not exceeded max retries', async () => {
     let messageHandler: ((msg: unknown) => Promise<void>) | undefined;
-    mocks.mockChannel.consume.mockImplementation(async (_queue: string, handler: (msg: unknown) => Promise<void>) => {
-      messageHandler = handler;
-      return { consumerTag: 'tag-1' };
-    });
+    mocks.mockChannel.consume.mockImplementation(
+      async (_queue: string, handler: (msg: unknown) => Promise<void>) => {
+        messageHandler = handler;
+        return { consumerTag: 'tag-1' };
+      },
+    );
 
     await subscriber.connect();
     await subscriber.subscribe({
@@ -348,7 +356,7 @@ describe('RabbitMQSubscriber', () => {
           type: 'report.generate',
           payload: {},
           options: { priority: 5, delay: 0, maxRetries: 3, retryCount: 1 },
-        })
+        }),
       ),
       fields: { routingKey: 'tenant.tenant-001.report.generate' },
       properties: { headers: {} },

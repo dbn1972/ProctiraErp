@@ -27,12 +27,7 @@
  */
 
 /** UserScope levels exposed by `useAuth()` (matches AuthProvider). */
-export type DashboardScopeLevel =
-  | 'country'
-  | 'state'
-  | 'district'
-  | 'board'
-  | 'school';
+export type DashboardScopeLevel = 'country' | 'state' | 'district' | 'board' | 'school';
 
 /** Minimal shape of `useAuth().user.scope` consumed by the role router. */
 export interface RoleRouterScope {
@@ -106,9 +101,7 @@ function rolesContain(
  * Server-side policy still gates the data on each route; this function is
  * deliberately client-only and never makes an authorisation decision.
  */
-export function selectDefaultDashboardRoute(
-  input: RoleRouterInput,
-): DashboardRoute {
+export function selectDefaultDashboardRoute(input: RoleRouterInput): DashboardRoute {
   const { scope, roles } = input;
 
   // (1) Country-level admin lands on the national dashboard.

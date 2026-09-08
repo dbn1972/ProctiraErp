@@ -6,18 +6,19 @@
  * summarising any nodes flagged for repair. Powered by the institution
  * service's `/infrastructure/hierarchy` endpoint (Requirement 5.6).
  */
-import { AlertTriangle, Building, FileText, Home, Layers, Map as MapIcon, Plus } from 'lucide-react';
+import {
+  AlertTriangle,
+  Building,
+  FileText,
+  Home,
+  Layers,
+  Map as MapIcon,
+  Plus,
+} from 'lucide-react';
 
-import {
-  Button,
-  Card,
-  CardContent,
-} from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import {
-  ApiClientError,
-  getInfrastructureHierarchy,
-} from '@/lib/institutions/api';
+import { ApiClientError, getInfrastructureHierarchy } from '@/lib/institutions/api';
 import type { InfrastructureHierarchy } from '@/lib/institutions/types';
 
 interface InfrastructurePageProps {
@@ -29,15 +30,16 @@ interface InfrastructurePageProps {
 function normCondition(condition: string): 'good' | 'fair' | 'repair' | 'unknown' {
   const c = condition.toUpperCase();
   if (c.includes('GOOD') || c.includes('AVAILABLE') || c.includes('NEW')) return 'good';
-  if (c.includes('REPAIR') || c.includes('POOR') || c.includes('DAMAGED') || c.includes('BAD')) return 'repair';
+  if (c.includes('REPAIR') || c.includes('POOR') || c.includes('DAMAGED') || c.includes('BAD'))
+    return 'repair';
   if (c.includes('FAIR') || c.includes('AVERAGE')) return 'fair';
   return 'unknown';
 }
 
 const CONDITION_PILL: Record<string, string> = {
-  good:    'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
-  fair:    'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
-  repair:  'bg-red-50     text-red-700     dark:bg-red-950/40     dark:text-red-400',
+  good: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  fair: 'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
+  repair: 'bg-red-50     text-red-700     dark:bg-red-950/40     dark:text-red-400',
   unknown: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
 };
 
@@ -51,7 +53,12 @@ function titleCase(s: string): string {
 function ConditionPill({ condition }: { condition: string }) {
   const kind = normCondition(condition);
   return (
-    <span className={cn('inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', CONDITION_PILL[kind])}>
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
+        CONDITION_PILL[kind],
+      )}
+    >
       {titleCase(condition)}
     </span>
   );
@@ -78,7 +85,9 @@ function InfraRow({
         <span className="text-muted-foreground">{icon}</span>
         <span className="text-sm font-semibold text-foreground">{title}</span>
         {description && (
-          <span className="truncate text-xs font-normal text-muted-foreground">— {description}</span>
+          <span className="truncate text-xs font-normal text-muted-foreground">
+            — {description}
+          </span>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -118,7 +127,6 @@ export default async function InstitutionInfrastructurePage({ params }: Infrastr
 
   return (
     <div className="space-y-4">
-
       {/* ── Toolbar ── */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -145,7 +153,10 @@ export default async function InstitutionInfrastructurePage({ params }: Infrastr
           role="status"
           className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-800 dark:bg-amber-950/30"
         >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <AlertTriangle
+            className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+            aria-hidden="true"
+          />
           <div>
             <p className="font-semibold text-amber-800 dark:text-amber-300">
               {repairs} {repairs === 1 ? 'facility needs' : 'facilities need'} repair
@@ -240,10 +251,9 @@ export default async function InstitutionInfrastructurePage({ params }: Infrastr
 }
 
 async function loadHierarchy(
-  institutionId: string
+  institutionId: string,
 ): Promise<
-  | { hierarchy: InfrastructureHierarchy; error: null }
-  | { hierarchy: { lands: [] }; error: string }
+  { hierarchy: InfrastructureHierarchy; error: null } | { hierarchy: { lands: [] }; error: string }
 > {
   try {
     const hierarchy = await getInfrastructureHierarchy(institutionId);

@@ -15,6 +15,7 @@ npm install
 ```
 
 This scaffolds a new plugin project with:
+
 - `manifest.json` — Plugin metadata and permissions
 - `src/index.ts` — Plugin entry point
 - `src/handlers/` — Hook and event handler implementations
@@ -95,22 +96,22 @@ The manifest is the contract between your plugin and the platform. It declares w
 
 ### Required Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | string | Unique plugin name (kebab-case, a-z0-9-) |
-| `owner` | string | Organization or developer name |
-| `version` | string | Semantic version (e.g., "1.0.0") |
-| `supportedProductVersions` | string | Semver range for platform compatibility |
-| `requiredPermissions` | string[] | Permissions the plugin needs |
-| `requiredExtensionPoints` | string[] | Extension points the plugin uses |
-| `tenantScopeBehavior` | "isolated" \| "shared" | Data isolation model |
-| `auditBehavior` | string | Description of audited actions |
-| `runtimeDependencies` | string[] | Other plugins this depends on |
+| Field                      | Type                   | Description                              |
+| -------------------------- | ---------------------- | ---------------------------------------- |
+| `name`                     | string                 | Unique plugin name (kebab-case, a-z0-9-) |
+| `owner`                    | string                 | Organization or developer name           |
+| `version`                  | string                 | Semantic version (e.g., "1.0.0")         |
+| `supportedProductVersions` | string                 | Semver range for platform compatibility  |
+| `requiredPermissions`      | string[]               | Permissions the plugin needs             |
+| `requiredExtensionPoints`  | string[]               | Extension points the plugin uses         |
+| `tenantScopeBehavior`      | "isolated" \| "shared" | Data isolation model                     |
+| `auditBehavior`            | string                 | Description of audited actions           |
+| `runtimeDependencies`      | string[]               | Other plugins this depends on            |
 
 ### Optional Fields
 
-| Field | Type | Description |
-|-------|------|-------------|
+| Field          | Type   | Description                                   |
+| -------------- | ------ | --------------------------------------------- |
 | `configSchema` | object | JSON Schema for tenant-provided configuration |
 
 ### Name Rules
@@ -132,18 +133,18 @@ Extension points are explicit, versioned hooks that plugins can subscribe to. Ea
 
 ### Available Hook Types
 
-| Hook Type | Description | Mutable | Synchronous |
-|-----------|-------------|---------|-------------|
-| `before-create` | Runs before entity creation | Yes | Yes |
-| `after-create` | Runs after entity creation | No | No |
-| `before-update` | Runs before entity update | Yes | Yes |
-| `after-update` | Runs after entity update | No | No |
-| `before-delete` | Runs before entity deletion | Yes | Yes |
-| `after-delete` | Runs after entity deletion | No | No |
-| `validation` | Custom validation logic | No | Yes |
-| `notification` | Notification triggers | No | No |
-| `export` | Custom export formats | Yes | Yes |
-| `workflow-transition` | Workflow state changes | Yes | Yes |
+| Hook Type             | Description                 | Mutable | Synchronous |
+| --------------------- | --------------------------- | ------- | ----------- |
+| `before-create`       | Runs before entity creation | Yes     | Yes         |
+| `after-create`        | Runs after entity creation  | No      | No          |
+| `before-update`       | Runs before entity update   | Yes     | Yes         |
+| `after-update`        | Runs after entity update    | No      | No          |
+| `before-delete`       | Runs before entity deletion | Yes     | Yes         |
+| `after-delete`        | Runs after entity deletion  | No      | No          |
+| `validation`          | Custom validation logic     | No      | Yes         |
+| `notification`        | Notification triggers       | No      | No          |
+| `export`              | Custom export formats       | Yes     | Yes         |
+| `workflow-transition` | Workflow state changes      | Yes     | Yes         |
 
 ### Hook Handler Signature
 
@@ -152,7 +153,7 @@ import { defineHook } from '@proctira/plugin-sdk';
 import type { HookResult } from '@proctira/plugin-sdk';
 
 const myHook = defineHook(
-  'student.before-create',  // Extension point ID
+  'student.before-create', // Extension point ID
   async (payload, context) => {
     // payload: The data being processed
     // context: { tenantId, actorId, extensionPointId, correlationId, timestamp }
@@ -175,7 +176,7 @@ const myHook = defineHook(
       executionTimeMs: 5,
     };
   },
-  { priority: 50 }  // Lower = runs earlier (default: 100)
+  { priority: 50 }, // Lower = runs earlier (default: 100)
 );
 ```
 
@@ -187,33 +188,33 @@ Plugins can subscribe to approved domain events for reactive behavior.
 
 ### Available Events
 
-| Event | Entity | Description |
-|-------|--------|-------------|
-| `student.created` | Student | New student record created |
-| `student.updated` | Student | Student record modified |
-| `student.transferred` | Student | Student transferred between institutions |
-| `student.enrolled` | Student | Student enrolled in a class |
-| `student.graduated` | Student | Student graduated |
-| `staff.created` | Staff | New staff record created |
-| `staff.updated` | Staff | Staff record modified |
-| `staff.assigned` | Staff | Staff assigned to institution/class |
-| `institution.created` | Institution | New institution created |
-| `institution.updated` | Institution | Institution record modified |
-| `institution.deactivated` | Institution | Institution deactivated |
-| `enrollment.created` | Enrollment | New enrollment created |
-| `enrollment.status-changed` | Enrollment | Enrollment status changed |
-| `attendance.recorded` | Attendance | Attendance record created |
-| `attendance.threshold-exceeded` | Attendance | Absence threshold exceeded |
-| `assessment.result-entered` | Assessment | Assessment result entered |
-| `assessment.grade-calculated` | Assessment | Grade calculated |
-| `examination.result-published` | Examination | Exam results published |
-| `workflow.transitioned` | Workflow | Workflow state transitioned |
-| `workflow.escalated` | Workflow | Workflow item escalated |
-| `notification.sent` | Notification | Notification sent |
-| `notification.delivered` | Notification | Notification delivered |
-| `report.generated` | Report | Report generated |
-| `import.completed` | Import | Bulk import completed |
-| `export.completed` | Export | Data export completed |
+| Event                           | Entity       | Description                              |
+| ------------------------------- | ------------ | ---------------------------------------- |
+| `student.created`               | Student      | New student record created               |
+| `student.updated`               | Student      | Student record modified                  |
+| `student.transferred`           | Student      | Student transferred between institutions |
+| `student.enrolled`              | Student      | Student enrolled in a class              |
+| `student.graduated`             | Student      | Student graduated                        |
+| `staff.created`                 | Staff        | New staff record created                 |
+| `staff.updated`                 | Staff        | Staff record modified                    |
+| `staff.assigned`                | Staff        | Staff assigned to institution/class      |
+| `institution.created`           | Institution  | New institution created                  |
+| `institution.updated`           | Institution  | Institution record modified              |
+| `institution.deactivated`       | Institution  | Institution deactivated                  |
+| `enrollment.created`            | Enrollment   | New enrollment created                   |
+| `enrollment.status-changed`     | Enrollment   | Enrollment status changed                |
+| `attendance.recorded`           | Attendance   | Attendance record created                |
+| `attendance.threshold-exceeded` | Attendance   | Absence threshold exceeded               |
+| `assessment.result-entered`     | Assessment   | Assessment result entered                |
+| `assessment.grade-calculated`   | Assessment   | Grade calculated                         |
+| `examination.result-published`  | Examination  | Exam results published                   |
+| `workflow.transitioned`         | Workflow     | Workflow state transitioned              |
+| `workflow.escalated`            | Workflow     | Workflow item escalated                  |
+| `notification.sent`             | Notification | Notification sent                        |
+| `notification.delivered`        | Notification | Notification delivered                   |
+| `report.generated`              | Report       | Report generated                         |
+| `import.completed`              | Import       | Bulk import completed                    |
+| `export.completed`              | Export       | Data export completed                    |
 
 ### Event Handler Signature
 
@@ -230,7 +231,7 @@ const onTransfer = defineEventHandler(
     console.log(`From: ${event.data.sourceInstitutionId}`);
     console.log(`To: ${event.data.destinationInstitutionId}`);
   },
-  { filter: { 'data.reason': 'relocation' } }  // Optional: only receive matching events
+  { filter: { 'data.reason': 'relocation' } }, // Optional: only receive matching events
 );
 ```
 
@@ -242,16 +243,16 @@ Plugins can register frontend components in designated UI extension slots.
 
 ### Available Slot Locations
 
-| Location | Description |
-|----------|-------------|
-| `dashboard-widget` | Dashboard widget area |
-| `entity-detail-tab` | Tab in entity detail view |
+| Location                | Description                   |
+| ----------------------- | ----------------------------- |
+| `dashboard-widget`      | Dashboard widget area         |
+| `entity-detail-tab`     | Tab in entity detail view     |
 | `entity-detail-sidebar` | Sidebar in entity detail view |
-| `entity-list-action` | Action button in entity list |
-| `navigation-menu-item` | Navigation menu entry |
-| `settings-panel` | Settings configuration panel |
-| `report-section` | Report configuration section |
-| `form-section` | Form extension section |
+| `entity-list-action`    | Action button in entity list  |
+| `navigation-menu-item`  | Navigation menu entry         |
+| `settings-panel`        | Settings configuration panel  |
+| `report-section`        | Report configuration section  |
+| `form-section`          | Form extension section        |
 
 ### Registering a UI Slot
 
@@ -259,13 +260,13 @@ Plugins can register frontend components in designated UI extension slots.
 import { defineUISlot } from '@proctira/plugin-sdk';
 
 const widget = defineUISlot(
-  'dashboard-widget.main',    // Slot ID
-  'my-attendance-widget',     // Component ID (loaded by frontend)
+  'dashboard-widget.main', // Slot ID
+  'my-attendance-widget', // Component ID (loaded by frontend)
   {
     label: 'Attendance Overview',
     icon: 'chart-bar',
-    order: 20,  // Lower = appears first
-  }
+    order: 20, // Lower = appears first
+  },
 );
 ```
 
@@ -385,15 +386,15 @@ assertPluginManifest(myPlugin.manifest);
 
 All plugins execute within a sandboxed environment with strict resource limits:
 
-| Resource | Default Limit |
-|----------|---------------|
-| Memory | 64 MB |
-| CPU Time | 5,000 ms |
-| Wall Clock Time | 30,000 ms |
-| Network Requests | 10 per execution |
-| Network Hosts | Explicitly allowed only |
-| Filesystem | No access |
-| Secrets | No access |
+| Resource         | Default Limit           |
+| ---------------- | ----------------------- |
+| Memory           | 64 MB                   |
+| CPU Time         | 5,000 ms                |
+| Wall Clock Time  | 30,000 ms               |
+| Network Requests | 10 per execution        |
+| Network Hosts    | Explicitly allowed only |
+| Filesystem       | No access               |
+| Secrets          | No access               |
 
 ### Security Rules
 

@@ -19,22 +19,10 @@
  */
 
 import React, { lazy, Suspense, useMemo } from 'react';
-import {
-  createBrowserRouter,
-  RouterProvider,
-  Outlet,
-  type RouteObject,
-} from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Outlet, type RouteObject } from 'react-router-dom';
 import { LiveRegion } from '@proctira/ui-components';
-import {
-  featureRegistry,
-  getModulesByScope,
-  type FeatureModule,
-} from './featureRegistry';
-import {
-  useFeatureFlags,
-  type FeatureFlags,
-} from './providers/FeatureFlagsProvider';
+import { featureRegistry, getModulesByScope, type FeatureModule } from './featureRegistry';
+import { useFeatureFlags, type FeatureFlags } from './providers/FeatureFlagsProvider';
 
 // ─── Layout Shells (loaded eagerly as part of the app shell) ─────────────────
 
@@ -91,7 +79,11 @@ function MobileLayout() {
  */
 function LoadingFallback() {
   return (
-    <div className="flex items-center justify-center min-h-[200px]" role="status" aria-label="Loading">
+    <div
+      className="flex items-center justify-center min-h-[200px]"
+      role="status"
+      aria-label="Loading"
+    >
       <div className="motion-safe:animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
     </div>
   );
@@ -133,9 +125,7 @@ function featureToRoute(feature: FeatureModule): RouteObject {
     return { index: true, element };
   }
 
-  const path = feature.hasSubRoutes
-    ? `${feature.routePrefix}/*`
-    : feature.routePrefix;
+  const path = feature.hasSubRoutes ? `${feature.routePrefix}/*` : feature.routePrefix;
 
   return { path, element };
 }
@@ -145,10 +135,7 @@ function featureToRoute(feature: FeatureModule): RouteObject {
  * Modules without a `requiredFeatureFlag` are always enabled. Modules whose
  * flag resolves to `false` (or is absent from the map) are filtered out.
  */
-export function isModuleEnabled(
-  feature: FeatureModule,
-  flags: FeatureFlags,
-): boolean {
+export function isModuleEnabled(feature: FeatureModule, flags: FeatureFlags): boolean {
   if (!feature.requiredFeatureFlag) return true;
   // Cast through unknown so callers can supply any feature-flag string. The
   // provider only types known keys but registry entries reference the same
@@ -163,10 +150,7 @@ export function isModuleEnabled(
  * Filters the supplied modules by their `requiredFeatureFlag`, keeping only
  * those whose flag is enabled (or has no flag at all).
  */
-function filterByFlags(
-  modules: FeatureModule[],
-  flags: FeatureFlags,
-): FeatureModule[] {
+function filterByFlags(modules: FeatureModule[], flags: FeatureFlags): FeatureModule[] {
   return modules.filter((m) => isModuleEnabled(m, flags));
 }
 

@@ -14,13 +14,7 @@
  * Validates: Requirements 42.2, 42.3, 28.7, 28.8, 28.9, 28.10.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
 import { LanguageProvider } from '@/providers/LanguageProvider';
 
@@ -37,16 +31,13 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 }
 const proto = Element.prototype as unknown as Record<string, unknown>;
 if (!('hasPointerCapture' in proto)) proto['hasPointerCapture'] = () => false;
-if (!('releasePointerCapture' in proto))
-  proto['releasePointerCapture'] = () => undefined;
+if (!('releasePointerCapture' in proto)) proto['releasePointerCapture'] = () => undefined;
 if (!('scrollIntoView' in proto)) proto['scrollIntoView'] = () => undefined;
 
 // ─── Mocks ─────────────────────────────────────────────────────────────────
 
 vi.mock('@/lib/branding/api', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/branding/api')>(
-    '@/lib/branding/api',
-  );
+  const actual = await vi.importActual<typeof import('@/lib/branding/api')>('@/lib/branding/api');
   return {
     ...actual,
     getBrandingState: vi.fn(),
@@ -109,8 +100,7 @@ const messages = {
         logoUpload: 'Drop a logo here or click to browse.',
         favicon: 'https://cdn.example.com/favicon.ico',
         faviconUpload: 'Drop a favicon here or click to browse.',
-        loginBg:
-          'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
+        loginBg: 'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
       },
       preview: {
         label: 'Live preview',
@@ -124,10 +114,8 @@ const messages = {
         logoReadFailed: 'Could not read the selected logo file.',
         faviconRequired: 'Favicon is required.',
         faviconReadFailed: 'Could not read the selected favicon file.',
-        primaryContrast:
-          'Primary colour contrast must be at least 4.5:1 against white.',
-        accentContrast:
-          'Accent colour contrast must be at least 3:1 against white.',
+        primaryContrast: 'Primary colour contrast must be at least 4.5:1 against white.',
+        accentContrast: 'Accent colour contrast must be at least 3:1 against white.',
         loginBgRequired: 'Login background is required.',
       },
     },
@@ -145,8 +133,7 @@ const SAMPLE_STATE: brandingApi.TenantBrandingState = {
       '--tenant-favicon': 'url("/favicon.ico")',
       '--tenant-primary': 'hsl(222, 47%, 31%)',
       '--tenant-accent': 'hsl(174, 62%, 40%)',
-      '--tenant-login-bg':
-        'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
+      '--tenant-login-bg': 'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
     },
   },
 };
@@ -159,10 +146,7 @@ const previewMock = {
 
 function renderPage() {
   return render(
-    <LanguageProvider
-      defaultLocale="en"
-      messagesByLocale={{ en: messages }}
-    >
+    <LanguageProvider defaultLocale="en" messagesByLocale={{ en: messages }}>
       <SettingsBranding previewCookie={previewMock} />
     </LanguageProvider>,
   );
@@ -175,21 +159,17 @@ beforeEach(() => {
       ? { ...SAMPLE_STATE.published, tokens: { ...SAMPLE_STATE.published.tokens } }
       : null,
   });
-  vi.mocked(brandingApi.saveBrandingDraft).mockImplementation(
-    async ({ tokens, savedBy }) => ({
-      tokens,
-      savedBy,
-      savedAt: '2025-01-02T00:00:00.000Z',
-    }),
-  );
-  vi.mocked(brandingApi.publishBranding).mockImplementation(
-    async ({ tokens, publishedBy }) => ({
-      tokens,
-      revision: 4,
-      publishedAt: '2025-01-02T00:00:00.000Z',
-      publishedBy,
-    }),
-  );
+  vi.mocked(brandingApi.saveBrandingDraft).mockImplementation(async ({ tokens, savedBy }) => ({
+    tokens,
+    savedBy,
+    savedAt: '2025-01-02T00:00:00.000Z',
+  }));
+  vi.mocked(brandingApi.publishBranding).mockImplementation(async ({ tokens, publishedBy }) => ({
+    tokens,
+    revision: 4,
+    publishedAt: '2025-01-02T00:00:00.000Z',
+    publishedBy,
+  }));
   previewMock.isEnabled.mockReturnValue(false);
   previewMock.enable.mockReset();
   previewMock.disable.mockReset();
@@ -209,20 +189,14 @@ describe('<SettingsBranding>', () => {
 
     expect(screen.getByTestId('settings-branding-form')).toBeTruthy();
 
-    const primary = screen.getByTestId(
-      'settings-branding-primaryColor',
-    ) as HTMLInputElement;
+    const primary = screen.getByTestId('settings-branding-primaryColor') as HTMLInputElement;
     expect(primary.value).toBe('hsl(222, 47%, 31%)');
 
-    const accent = screen.getByTestId(
-      'settings-branding-accentColor',
-    ) as HTMLInputElement;
+    const accent = screen.getByTestId('settings-branding-accentColor') as HTMLInputElement;
     expect(accent.value).toBe('hsl(174, 62%, 40%)');
 
     // Logo URL is unwrapped from the `url("...")` CSS form.
-    const logo = screen.getByTestId(
-      'settings-branding-logoUrl',
-    ) as HTMLInputElement;
+    const logo = screen.getByTestId('settings-branding-logoUrl') as HTMLInputElement;
     expect(logo.value).toBe('/logo.svg');
 
     // Live preview pane mounted.
@@ -236,9 +210,7 @@ describe('<SettingsBranding>', () => {
       expect(screen.queryByRole('status', { name: /loading/i })).toBeNull();
     });
 
-    const primary = screen.getByTestId(
-      'settings-branding-primaryColor',
-    ) as HTMLInputElement;
+    const primary = screen.getByTestId('settings-branding-primaryColor') as HTMLInputElement;
     const ratio = screen.getByTestId('settings-branding-primaryRatio');
     const initialRatio = ratio.textContent ?? '';
 
@@ -281,16 +253,12 @@ describe('<SettingsBranding>', () => {
 
     // Make a small dirty edit so the preview updates and we can confirm
     // the published payload reflects it.
-    const accent = screen.getByTestId(
-      'settings-branding-accentColor',
-    ) as HTMLInputElement;
+    const accent = screen.getByTestId('settings-branding-accentColor') as HTMLInputElement;
     act(() => {
       fireEvent.change(accent, { target: { value: 'hsl(174, 62%, 35%)' } });
     });
 
-    const publish = screen.getByTestId(
-      'settings-branding-publish',
-    ) as HTMLButtonElement;
+    const publish = screen.getByTestId('settings-branding-publish') as HTMLButtonElement;
     await act(async () => {
       fireEvent.click(publish);
     });
@@ -306,8 +274,7 @@ describe('<SettingsBranding>', () => {
       '--tenant-favicon': 'url("/favicon.ico")',
       '--tenant-primary': 'hsl(222, 47%, 31%)',
       '--tenant-accent': 'hsl(174, 62%, 35%)',
-      '--tenant-login-bg':
-        'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
+      '--tenant-login-bg': 'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
     });
 
     await waitFor(() => {
@@ -339,17 +306,13 @@ describe('<SettingsBranding>', () => {
       expect(screen.queryByRole('status', { name: /loading/i })).toBeNull();
     });
 
-    const publish = screen.getByTestId(
-      'settings-branding-publish',
-    ) as HTMLButtonElement;
+    const publish = screen.getByTestId('settings-branding-publish') as HTMLButtonElement;
     await act(async () => {
       fireEvent.click(publish);
     });
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Primary colour does not meet 4.5:1 against white.'),
-      ).toBeTruthy();
+      expect(screen.getByText('Primary colour does not meet 4.5:1 against white.')).toBeTruthy();
     });
   });
 });

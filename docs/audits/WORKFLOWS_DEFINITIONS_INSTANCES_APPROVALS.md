@@ -39,14 +39,14 @@ Backend unit/property: ☑ pass — `pnpm exec vitest run src/workflow-ui-plugin
 
 ## 2. E2E (Playwright)
 
-| Journey                            | Spec file                                           | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                         |
-| ---------------------------------- | --------------------------------------------------- | ---------------------------- | ------- | ------ | ------------------------------------------------ |
-| Inventory smoke (ungated)          | `apps/web/e2e/18-workflows-inventory-smoke.spec.ts` | N/A — always runs            | ☐ CI    | ☐      | Unauthenticated → `/login` + body/heading        |
-| Write validation + inventory       | `apps/web/e2e/19-services-write-validation-smoke.spec.ts` | N/A                   | ☑       | ☐      | Definition form required fields                  |
-| Smoke routes (authenticated)       | `apps/web/e2e/12-workflows.spec.ts`                 | ☐ gated                      | ☐       | ☐      | Spec added; run when gateway+web up on same host |
-| Authenticated inventory (optional) | `18-…` second describe                              | ☐ gated                      | ☐       | ☐      | Headings when backend ready                      |
-| Happy path create                  | `12-…` (form fields)                                | ☐                            | ☐       | ☐      | Form wired                                       |
-| Negative / forbidden               | gateway Vitest 403/400                              | ☑                            | n/a     | n/a    | Unit inject tests                                |
+| Journey                            | Spec file                                                 | Live (`E2E_BACKEND_READY=1`) | Desktop | Mobile | Evidence                                         |
+| ---------------------------------- | --------------------------------------------------------- | ---------------------------- | ------- | ------ | ------------------------------------------------ |
+| Inventory smoke (ungated)          | `apps/web/e2e/18-workflows-inventory-smoke.spec.ts`       | N/A — always runs            | ☐ CI    | ☐      | Unauthenticated → `/login` + body/heading        |
+| Write validation + inventory       | `apps/web/e2e/19-services-write-validation-smoke.spec.ts` | N/A                          | ☑       | ☐      | Definition form required fields                  |
+| Smoke routes (authenticated)       | `apps/web/e2e/12-workflows.spec.ts`                       | ☐ gated                      | ☐       | ☐      | Spec added; run when gateway+web up on same host |
+| Authenticated inventory (optional) | `18-…` second describe                                    | ☐ gated                      | ☐       | ☐      | Headings when backend ready                      |
+| Happy path create                  | `12-…` (form fields)                                      | ☐                            | ☐       | ☐      | Form wired                                       |
+| Negative / forbidden               | gateway Vitest 403/400                                    | ☑                            | n/a     | n/a    | Unit inject tests                                |
 
 ---
 

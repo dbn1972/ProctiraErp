@@ -124,23 +124,18 @@ describe('Property 28: Data Warehouse IUS Uniqueness', () => {
           });
 
           // Import a single valid record
-          const result: ImportResult = await service.importData(
-            tenantId,
-            warehouseId,
-            'csv',
-            {
-              records: [
-                {
-                  indicatorGid,
-                  unitGid,
-                  subgroupGid,
-                  areaId,
-                  timePeriod,
-                  dataValue,
-                },
-              ],
-            },
-          );
+          const result: ImportResult = await service.importData(tenantId, warehouseId, 'csv', {
+            records: [
+              {
+                indicatorGid,
+                unitGid,
+                subgroupGid,
+                areaId,
+                timePeriod,
+                dataValue,
+              },
+            ],
+          });
 
           // The record should be accepted
           expect(result.totalRows).toBe(1);
@@ -174,43 +169,33 @@ describe('Property 28: Data Warehouse IUS Uniqueness', () => {
           });
 
           // First import should succeed
-          const firstResult = await service.importData(
-            tenantId,
-            warehouseId,
-            'csv',
-            {
-              records: [
-                {
-                  indicatorGid,
-                  unitGid,
-                  subgroupGid,
-                  areaId,
-                  timePeriod,
-                  dataValue: value1,
-                },
-              ],
-            },
-          );
+          const firstResult = await service.importData(tenantId, warehouseId, 'csv', {
+            records: [
+              {
+                indicatorGid,
+                unitGid,
+                subgroupGid,
+                areaId,
+                timePeriod,
+                dataValue: value1,
+              },
+            ],
+          });
           expect(firstResult.successCount).toBe(1);
 
           // Second import with same IUS-area-timeperiod should be rejected
-          const secondResult = await service.importData(
-            tenantId,
-            warehouseId,
-            'csv',
-            {
-              records: [
-                {
-                  indicatorGid,
-                  unitGid,
-                  subgroupGid,
-                  areaId,
-                  timePeriod,
-                  dataValue: value2,
-                },
-              ],
-            },
-          );
+          const secondResult = await service.importData(tenantId, warehouseId, 'csv', {
+            records: [
+              {
+                indicatorGid,
+                unitGid,
+                subgroupGid,
+                areaId,
+                timePeriod,
+                dataValue: value2,
+              },
+            ],
+          });
 
           expect(secondResult.totalRows).toBe(1);
           expect(secondResult.successCount).toBe(0);
@@ -266,12 +251,9 @@ describe('Property 28: Data Warehouse IUS Uniqueness', () => {
           const nonExistentValue = 'NONEXISTENT_REF_999';
           record[invalidField] = nonExistentValue;
 
-          const result = await service.importData(
-            tenantId,
-            warehouseId,
-            'csv',
-            { records: [record] },
-          );
+          const result = await service.importData(tenantId, warehouseId, 'csv', {
+            records: [record],
+          });
 
           // The record should be rejected with a referential integrity error
           expect(result.totalRows).toBe(1);
@@ -297,7 +279,16 @@ describe('Property 28: Data Warehouse IUS Uniqueness', () => {
         arbDataValue(),
         arbDataValue(),
         fc.integer({ min: 2, max: 5 }),
-        async (indicatorGid, unitGid, subgroupGid, areaId, timePeriod, value1, value2, duplicateCount) => {
+        async (
+          indicatorGid,
+          unitGid,
+          subgroupGid,
+          areaId,
+          timePeriod,
+          value1,
+          value2,
+          duplicateCount,
+        ) => {
           // Set up warehouse with reference data
           const { warehouseId } = await setupWarehouse({
             indicatorGids: [indicatorGid],
@@ -317,12 +308,7 @@ describe('Property 28: Data Warehouse IUS Uniqueness', () => {
             dataValue: i === 0 ? value1 : value2,
           }));
 
-          const result = await service.importData(
-            tenantId,
-            warehouseId,
-            'csv',
-            { records },
-          );
+          const result = await service.importData(tenantId, warehouseId, 'csv', { records });
 
           // First record should succeed, remaining should be detected as duplicates
           expect(result.totalRows).toBe(duplicateCount);
@@ -331,9 +317,7 @@ describe('Property 28: Data Warehouse IUS Uniqueness', () => {
           expect(result.errorCount).toBe(duplicateCount - 1);
 
           // Each duplicate error should mention "Duplicate" and "within import batch"
-          const duplicateErrors = result.errors.filter((e) =>
-            e.message.includes('Duplicate'),
-          );
+          const duplicateErrors = result.errors.filter((e) => e.message.includes('Duplicate'));
           expect(duplicateErrors.length).toBe(duplicateCount - 1);
           for (const error of duplicateErrors) {
             expect(error.message).toContain('within import batch');

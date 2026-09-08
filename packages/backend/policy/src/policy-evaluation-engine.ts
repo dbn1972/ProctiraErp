@@ -12,7 +12,11 @@
  *
  * Charter: Section 27 (Security and Compliance)
  */
-import type { PolicyEntity, PolicyAssignmentEntity, PolicyRepository } from './policy-repository.js';
+import type {
+  PolicyEntity,
+  PolicyAssignmentEntity,
+  PolicyRepository,
+} from './policy-repository.js';
 import type { PolicyType, PolicyScope, PolicyEvaluationResponse } from './schemas.js';
 
 /**
@@ -114,9 +118,7 @@ export class PolicyEvaluationEngine {
     const effectivePolicy = institutionPolicy ?? tenantPolicy ?? platformPolicy;
 
     return {
-      effectivePolicy: effectivePolicy
-        ? this.formatPolicyResponse(effectivePolicy)
-        : null,
+      effectivePolicy: effectivePolicy ? this.formatPolicyResponse(effectivePolicy) : null,
       inheritanceChain,
       mergedRules,
     };

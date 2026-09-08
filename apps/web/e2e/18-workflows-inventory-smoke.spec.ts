@@ -14,8 +14,7 @@ import { loginAsTenantAdmin } from './fixtures/auth';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
-const DEFINITION_ID =
-  process.env.WORKFLOW_DEFINITION_ID ?? 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1';
+const DEFINITION_ID = process.env.WORKFLOW_DEFINITION_ID ?? 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1';
 
 const WORKFLOW_ROUTES: { id: string; path: string; heading?: RegExp }[] = [
   { id: 'definitions', path: '/workflows', heading: /workflow/i },

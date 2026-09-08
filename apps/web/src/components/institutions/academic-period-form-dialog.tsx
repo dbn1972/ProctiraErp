@@ -102,12 +102,10 @@ export function AcademicPeriodFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>
-            {initialValue ? 'Edit academic period' : 'New academic period'}
-          </DialogTitle>
+          <DialogTitle>{initialValue ? 'Edit academic period' : 'New academic period'}</DialogTitle>
           <DialogDescription>
-            Define the academic year or term boundaries used by enrollment,
-            attendance, and assessment workflows.
+            Define the academic year or term boundaries used by enrollment, attendance, and
+            assessment workflows.
           </DialogDescription>
         </DialogHeader>
 
@@ -131,9 +129,7 @@ export function AcademicPeriodFormDialog({
               Name <span className="text-destructive">*</span>
             </Label>
             <Input id="ap-name" {...register('name')} disabled={isPending} />
-            {errors.name && (
-              <p className="text-sm text-destructive">{errors.name.message}</p>
-            )}
+            {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
           </div>
 
           <div className="space-y-2">
@@ -141,9 +137,7 @@ export function AcademicPeriodFormDialog({
               Code <span className="text-destructive">*</span>
             </Label>
             <Input id="ap-code" {...register('code')} disabled={isPending} />
-            {errors.code && (
-              <p className="text-sm text-destructive">{errors.code.message}</p>
-            )}
+            {errors.code && <p className="text-sm text-destructive">{errors.code.message}</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -151,12 +145,7 @@ export function AcademicPeriodFormDialog({
               <Label htmlFor="ap-start">
                 Start <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="ap-start"
-                type="date"
-                {...register('startDate')}
-                disabled={isPending}
-              />
+              <Input id="ap-start" type="date" {...register('startDate')} disabled={isPending} />
               {errors.startDate && (
                 <p className="text-sm text-destructive">{errors.startDate.message}</p>
               )}
@@ -166,12 +155,7 @@ export function AcademicPeriodFormDialog({
               <Label htmlFor="ap-end">
                 End <span className="text-destructive">*</span>
               </Label>
-              <Input
-                id="ap-end"
-                type="date"
-                {...register('endDate')}
-                disabled={isPending}
-              />
+              <Input id="ap-end" type="date" {...register('endDate')} disabled={isPending} />
               {errors.endDate && (
                 <p className="text-sm text-destructive">{errors.endDate.message}</p>
               )}

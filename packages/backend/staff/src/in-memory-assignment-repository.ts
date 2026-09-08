@@ -65,9 +65,7 @@ export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
   async findActiveByStaffId(staffId: string, tenantId: string): Promise<StaffAssignmentEntity[]> {
     return Array.from(this.assignments.values()).filter(
       (entity) =>
-        entity.tenantId === tenantId &&
-        entity.staffId === staffId &&
-        entity.status === 'ACTIVE',
+        entity.tenantId === tenantId && entity.staffId === staffId && entity.status === 'ACTIVE',
     );
   }
 
@@ -94,12 +92,7 @@ export class InMemoryAssignmentRepository implements StaffAssignmentRepository {
       // Check date overlap using the rule:
       // Two ranges [s1, e1] and [s2, e2] overlap if s1 < e2 AND s2 < e1
       // When end is null, treat as +infinity
-      return this.datesOverlap(
-        entity.startDate,
-        entity.endDate,
-        startDate,
-        endDate,
-      );
+      return this.datesOverlap(entity.startDate, entity.endDate, startDate, endDate);
     });
   }
 

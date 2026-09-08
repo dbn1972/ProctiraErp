@@ -35,10 +35,30 @@ const TEST_AREAS: AreaNode[] = [
   { id: 'country', parentId: null, level: 0, path: '/country' },
   { id: 'region-north', parentId: 'country', level: 1, path: '/country/region-north' },
   { id: 'region-south', parentId: 'country', level: 1, path: '/country/region-south' },
-  { id: 'district-a', parentId: 'region-north', level: 2, path: '/country/region-north/district-a' },
-  { id: 'district-b', parentId: 'region-north', level: 2, path: '/country/region-north/district-b' },
-  { id: 'zone-a1', parentId: 'district-a', level: 3, path: '/country/region-north/district-a/zone-a1' },
-  { id: 'district-c', parentId: 'region-south', level: 2, path: '/country/region-south/district-c' },
+  {
+    id: 'district-a',
+    parentId: 'region-north',
+    level: 2,
+    path: '/country/region-north/district-a',
+  },
+  {
+    id: 'district-b',
+    parentId: 'region-north',
+    level: 2,
+    path: '/country/region-north/district-b',
+  },
+  {
+    id: 'zone-a1',
+    parentId: 'district-a',
+    level: 3,
+    path: '/country/region-north/district-a/zone-a1',
+  },
+  {
+    id: 'district-c',
+    parentId: 'region-south',
+    level: 2,
+    path: '/country/region-south/district-c',
+  },
 ];
 
 function createTestUser(roles: RoleAssignment[]): AuthUser {
@@ -193,14 +213,9 @@ describe('evaluatePermission', () => {
       { roleId: 'admin', roleName: 'Administrator', areaId: 'region-north' },
     ]);
 
-    const result = await evaluatePermission(
-      user,
-      'institution',
-      'read',
-      registry,
-      resolver,
-      { areaId: 'district-a' },
-    );
+    const result = await evaluatePermission(user, 'institution', 'read', registry, resolver, {
+      areaId: 'district-a',
+    });
 
     expect(result.granted).toBe(true);
     expect(result.grantedByRole).toBe('Administrator');
@@ -212,14 +227,9 @@ describe('evaluatePermission', () => {
       { roleId: 'admin', roleName: 'Administrator', areaId: 'district-a' },
     ]);
 
-    const result = await evaluatePermission(
-      user,
-      'student',
-      'create',
-      registry,
-      resolver,
-      { areaId: 'district-a' },
-    );
+    const result = await evaluatePermission(user, 'student', 'create', registry, resolver, {
+      areaId: 'district-a',
+    });
 
     expect(result.granted).toBe(true);
   });
@@ -230,14 +240,9 @@ describe('evaluatePermission', () => {
     ]);
 
     // zone-a1 is a descendant of region-north
-    const result = await evaluatePermission(
-      user,
-      'student',
-      'read',
-      registry,
-      resolver,
-      { areaId: 'zone-a1' },
-    );
+    const result = await evaluatePermission(user, 'student', 'read', registry, resolver, {
+      areaId: 'zone-a1',
+    });
 
     expect(result.granted).toBe(true);
   });
@@ -248,14 +253,9 @@ describe('evaluatePermission', () => {
     ]);
 
     // region-north is an ancestor of district-a — user cannot access resources above their scope
-    const result = await evaluatePermission(
-      user,
-      'institution',
-      'read',
-      registry,
-      resolver,
-      { areaId: 'region-north' },
-    );
+    const result = await evaluatePermission(user, 'institution', 'read', registry, resolver, {
+      areaId: 'region-north',
+    });
 
     expect(result.granted).toBe(false);
   });
@@ -266,49 +266,29 @@ describe('evaluatePermission', () => {
     ]);
 
     // district-c is under region-south, not region-north
-    const result = await evaluatePermission(
-      user,
-      'institution',
-      'read',
-      registry,
-      resolver,
-      { areaId: 'district-c' },
-    );
+    const result = await evaluatePermission(user, 'institution', 'read', registry, resolver, {
+      areaId: 'district-c',
+    });
 
     expect(result.granted).toBe(false);
   });
 
   it('should deny access when role does not have the requested permission', async () => {
-    const user = createTestUser([
-      { roleId: 'teacher', roleName: 'Teacher', areaId: 'country' },
-    ]);
+    const user = createTestUser([{ roleId: 'teacher', roleName: 'Teacher', areaId: 'country' }]);
 
     // Teacher cannot create institutions
-    const result = await evaluatePermission(
-      user,
-      'institution',
-      'create',
-      registry,
-      resolver,
-      { areaId: 'district-a' },
-    );
+    const result = await evaluatePermission(user, 'institution', 'create', registry, resolver, {
+      areaId: 'district-a',
+    });
 
     expect(result.granted).toBe(false);
   });
 
   it('should grant access without area check when no resourceContext.areaId', async () => {
-    const user = createTestUser([
-      { roleId: 'teacher', roleName: 'Teacher', areaId: 'district-a' },
-    ]);
+    const user = createTestUser([{ roleId: 'teacher', roleName: 'Teacher', areaId: 'district-a' }]);
 
     // No area context — only permission check
-    const result = await evaluatePermission(
-      user,
-      'institution',
-      'read',
-      registry,
-      resolver,
-    );
+    const result = await evaluatePermission(user, 'institution', 'read', registry, resolver);
 
     expect(result.granted).toBe(true);
   });
@@ -320,14 +300,9 @@ describe('evaluatePermission', () => {
     ]);
 
     // Teacher can't create institutions, but admin can — and admin is scoped to region-south
-    const result = await evaluatePermission(
-      user,
-      'institution',
-      'create',
-      registry,
-      resolver,
-      { areaId: 'district-c' },
-    );
+    const result = await evaluatePermission(user, 'institution', 'create', registry, resolver, {
+      areaId: 'district-c',
+    });
 
     expect(result.granted).toBe(true);
     expect(result.grantedByRole).toBe('Administrator');
@@ -339,14 +314,9 @@ describe('evaluatePermission', () => {
     ]);
 
     // Admin has permission, but resource is in region-north branch
-    const result = await evaluatePermission(
-      user,
-      'institution',
-      'create',
-      registry,
-      resolver,
-      { areaId: 'district-a' },
-    );
+    const result = await evaluatePermission(user, 'institution', 'create', registry, resolver, {
+      areaId: 'district-a',
+    });
 
     expect(result.granted).toBe(false);
   });
@@ -362,25 +332,17 @@ describe('evaluatePermission', () => {
     ]);
 
     // Matching institution
-    const result1 = await evaluatePermission(
-      user,
-      'student',
-      'create',
-      registry,
-      resolver,
-      { areaId: 'district-a', institutionId: 'inst-1' },
-    );
+    const result1 = await evaluatePermission(user, 'student', 'create', registry, resolver, {
+      areaId: 'district-a',
+      institutionId: 'inst-1',
+    });
     expect(result1.granted).toBe(true);
 
     // Different institution
-    const result2 = await evaluatePermission(
-      user,
-      'student',
-      'create',
-      registry,
-      resolver,
-      { areaId: 'district-a', institutionId: 'inst-2' },
-    );
+    const result2 = await evaluatePermission(user, 'student', 'create', registry, resolver, {
+      areaId: 'district-a',
+      institutionId: 'inst-2',
+    });
     expect(result2.granted).toBe(false);
   });
 
@@ -389,14 +351,9 @@ describe('evaluatePermission', () => {
       { roleId: 'super-admin', roleName: 'Super Administrator', areaId: 'country' },
     ]);
 
-    const result = await evaluatePermission(
-      user,
-      'anything',
-      'delete',
-      registry,
-      resolver,
-      { areaId: 'zone-a1' },
-    );
+    const result = await evaluatePermission(user, 'anything', 'delete', registry, resolver, {
+      areaId: 'zone-a1',
+    });
 
     expect(result.granted).toBe(true);
   });
@@ -417,9 +374,7 @@ describe('hasPermission (synchronous, no area check)', () => {
   });
 
   it('should return false when user does not have the permission', () => {
-    const user = createTestUser([
-      { roleId: 'teacher', roleName: 'Teacher', areaId: 'country' },
-    ]);
+    const user = createTestUser([{ roleId: 'teacher', roleName: 'Teacher', areaId: 'country' }]);
     expect(hasPermission(user, 'institution', 'create', registry)).toBe(false);
   });
 

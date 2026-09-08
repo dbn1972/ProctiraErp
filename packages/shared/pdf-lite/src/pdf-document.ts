@@ -103,7 +103,15 @@ export class PdfDocument {
   }
 
   /** Draws a straight line. */
-  line(pageIndex: number, x1: number, y1: number, x2: number, y2: number, width = 0.5, grey = 0): void {
+  line(
+    pageIndex: number,
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    width = 0.5,
+    grey = 0,
+  ): void {
     this.page(pageIndex).ops.push(
       `${num(grey)} G ${num(width)} w ${num(x1)} ${num(y1)} m ${num(x2)} ${num(y2)} l S`,
     );
@@ -128,8 +136,12 @@ export class PdfDocument {
     objects.push(
       `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${this.pages.length} >>`,
     );
-    objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-    objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+    objects.push(
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    );
+    objects.push(
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
+    );
     objects.push(
       `<< /Title (${encodePdfString(this.title)}) /Author (${encodePdfString(this.author)}) /Producer (ProctiraERP pdf-lite) /CreationDate (D:${formatPdfDate(this.creationDate)}) >>`,
     );
@@ -164,7 +176,9 @@ export class PdfDocument {
     let xref = `xref\n0 ${total}\n0000000000 65535 f \n`;
     for (const o of offsets) xref += `${String(o).padStart(10, '0')} 00000 n \n`;
     push(xref);
-    push(`trailer\n<< /Size ${total} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+    push(
+      `trailer\n<< /Size ${total} /Root 1 0 R /Info 5 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`,
+    );
 
     return Buffer.concat(chunks);
   }
@@ -226,7 +240,15 @@ export class PdfFlow {
     if (this.header) {
       this.doc.text(this.pageIndex, this.margin, this.y, this.header, { size: 8, grey: 0.4 });
       this.y -= 6;
-      this.doc.line(this.pageIndex, this.margin, this.y, A4_WIDTH_PT - this.margin, this.y, 0.5, 0.6);
+      this.doc.line(
+        this.pageIndex,
+        this.margin,
+        this.y,
+        A4_WIDTH_PT - this.margin,
+        this.y,
+        0.5,
+        0.6,
+      );
       this.y -= 14;
     }
     if (this.footer) this.footerSlots.push({ page: this.pageIndex });
@@ -287,7 +309,14 @@ export class PdfFlow {
       this.ensureSpace(rowHeight);
       const top = this.y;
       if (isHeader) {
-        this.doc.rect(this.pageIndex, this.margin, top - rowHeight, this.contentWidth, rowHeight, 0.9);
+        this.doc.rect(
+          this.pageIndex,
+          this.margin,
+          top - rowHeight,
+          this.contentWidth,
+          rowHeight,
+          0.9,
+        );
       }
       let x = this.margin;
       columns.forEach((col, i) => {
@@ -301,7 +330,15 @@ export class PdfFlow {
         });
         x += width;
       });
-      this.doc.line(this.pageIndex, this.margin, top - rowHeight, this.margin + this.contentWidth, top - rowHeight, 0.4, 0.7);
+      this.doc.line(
+        this.pageIndex,
+        this.margin,
+        top - rowHeight,
+        this.margin + this.contentWidth,
+        top - rowHeight,
+        0.4,
+        0.7,
+      );
       this.y -= rowHeight;
     };
 

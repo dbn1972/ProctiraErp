@@ -67,54 +67,57 @@ describe('PgParentPortalRepository (live)', () => {
     ).rejects.toThrow(/duplicate key|unique/i);
   });
 
-  it.skipIf(!pool)('persists fee plans and invoices; status updates stay tenant-bound', async () => {
-    const repo = new PgParentPortalRepository(pool!);
-    const tenantA = randomUUID();
-    const tenantB = randomUUID();
-    await Promise.all([seedTenant(tenantA), seedTenant(tenantB)]);
-    const studentId = randomUUID();
+  it.skipIf(!pool)(
+    'persists fee plans and invoices; status updates stay tenant-bound',
+    async () => {
+      const repo = new PgParentPortalRepository(pool!);
+      const tenantA = randomUUID();
+      const tenantB = randomUUID();
+      await Promise.all([seedTenant(tenantA), seedTenant(tenantB)]);
+      const studentId = randomUUID();
 
-    const plan = await repo.createFeePlan({
-      id: randomUUID(),
-      tenantId: tenantA,
-      code: 'TERM-1',
-      name: 'Term 1 tuition',
-      description: 'Tuition for term 1',
-      amountCents: 150_000,
-      currency: 'INR',
-      frequency: 'term',
-      status: 'active',
-      createdBy: 'finance-1',
-    });
-    expect((await repo.findFeePlanById(plan.id, tenantA))?.amountCents).toBe(150_000);
-    expect((await repo.listFeePlans(tenantA)).map((p) => p.id)).toEqual([plan.id]);
-    expect(await repo.listFeePlans(tenantB)).toEqual([]);
+      const plan = await repo.createFeePlan({
+        id: randomUUID(),
+        tenantId: tenantA,
+        code: 'TERM-1',
+        name: 'Term 1 tuition',
+        description: 'Tuition for term 1',
+        amountCents: 150_000,
+        currency: 'INR',
+        frequency: 'term',
+        status: 'active',
+        createdBy: 'finance-1',
+      });
+      expect((await repo.findFeePlanById(plan.id, tenantA))?.amountCents).toBe(150_000);
+      expect((await repo.listFeePlans(tenantA)).map((p) => p.id)).toEqual([plan.id]);
+      expect(await repo.listFeePlans(tenantB)).toEqual([]);
 
-    const invoice = await repo.createInvoice({
-      id: randomUUID(),
-      tenantId: tenantA,
-      studentId,
-      planId: plan.id,
-      title: 'Term 1 tuition',
-      description: '',
-      amountCents: 150_000,
-      currency: 'INR',
-      status: 'open',
-      dueAt: new Date('2026-10-01T00:00:00Z'),
-      createdBy: 'finance-1',
-    });
-    expect(invoice.planId).toBe(plan.id);
-    expect((await repo.listInvoicesForStudentIds(tenantA, [studentId])).map((i) => i.id)).toEqual([
-      invoice.id,
-    ]);
+      const invoice = await repo.createInvoice({
+        id: randomUUID(),
+        tenantId: tenantA,
+        studentId,
+        planId: plan.id,
+        title: 'Term 1 tuition',
+        description: '',
+        amountCents: 150_000,
+        currency: 'INR',
+        status: 'open',
+        dueAt: new Date('2026-10-01T00:00:00Z'),
+        createdBy: 'finance-1',
+      });
+      expect(invoice.planId).toBe(plan.id);
+      expect((await repo.listInvoicesForStudentIds(tenantA, [studentId])).map((i) => i.id)).toEqual(
+        [invoice.id],
+      );
 
-    // Tenant B cannot read or flip the invoice.
-    expect(await repo.findInvoiceById(invoice.id, tenantB)).toBeNull();
-    expect(await repo.updateInvoice(invoice.id, tenantB, { status: 'paid' })).toBeNull();
-    expect((await repo.findInvoiceById(invoice.id, tenantA))?.status).toBe('open');
+      // Tenant B cannot read or flip the invoice.
+      expect(await repo.findInvoiceById(invoice.id, tenantB)).toBeNull();
+      expect(await repo.updateInvoice(invoice.id, tenantB, { status: 'paid' })).toBeNull();
+      expect((await repo.findInvoiceById(invoice.id, tenantA))?.status).toBe('open');
 
-    const paid = await repo.updateInvoice(invoice.id, tenantA, { status: 'paid' });
-    expect(paid?.status).toBe('paid');
-    expect(paid?.updatedAt.getTime()).toBeGreaterThanOrEqual(invoice.updatedAt.getTime());
-  });
+      const paid = await repo.updateInvoice(invoice.id, tenantA, { status: 'paid' });
+      expect(paid?.status).toBe('paid');
+      expect(paid?.updatedAt.getTime()).toBeGreaterThanOrEqual(invoice.updatedAt.getTime());
+    },
+  );
 });

@@ -9,12 +9,7 @@ function createFile(name: string, size: number, type: string): File {
 
 describe('FileUpload', () => {
   it('renders drop zone with label', () => {
-    render(
-      <FileUpload
-        onFilesSelected={vi.fn()}
-        ariaLabel="Upload documents"
-      />
-    );
+    render(<FileUpload onFilesSelected={vi.fn()} ariaLabel="Upload documents" />);
 
     expect(screen.getByText(/drag and drop files here/i)).toBeInTheDocument();
   });
@@ -25,7 +20,7 @@ describe('FileUpload', () => {
         accept={['.pdf', '.xlsx']}
         onFilesSelected={vi.fn()}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     expect(screen.getByText(/\.pdf, \.xlsx/)).toBeInTheDocument();
@@ -37,7 +32,7 @@ describe('FileUpload', () => {
         maxSize={10 * 1024 * 1024}
         onFilesSelected={vi.fn()}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     expect(screen.getByText(/10\.0 MB/)).toBeInTheDocument();
@@ -50,7 +45,7 @@ describe('FileUpload', () => {
         accept={['.pdf']}
         onFilesSelected={onFilesSelected}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     const file = createFile('test.pdf', 100, 'application/pdf');
@@ -71,7 +66,7 @@ describe('FileUpload', () => {
         onFilesSelected={onFilesSelected}
         onValidationError={onValidationError}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     const file = createFile('test.exe', 100, 'application/x-msdownload');
@@ -81,9 +76,7 @@ describe('FileUpload', () => {
     fireEvent.change(input);
 
     expect(onValidationError).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ error: 'type' }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ error: 'type' })]),
     );
     expect(onFilesSelected).not.toHaveBeenCalled();
   });
@@ -97,7 +90,7 @@ describe('FileUpload', () => {
         onFilesSelected={onFilesSelected}
         onValidationError={onValidationError}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     const file = createFile('big.pdf', 200, 'application/pdf');
@@ -107,9 +100,7 @@ describe('FileUpload', () => {
     fireEvent.change(input);
 
     expect(onValidationError).toHaveBeenCalledWith(
-      expect.arrayContaining([
-        expect.objectContaining({ error: 'size' }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ error: 'size' })]),
     );
   });
 
@@ -118,11 +109,9 @@ describe('FileUpload', () => {
     render(
       <FileUpload
         onFilesSelected={vi.fn()}
-        files={[
-          { id: '1', file, progress: 100, status: 'complete' },
-        ]}
+        files={[{ id: '1', file, progress: 100, status: 'complete' }]}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     expect(screen.getByText('report.pdf')).toBeInTheDocument();
@@ -135,11 +124,9 @@ describe('FileUpload', () => {
       <FileUpload
         onFilesSelected={vi.fn()}
         onFileRemove={onFileRemove}
-        files={[
-          { id: '1', file, progress: 100, status: 'complete' },
-        ]}
+        files={[{ id: '1', file, progress: 100, status: 'complete' }]}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     const removeBtn = screen.getByRole('button', { name: /remove report\.pdf/i });
@@ -152,11 +139,9 @@ describe('FileUpload', () => {
     render(
       <FileUpload
         onFilesSelected={vi.fn()}
-        files={[
-          { id: '1', file, progress: 50, status: 'uploading' },
-        ]}
+        files={[{ id: '1', file, progress: 50, status: 'uploading' }]}
         ariaLabel="Upload documents"
-      />
+      />,
     );
 
     const progressBar = screen.getByRole('progressbar');
@@ -164,25 +149,14 @@ describe('FileUpload', () => {
   });
 
   it('disables drop zone when disabled', () => {
-    render(
-      <FileUpload
-        onFilesSelected={vi.fn()}
-        disabled
-        ariaLabel="Upload documents"
-      />
-    );
+    render(<FileUpload onFilesSelected={vi.fn()} disabled ariaLabel="Upload documents" />);
 
     const dropZone = screen.getByRole('button');
     expect(dropZone).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('supports keyboard activation of drop zone', () => {
-    render(
-      <FileUpload
-        onFilesSelected={vi.fn()}
-        ariaLabel="Upload documents"
-      />
-    );
+    render(<FileUpload onFilesSelected={vi.fn()} ariaLabel="Upload documents" />);
 
     const dropZone = screen.getByRole('button');
     expect(dropZone).toHaveAttribute('tabIndex', '0');

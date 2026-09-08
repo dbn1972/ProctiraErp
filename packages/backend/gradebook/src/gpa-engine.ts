@@ -62,10 +62,7 @@ function round(value: number, places: number): number {
 }
 
 /** Resolve band for a percent score (inclusive min, inclusive max). */
-export function resolveBandFromPercent(
-  percent: number,
-  bands: GradeBand[],
-): GradeBand | null {
+export function resolveBandFromPercent(percent: number, bands: GradeBand[]): GradeBand | null {
   if (!Number.isFinite(percent)) return null;
   const sorted = [...bands].sort((a, b) => b.minPercent - a.minPercent);
   for (const band of sorted) {
@@ -80,14 +77,9 @@ export function resolveBandFromPercent(
   return null;
 }
 
-export function resolveBandFromLetter(
-  letter: string,
-  bands: GradeBand[],
-): GradeBand | null {
+export function resolveBandFromLetter(letter: string, bands: GradeBand[]): GradeBand | null {
   const needle = letter.trim().toUpperCase();
-  return (
-    bands.find((b) => b.label.trim().toUpperCase() === needle) ?? null
-  );
+  return bands.find((b) => b.label.trim().toUpperCase() === needle) ?? null;
 }
 
 export function resolveGradePoints(
@@ -108,9 +100,7 @@ export function resolveGradePoints(
   }
   const raw = band.gradePoints;
   const gp =
-    raw == null || !Number.isFinite(raw)
-      ? null
-      : Math.min(maxGp, Math.max(0, Number(raw)));
+    raw == null || !Number.isFinite(raw) ? null : Math.min(maxGp, Math.max(0, Number(raw)));
   return { letterGrade: band.label, gradePoints: gp, band };
 }
 
@@ -133,18 +123,12 @@ export function applyCreditRule(
   const requirePass = rule.metadata?.requirePass !== false;
   const score = opts.numericScore;
   const passed =
-    opts.passed ??
-    (score != null && Number.isFinite(score) ? score >= minPercent : false);
+    opts.passed ?? (score != null && Number.isFinite(score) ? score >= minPercent : false);
 
   if (requirePass && !passed) {
     return { creditsEarned: 0, completed: false };
   }
-  if (
-    rule.metadata?.partialCredit &&
-    score != null &&
-    Number.isFinite(score) &&
-    score < 100
-  ) {
+  if (rule.metadata?.partialCredit && score != null && Number.isFinite(score) && score < 100) {
     const ratio = Math.max(0, Math.min(1, score / 100));
     return {
       creditsEarned: round(rule.credits * ratio, 2),
@@ -181,10 +165,7 @@ export function computeGpaSnapshot(
       },
       { numericScore: course.numericScore, passed },
     );
-    const weight =
-      weightMode === 'EXPLICIT'
-        ? (course.weight ?? course.credits)
-        : course.credits;
+    const weight = weightMode === 'EXPLICIT' ? (course.weight ?? course.credits) : course.credits;
     return {
       courseCode: course.courseCode,
       numericScore: course.numericScore ?? null,
@@ -216,10 +197,8 @@ export function computeGpaSnapshot(
   }
 
   return {
-    unweightedGpa:
-      unweightedDen > 0 ? round(unweightedNum / unweightedDen, roundTo) : null,
-    weightedGpa:
-      weightedDen > 0 ? round(weightedNum / weightedDen, roundTo) : null,
+    unweightedGpa: unweightedDen > 0 ? round(unweightedNum / unweightedDen, roundTo) : null,
+    weightedGpa: weightedDen > 0 ? round(weightedNum / weightedDen, roundTo) : null,
     creditsAttempted: round(creditsAttempted, 2),
     creditsEarned: round(creditsEarned, 2),
     courses: results,

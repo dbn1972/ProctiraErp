@@ -43,12 +43,7 @@ export function assertNoForeignTenant(
 ): void {
   for (const record of records) {
     if (record.tenantId !== expectedTenantId) {
-      throw new TenantIsolationLeakError(
-        category,
-        expectedTenantId,
-        record.tenantId,
-        record,
-      );
+      throw new TenantIsolationLeakError(category, expectedTenantId, record.tenantId, record);
     }
   }
 }
@@ -81,11 +76,6 @@ export function assertContainsTenant(
   value: string,
 ): void {
   if (!value.includes(expectedTenantId)) {
-    throw new TenantIsolationLeakError(
-      category,
-      expectedTenantId,
-      '<<missing>>',
-      value,
-    );
+    throw new TenantIsolationLeakError(category, expectedTenantId, '<<missing>>', value);
   }
 }

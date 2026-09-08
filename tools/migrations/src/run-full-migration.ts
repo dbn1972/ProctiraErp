@@ -108,7 +108,9 @@ async function runFullMigration(): Promise<MigrationReport> {
 
   // Final summary
   console.log('\n╔══════════════════════════════════════════════════════════════╗');
-  console.log(`║  Migration ${report.overallStatus.toUpperCase().padEnd(8)} | Duration: ${formatDuration(report.totalDurationMs).padEnd(20)} ║`);
+  console.log(
+    `║  Migration ${report.overallStatus.toUpperCase().padEnd(8)} | Duration: ${formatDuration(report.totalDurationMs).padEnd(20)} ║`,
+  );
   console.log('╚══════════════════════════════════════════════════════════════╝');
 
   if (report.overallStatus === 'success') {
@@ -129,7 +131,7 @@ async function runFullMigration(): Promise<MigrationReport> {
 function buildReport(
   startedAt: string,
   startTime: number,
-  steps: MigrationStepResult[]
+  steps: MigrationStepResult[],
 ): MigrationReport {
   const hasError = steps.some((s) => s.status === 'error');
   const hasWarning = steps.some((s) => s.status === 'warning');

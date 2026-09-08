@@ -47,18 +47,43 @@ export const BOARD_PACKS: Record<BoardPackCode, BoardPackDefinition> = {
     optionalSubjects: ['LANG2', 'IT'],
     marksheetFields: [
       { source: 'nationalId', exportKey: 'roll_no', label: 'Roll No', required: true },
-      { source: 'studentName', exportKey: 'candidate_name', label: 'Candidate Name', required: true },
-      { source: 'affiliationCode', exportKey: 'affiliation_no', label: 'Affiliation No', required: true },
+      {
+        source: 'studentName',
+        exportKey: 'candidate_name',
+        label: 'Candidate Name',
+        required: true,
+      },
+      {
+        source: 'affiliationCode',
+        exportKey: 'affiliation_no',
+        label: 'Affiliation No',
+        required: true,
+      },
       { source: 'centreCode', exportKey: 'centre_no', label: 'Centre No', required: true },
-      { source: 'subjectMarks', exportKey: 'subject_marks', label: 'Subject Marks', required: true },
-      { source: 'subjectGrades', exportKey: 'subject_grades', label: 'Subject Grades', required: true },
+      {
+        source: 'subjectMarks',
+        exportKey: 'subject_marks',
+        label: 'Subject Marks',
+        required: true,
+      },
+      {
+        source: 'subjectGrades',
+        exportKey: 'subject_grades',
+        label: 'Subject Grades',
+        required: true,
+      },
       { source: 'result', exportKey: 'result', label: 'Result', required: true },
     ],
     examResultFields: [
       { source: 'nationalId', exportKey: 'roll_no', label: 'Roll No', required: true },
       { source: 'centreCode', exportKey: 'centre_no', label: 'Centre No', required: true },
       { source: 'subjectCode', exportKey: 'subject_code', label: 'Subject Code', required: true },
-      { source: 'marksObtained', exportKey: 'marks_obtained', label: 'Marks Obtained', required: true },
+      {
+        source: 'marksObtained',
+        exportKey: 'marks_obtained',
+        label: 'Marks Obtained',
+        required: true,
+      },
       { source: 'grade', exportKey: 'grade', label: 'Grade', required: true },
     ],
     terminology: {
@@ -79,7 +104,12 @@ export const BOARD_PACKS: Record<BoardPackCode, BoardPackDefinition> = {
     optionalSubjects: ['GEO', 'COMP'],
     marksheetFields: [
       { source: 'nationalId', exportKey: 'unique_id', label: 'Unique ID', required: true },
-      { source: 'studentName', exportKey: 'candidate_name', label: 'Candidate Name', required: true },
+      {
+        source: 'studentName',
+        exportKey: 'candidate_name',
+        label: 'Candidate Name',
+        required: true,
+      },
       { source: 'affiliationCode', exportKey: 'school_code', label: 'School Code', required: true },
       { source: 'centreCode', exportKey: 'centre_code', label: 'Centre Code', required: true },
       { source: 'subjectMarks', exportKey: 'papers', label: 'Paper Marks', required: true },
@@ -112,10 +142,25 @@ export const BOARD_PACKS: Record<BoardPackCode, BoardPackDefinition> = {
     marksheetFields: [
       { source: 'nationalId', exportKey: 'seat_no', label: 'Seat No', required: true },
       { source: 'studentName', exportKey: 'student_name', label: 'Student Name', required: true },
-      { source: 'affiliationCode', exportKey: 'school_index', label: 'School Index', required: true },
+      {
+        source: 'affiliationCode',
+        exportKey: 'school_index',
+        label: 'School Index',
+        required: true,
+      },
       { source: 'centreCode', exportKey: 'centre_code', label: 'Centre Code', required: true },
-      { source: 'subjectMarks', exportKey: 'subject_marks', label: 'Subject Marks', required: true },
-      { source: 'subjectGrades', exportKey: 'class_awarded', label: 'Class Awarded', required: true },
+      {
+        source: 'subjectMarks',
+        exportKey: 'subject_marks',
+        label: 'Subject Marks',
+        required: true,
+      },
+      {
+        source: 'subjectGrades',
+        exportKey: 'class_awarded',
+        label: 'Class Awarded',
+        required: true,
+      },
       { source: 'result', exportKey: 'result', label: 'Result', required: true },
     ],
     examResultFields: [

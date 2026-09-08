@@ -62,10 +62,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the report service and routes.
  */
 export const reportPlugin = fp(
-  async function reportPluginImpl(
-    fastify: FastifyInstance,
-    options: ReportPluginOptions,
-  ) {
+  async function reportPluginImpl(fastify: FastifyInstance, options: ReportPluginOptions) {
     const {
       repository,
       dataSource,

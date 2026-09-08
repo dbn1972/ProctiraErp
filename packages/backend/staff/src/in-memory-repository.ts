@@ -6,18 +6,12 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type {
-  StaffEntity,
-  StaffFilter,
-  StaffRepository,
-} from './staff-repository.js';
+import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
 
 export class InMemoryStaffRepository implements StaffRepository {
   private staff: Map<string, StaffEntity> = new Map();
 
-  async create(
-    data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<StaffEntity> {
+  async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
     const now = new Date();
     const entity: StaffEntity = {
       ...data,
@@ -72,9 +66,7 @@ export class InMemoryStaffRepository implements StaffRepository {
     filter: StaffFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StaffEntity>> {
-    let items = Array.from(this.staff.values()).filter(
-      (entity) => entity.tenantId === tenantId,
-    );
+    let items = Array.from(this.staff.values()).filter((entity) => entity.tenantId === tenantId);
 
     // Apply filters
     if (filter.status) {

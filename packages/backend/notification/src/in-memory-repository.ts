@@ -17,7 +17,10 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   private notifications: NotificationEntity[] = [];
   private rules: NotificationRuleEntity[] = [];
   private templates: NotificationTemplateEntity[] = [];
-  private users: Map<string, { id: string; roleIds: string[]; areaIds: string[]; institutionIds: string[] }> = new Map();
+  private users: Map<
+    string,
+    { id: string; roleIds: string[]; areaIds: string[]; institutionIds: string[] }
+  > = new Map();
 
   /**
    * Seed users for recipient resolution in tests.
@@ -38,7 +41,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   }
 
   async getNotificationById(tenantId: string, id: string): Promise<NotificationEntity | null> {
-    const found = this.notifications.find(n => n.id === id && n.tenantId === tenantId);
+    const found = this.notifications.find((n) => n.id === id && n.tenantId === tenantId);
     return found ? { ...found } : null;
   }
 
@@ -55,7 +58,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       retryCount?: number;
     },
   ): Promise<NotificationEntity | null> {
-    const index = this.notifications.findIndex(n => n.id === id && n.tenantId === tenantId);
+    const index = this.notifications.findIndex((n) => n.id === id && n.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.notifications[index]!;
@@ -66,7 +69,8 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       deliveredAt: update.deliveredAt !== undefined ? update.deliveredAt : existing.deliveredAt,
       readAt: update.readAt !== undefined ? update.readAt : existing.readAt,
       failedAt: update.failedAt !== undefined ? update.failedAt : existing.failedAt,
-      failureReason: update.failureReason !== undefined ? update.failureReason : existing.failureReason,
+      failureReason:
+        update.failureReason !== undefined ? update.failureReason : existing.failureReason,
       retryCount: update.retryCount !== undefined ? update.retryCount : existing.retryCount,
       updatedAt: new Date(),
     };
@@ -81,14 +85,14 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     options: NotificationQueryOptions,
   ): Promise<PaginatedNotifications> {
     let filtered = this.notifications.filter(
-      n => n.tenantId === tenantId && n.recipientUserId === userId,
+      (n) => n.tenantId === tenantId && n.recipientUserId === userId,
     );
 
     if (options.status) {
-      filtered = filtered.filter(n => n.status === options.status);
+      filtered = filtered.filter((n) => n.status === options.status);
     }
     if (options.channel) {
-      filtered = filtered.filter(n => n.channel === options.channel);
+      filtered = filtered.filter((n) => n.channel === options.channel);
     }
 
     // Sort by createdAt descending
@@ -100,7 +104,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     const data = filtered.slice(start, start + options.pageSize);
 
     return {
-      data: data.map(n => ({ ...n })),
+      data: data.map((n) => ({ ...n })),
       total,
       page: options.page,
       pageSize: options.pageSize,
@@ -110,8 +114,10 @@ export class InMemoryNotificationRepository implements NotificationRepository {
 
   async getRetryableNotifications(tenantId: string): Promise<NotificationEntity[]> {
     return this.notifications
-      .filter(n => n.tenantId === tenantId && n.status === 'failed' && n.retryCount < n.maxRetries)
-      .map(n => ({ ...n }));
+      .filter(
+        (n) => n.tenantId === tenantId && n.status === 'failed' && n.retryCount < n.maxRetries,
+      )
+      .map((n) => ({ ...n }));
   }
 
   // ─── Rules ─────────────────────────────────────────────────────────────
@@ -122,7 +128,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   }
 
   async getRuleById(tenantId: string, id: string): Promise<NotificationRuleEntity | null> {
-    const found = this.rules.find(r => r.id === id && r.tenantId === tenantId);
+    const found = this.rules.find((r) => r.id === id && r.tenantId === tenantId);
     return found ? { ...found } : null;
   }
 
@@ -131,7 +137,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     tenantId: string,
     update: Partial<Omit<NotificationRuleEntity, 'id' | 'tenantId' | 'createdAt'>>,
   ): Promise<NotificationRuleEntity | null> {
-    const index = this.rules.findIndex(r => r.id === id && r.tenantId === tenantId);
+    const index = this.rules.findIndex((r) => r.id === id && r.tenantId === tenantId);
     if (index === -1) return null;
 
     const existing = this.rules[index]!;
@@ -146,7 +152,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   }
 
   async deleteRule(tenantId: string, id: string): Promise<boolean> {
-    const index = this.rules.findIndex(r => r.id === id && r.tenantId === tenantId);
+    const index = this.rules.findIndex((r) => r.id === id && r.tenantId === tenantId);
     if (index === -1) return false;
     this.rules.splice(index, 1);
     return true;
@@ -159,17 +165,14 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   ): Promise<NotificationRuleEntity[]> {
     return this.rules
       .filter(
-        r =>
-          r.tenantId === tenantId &&
-          r.entityType === entityType &&
-          r.event === event &&
-          r.isActive,
+        (r) =>
+          r.tenantId === tenantId && r.entityType === entityType && r.event === event && r.isActive,
       )
-      .map(r => ({ ...r }));
+      .map((r) => ({ ...r }));
   }
 
   async listRules(tenantId: string): Promise<NotificationRuleEntity[]> {
-    return this.rules.filter(r => r.tenantId === tenantId).map(r => ({ ...r }));
+    return this.rules.filter((r) => r.tenantId === tenantId).map((r) => ({ ...r }));
   }
 
   // ─── Templates ─────────────────────────────────────────────────────────
@@ -180,12 +183,12 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   }
 
   async getTemplateById(tenantId: string, id: string): Promise<NotificationTemplateEntity | null> {
-    const found = this.templates.find(t => t.id === id && t.tenantId === tenantId);
+    const found = this.templates.find((t) => t.id === id && t.tenantId === tenantId);
     return found ? { ...found } : null;
   }
 
   async listTemplates(tenantId: string): Promise<NotificationTemplateEntity[]> {
-    return this.templates.filter(t => t.tenantId === tenantId).map(t => ({ ...t }));
+    return this.templates.filter((t) => t.tenantId === tenantId).map((t) => ({ ...t }));
   }
 
   // ─── Recipient Resolution ──────────────────────────────────────────────
@@ -203,7 +206,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     // Role-based resolution
     if (query.roleIds && query.roleIds.length > 0) {
       for (const [userId, user] of this.users) {
-        if (user.roleIds.some(r => query.roleIds!.includes(r))) {
+        if (user.roleIds.some((r) => query.roleIds!.includes(r))) {
           resolvedIds.add(userId);
         }
       }
@@ -212,7 +215,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     // Area-based resolution
     if (query.areaIds && query.areaIds.length > 0) {
       for (const [userId, user] of this.users) {
-        if (user.areaIds.some(a => query.areaIds!.includes(a))) {
+        if (user.areaIds.some((a) => query.areaIds!.includes(a))) {
           resolvedIds.add(userId);
         }
       }
@@ -221,7 +224,7 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     // Institution-based resolution
     if (query.institutionIds && query.institutionIds.length > 0) {
       for (const [userId, user] of this.users) {
-        if (user.institutionIds.some(i => query.institutionIds!.includes(i))) {
+        if (user.institutionIds.some((i) => query.institutionIds!.includes(i))) {
           resolvedIds.add(userId);
         }
       }

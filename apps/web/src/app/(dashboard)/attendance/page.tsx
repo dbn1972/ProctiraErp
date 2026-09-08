@@ -16,15 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import {
-  getClassRoster,
-  type RosterEntry,
-} from '@/lib/api/attendance';
-import {
-  listAcademicPeriods,
-  listInstitutions,
-  type AcademicPeriod,
-} from '@/lib/api/institutions';
+import { getClassRoster, type RosterEntry } from '@/lib/api/attendance';
+import { listAcademicPeriods, listInstitutions, type AcademicPeriod } from '@/lib/api/institutions';
 import { listAttendancePeriods } from '@/lib/api/timetable';
 import { listClassesByInstitution } from '@/lib/institutions/api';
 import type { ClassSection } from '@/lib/institutions/types';
@@ -37,10 +30,7 @@ interface PageProps {
   searchParams?: Record<string, string | string[] | undefined>;
 }
 
-function readStringParam(
-  params: PageProps['searchParams'],
-  key: string,
-): string {
+function readStringParam(params: PageProps['searchParams'], key: string): string {
   if (!params) return '';
   const value = params[key];
   if (typeof value === 'string') return value;
@@ -57,27 +47,23 @@ export default async function AttendancePage({ searchParams }: PageProps) {
 
   const dayOfWeek = ((new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7) + 1; // ISO 1=Mon
 
-  const [institutions, classes, academicPeriods, roster, publishedPeriods] =
-    await Promise.all([
-      listInstitutions({ pageSize: 200 }),
-      institutionId
-        ? listClassesByInstitution(institutionId).catch(
-            () => [] as ClassSection[],
-          )
-        : Promise.resolve<ClassSection[]>([]),
-      institutionId
-        ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
-        : Promise.resolve<AcademicPeriod[]>([]),
-      classId && academicPeriodId
-        ? getClassRoster(classId, academicPeriodId, date)
-        : Promise.resolve<RosterEntry[]>([]),
-      institutionId
-        ? listAttendancePeriods({ institutionId, dayOfWeek })
-        : Promise.resolve({ ok: true as const, data: [] }),
-    ]);
+  const [institutions, classes, academicPeriods, roster, publishedPeriods] = await Promise.all([
+    listInstitutions({ pageSize: 200 }),
+    institutionId
+      ? listClassesByInstitution(institutionId).catch(() => [] as ClassSection[])
+      : Promise.resolve<ClassSection[]>([]),
+    institutionId
+      ? listAcademicPeriods(institutionId).catch(() => [] as AcademicPeriod[])
+      : Promise.resolve<AcademicPeriod[]>([]),
+    classId && academicPeriodId
+      ? getClassRoster(classId, academicPeriodId, date)
+      : Promise.resolve<RosterEntry[]>([]),
+    institutionId
+      ? listAttendancePeriods({ institutionId, dayOfWeek })
+      : Promise.resolve({ ok: true as const, data: [] }),
+  ]);
 
-  const publishedSlots =
-    publishedPeriods.ok === true ? publishedPeriods.data : [];
+  const publishedSlots = publishedPeriods.ok === true ? publishedPeriods.data : [];
 
   return (
     <section aria-labelledby="attendance-heading" className="space-y-6">
@@ -90,8 +76,8 @@ export default async function AttendancePage({ searchParams }: PageProps) {
             Mark attendance
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Daily attendance against the active class roster. Past 30 days
-            editable; future dates are locked.
+            Daily attendance against the active class roster. Past 30 days editable; future dates
+            are locked.
           </p>
         </div>
         <Button asChild variant="outline" size="sm" className="shrink-0">
@@ -107,16 +93,15 @@ export default async function AttendancePage({ searchParams }: PageProps) {
           <CardHeader>
             <CardTitle className="text-base">Published section meetings</CardTitle>
             <CardDescription>
-              Period slots from the master schedule for this weekday (ISO day{' '}
-              {dayOfWeek}). Use as the period reference when marking
-              period-level attendance.
+              Period slots from the master schedule for this weekday (ISO day {dayOfWeek}). Use as
+              the period reference when marking period-level attendance.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {publishedSlots.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No published section meetings for this day. Publish a section on
-                the institution Schedule tab to surface periods here.
+                No published section meetings for this day. Publish a section on the institution
+                Schedule tab to surface periods here.
               </p>
             ) : (
               <ul className="space-y-2 text-sm">
@@ -146,8 +131,8 @@ export default async function AttendancePage({ searchParams }: PageProps) {
         <CardHeader>
           <CardTitle className="text-base">Roster</CardTitle>
           <CardDescription>
-            Choose institution, class, academic period, and date. The roster is
-            pre-populated from active enrollments.
+            Choose institution, class, academic period, and date. The roster is pre-populated from
+            active enrollments.
           </CardDescription>
         </CardHeader>
         <CardContent>

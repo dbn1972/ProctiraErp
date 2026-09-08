@@ -33,11 +33,7 @@ export const guardianSchema = z.object({
   lastName: z.string().min(1, 'Last name is required').max(100),
   relationship: z.string().min(1, 'Relationship is required').max(50),
   contactPhone: z.string().max(50).or(z.literal('')),
-  contactEmail: z
-    .string()
-    .max(254)
-    .email('Invalid email address')
-    .or(z.literal('')),
+  contactEmail: z.string().max(254).email('Invalid email address').or(z.literal('')),
 });
 
 export const identityDocumentSchema = z.object({
@@ -48,14 +44,8 @@ export const identityDocumentSchema = z.object({
 });
 
 export const studentFormSchema = z.object({
-  firstName: z
-    .string()
-    .min(1, 'First name is required')
-    .max(100, 'First name is too long'),
-  lastName: z
-    .string()
-    .min(1, 'Last name is required')
-    .max(100, 'Last name is too long'),
+  firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long'),
+  lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long'),
   dateOfBirth: isoDate,
   gender: z.string().min(1, 'Gender is required').max(20),
   nationalId: z.string().max(50).or(z.literal('')),
@@ -70,17 +60,12 @@ export type StudentFormValues = z.infer<typeof studentFormSchema>;
 
 export const transferFormSchema = z.object({
   sourceEnrollmentId: z.string().min(1, 'Source enrollment is required'),
-  destinationInstitutionId: z
-    .string()
-    .min(1, 'Destination institution is required'),
+  destinationInstitutionId: z.string().min(1, 'Destination institution is required'),
   destinationGradeId: z.string().min(1, 'Grade is required'),
   destinationClassId: z.string().or(z.literal('')),
   academicPeriodId: z.string().min(1, 'Academic period is required'),
   transferDate: isoDate,
-  reason: z
-    .string()
-    .min(1, 'Reason is required')
-    .max(500, 'Reason cannot exceed 500 characters'),
+  reason: z.string().min(1, 'Reason is required').max(500, 'Reason cannot exceed 500 characters'),
 });
 
 export type TransferFormValues = z.infer<typeof transferFormSchema>;

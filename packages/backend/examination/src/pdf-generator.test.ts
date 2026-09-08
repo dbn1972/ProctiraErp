@@ -20,12 +20,26 @@ describe('SimplePdfGenerator emits real PDFs (G-716)', () => {
   it('admit cards: one page per candidate, real PDF header', async () => {
     const bytes = await gen.generateAdmitCards(exam, [
       {
-        id: 'c1', studentId: 's1', studentName: 'Ada Lovelace', rollNumber: 'R-001',
-        centerId: 'ce1', centerName: 'Main Hall', subjectIds: ['m'], subjectNames: ['Mathematics'], gender: 'F',
+        id: 'c1',
+        studentId: 's1',
+        studentName: 'Ada Lovelace',
+        rollNumber: 'R-001',
+        centerId: 'ce1',
+        centerName: 'Main Hall',
+        subjectIds: ['m'],
+        subjectNames: ['Mathematics'],
+        gender: 'F',
       },
       {
-        id: 'c2', studentId: 's2', studentName: 'Alan Turing', rollNumber: 'R-002',
-        centerId: 'ce1', centerName: 'Main Hall', subjectIds: ['p'], subjectNames: ['Physics'], gender: 'M',
+        id: 'c2',
+        studentId: 's2',
+        studentName: 'Alan Turing',
+        rollNumber: 'R-002',
+        centerId: 'ce1',
+        centerName: 'Main Hall',
+        subjectIds: ['p'],
+        subjectNames: ['Physics'],
+        gender: 'M',
       },
     ]);
     expect(isPdfBuffer(bytes)).toBe(true);
@@ -39,9 +53,36 @@ describe('SimplePdfGenerator emits real PDFs (G-716)', () => {
 
   it('seating plan: one page per centre with room tables', async () => {
     const bytes = await gen.generateSeatingPlan(exam, [
-      { candidateId: 'c1', studentName: 'Ada', rollNumber: 'R-001', centerId: 'a', centerName: 'Hall A', roomNumber: '101', seatNumber: 'S-02', subjectNames: ['Mathematics'] },
-      { candidateId: 'c2', studentName: 'Alan', rollNumber: 'R-002', centerId: 'a', centerName: 'Hall A', roomNumber: '101', seatNumber: 'S-01', subjectNames: ['Physics'] },
-      { candidateId: 'c3', studentName: 'Grace', rollNumber: 'R-003', centerId: 'b', centerName: 'Hall B', roomNumber: '201', seatNumber: 'S-01', subjectNames: ['Physics'] },
+      {
+        candidateId: 'c1',
+        studentName: 'Ada',
+        rollNumber: 'R-001',
+        centerId: 'a',
+        centerName: 'Hall A',
+        roomNumber: '101',
+        seatNumber: 'S-02',
+        subjectNames: ['Mathematics'],
+      },
+      {
+        candidateId: 'c2',
+        studentName: 'Alan',
+        rollNumber: 'R-002',
+        centerId: 'a',
+        centerName: 'Hall A',
+        roomNumber: '101',
+        seatNumber: 'S-01',
+        subjectNames: ['Physics'],
+      },
+      {
+        candidateId: 'c3',
+        studentName: 'Grace',
+        rollNumber: 'R-003',
+        centerId: 'b',
+        centerName: 'Hall B',
+        roomNumber: '201',
+        seatNumber: 'S-01',
+        subjectNames: ['Physics'],
+      },
     ]);
     const info = inspectPdf(bytes);
     expect(info.pageCount).toBe(2);
@@ -54,9 +95,15 @@ describe('SimplePdfGenerator emits real PDFs (G-716)', () => {
   it('result certificates: scores, grades and pass/fail', async () => {
     const bytes = await gen.generateResultCertificates(exam, [
       {
-        candidateId: 'c1', studentId: 's1', studentName: 'Ada Lovelace', rollNumber: 'R-001',
+        candidateId: 'c1',
+        studentId: 's1',
+        studentName: 'Ada Lovelace',
+        rollNumber: 'R-001',
         subjects: [{ name: 'Mathematics', score: 95, grade: 'A', passed: true }],
-        overallGrade: 'A', overallPassed: true, totalScore: 95, maxPossibleScore: 100,
+        overallGrade: 'A',
+        overallPassed: true,
+        totalScore: 95,
+        maxPossibleScore: 100,
       },
     ]);
     const info = inspectPdf(bytes);

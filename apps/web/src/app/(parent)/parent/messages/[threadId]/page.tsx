@@ -36,7 +36,9 @@ export default async function ParentThreadPage({
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{thread.subject}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            {thread.subject}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Student {thread.studentId.slice(0, 8)}… · {thread.status}
           </p>
@@ -63,10 +65,7 @@ export default async function ParentThreadPage({
           ) : (
             <ul className="space-y-4" role="list">
               {messages.map((message) => (
-                <li
-                  key={message.id}
-                  className="rounded-lg border border-border bg-muted/30 p-3"
-                >
+                <li key={message.id} className="rounded-lg border border-border bg-muted/30 p-3">
                   <p className="text-xs font-medium text-muted-foreground">
                     {message.senderRole} · {new Date(message.createdAt).toLocaleString()}
                   </p>

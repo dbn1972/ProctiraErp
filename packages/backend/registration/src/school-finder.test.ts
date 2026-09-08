@@ -142,9 +142,9 @@ describe('RegistrationService.searchSchools', () => {
   });
 
   it('throws ValidationError when geolocation block is incomplete', async () => {
-    await expect(
-      service.searchSchools(tenantId, { latitude: 12.9716 }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(service.searchSchools(tenantId, { latitude: 12.9716 })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
     await expect(
       service.searchSchools(tenantId, { longitude: 77.5946, radiusKm: 5 }),
     ).rejects.toBeInstanceOf(ValidationError);

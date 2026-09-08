@@ -32,7 +32,7 @@ export function FormBuilder({
 }: FormBuilderProps) {
   const allFields = useMemo(
     () => schema.sections.flatMap((section) => section.fields),
-    [schema.sections]
+    [schema.sections],
   );
 
   const computedDefaults = useMemo(() => {
@@ -100,12 +100,9 @@ export function FormBuilder({
     const error = errors[field.name];
     const validation = buildValidation(field.validation);
 
-    const ariaDescribedBy = [
-      field.helpText ? helpId : null,
-      error ? errorId : null,
-    ]
-      .filter(Boolean)
-      .join(' ') || undefined;
+    const ariaDescribedBy =
+      [field.helpText ? helpId : null, error ? errorId : null].filter(Boolean).join(' ') ||
+      undefined;
 
     const commonProps = {
       id: fieldId,
@@ -146,7 +143,11 @@ export function FormBuilder({
 
       case 'radio':
         input = (
-          <fieldset className="proctira-form__radio-group" role="radiogroup" aria-labelledby={`${fieldId}-legend`}>
+          <fieldset
+            className="proctira-form__radio-group"
+            role="radiogroup"
+            aria-labelledby={`${fieldId}-legend`}
+          >
             <legend id={`${fieldId}-legend`} className="proctira-form__legend">
               {field.label}
             </legend>
@@ -201,7 +202,12 @@ export function FormBuilder({
         {field.type !== 'checkbox' && field.type !== 'radio' && (
           <label htmlFor={fieldId} className="proctira-form__label">
             {field.label}
-            {validation.required && <span className="proctira-form__required" aria-hidden="true"> *</span>}
+            {validation.required && (
+              <span className="proctira-form__required" aria-hidden="true">
+                {' '}
+                *
+              </span>
+            )}
           </label>
         )}
         {input}
@@ -235,9 +241,7 @@ export function FormBuilder({
           {section.description && (
             <p className="proctira-form__section-description">{section.description}</p>
           )}
-          <div className="proctira-form__fields">
-            {section.fields.map(renderField)}
-          </div>
+          <div className="proctira-form__fields">{section.fields.map(renderField)}</div>
         </fieldset>
       ))}
 

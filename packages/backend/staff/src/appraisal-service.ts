@@ -7,10 +7,7 @@
  * - 7.3: Staff appraisal workflows with configurable criteria, scoring on a defined
  *         numeric scale, and approval chains routed through the Workflow_Engine
  */
-import {
-  NotFoundError,
-  BusinessRuleError,
-} from '@proctira/common';
+import { NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -21,10 +18,7 @@ import type {
   AppraisalTemplateRepository,
   AppraisalRepository,
 } from './appraisal-repository.js';
-import type {
-  CreateAppraisalTemplateInput,
-  CreateAppraisalInput,
-} from './appraisal-schemas.js';
+import type { CreateAppraisalTemplateInput, CreateAppraisalInput } from './appraisal-schemas.js';
 import { AppraisalStatus } from './appraisal-schemas.js';
 
 /**
@@ -66,9 +60,7 @@ export class AppraisalService {
     // Validate criteria weights sum to 100
     const totalWeight = input.criteria.reduce((sum, c) => sum + c.weight, 0);
     if (totalWeight !== 100) {
-      throw new BusinessRuleError(
-        `Criteria weights must sum to 100, but got ${totalWeight}`,
-      );
+      throw new BusinessRuleError(`Criteria weights must sum to 100, but got ${totalWeight}`);
     }
 
     // Validate scoreMin < scoreMax
@@ -131,10 +123,7 @@ export class AppraisalService {
    * @throws NotFoundError if template not found
    * @throws BusinessRuleError if scores don't match criteria or are out of range
    */
-  async createAppraisal(
-    tenantId: string,
-    input: CreateAppraisalInput,
-  ): Promise<AppraisalEntity> {
+  async createAppraisal(tenantId: string, input: CreateAppraisalInput): Promise<AppraisalEntity> {
     // Validate template exists
     const template = await this.templateRepository.findById(input.templateId, tenantId);
     if (!template) {
@@ -147,9 +136,7 @@ export class AppraisalService {
 
     for (const name of criteriaNames) {
       if (!scoredNames.has(name)) {
-        throw new BusinessRuleError(
-          `Missing score for criterion '${name}'`,
-        );
+        throw new BusinessRuleError(`Missing score for criterion '${name}'`);
       }
     }
 

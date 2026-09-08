@@ -134,16 +134,16 @@ describe('detectDuplicates', () => {
   it('should return empty array when no duplicates found', async () => {
     repository.seed([existingStudent({ nationalId: 'NID-OTHER' })]);
 
-    const rows = [validRow({ rowNumber: 2, nationalId: 'NID-NEW', firstName: 'Alice', lastName: 'Wonder' })];
+    const rows = [
+      validRow({ rowNumber: 2, nationalId: 'NID-NEW', firstName: 'Alice', lastName: 'Wonder' }),
+    ];
     const duplicates = await detectDuplicates(TENANT_ID, rows, repository);
 
     expect(duplicates).toHaveLength(0);
   });
 
   it('should not match across different tenants', async () => {
-    repository.seed([
-      existingStudent({ tenantId: 'other-tenant', nationalId: 'NID-001' }),
-    ]);
+    repository.seed([existingStudent({ tenantId: 'other-tenant', nationalId: 'NID-001' })]);
 
     const rows = [validRow({ rowNumber: 2, nationalId: 'NID-001' })];
     const duplicates = await detectDuplicates(TENANT_ID, rows, repository);

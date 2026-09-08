@@ -56,39 +56,22 @@ export interface DashboardScope {
  * Role IDs that grant the country dashboard.
  * Country admins have no Area_Hierarchy restriction.
  */
-const COUNTRY_ROLE_IDS = new Set([
-  'system_admin',
-  'super-admin',
-  'ministry_admin',
-]);
+const COUNTRY_ROLE_IDS = new Set(['system_admin', 'super-admin', 'ministry_admin']);
 
 /** Role IDs that grant a state dashboard, scoped to `roleAssignment.areaId`. */
-const STATE_ROLE_IDS = new Set([
-  'state_director',
-  'state_admin',
-]);
+const STATE_ROLE_IDS = new Set(['state_director', 'state_admin']);
 
 /** Role IDs that grant a board admin dashboard, scoped to a board. */
-const BOARD_ADMIN_ROLE_IDS = new Set([
-  'board_admin',
-  'board_regional_officer',
-]);
+const BOARD_ADMIN_ROLE_IDS = new Set(['board_admin', 'board_regional_officer']);
 
 /** Role IDs that grant a school dashboard, scoped to an institution. */
-const SCHOOL_ROLE_IDS = new Set([
-  'school_admin',
-  'principal',
-]);
+const SCHOOL_ROLE_IDS = new Set(['school_admin', 'principal']);
 
 /** Role IDs that grant the teacher dashboard. */
 const TEACHER_ROLE_IDS = new Set(['teacher']);
 
 /** Role IDs that grant the parent / student dashboard. */
-const PARENT_STUDENT_ROLE_IDS = new Set([
-  'parent',
-  'student',
-  'guardian',
-]);
+const PARENT_STUDENT_ROLE_IDS = new Set(['parent', 'student', 'guardian']);
 
 /**
  * Derive the typed dashboard scope from the JWT claims.
@@ -165,23 +148,14 @@ export function deriveDashboardScope(jwt: JwtPayload): DashboardScope {
 }
 
 /** Dashboard variants exposed by the gateway. */
-export type DashboardVariant =
-  | 'country'
-  | 'state'
-  | 'board-admin'
-  | 'school'
-  | 'teacher'
-  | 'me';
+export type DashboardVariant = 'country' | 'state' | 'board-admin' | 'school' | 'teacher' | 'me';
 
 /**
  * Whether a derived scope is allowed to *load* a given dashboard variant.
  * This is the first gate; per-resource Area_Hierarchy filtering happens
  * after this check.
  */
-export function canAccessVariant(
-  scope: DashboardScope,
-  variant: DashboardVariant,
-): boolean {
+export function canAccessVariant(scope: DashboardScope, variant: DashboardVariant): boolean {
   switch (variant) {
     case 'country':
       return scope.level === 'country';

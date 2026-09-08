@@ -40,9 +40,7 @@ export interface ActionState<T = unknown> {
 
 /* ------------------------------------------------------------------ Helpers */
 
-function zodFlatten(
-  fieldErrors: Record<string, string[] | undefined>,
-): Record<string, string> {
+function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fieldErrors)) {
     if (value && value.length > 0 && value[0]) out[key] = value[0];
@@ -180,10 +178,7 @@ export async function createAssignmentAction(
       data: { assignmentId: assignment.id },
     };
   } catch (error) {
-    return toErrorState<{ assignmentId: string }>(
-      error,
-      'Failed to create assignment',
-    );
+    return toErrorState<{ assignmentId: string }>(error, 'Failed to create assignment');
   }
 }
 
@@ -226,9 +221,6 @@ export async function createAppraisalAction(
       data: { appraisalId: appraisal.id },
     };
   } catch (error) {
-    return toErrorState<{ appraisalId: string }>(
-      error,
-      'Failed to record appraisal',
-    );
+    return toErrorState<{ appraisalId: string }>(error, 'Failed to record appraisal');
   }
 }

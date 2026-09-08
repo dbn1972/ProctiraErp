@@ -96,11 +96,7 @@ export type {
 
 export { CaseService } from './case-service.js';
 
-export type {
-  CaseRepository,
-  CaseEntity,
-  CaseFilter,
-} from './case-repository.js';
+export type { CaseRepository, CaseEntity, CaseFilter } from './case-repository.js';
 
 export { InMemoryCaseRepository } from './in-memory-case-repository.js';
 

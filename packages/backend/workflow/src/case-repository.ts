@@ -55,5 +55,9 @@ export interface CaseRepository {
   createCase(entity: Omit<CaseEntity, 'createdAt' | 'updatedAt'>): Promise<CaseEntity>;
   findCaseById(id: string, tenantId: string): Promise<CaseEntity | null>;
   updateCase(id: string, tenantId: string, data: Partial<CaseEntity>): Promise<CaseEntity | null>;
-  listCases(tenantId: string, filter: CaseFilter, pagination: PaginationOptions): Promise<PaginatedResult<CaseEntity>>;
+  listCases(
+    tenantId: string,
+    filter: CaseFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<CaseEntity>>;
 }

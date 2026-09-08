@@ -125,18 +125,14 @@ function buildSchema(t: (key: string, params?: Record<string, string | number>) 
   const colorString = z.string().trim().min(1);
   return z.object({
     logoUrl: z.string().trim().min(1, t('settings.branding.errors.logoRequired')),
-    faviconUrl: z
-      .string()
-      .trim()
-      .min(1, t('settings.branding.errors.faviconRequired')),
-    primaryColor: colorString
-      .refine(
-        (v) => {
-          const ratio = getContrastRatio(v);
-          return typeof ratio === 'number' && ratio >= PRIMARY_CONTRAST_THRESHOLD;
-        },
-        { message: t('settings.branding.errors.primaryContrast') },
-      ),
+    faviconUrl: z.string().trim().min(1, t('settings.branding.errors.faviconRequired')),
+    primaryColor: colorString.refine(
+      (v) => {
+        const ratio = getContrastRatio(v);
+        return typeof ratio === 'number' && ratio >= PRIMARY_CONTRAST_THRESHOLD;
+      },
+      { message: t('settings.branding.errors.primaryContrast') },
+    ),
     accentColor: colorString.refine(
       (v) => {
         const ratio = getContrastRatio(v);
@@ -144,10 +140,7 @@ function buildSchema(t: (key: string, params?: Record<string, string | number>) 
       },
       { message: t('settings.branding.errors.accentContrast') },
     ),
-    loginBackground: z
-      .string()
-      .trim()
-      .min(1, t('settings.branding.errors.loginBgRequired')),
+    loginBackground: z.string().trim().min(1, t('settings.branding.errors.loginBgRequired')),
   });
 }
 
@@ -160,8 +153,7 @@ const DEFAULT_FORM_VALUES: SettingsBrandingFormValues = {
   faviconUrl: '/favicon.ico',
   primaryColor: 'hsl(222, 47%, 31%)',
   accentColor: 'hsl(174, 62%, 40%)',
-  loginBackground:
-    'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
+  loginBackground: 'linear-gradient(135deg, hsl(222, 47%, 22%), hsl(222, 47%, 40%))',
 };
 
 /**
@@ -169,9 +161,7 @@ const DEFAULT_FORM_VALUES: SettingsBrandingFormValues = {
  * Strips the `url(...)` wrapper applied by the SSR helper and the publish
  * guard so the user sees the bare URL in the form.
  */
-function tokensToFormValues(
-  tokens: BrandingTokens | null | undefined,
-): SettingsBrandingFormValues {
+function tokensToFormValues(tokens: BrandingTokens | null | undefined): SettingsBrandingFormValues {
   const out: SettingsBrandingFormValues = { ...DEFAULT_FORM_VALUES };
   if (!tokens) return out;
 
@@ -308,9 +298,7 @@ export default function SettingsBranding({
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setLoadError(
-          err instanceof Error ? err.message : t('settings.branding.loadFailed'),
-        );
+        setLoadError(err instanceof Error ? err.message : t('settings.branding.loadFailed'));
         setLoading(false);
       });
     return () => {
@@ -374,11 +362,7 @@ export default function SettingsBranding({
       }
       setPreviewActive(next);
       announce(
-        t(
-          next
-            ? 'settings.branding.previewEnabled'
-            : 'settings.branding.previewDisabled',
-        ),
+        t(next ? 'settings.branding.previewEnabled' : 'settings.branding.previewDisabled'),
         'polite',
       );
     },
@@ -443,9 +427,10 @@ export default function SettingsBranding({
         announce(message, 'polite');
         reset(tokensToFormValues(published.tokens));
       } catch (err: unknown) {
-        if (err instanceof AdminApiError && Array.isArray(
-          (err.details as { errors?: BrandingFieldError[] } | null)?.errors,
-        )) {
+        if (
+          err instanceof AdminApiError &&
+          Array.isArray((err.details as { errors?: BrandingFieldError[] } | null)?.errors)
+        ) {
           const fieldErrors = mapPublishErrorsToFields(
             (err.details as { errors: BrandingFieldError[] }).errors,
           );
@@ -455,8 +440,7 @@ export default function SettingsBranding({
               message,
             });
           }
-          const message =
-            err.message ?? t('settings.branding.publishValidationFailed');
+          const message = err.message ?? t('settings.branding.publishValidationFailed');
           setSaveState({ kind: 'error', message });
           announce(message, 'assertive');
           return;
@@ -510,11 +494,7 @@ export default function SettingsBranding({
 
   if (loading) {
     return (
-      <div
-        className="space-y-6 p-6"
-        role="status"
-        aria-label={t('common.loading')}
-      >
+      <div className="space-y-6 p-6" role="status" aria-label={t('common.loading')}>
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-96" />
         <Skeleton className="h-96 w-full" />
@@ -539,12 +519,8 @@ export default function SettingsBranding({
     <div className="p-6" data-testid="settings-branding-page">
       <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {t('settings.branding.title')}
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            {t('settings.branding.description')}
-          </p>
+          <h1 className="text-2xl font-semibold text-foreground">{t('settings.branding.title')}</h1>
+          <p className="mt-1 text-muted-foreground">{t('settings.branding.description')}</p>
           {publishedRevision !== null && (
             <p className="mt-1 text-xs text-muted-foreground">
               {t('settings.branding.currentRevision', {
@@ -571,11 +547,7 @@ export default function SettingsBranding({
       </header>
 
       {saveState.kind === 'error' && (
-        <Alert
-          variant="destructive"
-          className="mb-6"
-          data-testid="settings-branding-error"
-        >
+        <Alert variant="destructive" className="mb-6" data-testid="settings-branding-error">
           <AlertTitle>{t('settings.branding.errorTitle')}</AlertTitle>
           <AlertDescription>{saveState.message}</AlertDescription>
         </Alert>
@@ -776,10 +748,7 @@ export default function SettingsBranding({
         </form>
 
         {/* ─── Live preview column ─────────────────────────────── */}
-        <aside
-          className="lg:col-span-5"
-          aria-label={t('settings.branding.preview.label')}
-        >
+        <aside className="lg:col-span-5" aria-label={t('settings.branding.preview.label')}>
           <Card className="lg:sticky lg:top-6">
             <CardContent className="space-y-4 p-6">
               <h2 className="text-lg font-semibold text-foreground">
@@ -872,11 +841,7 @@ interface BrandingPreviewProps {
   appLabel: string;
 }
 
-function BrandingPreview({
-  values,
-  signInLabel,
-  appLabel,
-}: BrandingPreviewProps): JSX.Element {
+function BrandingPreview({ values, signInLabel, appLabel }: BrandingPreviewProps): JSX.Element {
   return (
     <div
       data-testid="settings-branding-preview"

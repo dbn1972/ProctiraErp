@@ -22,18 +22,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { message: 'Invalid request body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
   const { email, password } = body;
   if (!email || !password) {
-    return NextResponse.json(
-      { message: 'Email and password are required.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Email and password are required.' }, { status: 400 });
   }
 
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';
@@ -52,8 +46,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     return NextResponse.json(
       {
-        message:
-          'The authentication service is currently unavailable. Please try again shortly.',
+        message: 'The authentication service is currently unavailable. Please try again shortly.',
       },
       { status: 503 },
     );

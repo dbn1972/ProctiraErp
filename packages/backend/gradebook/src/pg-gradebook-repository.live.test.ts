@@ -66,9 +66,9 @@ describe('PgGradebookRepository (live)', () => {
     expect(await repo.getCreditRuleByCode(tenantB, 'MATH-101')).toBeNull();
 
     // (tenant_id, code) is unique: re-inserting the same code for A is rejected.
-    await expect(
-      repo.createCreditRule({ ...created, id: randomUUID() }),
-    ).rejects.toThrow(/duplicate key|unique/i);
+    await expect(repo.createCreditRule({ ...created, id: randomUUID() })).rejects.toThrow(
+      /duplicate key|unique/i,
+    );
   });
 
   it.skipIf(!pool)('reads grading scales only for the bound tenant', async () => {
@@ -96,7 +96,9 @@ describe('PgGradebookRepository (live)', () => {
     expect(scale?.code).toBe('STD-10');
     expect(scale?.bands.map((b) => b.label)).toEqual(['A', 'B']);
     expect((await repo.getDefaultGradingScale(tenantA, boardId))?.id).toBe(scaleId);
-    expect((await repo.listGradingScales(tenantA, boardId)).some((s) => s.id === scaleId)).toBe(true);
+    expect((await repo.listGradingScales(tenantA, boardId)).some((s) => s.id === scaleId)).toBe(
+      true,
+    );
 
     expect(await repo.getGradingScale(tenantB, scaleId)).toBeNull();
     expect(await repo.getDefaultGradingScale(tenantB, boardId)).toBeNull();

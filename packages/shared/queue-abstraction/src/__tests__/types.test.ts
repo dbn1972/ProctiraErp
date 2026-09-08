@@ -8,9 +8,7 @@ import { buildTenantName } from '../types';
 
 describe('buildTenantName', () => {
   it('should prefix with tenant.{tenantId}.{name}', () => {
-    expect(buildTenantName('abc-123', 'student.enrolled')).toBe(
-      'tenant.abc-123.student.enrolled'
-    );
+    expect(buildTenantName('abc-123', 'student.enrolled')).toBe('tenant.abc-123.student.enrolled');
   });
 
   it('should handle simple names', () => {
@@ -23,7 +21,7 @@ describe('buildTenantName', () => {
 
   it('should handle complex topic names', () => {
     expect(buildTenantName('org-456', 'workflow.approval.step1')).toBe(
-      'tenant.org-456.workflow.approval.step1'
+      'tenant.org-456.workflow.approval.step1',
     );
   });
 });

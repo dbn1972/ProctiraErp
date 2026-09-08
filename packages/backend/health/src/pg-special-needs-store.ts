@@ -264,10 +264,7 @@ export class PgSpecialNeedsStore {
          ORDER BY assessment_date DESC`,
         [tenantId, studentId],
       );
-      return paginate(
-        (result.rows as Record<string, unknown>[]).map(mapAssessment),
-        pagination,
-      );
+      return paginate((result.rows as Record<string, unknown>[]).map(mapAssessment), pagination);
     });
   }
 

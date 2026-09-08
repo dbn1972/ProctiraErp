@@ -48,15 +48,30 @@ describe('PgBillingRepository (live)', () => {
     expect(await repo.findActiveSubscription(randomUUID())).toBeNull();
 
     const [ent] = await repo.upsertEntitlements([
-      { id: randomUUID(), tenantId, subscriptionId: subId, featureKey: 'core', enabled: true, quotaLimit: 5 },
+      {
+        id: randomUUID(),
+        tenantId,
+        subscriptionId: subId,
+        featureKey: 'core',
+        enabled: true,
+        quotaLimit: 5,
+      },
     ]);
     expect(ent?.enabled).toBe(true);
     expect((await repo.findEntitlement(tenantId, 'core'))?.quotaLimit).toBe(5);
 
-    const usage = await repo.getOrCreateUsage(tenantId, subId, 'students', now, new Date(now.getTime() + 1000));
+    const usage = await repo.getOrCreateUsage(
+      tenantId,
+      subId,
+      'students',
+      now,
+      new Date(now.getTime() + 1000),
+    );
     const bumped = await repo.incrementUsage(usage.id, 3);
     expect(bumped.used).toBe(3);
-    expect((await repo.getUsageByTenant(tenantId, now, new Date(now.getTime() + 1000)))[0]?.used).toBe(3);
+    expect(
+      (await repo.getUsageByTenant(tenantId, now, new Date(now.getTime() + 1000)))[0]?.used,
+    ).toBe(3);
 
     await repo.deleteEntitlementsBySubscription(subId);
     expect(await repo.findEntitlementsByTenant(tenantId)).toHaveLength(0);

@@ -42,4 +42,8 @@ export { EnvSecretAdapter } from './adapters/env-adapter.js';
 export { AwsKmsSecretAdapter, SecretAccessError } from './adapters/aws-kms-adapter.js';
 export type { AwsSecretsManagerClient } from './adapters/aws-kms-adapter.js';
 export { VaultSecretAdapter } from './adapters/vault-adapter.js';
-export type { VaultHttpClient, VaultRequestOptions, VaultResponse } from './adapters/vault-adapter.js';
+export type {
+  VaultHttpClient,
+  VaultRequestOptions,
+  VaultResponse,
+} from './adapters/vault-adapter.js';

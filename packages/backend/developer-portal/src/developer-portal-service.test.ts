@@ -233,9 +233,24 @@ describe('DeveloperPortalService', () => {
     beforeEach(async () => {
       // Publish a few plugins
       const plugins = [
-        { name: 'alpha-plugin', displayName: 'Alpha Plugin', category: 'workflow' as const, tags: ['automation'] },
-        { name: 'beta-plugin', displayName: 'Beta Plugin', category: 'notification' as const, tags: ['alerts'] },
-        { name: 'gamma-plugin', displayName: 'Gamma Plugin', category: 'workflow' as const, tags: ['automation', 'reports'] },
+        {
+          name: 'alpha-plugin',
+          displayName: 'Alpha Plugin',
+          category: 'workflow' as const,
+          tags: ['automation'],
+        },
+        {
+          name: 'beta-plugin',
+          displayName: 'Beta Plugin',
+          category: 'notification' as const,
+          tags: ['alerts'],
+        },
+        {
+          name: 'gamma-plugin',
+          displayName: 'Gamma Plugin',
+          category: 'workflow' as const,
+          tags: ['automation', 'reports'],
+        },
       ];
       for (const plugin of plugins) {
         const sub = await service.submitPlugin(testAccount.id, {
@@ -271,9 +286,7 @@ describe('DeveloperPortalService', () => {
     });
 
     it('should throw NotFoundError for non-existent listing', async () => {
-      await expect(
-        service.getMarketplaceListing('nonexistent'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getMarketplaceListing('nonexistent')).rejects.toThrow(NotFoundError);
     });
 
     it('should rate a plugin', async () => {
@@ -438,7 +451,10 @@ describe('DeveloperPortalService', () => {
     it('should track uninstalls in active installs', async () => {
       await service.recordAnalyticsEvent({ pluginName: 'analytics-plugin', eventType: 'install' });
       await service.recordAnalyticsEvent({ pluginName: 'analytics-plugin', eventType: 'install' });
-      await service.recordAnalyticsEvent({ pluginName: 'analytics-plugin', eventType: 'uninstall' });
+      await service.recordAnalyticsEvent({
+        pluginName: 'analytics-plugin',
+        eventType: 'uninstall',
+      });
 
       const summary = await service.getPluginAnalytics('analytics-plugin');
       expect(summary.totalInstalls).toBe(2);

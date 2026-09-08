@@ -20,13 +20,7 @@
  *     enforce a 48 px floor.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  vi,
-} from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 
@@ -48,10 +42,7 @@ import {
   clearBrandCache,
   type Brand,
 } from '@/providers/BrandConfigProvider';
-import {
-  LanguageProvider,
-  type TranslationMap,
-} from '@/providers/LanguageProvider';
+import { LanguageProvider, type TranslationMap } from '@/providers/LanguageProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
 
 // ─── Mock the message catalogs the header / footer reach for ────────────
@@ -59,9 +50,7 @@ import { ThemeProvider } from '@/providers/ThemeProvider';
 import enMessages from '@/messages/en.json';
 
 vi.mock('@/messages/en.json', async () => {
-  const actual = await vi.importActual<{ default: TranslationMap }>(
-    '@/messages/en.json',
-  );
+  const actual = await vi.importActual<{ default: TranslationMap }>('@/messages/en.json');
   return actual;
 });
 
@@ -111,12 +100,11 @@ beforeEach(() => {
   currentPathname = '/';
   // Radix internals require a few APIs that jsdom does not implement.
   if (!('ResizeObserver' in globalThis)) {
-    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      } as unknown as typeof ResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
   }
   /* eslint-disable @typescript-eslint/unbound-method --
      The Element.prototype.* checks below are intentionally reading the
@@ -193,21 +181,11 @@ describe('<MarketingHeader> — render contract (Task 50.1)', () => {
     const nav = screen.getByTestId('marketing-header-nav');
     expect(nav.getAttribute('aria-label')).toBe('Main navigation');
 
-    expect(within(nav).getByTestId('marketing-header-nav-features').textContent).toBe(
-      'Features',
-    );
-    expect(within(nav).getByTestId('marketing-header-nav-pricing').textContent).toBe(
-      'Pricing',
-    );
-    expect(within(nav).getByTestId('marketing-header-nav-about').textContent).toBe(
-      'About',
-    );
-    expect(within(nav).getByTestId('marketing-header-nav-contact').textContent).toBe(
-      'Contact',
-    );
-    expect(within(nav).getByTestId('marketing-header-nav-demo').textContent).toBe(
-      'Demo',
-    );
+    expect(within(nav).getByTestId('marketing-header-nav-features').textContent).toBe('Features');
+    expect(within(nav).getByTestId('marketing-header-nav-pricing').textContent).toBe('Pricing');
+    expect(within(nav).getByTestId('marketing-header-nav-about').textContent).toBe('About');
+    expect(within(nav).getByTestId('marketing-header-nav-contact').textContent).toBe('Contact');
+    expect(within(nav).getByTestId('marketing-header-nav-demo').textContent).toBe('Demo');
   });
 
   it('marks the active route with aria-current="page"', () => {
@@ -244,16 +222,13 @@ describe('<MarketingHeader> — render contract (Task 50.1)', () => {
     expect(signIn.textContent).toContain('Sign In');
     // shadcn `Button asChild` renders the wrapped <Link>; assert the inner
     // anchor's href to verify the destination.
-    const signInAnchor =
-      signIn.tagName.toLowerCase() === 'a' ? signIn : signIn.querySelector('a');
+    const signInAnchor = signIn.tagName.toLowerCase() === 'a' ? signIn : signIn.querySelector('a');
     expect(signInAnchor?.getAttribute('href')).toBe('/login');
 
     const getStarted = screen.getByTestId('marketing-header-get-started');
     expect(getStarted.textContent).toContain('Get Started');
     const getStartedAnchor =
-      getStarted.tagName.toLowerCase() === 'a'
-        ? getStarted
-        : getStarted.querySelector('a');
+      getStarted.tagName.toLowerCase() === 'a' ? getStarted : getStarted.querySelector('a');
     expect(getStartedAnchor?.getAttribute('href')).toBe('/demo');
   });
 
@@ -405,10 +380,7 @@ describe('<MarketingLayout> — composition (Task 50.1)', () => {
   it('honours per-render template overrides (Task 50.1)', async () => {
     render(
       <Harness>
-        <MarketingLayout
-          pageTitle="Features"
-          documentTitleTemplate="{brand} :: {page}"
-        >
+        <MarketingLayout pageTitle="Features" documentTitleTemplate="{brand} :: {page}">
           <main>content</main>
         </MarketingLayout>
       </Harness>,

@@ -28,15 +28,17 @@ export const distinctTenantPairArb: fc.Arbitrary<{ tenantA: string; tenantB: str
   .map(([tenantA, tenantB]) => ({ tenantA, tenantB }));
 
 /** Generates an array of N distinct tenant UUIDs (3..6). */
-export const distinctTenantSetArb: fc.Arbitrary<string[]> = fc
-  .uniqueArray(uuidV4Arb, { minLength: 3, maxLength: 6 });
+export const distinctTenantSetArb: fc.Arbitrary<string[]> = fc.uniqueArray(uuidV4Arb, {
+  minLength: 3,
+  maxLength: 6,
+});
 
 /** A non-empty entity name made of letters and spaces. */
 export const entityNameArb: fc.Arbitrary<string> = fc
-  .stringOf(
-    fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')),
-    { minLength: 2, maxLength: 40 },
-  )
+  .stringOf(fc.constantFrom(...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz '.split('')), {
+    minLength: 2,
+    maxLength: 40,
+  })
   .filter((s) => s.trim().length >= 2);
 
 /** A short uppercase alphanumeric code. */
@@ -82,15 +84,19 @@ export const taskTypeArb: fc.Arbitrary<string> = fc.constantFrom(
 
 /** Cache key prefixes that map onto real product features. */
 export const cacheKeyArb: fc.Arbitrary<string> = fc
-  .stringOf(
-    fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')),
-    { minLength: 5, maxLength: 50 },
-  )
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789:_-'.split('')), {
+    minLength: 5,
+    maxLength: 50,
+  })
   .filter((s) => /^[a-z]/.test(s));
 
 /** Resource action verbs used by RBAC. */
-export const actionVerbArb: fc.Arbitrary<'create' | 'read' | 'update' | 'delete'> =
-  fc.constantFrom('create', 'read', 'update', 'delete');
+export const actionVerbArb: fc.Arbitrary<'create' | 'read' | 'update' | 'delete'> = fc.constantFrom(
+  'create',
+  'read',
+  'update',
+  'delete',
+);
 
 /** Resource types used by RBAC. */
 export const resourceTypeArb: fc.Arbitrary<string> = fc.constantFrom(

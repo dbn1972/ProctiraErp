@@ -48,7 +48,10 @@ describe('pdf-lite — PdfDocument', () => {
 
 describe('pdf-lite — PdfFlow', () => {
   it('breaks onto new pages automatically and numbers footers', () => {
-    const flow = new PdfFlow(new PdfDocument(), { header: 'Header', footer: 'Page {page} of {pages}' });
+    const flow = new PdfFlow(new PdfDocument(), {
+      header: 'Header',
+      footer: 'Page {page} of {pages}',
+    });
     flow.heading('Long document');
     for (let i = 0; i < 120; i++) flow.paragraph(`Paragraph ${i} with some words to wrap around.`);
     const bytes = flow.finish();
@@ -70,7 +73,16 @@ describe('pdf-lite — PdfFlow', () => {
       ],
     );
     const info = inspectPdf(flow.finish());
-    for (const s of ['Student', 'Ada Lovelace', 'Subject', 'Score', 'Mathematics', '98', 'Physics', '91']) {
+    for (const s of [
+      'Student',
+      'Ada Lovelace',
+      'Subject',
+      'Score',
+      'Mathematics',
+      '98',
+      'Physics',
+      '91',
+    ]) {
       expect(info.literalStrings).toContain(s);
     }
   });

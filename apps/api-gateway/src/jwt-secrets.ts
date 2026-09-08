@@ -40,10 +40,7 @@ export function loadJwtSecretPair(env: NodeJS.ProcessEnv = process.env): JwtSecr
  * Resolve which secret to use for verification based on JWT header kid.
  * Tokens without kid fall back to current, then previous (caller tries both).
  */
-export function secretForKid(
-  pair: JwtSecretPair,
-  kid: string | undefined,
-): string | undefined {
+export function secretForKid(pair: JwtSecretPair, kid: string | undefined): string | undefined {
   if (!kid || kid === pair.currentKid) return pair.current;
   if (kid === pair.previousKid) return pair.previous ?? pair.current;
   return pair.current;

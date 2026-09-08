@@ -108,9 +108,7 @@ export const DEFAULT_MULTI_BOARD_PROFILE: BoardSchoolSeedSpec[] = [
  * Seeds a tenant with multiple education boards and schools, each with a full
  * student roster suitable for production-readiness volume tests.
  */
-export function seedMultiBoardSchools(
-  options: MultiBoardSeedOptions = {},
-): MultiBoardSeedResult {
+export function seedMultiBoardSchools(options: MultiBoardSeedOptions = {}): MultiBoardSeedResult {
   const {
     studentsPerSchool = 500,
     staffPerSchool = 25,
@@ -233,20 +231,14 @@ export function assertMultiBoardSeedInvariants(
   expected: { boards: number; schools: number; studentsPerSchool: number },
 ): void {
   if (result.totals.boardCount !== expected.boards) {
-    throw new Error(
-      `Expected ${expected.boards} boards, got ${result.totals.boardCount}`,
-    );
+    throw new Error(`Expected ${expected.boards} boards, got ${result.totals.boardCount}`);
   }
   if (result.totals.schoolCount !== expected.schools) {
-    throw new Error(
-      `Expected ${expected.schools} schools, got ${result.totals.schoolCount}`,
-    );
+    throw new Error(`Expected ${expected.schools} schools, got ${result.totals.schoolCount}`);
   }
   const expectedStudents = expected.schools * expected.studentsPerSchool;
   if (result.totals.studentCount !== expectedStudents) {
-    throw new Error(
-      `Expected ${expectedStudents} students, got ${result.totals.studentCount}`,
-    );
+    throw new Error(`Expected ${expectedStudents} students, got ${result.totals.studentCount}`);
   }
   if (result.totals.enrollmentCount !== expectedStudents) {
     throw new Error(

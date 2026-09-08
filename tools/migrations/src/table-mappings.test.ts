@@ -115,13 +115,16 @@ describe('buildTransformExpression', () => {
   });
 
   it('should handle coalesce transform', () => {
-    const result = buildTransformExpression('optional_col', { type: 'coalesce', fallback: 'default' });
-    expect(result).toBe("COALESCE(s.\"optional_col\", 'default')");
+    const result = buildTransformExpression('optional_col', {
+      type: 'coalesce',
+      fallback: 'default',
+    });
+    expect(result).toBe('COALESCE(s."optional_col", \'default\')');
   });
 
   it('should handle json_wrap transform', () => {
     const result = buildTransformExpression('data', { type: 'json_wrap' });
-    expect(result).toBe("COALESCE(s.\"data\"::jsonb, '{}'::jsonb)");
+    expect(result).toBe('COALESCE(s."data"::jsonb, \'{}\'::jsonb)');
   });
 });
 
@@ -138,7 +141,9 @@ describe('buildTransformSQL', () => {
   });
 
   it('should include WHERE clause for filtered mappings', () => {
-    const mapping = getMappingsForSource('security_users').find((m) => m.targetTable === 'students')!;
+    const mapping = getMappingsForSource('security_users').find(
+      (m) => m.targetTable === 'students',
+    )!;
     const sql = buildTransformSQL(mapping, 'migration_staging', 'public');
 
     expect(sql).toContain('WHERE is_student = 1');

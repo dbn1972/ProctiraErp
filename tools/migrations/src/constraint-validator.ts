@@ -83,8 +83,20 @@ export const SCHEMA_CONSTRAINTS: SchemaConstraint[] = [
   { table: 'institutions', column: 'code', type: 'unique', severity: 'error' },
   { table: 'institutions', column: 'area_id', type: 'not_null', severity: 'error' },
   { table: 'institutions', column: 'area_id', type: 'foreign_key', severity: 'error' },
-  { table: 'institutions', column: 'name', type: 'string_length', maxLength: 255, severity: 'warning' },
-  { table: 'institutions', column: 'code', type: 'string_length', maxLength: 50, severity: 'warning' },
+  {
+    table: 'institutions',
+    column: 'name',
+    type: 'string_length',
+    maxLength: 255,
+    severity: 'warning',
+  },
+  {
+    table: 'institutions',
+    column: 'code',
+    type: 'string_length',
+    maxLength: 50,
+    severity: 'warning',
+  },
   {
     table: 'institutions',
     column: 'status',
@@ -97,8 +109,20 @@ export const SCHEMA_CONSTRAINTS: SchemaConstraint[] = [
   { table: 'students', column: 'first_name', type: 'not_null', severity: 'error' },
   { table: 'students', column: 'last_name', type: 'not_null', severity: 'error' },
   { table: 'students', column: 'date_of_birth', type: 'not_null', severity: 'error' },
-  { table: 'students', column: 'first_name', type: 'string_length', maxLength: 100, severity: 'warning' },
-  { table: 'students', column: 'last_name', type: 'string_length', maxLength: 100, severity: 'warning' },
+  {
+    table: 'students',
+    column: 'first_name',
+    type: 'string_length',
+    maxLength: 100,
+    severity: 'warning',
+  },
+  {
+    table: 'students',
+    column: 'last_name',
+    type: 'string_length',
+    maxLength: 100,
+    severity: 'warning',
+  },
   {
     table: 'students',
     column: 'gender',
@@ -112,8 +136,20 @@ export const SCHEMA_CONSTRAINTS: SchemaConstraint[] = [
   { table: 'staff', column: 'last_name', type: 'not_null', severity: 'error' },
   { table: 'staff', column: 'date_of_birth', type: 'not_null', severity: 'error' },
   { table: 'staff', column: 'identity_number', type: 'unique', severity: 'error' },
-  { table: 'staff', column: 'first_name', type: 'string_length', maxLength: 100, severity: 'warning' },
-  { table: 'staff', column: 'last_name', type: 'string_length', maxLength: 100, severity: 'warning' },
+  {
+    table: 'staff',
+    column: 'first_name',
+    type: 'string_length',
+    maxLength: 100,
+    severity: 'warning',
+  },
+  {
+    table: 'staff',
+    column: 'last_name',
+    type: 'string_length',
+    maxLength: 100,
+    severity: 'warning',
+  },
 
   // Enrollments
   { table: 'enrollments', column: 'student_id', type: 'not_null', severity: 'error' },
@@ -131,7 +167,13 @@ export const SCHEMA_CONSTRAINTS: SchemaConstraint[] = [
   // Geographic Areas
   { table: 'geographic_areas', column: 'name', type: 'not_null', severity: 'error' },
   { table: 'geographic_areas', column: 'code', type: 'not_null', severity: 'error' },
-  { table: 'geographic_areas', column: 'name', type: 'string_length', maxLength: 255, severity: 'warning' },
+  {
+    table: 'geographic_areas',
+    column: 'name',
+    type: 'string_length',
+    maxLength: 255,
+    severity: 'warning',
+  },
 
   // Academic Periods
   { table: 'academic_periods', column: 'name', type: 'not_null', severity: 'error' },
@@ -187,9 +229,7 @@ const FK_REFERENCES: Record<string, Record<string, string>> = {
  * Validates all migrated data against schema constraints.
  * Reports violations without halting — all tables are checked regardless of failures.
  */
-export async function validateConstraints(
-  config: MigrationConfig
-): Promise<MigrationStepResult> {
+export async function validateConstraints(config: MigrationConfig): Promise<MigrationStepResult> {
   const startTime = Date.now();
   const stepErrors: MigrationStepResult['errors'] = [];
   const stepWarnings: MigrationStepResult['warnings'] = [];
@@ -238,7 +278,7 @@ export async function validateConstraints(
 
           const icon = violation.severity === 'error' ? '✗' : '⚠';
           console.log(
-            `[constraint-validator]   ${icon} ${violation.table}.${violation.column}: ${violation.message}`
+            `[constraint-validator]   ${icon} ${violation.table}.${violation.column}: ${violation.message}`,
           );
         }
       } catch {
@@ -263,7 +303,9 @@ export async function validateConstraints(
     console.log('\n[constraint-validator] === CONSTRAINT VALIDATION REPORT ===');
     console.log(`[constraint-validator] Tables checked: ${report.tablesChecked}`);
     console.log(`[constraint-validator] Constraints checked: ${report.constraintsChecked}`);
-    console.log(`[constraint-validator] Violations: ${report.totalViolations} (${errorCount} errors, ${warningCount} warnings)`);
+    console.log(
+      `[constraint-validator] Violations: ${report.totalViolations} (${errorCount} errors, ${warningCount} warnings)`,
+    );
     console.log(`[constraint-validator] Status: ${report.status}`);
 
     return {
@@ -301,7 +343,7 @@ export async function validateConstraints(
 async function checkConstraint(
   client: PoolClient,
   constraint: SchemaConstraint,
-  schema: string
+  schema: string,
 ): Promise<ConstraintViolation | null> {
   switch (constraint.type) {
     case 'not_null':
@@ -324,7 +366,7 @@ async function checkConstraint(
 async function checkNotNull(
   client: PoolClient,
   constraint: SchemaConstraint,
-  schema: string
+  schema: string,
 ): Promise<ConstraintViolation | null> {
   const result = await client.query(`
     SELECT COUNT(*) as count,
@@ -353,7 +395,7 @@ async function checkNotNull(
 async function checkUnique(
   client: PoolClient,
   constraint: SchemaConstraint,
-  schema: string
+  schema: string,
 ): Promise<ConstraintViolation | null> {
   const result = await client.query(`
     SELECT "${constraint.column}", COUNT(*) as dup_count
@@ -368,7 +410,7 @@ async function checkUnique(
 
   const totalDuplicates = result.rows.reduce(
     (sum, row) => sum + parseInt(row.dup_count, 10) - 1,
-    0
+    0,
   );
   const sampleValues = result.rows.map((row) => String(row[constraint.column]));
 
@@ -387,7 +429,7 @@ async function checkUnique(
 async function checkForeignKey(
   client: PoolClient,
   constraint: SchemaConstraint,
-  schema: string
+  schema: string,
 ): Promise<ConstraintViolation | null> {
   const refTable = FK_REFERENCES[constraint.table]?.[constraint.column];
   if (!refTable) return null;
@@ -420,7 +462,7 @@ async function checkForeignKey(
 async function checkStringLength(
   client: PoolClient,
   constraint: SchemaConstraint,
-  schema: string
+  schema: string,
 ): Promise<ConstraintViolation | null> {
   if (!constraint.maxLength) return null;
 
@@ -451,7 +493,7 @@ async function checkStringLength(
 async function checkEnumValue(
   client: PoolClient,
   constraint: SchemaConstraint,
-  schema: string
+  schema: string,
 ): Promise<ConstraintViolation | null> {
   if (!constraint.allowedValues || constraint.allowedValues.length === 0) return null;
 
@@ -464,15 +506,12 @@ async function checkEnumValue(
        AND "${constraint.column}"::text NOT IN (${placeholders})
      GROUP BY "${constraint.column}"
      LIMIT 10`,
-    constraint.allowedValues
+    constraint.allowedValues,
   );
 
   if (result.rows.length === 0) return null;
 
-  const totalViolations = result.rows.reduce(
-    (sum, row) => sum + parseInt(row.count, 10),
-    0
-  );
+  const totalViolations = result.rows.reduce((sum, row) => sum + parseInt(row.count, 10), 0);
   const invalidValues = result.rows.map((row) => String(row[constraint.column]));
 
   return {
@@ -490,7 +529,7 @@ async function checkEnumValue(
 async function checkUuidFormat(
   client: PoolClient,
   constraint: SchemaConstraint,
-  schema: string
+  schema: string,
 ): Promise<ConstraintViolation | null> {
   const uuidRegex = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
 

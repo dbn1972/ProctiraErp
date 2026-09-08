@@ -12,8 +12,7 @@ const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
 const ACADEMIC_PERIOD_ID =
   process.env.E2E_ACADEMIC_PERIOD_ID ?? 'a1b2c3d4-e5f6-4789-a012-3456789abcde';
-const INSTITUTION_ID =
-  process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+const INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 
 const TIMETABLE_ROUTES: { id: string; path: string }[] = [
   {

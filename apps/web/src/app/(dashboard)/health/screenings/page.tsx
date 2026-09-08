@@ -7,13 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  CalendarDays,
-  ClipboardList,
-  HeartPulse,
-  Stethoscope,
-} from 'lucide-react';
+import { ArrowLeft, CalendarDays, ClipboardList, HeartPulse, Stethoscope } from 'lucide-react';
 
 import {
   Button,
@@ -156,7 +150,8 @@ function ScreeningRow({ program }: { program: ScreeningProgram }) {
         <span
           className={cn(
             'inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize',
-            program.status === 'planned' && 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+            program.status === 'planned' &&
+              'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
             program.status === 'in-progress' &&
               'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
             program.status === 'completed' &&
@@ -170,15 +165,7 @@ function ScreeningRow({ program }: { program: ScreeningProgram }) {
   );
 }
 
-function Kpi({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
+function Kpi({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <Card>
       <CardContent className="flex items-center gap-3 p-4">

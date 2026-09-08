@@ -78,7 +78,8 @@ describe('developer-portal routes — identity source (G-719)', () => {
     expect(res.statusCode).toBe(201);
 
     const service = app.developerPortalService;
-    const repo = (service as unknown as { repository: InMemoryDeveloperPortalRepository }).repository;
+    const repo = (service as unknown as { repository: InMemoryDeveloperPortalRepository })
+      .repository;
     expect(await repo.getRatingByAccountAndPlugin('user-real', 'alpha-plugin')).not.toBeNull();
     expect(await repo.getRatingByAccountAndPlugin('user-forged', 'alpha-plugin')).toBeNull();
   });

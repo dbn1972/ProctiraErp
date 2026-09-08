@@ -84,18 +84,20 @@ export class PrismaSessionStore implements SessionStore {
       orderBy: { createdAt: 'desc' },
     });
 
-    return records.map((record: {
-      id: string;
-      userId: string;
-      tenantId: string;
-      createdAt: Date;
-      expiresAt: Date;
-      lastActivityAt: Date;
-      isActive: boolean;
-      userAgent: string | null;
-      ipAddress: string | null;
-      invalidatedAt: Date | null;
-    }) => this.mapToSession(record));
+    return records.map(
+      (record: {
+        id: string;
+        userId: string;
+        tenantId: string;
+        createdAt: Date;
+        expiresAt: Date;
+        lastActivityAt: Date;
+        isActive: boolean;
+        userAgent: string | null;
+        ipAddress: string | null;
+        invalidatedAt: Date | null;
+      }) => this.mapToSession(record),
+    );
   }
 
   /**

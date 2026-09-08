@@ -130,16 +130,11 @@ export function DataTableCard<T>({
           <CardTitle>{title}</CardTitle>
           {description ? <CardDescription>{description}</CardDescription> : null}
         </div>
-        {action ? (
-          <div data-testid="data-table-card-action">{action}</div>
-        ) : null}
+        {action ? <div data-testid="data-table-card-action">{action}</div> : null}
       </CardHeader>
       <CardContent className="pt-0">
         {error ? (
-          <p
-            className="text-sm text-[hsl(var(--destructive))]"
-            data-testid="data-table-card-error"
-          >
+          <p className="text-sm text-[hsl(var(--destructive))]" data-testid="data-table-card-error">
             Unable to load {title.toLowerCase()}.
           </p>
         ) : (
@@ -154,67 +149,56 @@ export function DataTableCard<T>({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading
-                ? Array.from({ length: Math.max(1, loadingRowCount) }).map(
-                    (_, rowIndex) => (
-                      <TableRow
-                        key={`skeleton-${rowIndex}`}
-                        data-testid="data-table-card-skeleton-row"
-                      >
-                        {columns.map((col) => (
-                          <TableCell key={col.id} className={col.className}>
-                            <Skeleton className="h-4 w-full" />
-                          </TableCell>
-                        ))}
-                      </TableRow>
-                    ),
-                  )
-                : rows.length === 0
-                  ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={columns.length}
-                        className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]"
-                        data-testid="data-table-card-empty"
-                      >
-                        {emptyMessage}
+              {loading ? (
+                Array.from({ length: Math.max(1, loadingRowCount) }).map((_, rowIndex) => (
+                  <TableRow key={`skeleton-${rowIndex}`} data-testid="data-table-card-skeleton-row">
+                    {columns.map((col) => (
+                      <TableCell key={col.id} className={col.className}>
+                        <Skeleton className="h-4 w-full" />
                       </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : rows.length === 0 ? (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="py-8 text-center text-sm text-[hsl(var(--muted-foreground))]"
+                    data-testid="data-table-card-empty"
+                  >
+                    {emptyMessage}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rows.map((row, rowIndex) => {
+                  const interactive = Boolean(onRowClick);
+                  return (
+                    <TableRow
+                      key={rowKey(row, rowIndex)}
+                      onClick={interactive ? () => onRowClick?.(row) : undefined}
+                      onKeyDown={
+                        interactive
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                onRowClick?.(row);
+                              }
+                            }
+                          : undefined
+                      }
+                      tabIndex={interactive ? 0 : undefined}
+                      role={interactive ? 'button' : undefined}
+                      className={cn(interactive && 'cursor-pointer')}
+                    >
+                      {columns.map((col) => (
+                        <TableCell key={col.id} className={col.className}>
+                          {col.cell(row, rowIndex)}
+                        </TableCell>
+                      ))}
                     </TableRow>
-                  )
-                  : rows.map((row, rowIndex) => {
-                      const interactive = Boolean(onRowClick);
-                      return (
-                        <TableRow
-                          key={rowKey(row, rowIndex)}
-                          onClick={
-                            interactive
-                              ? () => onRowClick?.(row)
-                              : undefined
-                          }
-                          onKeyDown={
-                            interactive
-                              ? (e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.preventDefault();
-                                    onRowClick?.(row);
-                                  }
-                                }
-                              : undefined
-                          }
-                          tabIndex={interactive ? 0 : undefined}
-                          role={interactive ? 'button' : undefined}
-                          className={cn(
-                            interactive && 'cursor-pointer',
-                          )}
-                        >
-                          {columns.map((col) => (
-                            <TableCell key={col.id} className={col.className}>
-                              {col.cell(row, rowIndex)}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      );
-                    })}
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         )}

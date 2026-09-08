@@ -23,7 +23,8 @@ export interface DatabaseFieldErrors {
   poolSize?: string;
 }
 
-const HOST_RE = /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$|^(\d{1,3}\.){3}\d{1,3}$|^\[?[0-9a-fA-F:]+\]?$/;
+const HOST_RE =
+  /^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$|^(\d{1,3}\.){3}\d{1,3}$|^\[?[0-9a-fA-F:]+\]?$/;
 const DB_NAME_RE = /^[a-zA-Z0-9_][a-zA-Z0-9_-]{0,62}$/;
 
 function asString(value: unknown): string {
@@ -42,9 +43,7 @@ function asNumber(value: unknown): number | null {
 /**
  * Validate database connection fields. Returns field errors or null when valid.
  */
-export function validateDatabaseConfig(
-  input: DatabaseConfigInput,
-): DatabaseFieldErrors | null {
+export function validateDatabaseConfig(input: DatabaseConfigInput): DatabaseFieldErrors | null {
   const provider = asString(input.provider).trim();
   const host = asString(input.host).trim();
   const database = asString(input.database).trim();

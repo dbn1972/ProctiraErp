@@ -30,9 +30,7 @@
  *     `code`, and `message`.
  */
 
-import {
-  browserGatewayFetch,
-} from '@/lib/api/browser-gateway';
+import { browserGatewayFetch } from '@/lib/api/browser-gateway';
 
 // Re-export AdminApiError for backwards compatibility with the page.
 // The page catches `AdminApiError` — we alias `BrowserGatewayError` so
@@ -177,16 +175,11 @@ export interface SaveDraftPayload {
  * Persist the current form values as a draft. The draft is not versioned
  * and can be overwritten freely. Preview mode reads from this draft.
  */
-export async function saveBrandingDraft(
-  payload: SaveDraftPayload,
-): Promise<DraftBranding> {
-  const result = await browserGatewayFetch<DraftBranding>(
-    BRANDING_API_ENDPOINTS.DRAFT,
-    {
-      method: 'POST',
-      json: payload,
-    },
-  );
+export async function saveBrandingDraft(payload: SaveDraftPayload): Promise<DraftBranding> {
+  const result = await browserGatewayFetch<DraftBranding>(BRANDING_API_ENDPOINTS.DRAFT, {
+    method: 'POST',
+    json: payload,
+  });
   return result;
 }
 
@@ -207,9 +200,7 @@ export interface PublishBrandingPayload {
  * On validation failure, throws a `BrowserGatewayError` with status 400
  * and `details.errors: BrandingFieldError[]`.
  */
-export async function publishBranding(
-  payload: PublishBrandingPayload,
-): Promise<PublishedBranding> {
+export async function publishBranding(payload: PublishBrandingPayload): Promise<PublishedBranding> {
   const result = await browserGatewayFetch<{
     id?: string;
     tenantId?: string;
@@ -281,9 +272,7 @@ export interface PatchBrandingPayload {
  * merges the provided fields into the current published state. Useful for
  * quick single-field updates from the admin panel.
  */
-export async function patchBranding(
-  payload: PatchBrandingPayload,
-): Promise<PublishedBranding> {
+export async function patchBranding(payload: PatchBrandingPayload): Promise<PublishedBranding> {
   const result = await browserGatewayFetch<{
     id?: string;
     tenantId?: string;

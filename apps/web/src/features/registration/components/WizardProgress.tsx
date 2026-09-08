@@ -106,12 +106,8 @@ function StepPill({
   const pillClass = [
     'flex h-12 w-12 min-h-[48px] min-w-[48px] items-center justify-center rounded-full text-sm font-semibold',
     isCompleted ? 'bg-success text-white' : null,
-    isActive
-      ? 'bg-primary text-primary-foreground ring-2 ring-primary/40'
-      : null,
-    !isCompleted && !isActive
-      ? 'border-2 border-muted-foreground/30 text-muted-foreground'
-      : null,
+    isActive ? 'bg-primary text-primary-foreground ring-2 ring-primary/40' : null,
+    !isCompleted && !isActive ? 'border-2 border-muted-foreground/30 text-muted-foreground' : null,
     interactive
       ? 'cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 transition-colors'
       : null,
@@ -140,10 +136,7 @@ function StepPill({
   );
 
   return (
-    <div
-      className="flex flex-col items-center"
-      data-testid={`wizard-progress-item-${step.id}`}
-    >
+    <div className="flex flex-col items-center" data-testid={`wizard-progress-item-${step.id}`}>
       {interactive ? (
         <button
           type="button"
@@ -167,10 +160,7 @@ function StepPill({
           {inner}
         </div>
       )}
-      <span
-        className={labelClass}
-        data-testid={`wizard-progress-label-${step.id}`}
-      >
+      <span className={labelClass} data-testid={`wizard-progress-label-${step.id}`}>
         {step.label}
       </span>
     </div>
@@ -216,28 +206,18 @@ export function WizardProgress({
   useEffect(() => {
     if (lastAnnouncedRef.current === currentStep) return;
     lastAnnouncedRef.current = currentStep;
-    const label =
-      steps.find((step) => step.id === currentStep)?.label ?? currentStep;
-    announce(
-      `Step ${currentStepIndex + 1} of ${totalSteps}: ${label}`,
-      'polite',
-    );
+    const label = steps.find((step) => step.id === currentStep)?.label ?? currentStep;
+    announce(`Step ${currentStepIndex + 1} of ${totalSteps}: ${label}`, 'polite');
   }, [announce, currentStep, currentStepIndex, totalSteps, steps]);
 
   // Visual progress percentage for the underlay bar. Caps at 100 % on
   // the last step. The bar is `aria-hidden` because the pills carry
   // the accessible state.
   const progressPercent =
-    totalSteps <= 1
-      ? 100
-      : Math.round((currentStepIndex / (totalSteps - 1)) * 100);
+    totalSteps <= 1 ? 100 : Math.round((currentStepIndex / (totalSteps - 1)) * 100);
 
   return (
-    <nav
-      aria-label="Registration progress"
-      data-testid="wizard-progress"
-      className="space-y-3"
-    >
+    <nav aria-label="Registration progress" data-testid="wizard-progress" className="space-y-3">
       {/* Decorative progress bar. The pills below are the source of
           truth for screen readers, so this is intentionally hidden
           from assistive tech. */}
@@ -275,9 +255,7 @@ export function WizardProgress({
                   {...(onNavigate ? { onNavigate } : {})}
                 />
               </li>
-              {!isLast ? (
-                <Connector filled={status === 'completed'} />
-              ) : null}
+              {!isLast ? <Connector filled={status === 'completed'} /> : null}
             </Fragment>
           );
         })}

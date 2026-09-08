@@ -36,8 +36,8 @@ export default function NewGradingSchemePage() {
           New grading scheme
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Numeric, letter, or competency-based scheme. Define thresholds that
-          map score ranges to grade labels.
+          Numeric, letter, or competency-based scheme. Define thresholds that map score ranges to
+          grade labels.
         </p>
       </div>
 
@@ -45,8 +45,7 @@ export default function NewGradingSchemePage() {
         <CardHeader>
           <CardTitle className="text-base">Scheme definition</CardTitle>
           <CardDescription>
-            Set the scale type, value range, and the grade bands that map scores
-            to labels.
+            Set the scale type, value range, and the grade bands that map scores to labels.
           </CardDescription>
         </CardHeader>
         <CardContent>

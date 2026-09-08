@@ -141,15 +141,11 @@ export function GISLayerViewer({ initialLayerId }: GISLayerViewerProps) {
                   */}
                   <div className="text-center space-y-2">
                     <div className="text-4xl">🗺️</div>
-                    <p className="text-sm font-medium">
-                      {selectedLayer?.name}
-                    </p>
+                    <p className="text-sm font-medium">{selectedLayer?.name}</p>
                     <p className="text-xs text-muted-foreground">
                       {featureCollection.features.length} features loaded
                     </p>
-                    <Badge variant="outline">
-                      {selectedLayer?.layerType.toUpperCase()}
-                    </Badge>
+                    <Badge variant="outline">{selectedLayer?.layerType.toUpperCase()}</Badge>
                   </div>
                 </div>
               ) : (

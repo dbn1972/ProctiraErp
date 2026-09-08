@@ -6,12 +6,7 @@
 import Link from 'next/link';
 import { FileBarChart, Plus, Play } from 'lucide-react';
 
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-} from '@proctira/ui/components';
+import { Badge, Button, Card, CardContent } from '@proctira/ui/components';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { listReportTemplates, type ReportTemplate } from '@/lib/api/reports';
 
@@ -105,16 +100,11 @@ function ReportCard({ template }: { template: ReportTemplate }) {
         <FileBarChart className="h-5 w-5" aria-hidden="true" />
       </span>
       <h3 className="text-base font-bold tracking-tight text-foreground">
-        <Link
-          href={`/reports/${template.id}/results`}
-          className="hover:underline"
-        >
+        <Link href={`/reports/${template.id}/results`} className="hover:underline">
           {template.name}
         </Link>
       </h3>
-      <p className="mt-1 flex-1 text-xs text-muted-foreground">
-        {template.description}
-      </p>
+      <p className="mt-1 flex-1 text-xs text-muted-foreground">{template.description}</p>
       <div className="mt-3 flex flex-wrap gap-1">
         {template.format.map((fmt) => (
           <Badge key={fmt} variant="secondary">

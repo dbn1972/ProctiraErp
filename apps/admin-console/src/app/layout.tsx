@@ -8,11 +8,7 @@ export const metadata: Metadata = {
 };
 
 /** Root layout for the Platform Admin Console. */
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">

@@ -76,9 +76,7 @@ export function SiteFooter() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-3 lg:grid-cols-5">
           {FOOTER_GROUPS.map((group) => (
             <nav key={group.title} aria-label={group.title}>
-              <h3 className="text-sm font-semibold text-foreground">
-                {group.title}
-              </h3>
+              <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
               <ul className="mt-4 space-y-3">
                 {group.links.map((link) => (
                   <li key={link.href}>

@@ -283,9 +283,7 @@ describe('InstitutionService', () => {
 
     it('should throw NotFoundError when institution does not exist', async () => {
       const fakeId = uuid();
-      await expect(service.deactivate(TENANT_ID, fakeId, 'reason')).rejects.toThrow(
-        NotFoundError,
-      );
+      await expect(service.deactivate(TENANT_ID, fakeId, 'reason')).rejects.toThrow(NotFoundError);
     });
 
     it('should throw BusinessRuleError when institution is already inactive', async () => {
@@ -362,7 +360,10 @@ describe('InstitutionService', () => {
       const otherAreaId = uuid();
 
       await service.create(TENANT_ID, validCreateInput({ name: 'In Area', areaId }));
-      await service.create(TENANT_ID, validCreateInput({ name: 'Other Area', areaId: otherAreaId }));
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ name: 'Other Area', areaId: otherAreaId }),
+      );
 
       const result = await service.list(TENANT_ID, { areaId }, { page: 1, pageSize: 20 });
 
@@ -396,14 +397,16 @@ describe('InstitutionService', () => {
     });
 
     it('should filter by search term (name or code)', async () => {
-      await service.create(TENANT_ID, validCreateInput({ name: 'Springfield Elementary', code: 'SPR-001' }));
-      await service.create(TENANT_ID, validCreateInput({ name: 'Shelbyville High', code: 'SHV-001' }));
-
-      const result = await service.list(
+      await service.create(
         TENANT_ID,
-        { search: 'spring' },
-        { page: 1, pageSize: 20 },
+        validCreateInput({ name: 'Springfield Elementary', code: 'SPR-001' }),
       );
+      await service.create(
+        TENANT_ID,
+        validCreateInput({ name: 'Shelbyville High', code: 'SHV-001' }),
+      );
+
+      const result = await service.list(TENANT_ID, { search: 'spring' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].name).toBe('Springfield Elementary');
@@ -413,11 +416,7 @@ describe('InstitutionService', () => {
       await service.create(TENANT_ID, validCreateInput({ name: 'School A', code: 'ABC-123' }));
       await service.create(TENANT_ID, validCreateInput({ name: 'School B', code: 'XYZ-789' }));
 
-      const result = await service.list(
-        TENANT_ID,
-        { search: 'ABC' },
-        { page: 1, pageSize: 20 },
-      );
+      const result = await service.list(TENANT_ID, { search: 'ABC' }, { page: 1, pageSize: 20 });
 
       expect(result.data).toHaveLength(1);
       expect(result.data[0].code).toBe('ABC-123');

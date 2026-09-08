@@ -25,9 +25,7 @@ export function TenantPicker({ tenants, selectedId }: TenantPickerProps) {
   const filtered = tenants.filter((t) => {
     if (!query) return true;
     const q = query.toLowerCase();
-    return (
-      t.name.toLowerCase().includes(q) || t.slug.toLowerCase().includes(q)
-    );
+    return t.name.toLowerCase().includes(q) || t.slug.toLowerCase().includes(q);
   });
 
   return (
@@ -61,9 +59,7 @@ export function TenantPicker({ tenants, selectedId }: TenantPickerProps) {
                 )}
               >
                 <span className="font-medium">{tenant.name}</span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {tenant.slug}
-                </span>
+                <span className="font-mono text-xs text-muted-foreground">{tenant.slug}</span>
               </button>
             </li>
           );

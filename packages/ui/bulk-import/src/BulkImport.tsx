@@ -43,7 +43,9 @@ export function BulkImport({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [validationResult, setValidationResult] = useState<ImportValidationResult | null>(null);
   const [columnMappings, setColumnMappings] = useState<ImportColumnMapping[]>([]);
-  const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number } | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -62,7 +64,9 @@ export function BulkImport({
 
       // Validate file size
       if (file.size > maxFileSize) {
-        setError(`File size (${formatFileSize(file.size)}) exceeds maximum (${formatFileSize(maxFileSize)})`);
+        setError(
+          `File size (${formatFileSize(file.size)}) exceeds maximum (${formatFileSize(maxFileSize)})`,
+        );
         return;
       }
 
@@ -87,21 +91,16 @@ export function BulkImport({
         setIsProcessing(false);
       }
     },
-    [maxFileSize, acceptedFileTypes, onFileValidate]
+    [maxFileSize, acceptedFileTypes, onFileValidate],
   );
 
-  const handleMappingChange = useCallback(
-    (sourceColumn: string, targetField: string) => {
-      setColumnMappings((prev) =>
-        prev.map((m) =>
-          m.sourceColumn === sourceColumn
-            ? { ...m, targetField, valid: targetField !== '' }
-            : m
-        )
-      );
-    },
-    []
-  );
+  const handleMappingChange = useCallback((sourceColumn: string, targetField: string) => {
+    setColumnMappings((prev) =>
+      prev.map((m) =>
+        m.sourceColumn === sourceColumn ? { ...m, targetField, valid: targetField !== '' } : m,
+      ),
+    );
+  }, []);
 
   const handleConfirmMapping = useCallback(() => {
     // Check all required fields are mapped
@@ -183,7 +182,9 @@ export function BulkImport({
 
       <div className="proctira-bulk-import__upload-area">
         <label htmlFor="bulk-import-file" className="proctira-bulk-import__upload-label">
-          <span className="proctira-bulk-import__upload-icon" aria-hidden="true">📄</span>
+          <span className="proctira-bulk-import__upload-icon" aria-hidden="true">
+            📄
+          </span>
           <span>Choose a file or drag it here</span>
           <span className="proctira-bulk-import__upload-hint">
             Accepted: {acceptedFileTypes.join(', ')} (max {formatFileSize(maxFileSize)})
@@ -256,10 +257,14 @@ export function BulkImport({
               </td>
               <td>
                 {mapping.required && !mapping.valid && (
-                  <span className="proctira-bulk-import__status--error" role="alert">Required</span>
+                  <span className="proctira-bulk-import__status--error" role="alert">
+                    Required
+                  </span>
                 )}
                 {mapping.valid && (
-                  <span className="proctira-bulk-import__status--ok" aria-label="Mapped">✓</span>
+                  <span className="proctira-bulk-import__status--ok" aria-label="Mapped">
+                    ✓
+                  </span>
                 )}
               </td>
             </tr>
@@ -268,10 +273,18 @@ export function BulkImport({
       </table>
 
       <div className="proctira-bulk-import__actions">
-        <button type="button" onClick={() => setStep('upload')} className="proctira-bulk-import__back-btn">
+        <button
+          type="button"
+          onClick={() => setStep('upload')}
+          className="proctira-bulk-import__back-btn"
+        >
           Back
         </button>
-        <button type="button" onClick={handleConfirmMapping} className="proctira-bulk-import__next-btn">
+        <button
+          type="button"
+          onClick={handleConfirmMapping}
+          className="proctira-bulk-import__next-btn"
+        >
           Continue to Preview
         </button>
       </div>
@@ -311,8 +324,15 @@ export function BulkImport({
           <h4 className="proctira-bulk-import__errors-title">
             Validation Errors ({validationResult.errors.length})
           </h4>
-          <div className="proctira-bulk-import__errors-table-container" role="region" aria-label="Validation errors">
-            <table className="proctira-bulk-import__errors-table" aria-label="Import validation errors">
+          <div
+            className="proctira-bulk-import__errors-table-container"
+            role="region"
+            aria-label="Validation errors"
+          >
+            <table
+              className="proctira-bulk-import__errors-table"
+              aria-label="Import validation errors"
+            >
               <thead>
                 <tr>
                   <th scope="col">Row</th>
@@ -351,13 +371,22 @@ export function BulkImport({
       {validationResult && validationResult.preview.length > 0 && (
         <div className="proctira-bulk-import__data-preview">
           <h4>Data Preview (first {validationResult.preview.length} rows)</h4>
-          <div className="proctira-bulk-import__preview-table-container" role="region" aria-label="Data preview">
-            <table className="proctira-bulk-import__preview-table" aria-label="Preview of import data">
+          <div
+            className="proctira-bulk-import__preview-table-container"
+            role="region"
+            aria-label="Data preview"
+          >
+            <table
+              className="proctira-bulk-import__preview-table"
+              aria-label="Preview of import data"
+            >
               <thead>
                 <tr>
                   <th scope="col">#</th>
                   {Object.keys(validationResult.preview[0]?.data ?? {}).map((key) => (
-                    <th key={key} scope="col">{key}</th>
+                    <th key={key} scope="col">
+                      {key}
+                    </th>
                   ))}
                   <th scope="col">Status</th>
                 </tr>
@@ -374,9 +403,16 @@ export function BulkImport({
                     ))}
                     <td>
                       {row.hasErrors ? (
-                        <span className="proctira-bulk-import__row-status--error" aria-label="Has errors">✕</span>
+                        <span
+                          className="proctira-bulk-import__row-status--error"
+                          aria-label="Has errors"
+                        >
+                          ✕
+                        </span>
                       ) : (
-                        <span className="proctira-bulk-import__row-status--ok" aria-label="Valid">✓</span>
+                        <span className="proctira-bulk-import__row-status--ok" aria-label="Valid">
+                          ✓
+                        </span>
                       )}
                     </td>
                   </tr>
@@ -388,7 +424,11 @@ export function BulkImport({
       )}
 
       <div className="proctira-bulk-import__actions">
-        <button type="button" onClick={() => setStep('mapping')} className="proctira-bulk-import__back-btn">
+        <button
+          type="button"
+          onClick={() => setStep('mapping')}
+          className="proctira-bulk-import__back-btn"
+        >
           Back
         </button>
         <button
@@ -406,14 +446,18 @@ export function BulkImport({
 
   const renderImportingStep = () => (
     <div className="proctira-bulk-import__importing" aria-live="polite">
-      <div className="proctira-bulk-import__spinner" aria-hidden="true">⟳</div>
+      <div className="proctira-bulk-import__spinner" aria-hidden="true">
+        ⟳
+      </div>
       <p>Importing data... Please wait.</p>
     </div>
   );
 
   const renderCompleteStep = () => (
     <div className="proctira-bulk-import__complete" aria-live="polite">
-      <div className="proctira-bulk-import__complete-icon" aria-hidden="true">✓</div>
+      <div className="proctira-bulk-import__complete-icon" aria-hidden="true">
+        ✓
+      </div>
       <h3>Import Complete</h3>
       {importResult && (
         <dl className="proctira-bulk-import__result-stats">
@@ -449,7 +493,9 @@ export function BulkImport({
       {/* Error display */}
       {error && (
         <div className="proctira-bulk-import__error" role="alert" aria-live="assertive">
-          <span className="proctira-bulk-import__error-icon" aria-hidden="true">⚠️</span>
+          <span className="proctira-bulk-import__error-icon" aria-hidden="true">
+            ⚠️
+          </span>
           {error}
         </div>
       )}

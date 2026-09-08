@@ -85,12 +85,6 @@ ThemedYAxis.displayName = 'YAxis';
  */
 export function ThemedCartesianGrid(props: CartesianGridProps) {
   const palette = useChartPalette();
-  return (
-    <CartesianGrid
-      stroke={palette.grid}
-      strokeDasharray="3 3"
-      {...props}
-    />
-  );
+  return <CartesianGrid stroke={palette.grid} strokeDasharray="3 3" {...props} />;
 }
 ThemedCartesianGrid.displayName = 'CartesianGrid';

@@ -147,10 +147,7 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
     });
   }
 
-  async findById(
-    id: string,
-    tenantId: string,
-  ): Promise<StaffAssignmentEntity | null> {
+  async findById(id: string, tenantId: string): Promise<StaffAssignmentEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const row = (await tx.staffAssignment.findFirst({
         where: { id, tenantId },
@@ -159,10 +156,7 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
     });
   }
 
-  async findActiveByStaffId(
-    staffId: string,
-    tenantId: string,
-  ): Promise<StaffAssignmentEntity[]> {
+  async findActiveByStaffId(staffId: string, tenantId: string): Promise<StaffAssignmentEntity[]> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const rows = (await tx.staffAssignment.findMany({
         where: { tenantId, staffId, status: 'ACTIVE' },
@@ -196,9 +190,7 @@ export class PrismaAssignmentRepository implements StaffAssignmentRepository {
 
       return rows
         .map(toEntity)
-        .filter((entity) =>
-          datesOverlap(entity.startDate, entity.endDate, startDate, endDate),
-        );
+        .filter((entity) => datesOverlap(entity.startDate, entity.endDate, startDate, endDate));
     });
   }
 

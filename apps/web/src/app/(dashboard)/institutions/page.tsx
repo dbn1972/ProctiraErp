@@ -67,12 +67,14 @@ function singleParam(value: string | string[] | undefined): string | undefined {
 }
 
 function parsePage(value: string | string[] | undefined): number {
-  const raw    = singleParam(value);
+  const raw = singleParam(value);
   const parsed = raw ? Number.parseInt(raw, 10) : NaN;
   return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
 }
 
-function parseStatus(value: string | string[] | undefined): InstitutionListFilters['status'] | undefined {
+function parseStatus(
+  value: string | string[] | undefined,
+): InstitutionListFilters['status'] | undefined {
   const raw = singleParam(value);
   if (raw === 'ACTIVE' || raw === 'INACTIVE') return raw;
   return undefined;
@@ -95,10 +97,7 @@ function KpiCard({ icon: Icon, iconBg, label, value, foot }: KpiCardProps) {
         <div className="mb-3 flex items-center justify-between">
           <span
             aria-hidden="true"
-            className={cn(
-              'flex h-9 w-9 items-center justify-center rounded-lg',
-              iconBg,
-            )}
+            className={cn('flex h-9 w-9 items-center justify-center rounded-lg', iconBg)}
           >
             <Icon className="h-5 w-5" />
           </span>
@@ -107,9 +106,7 @@ function KpiCard({ icon: Icon, iconBg, label, value, foot }: KpiCardProps) {
         <p className="text-3xl font-extrabold tabular-nums tracking-tight text-foreground">
           {value}
         </p>
-        {foot && (
-          <p className="mt-1 text-xs text-muted-foreground">{foot}</p>
-        )}
+        {foot && <p className="mt-1 text-xs text-muted-foreground">{foot}</p>}
       </CardContent>
     </Card>
   );
@@ -119,14 +116,13 @@ function KpiCard({ icon: Icon, iconBg, label, value, foot }: KpiCardProps) {
 
 function AttendanceBar({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="text-sm text-muted-foreground">—</span>;
-  const cls =
-    pct >= 90 ? 'bg-emerald-500' :
-    pct >= 80 ? 'bg-amber-500'   :
-                'bg-red-500';
+  const cls = pct >= 90 ? 'bg-emerald-500' : pct >= 80 ? 'bg-amber-500' : 'bg-red-500';
   const textCls =
-    pct >= 90 ? 'text-emerald-700 dark:text-emerald-400' :
-    pct >= 80 ? 'text-amber-700 dark:text-amber-400'     :
-                'text-red-700 dark:text-red-400';
+    pct >= 90
+      ? 'text-emerald-700 dark:text-emerald-400'
+      : pct >= 80
+        ? 'text-amber-700 dark:text-amber-400'
+        : 'text-red-700 dark:text-red-400';
 
   return (
     <div className="flex items-center gap-2">
@@ -159,24 +155,32 @@ const SCHOOL_AVATAR_PALETTES = [
 function schoolAvatar(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
-  return SCHOOL_AVATAR_PALETTES[Math.abs(hash) % SCHOOL_AVATAR_PALETTES.length] ?? SCHOOL_AVATAR_PALETTES[0];
+  return (
+    SCHOOL_AVATAR_PALETTES[Math.abs(hash) % SCHOOL_AVATAR_PALETTES.length] ??
+    SCHOOL_AVATAR_PALETTES[0]
+  );
 }
 
 const INST_STATUS_PILL: Record<string, string> = {
-  ACTIVE:   'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  ACTIVE: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
   INACTIVE: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
 };
 
 const INST_STATUS_LABEL: Record<string, string> = {
-  ACTIVE:   'Active',
+  ACTIVE: 'Active',
   INACTIVE: 'Inactive',
 };
 
 function InstitutionStatusPill({ status }: { status: string }) {
-  const cls   = INST_STATUS_PILL[status]  ?? 'bg-zinc-100 text-zinc-600';
+  const cls = INST_STATUS_PILL[status] ?? 'bg-zinc-100 text-zinc-600';
   const label = INST_STATUS_LABEL[status] ?? status;
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold', cls)}>
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold',
+        cls,
+      )}
+    >
       {label}
     </span>
   );
@@ -184,20 +188,14 @@ function InstitutionStatusPill({ status }: { status: string }) {
 
 /* ──────────────────────────────────────── Institution row ── */
 
-function InstitutionRow({
-  institution,
-  areaName,
-}: {
-  institution: Institution;
-  areaName: string;
-}) {
+function InstitutionRow({ institution, areaName }: { institution: Institution; areaName: string }) {
   const palette = schoolAvatar(institution.name);
   // customData is not in the Institution type — use graceful fallbacks
-  const cd           = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
-  const typeName     = typeof cd['typeName']     === 'string' ? cd['typeName']     : '';
+  const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
+  const typeName = typeof cd['typeName'] === 'string' ? cd['typeName'] : '';
   const studentCount = typeof cd['studentCount'] === 'number' ? cd['studentCount'] : null;
-  const staffCount   = typeof cd['staffCount']   === 'number' ? cd['staffCount']   : null;
-  const attendance   = typeof cd['attendance']   === 'number' ? cd['attendance']   : null;
+  const staffCount = typeof cd['staffCount'] === 'number' ? cd['staffCount'] : null;
+  const attendance = typeof cd['attendance'] === 'number' ? cd['attendance'] : null;
 
   return (
     <TableRow className="group">
@@ -206,10 +204,7 @@ function InstitutionRow({
         <div className="flex items-center gap-3">
           <span
             aria-hidden="true"
-            className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-              palette,
-            )}
+            className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', palette)}
           >
             <School className="h-5 w-5" aria-hidden="true" />
           </span>
@@ -263,12 +258,18 @@ function InstitutionRow({
       <TableCell className="text-end">
         <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
           <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-            <Link href={`/institutions/${institution.id}/overview`} aria-label={`View ${institution.name}`}>
+            <Link
+              href={`/institutions/${institution.id}/overview`}
+              aria-label={`View ${institution.name}`}
+            >
               <Eye className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
           <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
-            <Link href={`/institutions/${institution.id}/edit`} aria-label={`Edit ${institution.name}`}>
+            <Link
+              href={`/institutions/${institution.id}/edit`}
+              aria-label={`Edit ${institution.name}`}
+            >
               <Pencil className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
@@ -284,10 +285,10 @@ function InstitutionRow({
 /* ──────────────────────────────────────── Page ── */
 
 export default async function InstitutionsListPage({ searchParams }: InstitutionsPageProps) {
-  const search   = singleParam(searchParams.search) ?? '';
-  const areaId   = singleParam(searchParams.areaId) || undefined;
-  const status   = parseStatus(searchParams.status);
-  const page     = parsePage(searchParams.page);
+  const search = singleParam(searchParams.search) ?? '';
+  const areaId = singleParam(searchParams.areaId) || undefined;
+  const status = parseStatus(searchParams.status);
+  const page = parsePage(searchParams.page);
   const pageSize = DEFAULT_PAGE_SIZE;
 
   const [areas, listResult] = await Promise.all([
@@ -296,15 +297,12 @@ export default async function InstitutionsListPage({ searchParams }: Institution
   ]);
 
   // Build a fast area id→name lookup
-  const areaById: Record<string, string> = Object.fromEntries(
-    areas.map((a) => [a.id, a.name]),
-  );
+  const areaById: Record<string, string> = Object.fromEntries(areas.map((a) => [a.id, a.name]));
   const totalItems = listResult.data.meta.totalItems;
-  const areaCount  = areas.length;
+  const areaCount = areas.length;
 
   return (
     <section aria-labelledby="institutions-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -346,9 +344,14 @@ export default async function InstitutionsListPage({ searchParams }: Institution
           iconBg="bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-400"
           label="Blocks / Areas"
           value={areaCount.toLocaleString()}
-          foot={areaCount > 0
-            ? areas.slice(0, 3).map((a) => a.name).join(' · ') + (areaCount > 3 ? ' …' : '')
-            : '—'}
+          foot={
+            areaCount > 0
+              ? areas
+                  .slice(0, 3)
+                  .map((a) => a.name)
+                  .join(' · ') + (areaCount > 3 ? ' …' : '')
+              : '—'
+          }
         />
         <KpiCard
           icon={GraduationCap}
@@ -463,8 +466,8 @@ async function fetchInstitutions(filters: InstitutionListFilters): Promise<ListR
       data: {
         data: [],
         meta: {
-          page:       filters.page     ?? 1,
-          pageSize:   filters.pageSize ?? DEFAULT_PAGE_SIZE,
+          page: filters.page ?? 1,
+          pageSize: filters.pageSize ?? DEFAULT_PAGE_SIZE,
           totalItems: 0,
           totalPages: 0,
         },

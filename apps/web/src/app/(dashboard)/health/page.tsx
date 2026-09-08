@@ -43,11 +43,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import {
-  canAccessHealthRecords,
-  listHealthRecords,
-  type HealthRecord,
-} from '@/lib/api/health';
+import { canAccessHealthRecords, listHealthRecords, type HealthRecord } from '@/lib/api/health';
 import { cn } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -75,7 +71,7 @@ function avatarPalette(name: string): string {
 function initialsOf(name: string): string {
   const parts = name.trim().split(/\s+/);
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
   return `${first}${last}`.toUpperCase() || '—';
 }
 
@@ -93,9 +89,7 @@ export default async function HealthRecordsPage() {
 
   const total = records.length;
   const withAllergies = records.filter((r) => (r.allergies?.length ?? 0) > 0).length;
-  const withChronic = records.filter(
-    (r) => (r.chronicConditions?.length ?? 0) > 0,
-  ).length;
+  const withChronic = records.filter((r) => (r.chronicConditions?.length ?? 0) > 0).length;
 
   return (
     <section aria-labelledby="health-heading" className="space-y-6">
@@ -168,7 +162,10 @@ export default async function HealthRecordsPage() {
         role="note"
         className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-200"
       >
-        <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+        <Info
+          className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400"
+          aria-hidden="true"
+        />
         <p>
           <span className="font-semibold">{t('noticeTitle')} </span>
           {t('noticeBody')}
@@ -183,9 +180,7 @@ export default async function HealthRecordsPage() {
         </CardHeader>
         <CardContent className="p-0">
           {total === 0 ? (
-            <p className="border-t py-12 text-center text-sm text-muted-foreground">
-              {t('empty')}
-            </p>
+            <p className="border-t py-12 text-center text-sm text-muted-foreground">{t('empty')}</p>
           ) : (
             <div className="overflow-x-auto">
               <Table aria-label={t('tableAriaLabel')}>
@@ -246,9 +241,7 @@ function HealthRow({ record, t }: { record: HealthRecord; t: HealthT }) {
       </TableCell>
 
       {/* Blood type */}
-      <TableCell className="font-mono text-sm text-foreground">
-        {record.bloodType ?? '—'}
-      </TableCell>
+      <TableCell className="font-mono text-sm text-foreground">{record.bloodType ?? '—'}</TableCell>
 
       {/* Allergies */}
       <TableCell>
@@ -273,9 +266,7 @@ function HealthRow({ record, t }: { record: HealthRecord; t: HealthT }) {
       </TableCell>
 
       {/* Last updated */}
-      <TableCell className="text-sm text-muted-foreground">
-        {record.lastUpdated || '—'}
-      </TableCell>
+      <TableCell className="text-sm text-muted-foreground">{record.lastUpdated || '—'}</TableCell>
 
       {/* Actions */}
       <TableCell className="pe-4">
@@ -338,10 +329,7 @@ function KpiCard({
           <span className="text-sm font-medium text-muted-foreground">{label}</span>
         </div>
         <div
-          className={cn(
-            'mt-3 text-3xl font-extrabold tabular-nums text-foreground',
-            valueClass,
-          )}
+          className={cn('mt-3 text-3xl font-extrabold tabular-nums text-foreground', valueClass)}
         >
           {value}
         </div>

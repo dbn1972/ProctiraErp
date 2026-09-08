@@ -15,7 +15,10 @@ import {
   InMemoryReportCardTemplateRepository,
   InMemoryTeacherCommentRepository,
 } from './in-memory-report-card-repository.js';
-import { InMemoryAssessmentItemRepository, InMemoryGradingSchemeRepository } from './in-memory-repository.js';
+import {
+  InMemoryAssessmentItemRepository,
+  InMemoryGradingSchemeRepository,
+} from './in-memory-repository.js';
 import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
 import {
   FilesystemReportCardArtifactStore,
@@ -88,7 +91,9 @@ describe('ReportCardPdfGenerator', () => {
   });
 
   it('derives a heading from the template and falls back sensibly', () => {
-    expect(templateHeading('<html><head><title>Term Report</title></head></html>')).toBe('Term Report');
+    expect(templateHeading('<html><head><title>Term Report</title></head></html>')).toBe(
+      'Term Report',
+    );
     expect(templateHeading('<h1>Progress Card</h1>')).toBe('Progress Card');
     expect(templateHeading('<html><body>{{studentName}}</body></html>')).toBe('Report Card');
     expect(templateHeading('Mid-year summary')).toBe('Mid-year summary');
@@ -113,7 +118,9 @@ describe('FilesystemReportCardArtifactStore', () => {
 
   it('rejects keys that escape the storage root', async () => {
     const store = new FilesystemReportCardArtifactStore(dir);
-    await expect(store.put('../escape.pdf', Buffer.from('x'))).rejects.toThrow(/escapes storage root/);
+    await expect(store.put('../escape.pdf', Buffer.from('x'))).rejects.toThrow(
+      /escapes storage root/,
+    );
     await expect(store.get('/etc/passwd')).resolves.toBeNull();
   });
 });
@@ -160,7 +167,11 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
     const res = await app.inject({
       method: 'POST',
       url: '/report-cards/templates',
-      payload: { name: 'Default', templateContent: '<title>Term 1 Report</title>', isDefault: true },
+      payload: {
+        name: 'Default',
+        templateContent: '<title>Term 1 Report</title>',
+        isDefault: true,
+      },
     });
     return (res.json() as { id: string }).id;
   }
@@ -181,7 +192,10 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
     expect(job.outputUrl).toMatch(new RegExp(`^report-cards/${tenantId}/${studentId}/`));
     expect(artifactStore.size).toBe(1);
 
-    const download = await app.inject({ method: 'GET', url: `/report-cards/jobs/${job.id}/download` });
+    const download = await app.inject({
+      method: 'GET',
+      url: `/report-cards/jobs/${job.id}/download`,
+    });
     expect(download.statusCode).toBe(200);
     expect(download.headers['content-type']).toBe('application/pdf');
     expect(download.headers['content-disposition']).toContain('.pdf');
@@ -200,7 +214,12 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
     const gen = await app.inject({
       method: 'POST',
       url: '/report-cards/generate',
-      payload: { studentId: uuidv4(), academicPeriodId: uuidv4(), templateId, institutionId: uuidv4() },
+      payload: {
+        studentId: uuidv4(),
+        academicPeriodId: uuidv4(),
+        templateId,
+        institutionId: uuidv4(),
+      },
     });
     const job = gen.json() as { id: string; status: string };
     expect(job.status).toBe('queued');
@@ -208,11 +227,17 @@ describe('report-card routes — generate → download real PDF (G-716)', () => 
     const early = await app.inject({ method: 'GET', url: `/report-cards/jobs/${job.id}/download` });
     expect(early.statusCode).toBe(422);
 
-    const processed = await app.inject({ method: 'POST', url: `/report-cards/jobs/${job.id}/process` });
+    const processed = await app.inject({
+      method: 'POST',
+      url: `/report-cards/jobs/${job.id}/process`,
+    });
     expect(processed.statusCode).toBe(200);
     expect((processed.json() as { status: string }).status).toBe('completed');
 
-    const download = await app.inject({ method: 'GET', url: `/report-cards/jobs/${job.id}/download` });
+    const download = await app.inject({
+      method: 'GET',
+      url: `/report-cards/jobs/${job.id}/download`,
+    });
     expect(download.statusCode).toBe(200);
     expect(isPdfBuffer(download.rawPayload)).toBe(true);
   });
@@ -235,7 +260,11 @@ describe('report cards include every graded subject for the student (G-716)', ()
     const itemRepo = new InMemoryAssessmentItemRepository();
     const schemeRepo = new InMemoryGradingSchemeRepository();
     const resultRepo = new InMemoryAssessmentResultRepository();
-    const assessmentService = new AssessmentService(schemeRepo, itemRepo, new InMemoryOutcomeRepository());
+    const assessmentService = new AssessmentService(
+      schemeRepo,
+      itemRepo,
+      new InMemoryOutcomeRepository(),
+    );
     const resultService = new ResultService(resultRepo, itemRepo, schemeRepo);
 
     const scheme = await assessmentService.createGradingScheme(tenantId, {

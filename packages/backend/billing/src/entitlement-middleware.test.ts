@@ -44,19 +44,31 @@ async function buildTestApp(options?: {
   const app = Fastify();
 
   // Route protected by feature flag
-  app.get('/feature-protected', {
-    preHandler: [middleware.requireFeature('custom_fields')],
-  }, async () => ({ ok: true }));
+  app.get(
+    '/feature-protected',
+    {
+      preHandler: [middleware.requireFeature('custom_fields')],
+    },
+    async () => ({ ok: true }),
+  );
 
   // Route protected by quota
-  app.post('/quota-protected', {
-    preHandler: [middleware.requireQuota('api_calls', 1)],
-  }, async () => ({ ok: true }));
+  app.post(
+    '/quota-protected',
+    {
+      preHandler: [middleware.requireQuota('api_calls', 1)],
+    },
+    async () => ({ ok: true }),
+  );
 
   // Route with rate limiting
-  app.get('/rate-limited', {
-    preHandler: [middleware.rateLimit()],
-  }, async () => ({ ok: true }));
+  app.get(
+    '/rate-limited',
+    {
+      preHandler: [middleware.rateLimit()],
+    },
+    async () => ({ ok: true }),
+  );
 
   await app.ready();
 
@@ -79,7 +91,12 @@ async function setupTenantWithPlan(
   // Create a plan
   const plan = await billingService.createPlan({
     name: `Test Plan ${Date.now()}`,
-    tier: (planConfig.tier ?? 'professional') as 'free' | 'starter' | 'professional' | 'enterprise' | 'custom',
+    tier: (planConfig.tier ?? 'professional') as
+      | 'free'
+      | 'starter'
+      | 'professional'
+      | 'enterprise'
+      | 'custom',
     features: planConfig.features ?? [
       { featureKey: 'custom_fields', enabled: true },
       { featureKey: 'bulk_import', enabled: true },
@@ -154,8 +171,8 @@ describe('evaluateFeatureFlag', () => {
     ];
 
     // All tenants should get the feature
-    const results = ['t1', 't2', 't3', 't4', 't5'].map(
-      (t) => evaluateFeatureFlag('new_ui', t, overrides),
+    const results = ['t1', 't2', 't3', 't4', 't5'].map((t) =>
+      evaluateFeatureFlag('new_ui', t, overrides),
     );
     expect(results.every((r) => r.overridden && r.enabled)).toBe(true);
   });
@@ -166,8 +183,8 @@ describe('evaluateFeatureFlag', () => {
     ];
 
     // No tenants should get the feature via rollout
-    const results = ['t1', 't2', 't3', 't4', 't5'].map(
-      (t) => evaluateFeatureFlag('new_ui', t, overrides),
+    const results = ['t1', 't2', 't3', 't4', 't5'].map((t) =>
+      evaluateFeatureFlag('new_ui', t, overrides),
     );
     expect(results.every((r) => !r.overridden)).toBe(true);
   });
@@ -279,9 +296,7 @@ describe('requireFeature preHandler', () => {
 
   it('returns 403 when feature is disabled in plan', async () => {
     await setupTenantWithPlan(billingService, repository, 'tenant-1', {
-      features: [
-        { featureKey: 'custom_fields', enabled: false },
-      ],
+      features: [{ featureKey: 'custom_fields', enabled: false }],
       quotas: [],
     });
 
@@ -299,9 +314,7 @@ describe('requireFeature preHandler', () => {
 
   it('allows request when feature is enabled in plan', async () => {
     await setupTenantWithPlan(billingService, repository, 'tenant-1', {
-      features: [
-        { featureKey: 'custom_fields', enabled: true },
-      ],
+      features: [{ featureKey: 'custom_fields', enabled: true }],
       quotas: [],
     });
 
@@ -317,9 +330,7 @@ describe('requireFeature preHandler', () => {
 
   it('respects tenant-specific override (enable)', async () => {
     const { app: overrideApp } = await buildTestApp({
-      overrides: [
-        { featureKey: 'custom_fields', tenantIds: ['special-tenant'], enabled: true },
-      ],
+      overrides: [{ featureKey: 'custom_fields', tenantIds: ['special-tenant'], enabled: true }],
     });
 
     // Tenant has no subscription but has an override
@@ -333,10 +344,12 @@ describe('requireFeature preHandler', () => {
   });
 
   it('respects tenant-specific override (disable)', async () => {
-    const { app: overrideApp, billingService: svc, repository: repo } = await buildTestApp({
-      overrides: [
-        { featureKey: 'custom_fields', tenantIds: ['blocked-tenant'], enabled: false },
-      ],
+    const {
+      app: overrideApp,
+      billingService: svc,
+      repository: repo,
+    } = await buildTestApp({
+      overrides: [{ featureKey: 'custom_fields', tenantIds: ['blocked-tenant'], enabled: false }],
     });
 
     // Even if tenant has the feature in their plan, override blocks it
@@ -476,8 +489,16 @@ describe('rateLimit preHandler', () => {
     });
 
     // Make requests up to the limit
-    await app.inject({ method: 'GET', url: '/rate-limited', headers: { 'x-tenant-id': 'tenant-1' } });
-    await app.inject({ method: 'GET', url: '/rate-limited', headers: { 'x-tenant-id': 'tenant-1' } });
+    await app.inject({
+      method: 'GET',
+      url: '/rate-limited',
+      headers: { 'x-tenant-id': 'tenant-1' },
+    });
+    await app.inject({
+      method: 'GET',
+      url: '/rate-limited',
+      headers: { 'x-tenant-id': 'tenant-1' },
+    });
 
     // Third request should be rate limited
     const response = await app.inject({

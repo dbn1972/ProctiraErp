@@ -69,10 +69,7 @@ export function Sidebar({ allowedAreas }: SidebarProps) {
       <ul className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {NAV.map((item) => {
           const isAllowed = !item.area || allowed.has(item.area);
-          const isActive =
-            item.href === '/'
-              ? pathname === '/'
-              : pathname?.startsWith(item.href);
+          const isActive = item.href === '/' ? pathname === '/' : pathname?.startsWith(item.href);
           const Icon = item.icon;
           return (
             <li key={item.href}>
@@ -85,9 +82,7 @@ export function Sidebar({ allowedAreas }: SidebarProps) {
                   isAllowed
                     ? 'text-foreground hover:bg-secondary'
                     : 'cursor-not-allowed text-muted-foreground/50',
-                  isAllowed &&
-                    isActive &&
-                    'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]',
+                  isAllowed && isActive && 'bg-[hsl(var(--primary))]/10 text-[hsl(var(--primary))]',
                 )}
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />

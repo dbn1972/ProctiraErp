@@ -98,9 +98,7 @@ export interface RegisterServiceWorkerOptions {
  *
  * @returns A `RegisterResult` describing which branch executed.
  */
-export function registerServiceWorker(
-  options: RegisterServiceWorkerOptions = {},
-): RegisterResult {
+export function registerServiceWorker(options: RegisterServiceWorkerOptions = {}): RegisterResult {
   // ─── Gate 1: browser environment ────────────────────────────────────────
   // Bail before touching `window` so the helper is safe to import from
   // server components / Node-only modules.
@@ -112,8 +110,7 @@ export function registerServiceWorker(
   // Service workers are intentionally disabled in development and test
   // builds so they cannot interfere with `next dev` HMR or leak between
   // Playwright/jsdom runs.
-  const isProduction =
-    options.isProduction ?? process.env.NODE_ENV === 'production';
+  const isProduction = options.isProduction ?? process.env.NODE_ENV === 'production';
   if (!isProduction) {
     return { status: 'skipped-non-production' };
   }
@@ -144,9 +141,7 @@ export function registerServiceWorker(
   // Bind the registration call. Tests can substitute their own; in
   // production we call through to `navigator.serviceWorker.register`.
   const register =
-    options.register ??
-    ((url: string): Promise<unknown> =>
-      navigator.serviceWorker.register(url));
+    options.register ?? ((url: string): Promise<unknown> => navigator.serviceWorker.register(url));
 
   // Fire-and-forget. `sw.js` itself manages skipWaiting + clients.claim,
   // so there is no follow-up state to surface here.

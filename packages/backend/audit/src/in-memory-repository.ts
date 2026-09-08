@@ -62,32 +62,32 @@ export class InMemoryAuditRepository implements AuditRepository {
    * Query audit log entries with filtering and pagination.
    */
   async query(query: AuditLogQuery): Promise<AuditLogQueryResult> {
-    let filtered = this.entries.filter(e => e.tenantId === query.tenantId);
+    let filtered = this.entries.filter((e) => e.tenantId === query.tenantId);
 
     if (query.entityType) {
-      filtered = filtered.filter(e => e.entityType === query.entityType);
+      filtered = filtered.filter((e) => e.entityType === query.entityType);
     }
 
     if (query.entityId) {
-      filtered = filtered.filter(e => e.entityId === query.entityId);
+      filtered = filtered.filter((e) => e.entityId === query.entityId);
     }
 
     if (query.userId) {
-      filtered = filtered.filter(e => e.userId === query.userId);
+      filtered = filtered.filter((e) => e.userId === query.userId);
     }
 
     if (query.operation) {
-      filtered = filtered.filter(e => e.operation === query.operation);
+      filtered = filtered.filter((e) => e.operation === query.operation);
     }
 
     if (query.startDate) {
       const start = new Date(query.startDate + 'T00:00:00.000Z');
-      filtered = filtered.filter(e => e.timestamp >= start);
+      filtered = filtered.filter((e) => e.timestamp >= start);
     }
 
     if (query.endDate) {
       const end = new Date(query.endDate + 'T23:59:59.999Z');
-      filtered = filtered.filter(e => e.timestamp <= end);
+      filtered = filtered.filter((e) => e.timestamp <= end);
     }
 
     // Sort by timestamp
@@ -117,7 +117,7 @@ export class InMemoryAuditRepository implements AuditRepository {
    * Get a single audit log entry by ID.
    */
   async findById(tenantId: string, id: string): Promise<AuditLogEntry | null> {
-    return this.entries.find(e => e.id === id && e.tenantId === tenantId) ?? null;
+    return this.entries.find((e) => e.id === id && e.tenantId === tenantId) ?? null;
   }
 
   /**
@@ -153,7 +153,7 @@ export class InMemoryAuditRepository implements AuditRepository {
     cutoffDate.setMonth(cutoffDate.getMonth() - config.retentionMonths);
 
     const toArchive = this.entries.filter(
-      e => e.tenantId === tenantId && e.timestamp < cutoffDate,
+      (e) => e.tenantId === tenantId && e.timestamp < cutoffDate,
     );
 
     // Move to archived
@@ -161,7 +161,7 @@ export class InMemoryAuditRepository implements AuditRepository {
 
     // Remove from active entries
     this.entries = this.entries.filter(
-      e => !(e.tenantId === tenantId && e.timestamp < cutoffDate),
+      (e) => !(e.tenantId === tenantId && e.timestamp < cutoffDate),
     );
 
     // Update last archival timestamp
@@ -188,9 +188,7 @@ export class InMemoryAuditRepository implements AuditRepository {
     const cutoffDate = new Date();
     cutoffDate.setMonth(cutoffDate.getMonth() - config.retentionMonths);
 
-    return this.entries.filter(
-      e => e.tenantId === tenantId && e.timestamp < cutoffDate,
-    ).length;
+    return this.entries.filter((e) => e.tenantId === tenantId && e.timestamp < cutoffDate).length;
   }
 
   // --- Test helpers ---

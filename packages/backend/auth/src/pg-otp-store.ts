@@ -13,7 +13,11 @@ import {
   type PgQueryable,
 } from '@proctira/database';
 
-import { InMemoryOtpChallengeStore, type OtpChallengeRecord, type OtpChallengeStore } from './otp-service.js';
+import {
+  InMemoryOtpChallengeStore,
+  type OtpChallengeRecord,
+  type OtpChallengeStore,
+} from './otp-service.js';
 
 export class PgOtpChallengeStore implements OtpChallengeStore {
   private readonly challenges: PgDocumentCollection<OtpChallengeRecord>;

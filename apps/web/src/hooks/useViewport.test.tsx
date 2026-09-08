@@ -14,15 +14,7 @@
  *   • Tolerates a missing `window.matchMedia` (older jsdom, edge runtimes).
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-  type Mock,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 
 import { MOBILE_MEDIA_QUERY, useViewport } from './useViewport';
@@ -65,16 +57,18 @@ function makeMql(initial: boolean, opts: { legacyOnly?: boolean } = {}): FakeMed
   }
 
   // Always include the legacy API so we can assert the fallback path explicitly.
-  mql.addListener = vi.fn((cb: (e: MediaQueryListEvent) => void) => listeners.add(cb)) as unknown as Mock;
-  mql.removeListener = vi.fn((cb: (e: MediaQueryListEvent) => void) => listeners.delete(cb)) as unknown as Mock;
+  mql.addListener = vi.fn((cb: (e: MediaQueryListEvent) => void) =>
+    listeners.add(cb),
+  ) as unknown as Mock;
+  mql.removeListener = vi.fn((cb: (e: MediaQueryListEvent) => void) =>
+    listeners.delete(cb),
+  ) as unknown as Mock;
 
   return mql;
 }
 
 function installMatchMedia(mql: FakeMediaQueryList) {
-  return vi
-    .spyOn(window, 'matchMedia')
-    .mockImplementation(() => mql as unknown as MediaQueryList);
+  return vi.spyOn(window, 'matchMedia').mockImplementation(() => mql as unknown as MediaQueryList);
 }
 
 // ─── Test setup ──────────────────────────────────────────────────────────────

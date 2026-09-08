@@ -1,13 +1,13 @@
-"use strict";
+'use strict';
 
-const { RuleTester } = require("eslint");
-const rule = require("./error-envelope");
+const { RuleTester } = require('eslint');
+const rule = require('./error-envelope');
 
 const ruleTester = new RuleTester({
-  parserOptions: { ecmaVersion: 2022, sourceType: "module" },
+  parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
 });
 
-ruleTester.run("error-envelope", rule, {
+ruleTester.run('error-envelope', rule, {
   valid: [
     // Compliant 4xx envelope
     {
@@ -37,17 +37,17 @@ ruleTester.run("error-envelope", rule, {
   invalid: [
     {
       code: `reply.status(400).send({ message: 'failed', statusCode: 400 });`,
-      errors: [{ messageId: "missingFields", data: { status: "400", missing: "code" } }],
+      errors: [{ messageId: 'missingFields', data: { status: '400', missing: 'code' } }],
     },
     {
       code: `reply.status(404).send({ statusCode: 404 });`,
-      errors: [{ messageId: "missingFields" }],
+      errors: [{ messageId: 'missingFields' }],
     },
     {
       code: `throw new Error('not in catch');`,
-      errors: [{ messageId: "rawError" }],
+      errors: [{ messageId: 'rawError' }],
     },
   ],
 });
 
-console.log("✅ error-envelope rule tests passed");
+console.log('✅ error-envelope rule tests passed');

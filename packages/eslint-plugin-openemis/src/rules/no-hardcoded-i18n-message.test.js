@@ -1,13 +1,13 @@
-"use strict";
+'use strict';
 
-const { RuleTester } = require("eslint");
-const rule = require("./no-hardcoded-i18n-message");
+const { RuleTester } = require('eslint');
+const rule = require('./no-hardcoded-i18n-message');
 
 const ruleTester = new RuleTester({
-  parserOptions: { ecmaVersion: 2022, sourceType: "module" },
+  parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
 });
 
-ruleTester.run("no-hardcoded-i18n-message", rule, {
+ruleTester.run('no-hardcoded-i18n-message', rule, {
   valid: [
     { code: `const o = { message: 'error.invalid_input' };` },
     { code: `const o = { message: 'VALIDATION_ERROR' };` },
@@ -21,13 +21,13 @@ ruleTester.run("no-hardcoded-i18n-message", rule, {
   invalid: [
     {
       code: `const o = { message: 'The student record could not be located in the database.' };`,
-      errors: [{ messageId: "hardcoded" }],
+      errors: [{ messageId: 'hardcoded' }],
     },
     {
       code: `const o = { 'message': 'Account is temporarily locked due to too many failed attempts.' };`,
-      errors: [{ messageId: "hardcoded" }],
+      errors: [{ messageId: 'hardcoded' }],
     },
   ],
 });
 
-console.log("✅ no-hardcoded-i18n-message rule tests passed");
+console.log('✅ no-hardcoded-i18n-message rule tests passed');

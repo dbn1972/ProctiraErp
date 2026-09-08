@@ -48,7 +48,10 @@ describe('PgTenantRepository (live)', () => {
     expect(suspended?.status).toBe('suspended');
     expect(suspended?.suspendedAt).toBeInstanceOf(Date);
 
-    const list = await repo.listTenants({ status: 'suspended', search: slug }, { page: 1, pageSize: 5 });
+    const list = await repo.listTenants(
+      { status: 'suspended', search: slug },
+      { page: 1, pageSize: 5 },
+    );
     expect(list.data.map((t) => t.id)).toContain(id);
 
     const domainId = randomUUID();

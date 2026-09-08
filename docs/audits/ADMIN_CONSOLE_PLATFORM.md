@@ -24,13 +24,13 @@ Operator login, overview, tenants (+ provision/detail), plans, plugins, themes, 
 
 ## 2. E2E
 
-| Journey | Spec | Gate |
-| --- | --- | --- |
-| Public smoke | `01-platform-admin-smoke.spec.ts` | public |
-| Inventory | `02-…` | ungated |
-| Tenant write validation | `03-…` | ungated |
-| Break-glass / plugin validation | `04-…` | ungated |
-| Expanded tenant/BG/plugin | `05-tenant-breakglass-plugin-expand-smoke.spec.ts` | ungated + live prefer |
+| Journey                         | Spec                                               | Gate                  |
+| ------------------------------- | -------------------------------------------------- | --------------------- |
+| Public smoke                    | `01-platform-admin-smoke.spec.ts`                  | public                |
+| Inventory                       | `02-…`                                             | ungated               |
+| Tenant write validation         | `03-…`                                             | ungated               |
+| Break-glass / plugin validation | `04-…`                                             | ungated               |
+| Expanded tenant/BG/plugin       | `05-tenant-breakglass-plugin-expand-smoke.spec.ts` | ungated + live prefer |
 
 ---
 

@@ -5,7 +5,12 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { parseSemver, compareSemver, checkCompatibility, validateCompatibility } from './compatibility.js';
+import {
+  parseSemver,
+  compareSemver,
+  checkCompatibility,
+  validateCompatibility,
+} from './compatibility.js';
 
 describe('parseSemver', () => {
   it('should parse a valid semver string', () => {
@@ -13,7 +18,12 @@ describe('parseSemver', () => {
   });
 
   it('should parse a semver with pre-release', () => {
-    expect(parseSemver('2.0.0-beta.1')).toEqual({ major: 2, minor: 0, patch: 0, prerelease: 'beta.1' });
+    expect(parseSemver('2.0.0-beta.1')).toEqual({
+      major: 2,
+      minor: 0,
+      patch: 0,
+      prerelease: 'beta.1',
+    });
   });
 
   it('should return null for invalid semver', () => {
@@ -25,25 +35,60 @@ describe('parseSemver', () => {
 
 describe('compareSemver', () => {
   it('should compare major versions', () => {
-    expect(compareSemver({ major: 2, minor: 0, patch: 0, prerelease: null }, { major: 1, minor: 0, patch: 0, prerelease: null })).toBe(1);
-    expect(compareSemver({ major: 1, minor: 0, patch: 0, prerelease: null }, { major: 2, minor: 0, patch: 0, prerelease: null })).toBe(-1);
+    expect(
+      compareSemver(
+        { major: 2, minor: 0, patch: 0, prerelease: null },
+        { major: 1, minor: 0, patch: 0, prerelease: null },
+      ),
+    ).toBe(1);
+    expect(
+      compareSemver(
+        { major: 1, minor: 0, patch: 0, prerelease: null },
+        { major: 2, minor: 0, patch: 0, prerelease: null },
+      ),
+    ).toBe(-1);
   });
 
   it('should compare minor versions', () => {
-    expect(compareSemver({ major: 1, minor: 2, patch: 0, prerelease: null }, { major: 1, minor: 1, patch: 0, prerelease: null })).toBe(1);
+    expect(
+      compareSemver(
+        { major: 1, minor: 2, patch: 0, prerelease: null },
+        { major: 1, minor: 1, patch: 0, prerelease: null },
+      ),
+    ).toBe(1);
   });
 
   it('should compare patch versions', () => {
-    expect(compareSemver({ major: 1, minor: 0, patch: 2, prerelease: null }, { major: 1, minor: 0, patch: 1, prerelease: null })).toBe(1);
+    expect(
+      compareSemver(
+        { major: 1, minor: 0, patch: 2, prerelease: null },
+        { major: 1, minor: 0, patch: 1, prerelease: null },
+      ),
+    ).toBe(1);
   });
 
   it('should return 0 for equal versions', () => {
-    expect(compareSemver({ major: 1, minor: 2, patch: 3, prerelease: null }, { major: 1, minor: 2, patch: 3, prerelease: null })).toBe(0);
+    expect(
+      compareSemver(
+        { major: 1, minor: 2, patch: 3, prerelease: null },
+        { major: 1, minor: 2, patch: 3, prerelease: null },
+      ),
+    ).toBe(0);
   });
 
   it('should rank pre-release lower than release', () => {
-    expect(compareSemver({ major: 1, minor: 0, patch: 0, prerelease: 'beta' }, { major: 1, minor: 0, patch: 0, prerelease: null })).toBe(-1);
-    expect(compareSemver({ major: 1, minor: 0, patch: 0, prerelease: null }, { major: 1, minor: 0, patch: 0, prerelease: 'beta' })).toBe(1);
+    expect(
+      compareSemver(
+        { major: 1, minor: 0, patch: 0, prerelease: 'beta' },
+        { major: 1, minor: 0, patch: 0, prerelease: null },
+      ),
+    ).toBe(-1);
+    expect(
+      compareSemver(
+        { major: 1, minor: 0, patch: 0, prerelease: null },
+        { major: 1, minor: 0, patch: 0, prerelease: 'beta' },
+      ),
+    ).toBe(1);
   });
 });
 

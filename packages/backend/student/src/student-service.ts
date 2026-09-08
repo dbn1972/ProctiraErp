@@ -10,18 +10,11 @@
  *         contacts, guardians, and nationality. Name and date of birth are mandatory.
  * - 6.5: Support Custom_Fields to extend student profiles via JSONB custom_data column
  */
-import {
-  ConflictError,
-  NotFoundError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type {
-  StudentEntity,
-  StudentFilter,
-  StudentRepository,
-} from './student-repository.js';
+import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
 import type { CreateStudentInput, UpdateStudentInput } from './schemas.js';
 
 /**
@@ -46,9 +39,7 @@ export class StudentService {
         tenantId,
       );
       if (existingByNationalId) {
-        throw new ConflictError(
-          `Student with national ID '${input.nationalId}' already exists`,
-        );
+        throw new ConflictError(`Student with national ID '${input.nationalId}' already exists`);
       }
     }
 
@@ -87,26 +78,24 @@ export class StudentService {
    * @throws NotFoundError if student not found
    * @throws ConflictError if national ID uniqueness violated
    */
-  async update(
-    tenantId: string,
-    id: string,
-    input: UpdateStudentInput,
-  ): Promise<StudentEntity> {
+  async update(tenantId: string, id: string, input: UpdateStudentInput): Promise<StudentEntity> {
     const existing = await this.repository.findById(id, tenantId);
     if (!existing) {
       throw new NotFoundError(`Student with id '${id}' not found`);
     }
 
     // Check national ID uniqueness if it's being changed
-    if (input.nationalId !== undefined && input.nationalId !== null && input.nationalId !== existing.nationalId) {
+    if (
+      input.nationalId !== undefined &&
+      input.nationalId !== null &&
+      input.nationalId !== existing.nationalId
+    ) {
       const existingByNationalId = await this.repository.findByNationalId(
         input.nationalId,
         tenantId,
       );
       if (existingByNationalId && existingByNationalId.id !== id) {
-        throw new ConflictError(
-          `Student with national ID '${input.nationalId}' already exists`,
-        );
+        throw new ConflictError(`Student with national ID '${input.nationalId}' already exists`);
       }
     }
 
@@ -128,7 +117,8 @@ export class StudentService {
         contactEmail: g.contactEmail,
       }));
     }
-    if (input.identityDocuments !== undefined) updateData.identityDocuments = input.identityDocuments;
+    if (input.identityDocuments !== undefined)
+      updateData.identityDocuments = input.identityDocuments;
     if (input.customData !== undefined) updateData.customData = input.customData;
 
     const updated = await this.repository.update(id, tenantId, updateData);

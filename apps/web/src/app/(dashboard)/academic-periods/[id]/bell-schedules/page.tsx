@@ -79,8 +79,8 @@ export default async function BellSchedulesPage({ params }: PageProps) {
             Bell schedules
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Period start/end times for {periodName}. Day pattern drives the institution
-            timetable grid.
+            Period start/end times for {periodName}. Day pattern drives the institution timetable
+            grid.
           </p>
         </div>
       </div>

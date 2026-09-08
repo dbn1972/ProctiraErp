@@ -18,30 +18,40 @@ function createMockPrismaClient() {
       findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
         return sessions.get(where.id) ?? null;
       }),
-      update: vi.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const existing = sessions.get(where.id);
-        if (existing) {
-          Object.assign(existing, data);
-        }
-        return existing;
-      }),
-      updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
-        let count = 0;
-        for (const [, session] of sessions) {
-          let matches = true;
-          for (const [key, value] of Object.entries(where)) {
-            if (session[key] !== value) {
-              matches = false;
-              break;
+      update: vi.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const existing = sessions.get(where.id);
+          if (existing) {
+            Object.assign(existing, data);
+          }
+          return existing;
+        },
+      ),
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: Record<string, unknown>;
+          data: Record<string, unknown>;
+        }) => {
+          let count = 0;
+          for (const [, session] of sessions) {
+            let matches = true;
+            for (const [key, value] of Object.entries(where)) {
+              if (session[key] !== value) {
+                matches = false;
+                break;
+              }
+            }
+            if (matches) {
+              Object.assign(session, data);
+              count++;
             }
           }
-          if (matches) {
-            Object.assign(session, data);
-            count++;
-          }
-        }
-        return { count };
-      }),
+          return { count };
+        },
+      ),
       findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
         const results: Record<string, unknown>[] = [];
         for (const [, session] of sessions) {

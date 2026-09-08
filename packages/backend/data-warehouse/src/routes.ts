@@ -122,11 +122,19 @@ export async function registerDataWarehouseRoutes(
 
     const paramsResult = validate(WarehouseParamsSchema, request.params);
     if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid warehouse ID',
+        statusCode: 400,
+        errors: paramsResult.errors,
+      });
     }
 
     try {
-      const warehouse = await dataWarehouseService.getWarehouse(tenantId, paramsResult.data.warehouseId);
+      const warehouse = await dataWarehouseService.getWarehouse(
+        tenantId,
+        paramsResult.data.warehouseId,
+      );
       return reply.status(200).send(warehouse);
     } catch (error: unknown) {
       return handleError(error, reply);
@@ -139,16 +147,30 @@ export async function registerDataWarehouseRoutes(
 
     const paramsResult = validate(WarehouseParamsSchema, request.params);
     if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid warehouse ID',
+        statusCode: 400,
+        errors: paramsResult.errors,
+      });
     }
 
     const bodyResult = validate(UpdateWarehouseSchema, request.body);
     if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: bodyResult.errors,
+      });
     }
 
     try {
-      const warehouse = await dataWarehouseService.updateWarehouse(tenantId, paramsResult.data.warehouseId, bodyResult.data);
+      const warehouse = await dataWarehouseService.updateWarehouse(
+        tenantId,
+        paramsResult.data.warehouseId,
+        bodyResult.data,
+      );
       return reply.status(200).send(warehouse);
     } catch (error: unknown) {
       return handleError(error, reply);
@@ -161,7 +183,12 @@ export async function registerDataWarehouseRoutes(
 
     const paramsResult = validate(WarehouseParamsSchema, request.params);
     if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid warehouse ID',
+        statusCode: 400,
+        errors: paramsResult.errors,
+      });
     }
 
     try {
@@ -174,301 +201,527 @@ export async function registerDataWarehouseRoutes(
 
   // ─── Indicator Routes ─────────────────────────────────────────────────────
 
-  fastify.post(`${prefix}/:warehouseId/indicators`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.post(
+    `${prefix}/:warehouseId/indicators`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const bodyResult = validate(CreateIndicatorSchema, request.body);
-    if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
-    }
+      const bodyResult = validate(CreateIndicatorSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
 
-    try {
-      const indicator = await dataWarehouseService.createIndicator(tenantId, paramsResult.data.warehouseId, bodyResult.data);
-      return reply.status(201).send(indicator);
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const indicator = await dataWarehouseService.createIndicator(
+          tenantId,
+          paramsResult.data.warehouseId,
+          bodyResult.data,
+        );
+        return reply.status(201).send(indicator);
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
-  fastify.get(`${prefix}/:warehouseId/indicators`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.get(
+    `${prefix}/:warehouseId/indicators`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const query = request.query as WarehouseListQuery;
-    const page = Number(query.page) || 1;
-    const pageSize = Number(query.pageSize) || 20;
+      const query = request.query as WarehouseListQuery;
+      const page = Number(query.page) || 1;
+      const pageSize = Number(query.pageSize) || 20;
 
-    try {
-      const result = await dataWarehouseService.listIndicators(tenantId, paramsResult.data.warehouseId, { search: query.search }, page, pageSize);
-      return reply.status(200).send({ data: result.data, meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) } });
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const result = await dataWarehouseService.listIndicators(
+          tenantId,
+          paramsResult.data.warehouseId,
+          { search: query.search },
+          page,
+          pageSize,
+        );
+        return reply.status(200).send({
+          data: result.data,
+          meta: {
+            page,
+            pageSize,
+            total: result.total,
+            totalPages: Math.ceil(result.total / pageSize),
+          },
+        });
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
   // ─── Unit Routes ──────────────────────────────────────────────────────────
 
-  fastify.post(`${prefix}/:warehouseId/units`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.post(
+    `${prefix}/:warehouseId/units`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const bodyResult = validate(CreateUnitSchema, request.body);
-    if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
-    }
+      const bodyResult = validate(CreateUnitSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
 
-    try {
-      const unit = await dataWarehouseService.createUnit(tenantId, paramsResult.data.warehouseId, bodyResult.data);
-      return reply.status(201).send(unit);
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const unit = await dataWarehouseService.createUnit(
+          tenantId,
+          paramsResult.data.warehouseId,
+          bodyResult.data,
+        );
+        return reply.status(201).send(unit);
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
-  fastify.get(`${prefix}/:warehouseId/units`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.get(
+    `${prefix}/:warehouseId/units`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const query = request.query as WarehouseListQuery;
-    const page = Number(query.page) || 1;
-    const pageSize = Number(query.pageSize) || 20;
+      const query = request.query as WarehouseListQuery;
+      const page = Number(query.page) || 1;
+      const pageSize = Number(query.pageSize) || 20;
 
-    try {
-      const result = await dataWarehouseService.listUnits(tenantId, paramsResult.data.warehouseId, { search: query.search }, page, pageSize);
-      return reply.status(200).send({ data: result.data, meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) } });
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const result = await dataWarehouseService.listUnits(
+          tenantId,
+          paramsResult.data.warehouseId,
+          { search: query.search },
+          page,
+          pageSize,
+        );
+        return reply.status(200).send({
+          data: result.data,
+          meta: {
+            page,
+            pageSize,
+            total: result.total,
+            totalPages: Math.ceil(result.total / pageSize),
+          },
+        });
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
   // ─── Subgroup Routes ──────────────────────────────────────────────────────
 
-  fastify.post(`${prefix}/:warehouseId/subgroups`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.post(
+    `${prefix}/:warehouseId/subgroups`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const bodyResult = validate(CreateSubgroupSchema, request.body);
-    if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
-    }
+      const bodyResult = validate(CreateSubgroupSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
 
-    try {
-      const subgroup = await dataWarehouseService.createSubgroup(tenantId, paramsResult.data.warehouseId, bodyResult.data);
-      return reply.status(201).send(subgroup);
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const subgroup = await dataWarehouseService.createSubgroup(
+          tenantId,
+          paramsResult.data.warehouseId,
+          bodyResult.data,
+        );
+        return reply.status(201).send(subgroup);
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
-  fastify.get(`${prefix}/:warehouseId/subgroups`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.get(
+    `${prefix}/:warehouseId/subgroups`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const query = request.query as WarehouseListQuery;
-    const page = Number(query.page) || 1;
-    const pageSize = Number(query.pageSize) || 20;
+      const query = request.query as WarehouseListQuery;
+      const page = Number(query.page) || 1;
+      const pageSize = Number(query.pageSize) || 20;
 
-    try {
-      const result = await dataWarehouseService.listSubgroups(tenantId, paramsResult.data.warehouseId, { search: query.search }, page, pageSize);
-      return reply.status(200).send({ data: result.data, meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) } });
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const result = await dataWarehouseService.listSubgroups(
+          tenantId,
+          paramsResult.data.warehouseId,
+          { search: query.search },
+          page,
+          pageSize,
+        );
+        return reply.status(200).send({
+          data: result.data,
+          meta: {
+            page,
+            pageSize,
+            total: result.total,
+            totalPages: Math.ceil(result.total / pageSize),
+          },
+        });
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
   // ─── Time Period Routes ───────────────────────────────────────────────────
 
-  fastify.post(`${prefix}/:warehouseId/time-periods`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.post(
+    `${prefix}/:warehouseId/time-periods`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const bodyResult = validate(CreateTimePeriodSchema, request.body);
-    if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
-    }
+      const bodyResult = validate(CreateTimePeriodSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
 
-    try {
-      const tp = await dataWarehouseService.createTimePeriod(tenantId, paramsResult.data.warehouseId, bodyResult.data);
-      return reply.status(201).send(tp);
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const tp = await dataWarehouseService.createTimePeriod(
+          tenantId,
+          paramsResult.data.warehouseId,
+          bodyResult.data,
+        );
+        return reply.status(201).send(tp);
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
-  fastify.get(`${prefix}/:warehouseId/time-periods`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.get(
+    `${prefix}/:warehouseId/time-periods`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const query = request.query as WarehouseListQuery;
-    const page = Number(query.page) || 1;
-    const pageSize = Number(query.pageSize) || 20;
+      const query = request.query as WarehouseListQuery;
+      const page = Number(query.page) || 1;
+      const pageSize = Number(query.pageSize) || 20;
 
-    try {
-      const result = await dataWarehouseService.listTimePeriods(tenantId, paramsResult.data.warehouseId, { search: query.search }, page, pageSize);
-      return reply.status(200).send({ data: result.data, meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) } });
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const result = await dataWarehouseService.listTimePeriods(
+          tenantId,
+          paramsResult.data.warehouseId,
+          { search: query.search },
+          page,
+          pageSize,
+        );
+        return reply.status(200).send({
+          data: result.data,
+          meta: {
+            page,
+            pageSize,
+            total: result.total,
+            totalPages: Math.ceil(result.total / pageSize),
+          },
+        });
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
   // ─── Area Routes ──────────────────────────────────────────────────────────
 
-  fastify.post(`${prefix}/:warehouseId/areas`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.post(
+    `${prefix}/:warehouseId/areas`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const bodyResult = validate(CreateAreaSchema, request.body);
-    if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
-    }
+      const bodyResult = validate(CreateAreaSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
 
-    try {
-      const area = await dataWarehouseService.createArea(tenantId, paramsResult.data.warehouseId, bodyResult.data);
-      return reply.status(201).send(area);
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const area = await dataWarehouseService.createArea(
+          tenantId,
+          paramsResult.data.warehouseId,
+          bodyResult.data,
+        );
+        return reply.status(201).send(area);
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
-  fastify.get(`${prefix}/:warehouseId/areas`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.get(
+    `${prefix}/:warehouseId/areas`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const query = request.query as WarehouseListQuery;
-    const page = Number(query.page) || 1;
-    const pageSize = Number(query.pageSize) || 20;
+      const query = request.query as WarehouseListQuery;
+      const page = Number(query.page) || 1;
+      const pageSize = Number(query.pageSize) || 20;
 
-    try {
-      const result = await dataWarehouseService.listAreas(tenantId, paramsResult.data.warehouseId, { search: query.search }, page, pageSize);
-      return reply.status(200).send({ data: result.data, meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) } });
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const result = await dataWarehouseService.listAreas(
+          tenantId,
+          paramsResult.data.warehouseId,
+          { search: query.search },
+          page,
+          pageSize,
+        );
+        return reply.status(200).send({
+          data: result.data,
+          meta: {
+            page,
+            pageSize,
+            total: result.total,
+            totalPages: Math.ceil(result.total / pageSize),
+          },
+        });
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
   // ─── Data Import ──────────────────────────────────────────────────────────
 
-  fastify.post(`${prefix}/:warehouseId/import`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.post(
+    `${prefix}/:warehouseId/import`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const bodyResult = validate(BulkImportSchema, request.body);
-    if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
-    }
+      const bodyResult = validate(BulkImportSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
 
-    try {
-      const importResult = await dataWarehouseService.importData(
-        tenantId,
-        paramsResult.data.warehouseId,
-        bodyResult.data.format,
-        {
-          records: bodyResult.data.records,
-          fileContent: bodyResult.data.fileContent,
-          dbConnectionConfig: bodyResult.data.dbConnectionConfig,
-        },
-      );
-      return reply.status(200).send(importResult);
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const importResult = await dataWarehouseService.importData(
+          tenantId,
+          paramsResult.data.warehouseId,
+          bodyResult.data.format,
+          {
+            records: bodyResult.data.records,
+            fileContent: bodyResult.data.fileContent,
+            dbConnectionConfig: bodyResult.data.dbConnectionConfig,
+          },
+        );
+        return reply.status(200).send(importResult);
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 
   // ─── Data Query ───────────────────────────────────────────────────────────
 
-  fastify.post(`${prefix}/:warehouseId/query`, async (request: FastifyRequest, reply: FastifyReply) => {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return sendTenantRequired(reply);
+  fastify.post(
+    `${prefix}/:warehouseId/query`,
+    async (request: FastifyRequest, reply: FastifyReply) => {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return sendTenantRequired(reply);
 
-    const paramsResult = validate(WarehouseParamsSchema, request.params);
-    if (!paramsResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Invalid warehouse ID', statusCode: 400, errors: paramsResult.errors });
-    }
+      const paramsResult = validate(WarehouseParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid warehouse ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
 
-    const bodyResult = validate(DataQuerySchema, request.body);
-    if (!bodyResult.success) {
-      return reply.status(400).send({ code: 'VALIDATION_ERROR', message: 'Validation failed', statusCode: 400, errors: bodyResult.errors });
-    }
+      const bodyResult = validate(DataQuerySchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
 
-    const page = bodyResult.data.page ?? 1;
-    const pageSize = bodyResult.data.pageSize ?? 50;
+      const page = bodyResult.data.page ?? 1;
+      const pageSize = bodyResult.data.pageSize ?? 50;
 
-    try {
-      const result = await dataWarehouseService.queryData(
-        tenantId,
-        paramsResult.data.warehouseId,
-        {
-          indicatorIds: bodyResult.data.indicatorIds,
-          unitIds: bodyResult.data.unitIds,
-          subgroupIds: bodyResult.data.subgroupIds,
-          areaIds: bodyResult.data.areaIds,
-          timePeriods: bodyResult.data.timePeriods,
-        },
-        page,
-        pageSize,
-      );
-      return reply.status(200).send({
-        data: result.data,
-        meta: { page, pageSize, total: result.total, totalPages: Math.ceil(result.total / pageSize) },
-      });
-    } catch (error: unknown) {
-      return handleError(error, reply);
-    }
-  });
+      try {
+        const result = await dataWarehouseService.queryData(
+          tenantId,
+          paramsResult.data.warehouseId,
+          {
+            indicatorIds: bodyResult.data.indicatorIds,
+            unitIds: bodyResult.data.unitIds,
+            subgroupIds: bodyResult.data.subgroupIds,
+            areaIds: bodyResult.data.areaIds,
+            timePeriods: bodyResult.data.timePeriods,
+          },
+          page,
+          pageSize,
+        );
+        return reply.status(200).send({
+          data: result.data,
+          meta: {
+            page,
+            pageSize,
+            total: result.total,
+            totalPages: Math.ceil(result.total / pageSize),
+          },
+        });
+      } catch (error: unknown) {
+        return handleError(error, reply);
+      }
+    },
+  );
 }

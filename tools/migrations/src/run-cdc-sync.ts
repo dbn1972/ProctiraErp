@@ -16,7 +16,8 @@ function loadCDCConfig(): CDCSyncConfig {
     pollIntervalMs: parseInt(process.env.CDC_POLL_INTERVAL_MS ?? '5000', 10),
     batchSize: parseInt(process.env.CDC_BATCH_SIZE ?? '1000', 10),
     tenantId: process.env.CDC_TENANT_ID ?? 'default',
-    conflictResolution: (process.env.CDC_CONFLICT_RESOLUTION ?? 'source_wins') as CDCSyncConfig['conflictResolution'],
+    conflictResolution: (process.env.CDC_CONFLICT_RESOLUTION ??
+      'source_wins') as CDCSyncConfig['conflictResolution'],
   };
 }
 

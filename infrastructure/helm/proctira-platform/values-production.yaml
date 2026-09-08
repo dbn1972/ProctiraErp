@@ -15,20 +15,20 @@ global:
 ingress:
   enabled: true
   annotations:
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/limit-rps: "100"
-    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+    nginx.ingress.kubernetes.io/proxy-body-size: '50m'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '60'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '60'
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/limit-rps: '100'
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: '5'
     cert-manager.io/cluster-issuer: letsencrypt-prod
   hosts:
-    api: "api.proctira.io"
-    web: "*.proctira.io"
-    register: "register.proctira.io"
-    public: "proctira.io"
-    admin: "admin.proctira.io"
-    developers: "developers.proctira.io"
+    api: 'api.proctira.io'
+    web: '*.proctira.io'
+    register: 'register.proctira.io'
+    public: 'proctira.io'
+    admin: 'admin.proctira.io'
+    developers: 'developers.proctira.io'
   tls:
     enabled: true
     secretName: proctira-prod-tls
@@ -46,7 +46,7 @@ apiGateway:
       cpu: 500m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 1Gi
   podDisruptionBudget:
     enabled: true
@@ -64,7 +64,7 @@ web:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "1"
+      cpu: '1'
       memory: 1Gi
   podDisruptionBudget:
     enabled: true
@@ -82,7 +82,7 @@ etlWorker:
       cpu: 500m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 2Gi
 
 registrationPortal:
@@ -142,7 +142,7 @@ institutionService:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 1Gi
 
 studentService:
@@ -158,7 +158,7 @@ studentService:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 1Gi
 
 staffService:
@@ -174,7 +174,7 @@ staffService:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 1Gi
 
 assessmentService:
@@ -189,7 +189,7 @@ assessmentService:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 1Gi
 
 attendanceService:
@@ -204,7 +204,7 @@ attendanceService:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 1Gi
 
 examinationService:
@@ -219,7 +219,7 @@ examinationService:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 1Gi
 
 workflowService:
@@ -234,7 +234,7 @@ workflowService:
       cpu: 300m
       memory: 512Mi
     limits:
-      cpu: "1"
+      cpu: '1'
       memory: 1Gi
 
 notificationService:
@@ -264,25 +264,25 @@ reportService:
       cpu: 500m
       memory: 1Gi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 2Gi
 
 config:
   tenantBaseDomain: proctira.io
-  rateLimitMaxRequests: "200"
+  rateLimitMaxRequests: '200'
 
 # -- Infrastructure scalability settings (production)
 kafka:
   replicationFactor: 3
   partitionCount: 12
   minInsyncReplicas: 2
-  retentionMs: "604800000"  # 7 days
+  retentionMs: '604800000' # 7 days
   resources:
     requests:
       cpu: 500m
       memory: 1Gi
     limits:
-      cpu: "2"
+      cpu: '2'
       memory: 4Gi
 
 redis:
@@ -297,7 +297,7 @@ redis:
       cpu: 200m
       memory: 256Mi
     limits:
-      cpu: "1"
+      cpu: '1'
       memory: 1Gi
 
 postgresql:
@@ -307,7 +307,7 @@ postgresql:
         cpu: 500m
         memory: 1Gi
       limits:
-        cpu: "4"
+        cpu: '4'
         memory: 4Gi
   readReplicas:
     enabled: true
@@ -317,9 +317,9 @@ postgresql:
         cpu: 500m
         memory: 1Gi
       limits:
-        cpu: "4"
+        cpu: '4'
         memory: 4Gi
-  readReplicaUrl: "${POSTGRES_READ_REPLICA_URL}"
+  readReplicaUrl: '${POSTGRES_READ_REPLICA_URL}'
 
 # Use external-secrets-operator in production
 secrets:

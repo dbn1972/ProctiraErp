@@ -182,9 +182,7 @@ export async function listGradingSchemes(
   return result.data;
 }
 
-export async function getGradingScheme(
-  id: string,
-): Promise<GradingScheme | null> {
+export async function getGradingScheme(id: string): Promise<GradingScheme | null> {
   const result = await gatewayFetch<GradingScheme>(`/grading-schemes/${id}`, {
     method: 'GET',
     throwOnError: false,
@@ -193,9 +191,7 @@ export async function getGradingScheme(
   return result.ok ? result.data : null;
 }
 
-export async function createGradingScheme(
-  input: CreateGradingSchemeInput,
-): Promise<GradingScheme> {
+export async function createGradingScheme(input: CreateGradingSchemeInput): Promise<GradingScheme> {
   const result = await gatewayFetch<GradingScheme>('/grading-schemes', {
     method: 'POST',
     json: input,
@@ -291,5 +287,5 @@ export async function getStudentResults(
     `/results/grades?${params.toString()}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }

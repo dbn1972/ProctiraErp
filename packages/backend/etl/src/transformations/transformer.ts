@@ -225,11 +225,7 @@ function applyFormat(sourceRow: DataRow, config: Record<string, unknown>): unkno
  * Evaluates a simple expression against the value and source row.
  * Supports basic operations for safety (no eval).
  */
-function applyCustom(
-  value: unknown,
-  sourceRow: DataRow,
-  config: Record<string, unknown>,
-): unknown {
+function applyCustom(value: unknown, sourceRow: DataRow, config: Record<string, unknown>): unknown {
   const expression = config['expression'] as string | undefined;
 
   if (!expression) {

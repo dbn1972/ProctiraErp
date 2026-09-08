@@ -5,11 +5,7 @@
  */
 import { MeetingCreateForm } from '@/components/timetable/meeting-create-form';
 import { Card, CardContent } from '@proctira/ui/components';
-import {
-  formatCodeNameLabel,
-  formatPersonLabel,
-  resolveEntityLabel,
-} from '@/lib/entity-label';
+import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { listStaff } from '@/lib/api/staff';
 import {
@@ -35,8 +31,7 @@ export default async function InstitutionTimetablePage({ params }: PageProps) {
   let academicPeriodId = '';
   try {
     const periods = await listAcademicPeriods();
-    academicPeriodId =
-      periods.find((p) => p.status === 'active')?.id ?? periods[0]?.id ?? '';
+    academicPeriodId = periods.find((p) => p.status === 'active')?.id ?? periods[0]?.id ?? '';
   } catch {
     academicPeriodId = '';
   }
@@ -50,7 +45,10 @@ export default async function InstitutionTimetablePage({ params }: PageProps) {
         academicPeriodId: academicPeriodId || undefined,
       }),
       listRooms({ institutionId }),
-      listStaff({ pageSize: 100 }).catch(() => ({ data: [], meta: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 } })),
+      listStaff({ pageSize: 100 }).catch(() => ({
+        data: [],
+        meta: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+      })),
     ]);
 
   const apiError = !meetingsResult.ok
@@ -154,7 +152,10 @@ export default async function InstitutionTimetablePage({ params }: PageProps) {
                     <tbody>
                       {meetings
                         .slice()
-                        .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.periodId.localeCompare(b.periodId))
+                        .sort(
+                          (a, b) =>
+                            a.dayOfWeek - b.dayOfWeek || a.periodId.localeCompare(b.periodId),
+                        )
                         .map((m) => (
                           <tr key={m.id} className="border-b border-border/60">
                             <td className="px-4 py-3">{DAY_LABELS[m.dayOfWeek] ?? m.dayOfWeek}</td>
@@ -168,9 +169,7 @@ export default async function InstitutionTimetablePage({ params }: PageProps) {
                               {resolveEntityLabel(m.staffId, staffLabel, 'Staff')}
                             </td>
                             <td className="px-4 py-3 text-xs text-muted-foreground">
-                              {m.roomId
-                                ? resolveEntityLabel(m.roomId, roomLabel, 'Room')
-                                : '—'}
+                              {m.roomId ? resolveEntityLabel(m.roomId, roomLabel, 'Room') : '—'}
                             </td>
                             <td className="px-4 py-3 text-xs">{m.status}</td>
                           </tr>

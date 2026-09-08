@@ -55,8 +55,7 @@ export async function seedTestData(config: SeedConfig = {}): Promise<void> {
     return;
   }
 
-  const tenant =
-    config.tenantSubdomain ?? process.env.E2E_TENANT_A_SUBDOMAIN ?? 'tenant-a';
+  const tenant = config.tenantSubdomain ?? process.env.E2E_TENANT_A_SUBDOMAIN ?? 'tenant-a';
   const token = config.authToken ?? process.env.E2E_SEED_TOKEN;
 
   const headers: Record<string, string> = {

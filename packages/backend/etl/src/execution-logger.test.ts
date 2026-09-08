@@ -107,9 +107,7 @@ describe('ExecutionLogger', () => {
         loadedCount: 90,
         errorCount: 2,
         durationMs: 600,
-        errors: [
-          { row: 5, field: null, message: 'Duplicate key violation' },
-        ],
+        errors: [{ row: 5, field: null, message: 'Duplicate key violation' }],
       });
 
       expect(sink.entries).toHaveLength(2);

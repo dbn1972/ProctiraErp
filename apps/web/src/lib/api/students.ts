@@ -216,13 +216,12 @@ function toQuery(filters: StudentListFilters): string {
   return qs ? `?${qs}` : '';
 }
 
-export async function listStudents(
-  filters: StudentListFilters = {},
-): Promise<StudentListResponse> {
-  const result = await gatewayFetch<StudentListResponse>(
-    `/students${toQuery(filters)}`,
-    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
-  );
+export async function listStudents(filters: StudentListFilters = {}): Promise<StudentListResponse> {
+  const result = await gatewayFetch<StudentListResponse>(`/students${toQuery(filters)}`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   if (!result.ok || !result.data) {
     return {
       data: [],
@@ -257,10 +256,7 @@ export async function createStudent(input: CreateStudentInput): Promise<Student>
   return result.data;
 }
 
-export async function updateStudent(
-  id: string,
-  input: UpdateStudentInput,
-): Promise<Student> {
+export async function updateStudent(id: string, input: UpdateStudentInput): Promise<Student> {
   const result = await gatewayFetch<Student>(`/students/${id}`, {
     method: 'PUT',
     json: input,
@@ -277,9 +273,7 @@ export async function deleteStudent(id: string): Promise<void> {
 
 /* --------------------------------------------------------- Enrollments */
 
-export async function getStudentEnrollments(
-  studentId: string,
-): Promise<EnrollmentEntry[]> {
+export async function getStudentEnrollments(studentId: string): Promise<EnrollmentEntry[]> {
   const result = await gatewayFetch<{ data: EnrollmentEntry[]; meta: StudentListMeta }>(
     `/enrollments?studentId=${encodeURIComponent(studentId)}&pageSize=100`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
@@ -287,9 +281,7 @@ export async function getStudentEnrollments(
   return result.ok && result.data ? result.data.data : [];
 }
 
-export async function getEnrollmentHistory(
-  studentId: string,
-): Promise<EnrollmentHistoryEntry[]> {
+export async function getEnrollmentHistory(studentId: string): Promise<EnrollmentHistoryEntry[]> {
   const result = await gatewayFetch<{ data: EnrollmentHistoryEntry[] }>(
     `/enrollments/student/${encodeURIComponent(studentId)}/history`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
@@ -297,9 +289,7 @@ export async function getEnrollmentHistory(
   return result.ok && result.data ? result.data.data : [];
 }
 
-export async function getTransferRecords(
-  studentId: string,
-): Promise<TransferRecord[]> {
+export async function getTransferRecords(studentId: string): Promise<TransferRecord[]> {
   const result = await gatewayFetch<{ data: TransferRecord[] }>(
     `/enrollments/student/${encodeURIComponent(studentId)}/transfers`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
@@ -334,7 +324,7 @@ export async function getStudentCustomFields(): Promise<CustomFieldDefinition[]>
     throwOnError: false,
     next: { revalidate: 60 },
   });
-  return result.ok && result.data ? result.data.data ?? [] : [];
+  return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 
 /* ----------------------------------------------------------- Bulk Import */
@@ -350,21 +340,18 @@ export interface BulkImportRequest {
 export async function submitBulkImport(
   request: BulkImportRequest,
 ): Promise<ImportResult | ImportProgress> {
-  const result = await gatewayFetch<ImportResult | ImportProgress>(
-    '/students/import',
-    {
-      method: 'POST',
-      json: {
-        file: {
-          buffer: request.fileBase64,
-          filename: request.fileName,
-          mimetype: request.mimeType,
-        },
-        duplicateResolution: request.duplicateResolution,
-        async: request.async ?? false,
+  const result = await gatewayFetch<ImportResult | ImportProgress>('/students/import', {
+    method: 'POST',
+    json: {
+      file: {
+        buffer: request.fileBase64,
+        filename: request.fileName,
+        mimetype: request.mimeType,
       },
+      duplicateResolution: request.duplicateResolution,
+      async: request.async ?? false,
     },
-  );
+  });
   if (!result.data) {
     throw new Error('Empty response from import endpoint');
   }

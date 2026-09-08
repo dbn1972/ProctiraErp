@@ -140,8 +140,8 @@ CronJob itself only writes to the volume.
 ### 3.5 Backup role (FORCE RLS)
 
 Every tenant table has `FORCE ROW LEVEL SECURITY` (G-710). A `pg_dump` run as
-the application role therefore either errors with *"query would be affected by
-row-level security policy"* or, with `--enable-row-security`, silently dumps
+the application role therefore either errors with _"query would be affected by
+row-level security policy"_ or, with `--enable-row-security`, silently dumps
 **zero rows**. Backups must use a role that bypasses RLS and is used for
 nothing else:
 

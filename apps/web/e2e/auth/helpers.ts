@@ -36,10 +36,7 @@ export interface LoginMockOptions {
  * `{ success: true }` payload (with a fake JWT cookie set) or, when
  * `invalid` is supplied, a 401 with the message.
  */
-export async function mockLogin(
-  page: Page,
-  options: LoginMockOptions = {},
-): Promise<void> {
+export async function mockLogin(page: Page, options: LoginMockOptions = {}): Promise<void> {
   await page.route('**/api/auth/login', async (route) => {
     if (options.invalid) {
       await fulfillJson(route, 401, { message: options.invalid });
@@ -61,10 +58,7 @@ export async function mockLogin(
 }
 
 /** Intercepts `POST /api/auth/mfa/verify`. */
-export async function mockMfaVerify(
-  page: Page,
-  options: { invalid?: string } = {},
-): Promise<void> {
+export async function mockMfaVerify(page: Page, options: { invalid?: string } = {}): Promise<void> {
   await page.route('**/api/auth/mfa/verify', async (route) => {
     if (options.invalid) {
       await fulfillJson(route, 401, { message: options.invalid });
@@ -105,10 +99,7 @@ export interface SignupMockOptions {
  * Default behaviour: returns three roles and a `requiresApproval: true`
  * confirmation so the test can assert the "check your email" surface.
  */
-export async function mockSignup(
-  page: Page,
-  options: SignupMockOptions = {},
-): Promise<void> {
+export async function mockSignup(page: Page, options: SignupMockOptions = {}): Promise<void> {
   await page.route('**/api/tenant/signup-roles', async (route) => {
     await fulfillJson(route, 200, {
       roles: [
@@ -162,9 +153,7 @@ export async function mockOAuthAuthorize(page: Page): Promise<void> {
     await route.fulfill({
       status: 302,
       headers: {
-        location: `/login?oauth_test=1&provider=${encodeURIComponent(
-          provider,
-        )}`,
+        location: `/login?oauth_test=1&provider=${encodeURIComponent(provider)}`,
       },
     });
   });

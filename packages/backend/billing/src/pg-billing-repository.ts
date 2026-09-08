@@ -26,7 +26,10 @@ export class PgBillingRepository implements BillingRepository {
 
   constructor(pool: PgPoolWithConnect | PgQueryable) {
     this.plans = new PgDocumentCollection<PlanEntity>(pool, 'billing.plans');
-    this.subscriptions = new PgDocumentCollection<SubscriptionEntity>(pool, 'billing.subscriptions');
+    this.subscriptions = new PgDocumentCollection<SubscriptionEntity>(
+      pool,
+      'billing.subscriptions',
+    );
     this.entitlements = new PgDocumentCollection<EntitlementEntity>(pool, 'billing.entitlements');
     this.usage = new PgDocumentCollection<UsageEntity>(pool, 'billing.usage');
   }

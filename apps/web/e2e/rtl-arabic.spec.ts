@@ -72,9 +72,7 @@ test.describe('Task 48.5 — Arabic locale pilot end-to-end RTL behaviour', () =
     await expect(languageTrigger).toBeVisible();
     await languageTrigger.click();
 
-    const arabicOption = page
-      .getByRole('menuitemradio', { name: /العربية|arabic/i })
-      .first();
+    const arabicOption = page.getByRole('menuitemradio', { name: /العربية|arabic/i }).first();
     await arabicOption.click();
 
     // (2) `<html lang="ar" dir="rtl">` is stamped by `<LanguageProvider>`
@@ -133,10 +131,7 @@ async function assertSidebarOnRight(page: Page): Promise<void> {
     .first();
   await expect(sidebar).toBeVisible({ timeout: 10_000 });
 
-  const [sidebarBox, viewport] = await Promise.all([
-    sidebar.boundingBox(),
-    page.viewportSize(),
-  ]);
+  const [sidebarBox, viewport] = await Promise.all([sidebar.boundingBox(), page.viewportSize()]);
   expect(sidebarBox).not.toBeNull();
   expect(viewport).not.toBeNull();
   if (!sidebarBox || !viewport) return;
@@ -180,9 +175,9 @@ async function assertChevronFlipped(page: Page): Promise<void> {
   // rule that becomes active once `<html dir="rtl">` is set, so the
   // computed `transform` should include a 180° rotation.
   expect(breadcrumbCount).toBeGreaterThan(0);
-  const transform = await breadcrumbChevrons.first().evaluate(
-    (node) => window.getComputedStyle(node).transform,
-  );
+  const transform = await breadcrumbChevrons
+    .first()
+    .evaluate((node) => window.getComputedStyle(node).transform);
   // `matrix(-1, 0, 0, -1, 0, 0)` is the canonical 180° rotation matrix.
   // Allow either `rotate(180deg)` or the matrix form depending on the
   // browser's serialization.

@@ -258,7 +258,10 @@ export class PgReportCardTemplateRepository
   }
 }
 
-export class PgTeacherCommentRepository extends PgReportCardBase implements TeacherCommentRepository {
+export class PgTeacherCommentRepository
+  extends PgReportCardBase
+  implements TeacherCommentRepository
+{
   async upsert(
     data: Omit<TeacherCommentEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<TeacherCommentEntity> {
@@ -403,10 +406,10 @@ export class PgReportCardJobRepository extends PgReportCardBase implements Repor
 
   async findById(id: string, tenantId: string): Promise<ReportCardJobEntity | null> {
     return this.run(tenantId, async (c) => {
-      const res = await c.query(
-        `SELECT * FROM report_card_jobs WHERE id = $1 AND tenant_id = $2`,
-        [id, tenantId],
-      );
+      const res = await c.query(`SELECT * FROM report_card_jobs WHERE id = $1 AND tenant_id = $2`, [
+        id,
+        tenantId,
+      ]);
       const row = res.rows[0] as Row | undefined;
       return row ? mapJob(row) : null;
     });

@@ -13,11 +13,7 @@
 import { describe, expect, it } from 'vitest';
 import * as fc from 'fast-check';
 
-import {
-  buildTenantTopic,
-  buildTenantQueue,
-  buildTenantRoutingKey,
-} from '@proctira/events';
+import { buildTenantTopic, buildTenantQueue, buildTenantRoutingKey } from '@proctira/events';
 
 import {
   aggregateTypeArb,

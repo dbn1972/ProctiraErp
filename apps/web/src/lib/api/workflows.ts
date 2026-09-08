@@ -52,20 +52,18 @@ export interface CreateWorkflowDefinitionInput {
 }
 
 export async function listWorkflowDefinitions(): Promise<WorkflowDefinition[]> {
-  const result = await gatewayFetch<{ data: WorkflowDefinition[] }>(
-    '/workflows/definitions',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: WorkflowDefinition[] }>('/workflows/definitions', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data?.data ?? [];
 }
 
-export async function getWorkflowDefinition(
-  id: string,
-): Promise<WorkflowDefinition | null> {
-  const result = await gatewayFetch<WorkflowDefinition>(
-    `/workflows/definitions/${id}`,
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+export async function getWorkflowDefinition(id: string): Promise<WorkflowDefinition | null> {
+  const result = await gatewayFetch<WorkflowDefinition>(`/workflows/definitions/${id}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data;
 }
 
@@ -87,18 +85,18 @@ export async function createWorkflowDefinition(
 }
 
 export async function listWorkflowInstances(): Promise<WorkflowInstance[]> {
-  const result = await gatewayFetch<{ data: WorkflowInstance[] }>(
-    '/workflows/instances',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: WorkflowInstance[] }>('/workflows/instances', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data?.data ?? [];
 }
 
 export async function listPendingApprovals(): Promise<WorkflowApproval[]> {
-  const result = await gatewayFetch<{ data: WorkflowApproval[] }>(
-    '/workflows/approvals/pending',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: WorkflowApproval[] }>('/workflows/approvals/pending', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   return result.data?.data ?? [];
 }
 

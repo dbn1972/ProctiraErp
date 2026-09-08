@@ -15,9 +15,7 @@ const isoDateOptional = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format')
   .or(z.literal(''));
 
-const uuid = z
-  .string()
-  .uuid('Must be a valid UUID');
+const uuid = z.string().uuid('Must be a valid UUID');
 
 export const staffFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(100),
@@ -27,15 +25,8 @@ export const staffFormSchema = z.object({
     .string()
     .min(1, 'Identity number is required')
     .max(50, 'Identity number is too long'),
-  contactPhone: z
-    .string()
-    .min(1, 'Contact phone is required')
-    .max(50, 'Contact phone is too long'),
-  contactEmail: z
-    .string()
-    .max(254)
-    .email('Invalid email address')
-    .or(z.literal('')),
+  contactPhone: z.string().min(1, 'Contact phone is required').max(50, 'Contact phone is too long'),
+  contactEmail: z.string().max(254).email('Invalid email address').or(z.literal('')),
   position: z.string().min(1, 'Position is required').max(100),
 });
 
@@ -54,13 +45,10 @@ export const assignmentFormSchema = z
     startDate: isoDate,
     endDate: isoDateOptional,
   })
-  .refine(
-    (data) =>
-      !data.endDate ||
-      data.endDate === '' ||
-      data.endDate >= data.startDate,
-    { message: 'End date must be on or after start date', path: ['endDate'] },
-  );
+  .refine((data) => !data.endDate || data.endDate === '' || data.endDate >= data.startDate, {
+    message: 'End date must be on or after start date',
+    path: ['endDate'],
+  });
 
 export type AssignmentFormValues = z.infer<typeof assignmentFormSchema>;
 

@@ -66,7 +66,9 @@ export interface ThemeRepository {
 
   updateTheme(
     id: string,
-    updates: Partial<Pick<ThemeEntity, 'name' | 'description' | 'tokens' | 'assets' | 'status' | 'currentRevision'>>,
+    updates: Partial<
+      Pick<ThemeEntity, 'name' | 'description' | 'tokens' | 'assets' | 'status' | 'currentRevision'>
+    >,
   ): Promise<ThemeEntity>;
 
   deleteTheme(id: string): Promise<void>;

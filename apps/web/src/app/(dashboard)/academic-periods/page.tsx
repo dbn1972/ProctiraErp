@@ -31,7 +31,6 @@ export default async function AcademicPeriodsPage() {
 
   return (
     <section aria-labelledby="periods-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -42,8 +41,8 @@ export default async function AcademicPeriodsPage() {
             Academic periods
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Academic years and terms drive enrollment, attendance, assessments,
-            and promotions across all institutions.
+            Academic years and terms drive enrollment, attendance, assessments, and promotions
+            across all institutions.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -65,14 +64,17 @@ export default async function AcademicPeriodsPage() {
       {/* ── Active period banner ── */}
       {active && (
         <div className="flex items-start gap-3 rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm dark:border-sky-800 dark:bg-sky-950/30">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden="true" />
+          <Info
+            className="mt-0.5 h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400"
+            aria-hidden="true"
+          />
           <div>
             <p className="font-semibold text-sky-900 dark:text-sky-200">
               {active.name} is the active period
             </p>
             <p className="text-sky-800 dark:text-sky-300">
-              New admissions, attendance registers, and assessment schedules are
-              recorded against this period · {formatRange(active.startDate, active.endDate)}.
+              New admissions, attendance registers, and assessment schedules are recorded against
+              this period · {formatRange(active.startDate, active.endDate)}.
             </p>
           </div>
         </div>

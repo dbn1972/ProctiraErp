@@ -5,13 +5,7 @@
  * Refresh tokens are opaque UUIDs stored in PostgreSQL with expiry and revocation status.
  * On refresh: old refresh token is revoked, new pair (access + refresh) is issued.
  */
-import type {
-  AuthUser,
-  JwtPayload,
-  TokenPair,
-  RefreshToken,
-  AuthConfig,
-} from '@proctira/auth';
+import type { AuthUser, JwtPayload, TokenPair, RefreshToken, AuthConfig } from '@proctira/auth';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -51,11 +45,7 @@ export class TokenService {
   /**
    * Issue a new token pair (access token + refresh token).
    */
-  async issueTokenPair(
-    user: AuthUser,
-    sessionId: string,
-    clientIp?: string,
-  ): Promise<TokenPair> {
+  async issueTokenPair(user: AuthUser, sessionId: string, clientIp?: string): Promise<TokenPair> {
     const jti = uuidv4();
     const now = Math.floor(Date.now() / 1000);
 
@@ -80,9 +70,7 @@ export class TokenService {
 
     // Generate opaque refresh token
     const refreshTokenValue = uuidv4();
-    const refreshExpiresAt = new Date(
-      Date.now() + this.config.refreshToken.maxLifetime * 1000,
-    );
+    const refreshExpiresAt = new Date(Date.now() + this.config.refreshToken.maxLifetime * 1000);
 
     // Store refresh token in database
     await this.refreshTokenStore.create({
@@ -146,11 +134,7 @@ export class TokenService {
 
     // Revoke the old refresh token (rotation)
     const newRefreshTokenValue = uuidv4();
-    await this.refreshTokenStore.revoke(
-      refreshToken,
-      'Rotated',
-      newRefreshTokenValue,
-    );
+    await this.refreshTokenStore.revoke(refreshToken, 'Rotated', newRefreshTokenValue);
 
     // Issue new token pair
     const jti = uuidv4();
@@ -173,9 +157,7 @@ export class TokenService {
       expiresIn: this.config.jwt.accessTokenExpiresIn,
     });
 
-    const refreshExpiresAt = new Date(
-      Date.now() + this.config.refreshToken.maxLifetime * 1000,
-    );
+    const refreshExpiresAt = new Date(Date.now() + this.config.refreshToken.maxLifetime * 1000);
 
     await this.refreshTokenStore.create({
       token: newRefreshTokenValue,

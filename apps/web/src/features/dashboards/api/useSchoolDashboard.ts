@@ -11,10 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { fetchSchoolDashboard } from '@/lib/api/dashboards';
 
-import type {
-  DashboardQueryResult,
-  SchoolDashboardData,
-} from './types';
+import type { DashboardQueryResult, SchoolDashboardData } from './types';
 
 const MOCK_DATA: SchoolDashboardData = {
   kpis: {
@@ -88,10 +85,7 @@ export function useSchoolDashboard(
 
     (async () => {
       try {
-        const result = await fetchSchoolDashboard(
-          idRef.current ?? 'current',
-          controller.signal,
-        );
+        const result = await fetchSchoolDashboard(idRef.current ?? 'current', controller.signal);
         if (!cancelled) {
           setData(result);
           setError(null);

@@ -300,10 +300,9 @@ export async function listRooms(filters?: {
     const params = new URLSearchParams();
     if (filters?.institutionId) params.set('institutionId', filters.institutionId);
     const qs = params.toString();
-    const result = await gatewayFetch<{ data: Room[] }>(
-      `/timetable/rooms${qs ? `?${qs}` : ''}`,
-      { next: { revalidate: 0 } },
-    );
+    const result = await gatewayFetch<{ data: Room[] }>(`/timetable/rooms${qs ? `?${qs}` : ''}`, {
+      next: { revalidate: 0 },
+    });
     return { ok: true, data: result.data?.data ?? [] };
   } catch (error) {
     return { ok: false, ...mapError(error) };

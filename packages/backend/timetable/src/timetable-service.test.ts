@@ -448,9 +448,7 @@ describe('TimetableService', () => {
     expect(result.failed).toHaveLength(1);
     expect(result.failed[0]?.studentId).toBe(studentC);
     expect(result.failed[0]?.code).toBe('VALIDATION_ERROR');
-    expect(service.listAudits(tenantId).some((a) => a.action === 'section.bulk_enroll')).toBe(
-      true,
-    );
+    expect(service.listAudits(tenantId).some((a) => a.action === 'section.bulk_enroll')).toBe(true);
   });
 
   it('listConflicts surfaces staff double-book on the institution grid (G-304)', async () => {

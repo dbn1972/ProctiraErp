@@ -69,9 +69,7 @@ const SCAN_EXTENSIONS = ['.ts', '.tsx'];
  * These files contain SVG brand icons with colors mandated by external
  * brand guidelines (Google, Microsoft, etc.) that cannot use design tokens.
  */
-const BRAND_ICON_FILES = [
-  /oauth-icon\.tsx$/,
-];
+const BRAND_ICON_FILES = [/oauth-icon\.tsx$/];
 
 // ---------------------------------------------------------------------------
 // Regex patterns for hardcoded color literals
@@ -177,7 +175,9 @@ function isDataConstant(line: string, lineIdx: number, lines: string[]): boolean
   // Look backwards for a const declaration with a name suggesting defaults/samples
   for (let i = lineIdx; i >= Math.max(0, lineIdx - 30); i--) {
     const prevLine = lines[i];
-    if (/\b(?:const|let|var)\s+(?:DEFAULT|INITIAL|SAMPLE|PLACEHOLDER|MOCK|FALLBACK)/i.test(prevLine)) {
+    if (
+      /\b(?:const|let|var)\s+(?:DEFAULT|INITIAL|SAMPLE|PLACEHOLDER|MOCK|FALLBACK)/i.test(prevLine)
+    ) {
       return true;
     }
     // Also match common patterns like `const FALLBACK_PALETTE: ...`
@@ -189,8 +189,11 @@ function isDataConstant(line: string, lineIdx: number, lines: string[]): boolean
       break;
     }
     // Stop at another top-level const that isn't a data constant
-    if (i < lineIdx && /^(?:export\s+)?const\s+[A-Z]/.test(prevLine.trim()) &&
-        !/(?:DEFAULT|INITIAL|SAMPLE|PLACEHOLDER|MOCK|FALLBACK)/i.test(prevLine)) {
+    if (
+      i < lineIdx &&
+      /^(?:export\s+)?const\s+[A-Z]/.test(prevLine.trim()) &&
+      !/(?:DEFAULT|INITIAL|SAMPLE|PLACEHOLDER|MOCK|FALLBACK)/i.test(prevLine)
+    ) {
       break;
     }
   }
@@ -365,9 +368,7 @@ describe('Property F-1: Token-Only Colors', () => {
         .join('\n');
 
       const totalMsg =
-        allViolations.length > 20
-          ? `\n  ... and ${allViolations.length - 20} more violations`
-          : '';
+        allViolations.length > 20 ? `\n  ... and ${allViolations.length - 20} more violations` : '';
 
       expect.fail(
         `Found ${allViolations.length} hardcoded color literal(s) in component source.\n` +
@@ -382,25 +383,22 @@ describe('Property F-1: Token-Only Colors', () => {
     if (allComponentFiles.length === 0) return;
 
     fc.assert(
-      fc.property(
-        fc.integer({ min: 0, max: allComponentFiles.length - 1 }),
-        (fileIndex) => {
-          const filePath = allComponentFiles[fileIndex];
-          const violations = scanFileForHardcodedColors(filePath);
+      fc.property(fc.integer({ min: 0, max: allComponentFiles.length - 1 }), (fileIndex) => {
+        const filePath = allComponentFiles[fileIndex];
+        const violations = scanFileForHardcodedColors(filePath);
 
-          if (violations.length > 0) {
-            const relPath = path.relative(MONOREPO_ROOT, filePath);
-            const details = violations
-              .slice(0, 5)
-              .map((v) => `  L${v.line}:${v.column} ${v.type}: ${v.match}`)
-              .join('\n');
+        if (violations.length > 0) {
+          const relPath = path.relative(MONOREPO_ROOT, filePath);
+          const details = violations
+            .slice(0, 5)
+            .map((v) => `  L${v.line}:${v.column} ${v.type}: ${v.match}`)
+            .join('\n');
 
-            throw new Error(
-              `${relPath} contains ${violations.length} hardcoded color(s):\n${details}`,
-            );
-          }
-        },
-      ),
+          throw new Error(
+            `${relPath} contains ${violations.length} hardcoded color(s):\n${details}`,
+          );
+        }
+      }),
       { numRuns: Math.min(allComponentFiles.length, 200) },
     );
   });

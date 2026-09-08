@@ -416,7 +416,9 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
   ): Promise<AttendanceAuditEntry[]> {
     const query = { where: { attendanceId }, orderBy: { changedAt: 'asc' as const } };
     const rows = tenantId
-      ? await withTenantTransaction(this.prisma, tenantId, (tx) => tx.attendanceAudit.findMany(query))
+      ? await withTenantTransaction(this.prisma, tenantId, (tx) =>
+          tx.attendanceAudit.findMany(query),
+        )
       : await this.prisma.attendanceAudit.findMany(query);
     return rows.map((r) => ({
       id: r.id,

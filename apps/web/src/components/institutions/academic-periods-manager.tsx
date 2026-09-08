@@ -51,20 +51,17 @@ function formatDate(d: string): string {
 }
 
 const STATUS_PILL: Record<string, string> = {
-  active:    'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  active: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
   scheduled: 'bg-sky-50     text-sky-700     dark:bg-sky-950/40     dark:text-sky-400',
-  draft:     'bg-sky-50     text-sky-700     dark:bg-sky-950/40     dark:text-sky-400',
-  archived:  'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
+  draft: 'bg-sky-50     text-sky-700     dark:bg-sky-950/40     dark:text-sky-400',
+  archived: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
 };
 
 function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-export function AcademicPeriodsManager({
-  periods,
-  loadError,
-}: AcademicPeriodsManagerProps) {
+export function AcademicPeriodsManager({ periods, loadError }: AcademicPeriodsManagerProps) {
   const router = useRouter();
   const [dialogState, setDialogState] = useState<{
     open: boolean;
@@ -76,9 +73,7 @@ export function AcademicPeriodsManager({
   const handleDelete = (period: AcademicPeriod) => {
     if (
       typeof window !== 'undefined' &&
-      !window.confirm(
-        `Delete academic period "${period.name}"? This action cannot be undone.`
-      )
+      !window.confirm(`Delete academic period "${period.name}"? This action cannot be undone.`)
     ) {
       return;
     }
@@ -102,11 +97,7 @@ export function AcademicPeriodsManager({
             {periods.length} {periods.length === 1 ? 'period' : 'periods'}
           </span>
         </CardTitle>
-        <Button
-          size="sm"
-          onClick={() => setDialogState({ open: true })}
-          disabled={isPending}
-        >
+        <Button size="sm" onClick={() => setDialogState({ open: true })} disabled={isPending}>
           <Plus className="me-1.5 h-4 w-4" aria-hidden="true" /> New period
         </Button>
       </CardHeader>
@@ -125,8 +116,7 @@ export function AcademicPeriodsManager({
             <CalendarDays className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
             <p className="text-base font-semibold">No academic periods yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Create one to enable enrollment, attendance, and assessments for the
-              school year.
+              Create one to enable enrollment, attendance, and assessments for the school year.
             </p>
           </div>
         ) : (
@@ -158,13 +148,18 @@ export function AcademicPeriodsManager({
                       <div className="flex items-center gap-3">
                         <span
                           aria-hidden="true"
-                          className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg', iconCls)}
+                          className={cn(
+                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                            iconCls,
+                          )}
                         >
                           <Icon className="h-4 w-4" />
                         </span>
                         <div className="min-w-0">
                           <p className="font-semibold text-foreground">{period.name}</p>
-                          <p className="font-mono text-[11px] text-muted-foreground">{period.code}</p>
+                          <p className="font-mono text-[11px] text-muted-foreground">
+                            {period.code}
+                          </p>
                         </div>
                       </div>
                     </TableCell>

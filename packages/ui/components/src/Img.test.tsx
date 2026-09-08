@@ -22,15 +22,7 @@ describe('<Img />', () => {
   });
 
   it('switches to eager loading and high fetch priority when priority is set', () => {
-    render(
-      <Img
-        src="/hero.jpg"
-        alt="Hero"
-        width={1200}
-        height={600}
-        priority
-      />,
-    );
+    render(<Img src="/hero.jpg" alt="Hero" width={1200} height={600} priority />);
     const el = screen.getByRole('img', { name: 'Hero' });
     expect(el.getAttribute('loading')).toBe('eager');
     expect(el.getAttribute('fetchpriority')).toBe('high');

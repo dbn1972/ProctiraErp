@@ -36,10 +36,7 @@ export default function PricingPage() {
 
   return (
     <MarketingLayout pageTitle={t('marketing.pages.pricing.documentTitle')}>
-      <main
-        data-testid="marketing-pricing-page"
-        className="flex flex-1 flex-col"
-      >
+      <main data-testid="marketing-pricing-page" className="flex flex-1 flex-col">
         {/* Hero */}
         <section className="border-b border-border bg-[hsl(var(--secondary))]">
           <div className="mx-auto w-full max-w-5xl px-6 py-20 lg:px-8 lg:py-24">
@@ -64,9 +61,7 @@ export default function PricingPage() {
                   key={tier.key}
                   data-testid={`pricing-tier-${tier.key}`}
                   className={
-                    tier.highlighted
-                      ? 'h-full border-2 border-primary shadow-lg'
-                      : 'h-full'
+                    tier.highlighted ? 'h-full border-2 border-primary shadow-lg' : 'h-full'
                   }
                 >
                   <CardContent className="flex h-full flex-col gap-4 p-6">
@@ -89,9 +84,7 @@ export default function PricingPage() {
                             aria-hidden="true"
                           />
                           <span className="text-sm text-foreground">
-                            {t(
-                              `marketing.pages.pricing.${tier.key}Feature${featureIndex}`,
-                            )}
+                            {t(`marketing.pages.pricing.${tier.key}Feature${featureIndex}`)}
                           </span>
                         </li>
                       ))}
@@ -102,9 +95,7 @@ export default function PricingPage() {
                       variant={tier.highlighted ? 'default' : 'outline'}
                       data-testid={`pricing-cta-${tier.key}`}
                     >
-                      <Link href={tier.ctaHref}>
-                        {t(`marketing.pages.pricing.${tier.key}Cta`)}
-                      </Link>
+                      <Link href={tier.ctaHref}>{t(`marketing.pages.pricing.${tier.key}Cta`)}</Link>
                     </Button>
                   </CardContent>
                 </Card>

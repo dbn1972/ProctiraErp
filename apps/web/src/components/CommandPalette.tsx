@@ -23,10 +23,7 @@ import {
   CommandList,
   useAnnounce,
 } from '@proctira/ui/components';
-import {
-  featureRegistry,
-  type FeatureModule,
-} from '@/featureRegistry';
+import { featureRegistry, type FeatureModule } from '@/featureRegistry';
 import { useAuth } from '@/providers/AuthProvider';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,10 +89,7 @@ export const CAMPUS_PALETTE_LINKS: readonly PaletteNavItem[] = [
 /**
  * Checks whether the user has all required permissions for a feature.
  */
-function hasPermissions(
-  userPermissions: string[],
-  requiredPermissions: string[],
-): boolean {
+function hasPermissions(userPermissions: string[], requiredPermissions: string[]): boolean {
   if (requiredPermissions.length === 0) return true;
   return requiredPermissions.every((perm) => userPermissions.includes(perm));
 }
@@ -104,8 +98,7 @@ export function buildPaletteItems(userPermissions: string[]): PaletteNavItem[] {
   const fromRegistry: PaletteNavItem[] = featureRegistry
     .filter(
       (module) =>
-        module.scope === 'app' &&
-        hasPermissions(userPermissions, module.requiredPermissions),
+        module.scope === 'app' && hasPermissions(userPermissions, module.requiredPermissions),
     )
     .map((module) => ({
       id: module.id,
@@ -140,10 +133,7 @@ export function CommandPalette() {
   const { user } = useAuth();
 
   const userPermissions = user?.permissions ?? [];
-  const navigableItems = React.useMemo(
-    () => buildPaletteItems(userPermissions),
-    [userPermissions],
-  );
+  const navigableItems = React.useMemo(() => buildPaletteItems(userPermissions), [userPermissions]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

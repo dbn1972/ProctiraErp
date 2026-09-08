@@ -31,10 +31,7 @@ import {
   type CreateExaminationFormValues,
 } from '@/lib/validation/examination-schema';
 
-import {
-  createExaminationAction,
-  type ActionState,
-} from '../actions';
+import { createExaminationAction, type ActionState } from '../actions';
 
 export interface InstitutionOption {
   id: string;
@@ -48,9 +45,7 @@ interface NewExaminationFormProps {
 
 type FieldErrors = Record<string, string>;
 
-function flattenClientErrors(
-  issues: { path: PropertyKey[]; message: string }[],
-): FieldErrors {
+function flattenClientErrors(issues: { path: PropertyKey[]; message: string }[]): FieldErrors {
   const out: FieldErrors = {};
   for (const issue of issues) {
     const key = issue.path.map(String).join('.') || '_form';
@@ -128,8 +123,8 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
           Schedule examination
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Creates via POST /examinations — name, code, academic period, window,
-          subject, centre, and grading scheme (Requirement 10.1 / 10.7).
+          Creates via POST /examinations — name, code, academic period, window, subject, centre, and
+          grading scheme (Requirement 10.1 / 10.7).
         </p>
       </div>
 
@@ -137,8 +132,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
         <CardHeader>
           <CardTitle className="text-base">Examination details</CardTitle>
           <CardDescription>
-            Start date must be at least 7 days ahead. Fields marked * are
-            required.
+            Start date must be at least 7 days ahead. Fields marked * are required.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -172,11 +166,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
               </FormField>
             </div>
 
-            <FormField
-              id="exam-description"
-              label="Description"
-              error={errors.description}
-            >
+            <FormField id="exam-description" label="Description" error={errors.description}>
               <Input
                 id="exam-description"
                 name="description"
@@ -204,12 +194,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
             </FormField>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <FormField
-                id="exam-start"
-                label="Start date"
-                required
-                error={errors.startDate}
-              >
+              <FormField id="exam-start" label="Start date" required error={errors.startDate}>
                 <Input
                   id="exam-start"
                   name="startDate"
@@ -220,12 +205,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
                   data-testid="examination-start-date"
                 />
               </FormField>
-              <FormField
-                id="exam-end"
-                label="End date"
-                required
-                error={errors.endDate}
-              >
+              <FormField id="exam-end" label="End date" required error={errors.endDate}>
                 <Input
                   id="exam-end"
                   name="endDate"
@@ -250,11 +230,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
                   <Input
                     id="subject-name"
                     value={subject.name}
-                    onChange={(e) =>
-                      patchRoot('subjects', [
-                        { ...subject, name: e.target.value },
-                      ])
-                    }
+                    onChange={(e) => patchRoot('subjects', [{ ...subject, name: e.target.value }])}
                     placeholder="Mathematics"
                     data-testid="examination-subject-name"
                   />
@@ -268,11 +244,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
                   <Input
                     id="subject-code"
                     value={subject.code}
-                    onChange={(e) =>
-                      patchRoot('subjects', [
-                        { ...subject, code: e.target.value },
-                      ])
-                    }
+                    onChange={(e) => patchRoot('subjects', [{ ...subject, code: e.target.value }])}
                     placeholder="MATH"
                     data-testid="examination-subject-code"
                   />
@@ -304,38 +276,20 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
             <fieldset className="space-y-3 rounded-lg border border-border p-4">
               <legend className="px-1 text-sm font-semibold">Centre *</legend>
               <div className="grid gap-4 md:grid-cols-2">
-                <FormField
-                  id="center-name"
-                  label="Name"
-                  required
-                  error={errors['centers.0.name']}
-                >
+                <FormField id="center-name" label="Name" required error={errors['centers.0.name']}>
                   <Input
                     id="center-name"
                     value={center.name}
-                    onChange={(e) =>
-                      patchRoot('centers', [
-                        { ...center, name: e.target.value },
-                      ])
-                    }
+                    onChange={(e) => patchRoot('centers', [{ ...center, name: e.target.value }])}
                     placeholder="Main campus hall"
                     data-testid="examination-center-name"
                   />
                 </FormField>
-                <FormField
-                  id="center-code"
-                  label="Code"
-                  required
-                  error={errors['centers.0.code']}
-                >
+                <FormField id="center-code" label="Code" required error={errors['centers.0.code']}>
                   <Input
                     id="center-code"
                     value={center.code}
-                    onChange={(e) =>
-                      patchRoot('centers', [
-                        { ...center, code: e.target.value },
-                      ])
-                    }
+                    onChange={(e) => patchRoot('centers', [{ ...center, code: e.target.value }])}
                     placeholder="CTR-A"
                     data-testid="examination-center-code"
                   />
@@ -349,11 +303,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
                   {institutions.length > 0 ? (
                     <Select
                       value={center.institutionId || undefined}
-                      onValueChange={(v) =>
-                        patchRoot('centers', [
-                          { ...center, institutionId: v },
-                        ])
-                      }
+                      onValueChange={(v) => patchRoot('centers', [{ ...center, institutionId: v }])}
                     >
                       <SelectTrigger
                         id="center-institution"
@@ -374,9 +324,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
                       id="center-institution"
                       value={center.institutionId}
                       onChange={(e) =>
-                        patchRoot('centers', [
-                          { ...center, institutionId: e.target.value },
-                        ])
+                        patchRoot('centers', [{ ...center, institutionId: e.target.value }])
                       }
                       placeholder="Institution UUID v4"
                       data-testid="examination-center-institution"
@@ -408,9 +356,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
             </fieldset>
 
             <fieldset className="space-y-3 rounded-lg border border-border p-4">
-              <legend className="px-1 text-sm font-semibold">
-                Grading scheme *
-              </legend>
+              <legend className="px-1 text-sm font-semibold">Grading scheme *</legend>
               <div className="grid gap-4 md:grid-cols-2">
                 <FormField
                   id="scheme-name"
@@ -422,9 +368,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
                     id="scheme-name"
                     value={scheme.name}
                     onChange={(e) =>
-                      patchRoot('gradingSchemes', [
-                        { ...scheme, name: e.target.value },
-                      ])
+                      patchRoot('gradingSchemes', [{ ...scheme, name: e.target.value }])
                     }
                   />
                 </FormField>
@@ -451,8 +395,8 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
                 </FormField>
               </div>
               <p className="text-xs text-muted-foreground">
-                Default A/B/C/F thresholds (0–100) are included; adjust the pass
-                threshold if needed.
+                Default A/B/C/F thresholds (0–100) are included; adjust the pass threshold if
+                needed.
               </p>
             </fieldset>
 
@@ -480,11 +424,7 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
               <Button asChild variant="outline" type="button">
                 <Link href="/examinations">Cancel</Link>
               </Button>
-              <Button
-                type="submit"
-                disabled={isPending}
-                data-testid="examination-create-submit"
-              >
+              <Button type="submit" disabled={isPending} data-testid="examination-create-submit">
                 {isPending ? 'Creating…' : 'Create examination'}
               </Button>
             </div>

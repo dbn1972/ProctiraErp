@@ -60,12 +60,8 @@ describe('<WizardProgress /> — labels and state', () => {
     );
 
     for (const step of STEPS) {
-      expect(
-        screen.getByTestId(`wizard-progress-pill-${step.id}`),
-      ).toBeTruthy();
-      expect(
-        screen.getByTestId(`wizard-progress-label-${step.id}`).textContent,
-      ).toBe(step.label);
+      expect(screen.getByTestId(`wizard-progress-pill-${step.id}`)).toBeTruthy();
+      expect(screen.getByTestId(`wizard-progress-label-${step.id}`).textContent).toBe(step.label);
     }
   });
 
@@ -80,30 +76,20 @@ describe('<WizardProgress /> — labels and state', () => {
     );
 
     expect(
-      screen
-        .getByTestId('wizard-progress-pill-personal-info')
-        .getAttribute('data-status'),
+      screen.getByTestId('wizard-progress-pill-personal-info').getAttribute('data-status'),
     ).toBe('completed');
+    expect(screen.getByTestId('wizard-progress-pill-contact').getAttribute('data-status')).toBe(
+      'completed',
+    );
     expect(
-      screen
-        .getByTestId('wizard-progress-pill-contact')
-        .getAttribute('data-status'),
-    ).toBe('completed');
-    expect(
-      screen
-        .getByTestId('wizard-progress-pill-school-selection')
-        .getAttribute('data-status'),
+      screen.getByTestId('wizard-progress-pill-school-selection').getAttribute('data-status'),
     ).toBe('active');
-    expect(
-      screen
-        .getByTestId('wizard-progress-pill-documents')
-        .getAttribute('data-status'),
-    ).toBe('upcoming');
-    expect(
-      screen
-        .getByTestId('wizard-progress-pill-review')
-        .getAttribute('data-status'),
-    ).toBe('upcoming');
+    expect(screen.getByTestId('wizard-progress-pill-documents').getAttribute('data-status')).toBe(
+      'upcoming',
+    );
+    expect(screen.getByTestId('wizard-progress-pill-review').getAttribute('data-status')).toBe(
+      'upcoming',
+    );
   });
 
   it('marks the active pill with aria-current="step" and aria-label "Step n of N"', () => {
@@ -122,14 +108,10 @@ describe('<WizardProgress /> — labels and state', () => {
 
     // Other pills must not carry aria-current.
     expect(
-      screen
-        .getByTestId('wizard-progress-pill-personal-info')
-        .getAttribute('aria-current'),
+      screen.getByTestId('wizard-progress-pill-personal-info').getAttribute('aria-current'),
     ).toBeNull();
     expect(
-      screen
-        .getByTestId('wizard-progress-pill-documents')
-        .getAttribute('aria-current'),
+      screen.getByTestId('wizard-progress-pill-documents').getAttribute('aria-current'),
     ).toBeNull();
   });
 
@@ -164,9 +146,7 @@ describe('<WizardProgress /> — useAnnounce dispatch', () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(screen.getByTestId('live-region-polite').textContent).toBe(
-      'Step 1 of 5: Personal info',
-    );
+    expect(screen.getByTestId('live-region-polite').textContent).toBe('Step 1 of 5: Personal info');
   });
 
   it('announces the new step when currentStep changes', () => {
@@ -184,9 +164,7 @@ describe('<WizardProgress /> — useAnnounce dispatch', () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(screen.getByTestId('live-region-polite').textContent).toBe(
-      'Step 1 of 5: Personal info',
-    );
+    expect(screen.getByTestId('live-region-polite').textContent).toBe('Step 1 of 5: Personal info');
 
     rerender(
       <WizardProgress
@@ -201,9 +179,7 @@ describe('<WizardProgress /> — useAnnounce dispatch', () => {
       vi.advanceTimersByTime(1);
     });
 
-    expect(screen.getByTestId('live-region-polite').textContent).toBe(
-      'Step 2 of 5: Contact',
-    );
+    expect(screen.getByTestId('live-region-polite').textContent).toBe('Step 2 of 5: Contact');
   });
 
   it('does not re-announce when an unrelated prop changes', () => {
@@ -223,9 +199,7 @@ describe('<WizardProgress /> — useAnnounce dispatch', () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(screen.getByTestId('live-region-polite').textContent).toBe(
-      'Step 2 of 5: Contact',
-    );
+    expect(screen.getByTestId('live-region-polite').textContent).toBe('Step 2 of 5: Contact');
 
     // Wait out the live-region debounce so a duplicate announcement
     // would be observable as a re-fill.
@@ -265,9 +239,7 @@ describe('<WizardProgress /> — touch targets and keyboard navigation', () => {
       />,
     );
 
-    const pill = screen.getByTestId(
-      'wizard-progress-pill-personal-info',
-    ) as HTMLButtonElement;
+    const pill = screen.getByTestId('wizard-progress-pill-personal-info') as HTMLButtonElement;
     expect(pill.tagName).toBe('BUTTON');
     // 48 × 48 px touch target floor (Requirement 37 AC 3).
     expect(pill.className).toContain('min-h-[48px]');
@@ -321,9 +293,7 @@ describe('<WizardProgress /> — touch targets and keyboard navigation', () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByTestId('wizard-progress-pill-personal-info'),
-    );
+    fireEvent.click(screen.getByTestId('wizard-progress-pill-personal-info'));
     expect(onNavigate).toHaveBeenCalledTimes(1);
     expect(onNavigate).toHaveBeenCalledWith('personal-info');
   });

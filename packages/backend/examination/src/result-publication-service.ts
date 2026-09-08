@@ -82,9 +82,10 @@ export class ResultPublicationService {
             candidateId: candidate.id,
             studentId: candidate.studentId,
             subjectId: subjectResult.subjectId,
-            reason: subjectResult.score === null
-              ? 'Score data is missing'
-              : 'Result data is marked as incomplete',
+            reason:
+              subjectResult.score === null
+                ? 'Score data is missing'
+                : 'Result data is marked as incomplete',
           });
           continue;
         }
@@ -181,7 +182,10 @@ export class ResultPublicationService {
     }
 
     // Fetch publication result
-    const publicationResult = await this.resultRepository.getPublicationResult(examinationId, tenantId);
+    const publicationResult = await this.resultRepository.getPublicationResult(
+      examinationId,
+      tenantId,
+    );
     if (!publicationResult) {
       throw new BusinessRuleError(
         'Results have not been published for this examination. Publish results first.',
@@ -209,7 +213,10 @@ export class ResultPublicationService {
       failCount,
       incompleteCount: incompleteRecords.length,
       passRate: allScores.length > 0 ? roundToTwo((passCount / allScores.length) * 100) : 0,
-      meanScore: allScores.length > 0 ? roundToTwo(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0,
+      meanScore:
+        allScores.length > 0
+          ? roundToTwo(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+          : 0,
       scoreDistribution: this.buildScoreDistribution(allScores, minScore, maxScore),
     };
 
@@ -375,9 +382,8 @@ export class ResultPublicationService {
 
     for (let i = 0; i < SCORE_DISTRIBUTION_BUCKETS; i++) {
       const bucketMin = minScore + i * bucketSize;
-      const bucketMax = i === SCORE_DISTRIBUTION_BUCKETS - 1
-        ? maxScore
-        : minScore + (i + 1) * bucketSize;
+      const bucketMax =
+        i === SCORE_DISTRIBUTION_BUCKETS - 1 ? maxScore : minScore + (i + 1) * bucketSize;
 
       const count = scores.filter((s) => {
         if (i === SCORE_DISTRIBUTION_BUCKETS - 1) {
@@ -435,7 +441,8 @@ export class ResultPublicationService {
         passCount,
         failCount,
         passRate: scores.length > 0 ? roundToTwo((passCount / scores.length) * 100) : 0,
-        meanScore: scores.length > 0 ? roundToTwo(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
+        meanScore:
+          scores.length > 0 ? roundToTwo(scores.reduce((a, b) => a + b, 0) / scores.length) : 0,
         scoreDistribution: this.buildScoreDistribution(scores, minScore, maxScore),
       });
     }

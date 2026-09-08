@@ -64,7 +64,11 @@ import {
 } from '@proctira/backend-examination';
 import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
-import { assertPhiKeyConfigured, createHealthRepository, healthPlugin } from '@proctira/backend-health';
+import {
+  assertPhiKeyConfigured,
+  createHealthRepository,
+  healthPlugin,
+} from '@proctira/backend-health';
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';

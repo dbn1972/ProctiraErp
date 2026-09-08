@@ -19,12 +19,12 @@ describe('board export signed download', () => {
 
   it('rejects wrong tenant or job', () => {
     const { token } = createBoardExportDownloadToken(TENANT, JOB, 120);
-    expect(verifyBoardExportDownloadToken('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', JOB, token).ok).toBe(
-      false,
-    );
-    expect(verifyBoardExportDownloadToken(TENANT, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', token).ok).toBe(
-      false,
-    );
+    expect(
+      verifyBoardExportDownloadToken('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', JOB, token).ok,
+    ).toBe(false);
+    expect(
+      verifyBoardExportDownloadToken(TENANT, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', token).ok,
+    ).toBe(false);
   });
 
   it('rejects malformed and expired tokens', () => {

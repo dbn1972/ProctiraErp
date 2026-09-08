@@ -5,11 +5,7 @@
  * `app.audit_archival = '1'` is bound — which this class does exclusively
  * inside {@link archiveExpiredEntries}.
  */
-import {
-  withPlatformScope,
-  type PgPoolWithConnect,
-  type PgQueryable,
-} from '@proctira/database';
+import { withPlatformScope, type PgPoolWithConnect, type PgQueryable } from '@proctira/database';
 
 import type {
   ArchivalResult,

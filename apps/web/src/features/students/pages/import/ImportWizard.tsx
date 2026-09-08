@@ -54,14 +54,11 @@ export function ImportWizard() {
     error: null,
   });
 
-  const setStep = (step: ImportWizardStep) =>
-    setState((prev) => ({ ...prev, step }));
+  const setStep = (step: ImportWizardStep) => setState((prev) => ({ ...prev, step }));
 
-  const setError = (error: string | null) =>
-    setState((prev) => ({ ...prev, error }));
+  const setError = (error: string | null) => setState((prev) => ({ ...prev, error }));
 
-  const setProcessing = (isProcessing: boolean) =>
-    setState((prev) => ({ ...prev, isProcessing }));
+  const setProcessing = (isProcessing: boolean) => setState((prev) => ({ ...prev, isProcessing }));
 
   /* ------------------------------------------------------------------ Step 1: File Upload */
 
@@ -78,13 +75,10 @@ export function ImportWizard() {
       formData.append('file', file);
       formData.append('mode', 'validate'); // dry-run validation
 
-      const result = await browserGatewayFetch<ValidationResult>(
-        '/students/import/validate',
-        {
-          method: 'POST',
-          body: formData,
-        },
-      );
+      const result = await browserGatewayFetch<ValidationResult>('/students/import/validate', {
+        method: 'POST',
+        body: formData,
+      });
 
       setState((prev) => ({
         ...prev,
@@ -101,29 +95,21 @@ export function ImportWizard() {
       setState((prev) => ({
         ...prev,
         isProcessing: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Failed to validate file. Please try again.',
+        error: err instanceof Error ? err.message : 'Failed to validate file. Please try again.',
       }));
     }
   }, []);
 
   /* ------------------------------------------------------------------ Step 2: Column Mapping */
 
-  const handleMappingChange = useCallback(
-    (sourceColumn: string, targetField: string) => {
-      setState((prev) => ({
-        ...prev,
-        mappings: prev.mappings.map((m) =>
-          m.sourceColumn === sourceColumn
-            ? { ...m, targetField, valid: targetField !== '' }
-            : m,
-        ),
-      }));
-    },
-    [],
-  );
+  const handleMappingChange = useCallback((sourceColumn: string, targetField: string) => {
+    setState((prev) => ({
+      ...prev,
+      mappings: prev.mappings.map((m) =>
+        m.sourceColumn === sourceColumn ? { ...m, targetField, valid: targetField !== '' } : m,
+      ),
+    }));
+  }, []);
 
   const handleMappingConfirm = useCallback(() => {
     setStep('validation');
@@ -226,13 +212,10 @@ export function ImportWizard() {
         ),
       );
 
-      const result = await browserGatewayFetch<ImportResult>(
-        '/students/import',
-        {
-          method: 'POST',
-          body: formData,
-        },
-      );
+      const result = await browserGatewayFetch<ImportResult>('/students/import', {
+        method: 'POST',
+        body: formData,
+      });
 
       setState((prev) => ({
         ...prev,
@@ -243,10 +226,7 @@ export function ImportWizard() {
       setState((prev) => ({
         ...prev,
         isProcessing: false,
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Import failed. Please try again.',
+        error: err instanceof Error ? err.message : 'Import failed. Please try again.',
       }));
     }
   }, [state.file, state.mappings, state.duplicates]);

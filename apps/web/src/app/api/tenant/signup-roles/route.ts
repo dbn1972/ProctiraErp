@@ -38,28 +38,24 @@ export async function GET(request: Request): Promise<NextResponse> {
   const tenantId = request.headers.get('x-tenant-id') ?? 'default';
 
   try {
-    const upstream = await fetch(
-      `${getTenantServiceUrl()}/api/v1/tenant/signup-roles`,
-      {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          'X-Tenant-ID': tenantId,
-        },
-        // Roles change rarely — let Next cache for a minute so the public
-        // sign-up screen does not hammer the tenant service on each visit.
-        next: { revalidate: 60 },
+    const upstream = await fetch(`${getTenantServiceUrl()}/api/v1/tenant/signup-roles`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'X-Tenant-ID': tenantId,
       },
-    );
+      // Roles change rarely — let Next cache for a minute so the public
+      // sign-up screen does not hammer the tenant service on each visit.
+      next: { revalidate: 60 },
+    });
 
     if (!upstream.ok) {
       return NextResponse.json({ roles: FALLBACK_ROLES });
     }
 
     const payload = (await safeJson(upstream)) as { roles?: SignupRole[] };
-    const roles = Array.isArray(payload.roles) && payload.roles.length > 0
-      ? payload.roles
-      : FALLBACK_ROLES;
+    const roles =
+      Array.isArray(payload.roles) && payload.roles.length > 0 ? payload.roles : FALLBACK_ROLES;
     return NextResponse.json({ roles });
   } catch {
     return NextResponse.json({ roles: FALLBACK_ROLES });

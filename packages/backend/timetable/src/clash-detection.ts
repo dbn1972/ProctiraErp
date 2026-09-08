@@ -124,10 +124,7 @@ export function detectClashes(meetings: MeetingSlot[]): Clash[] {
   return clashes;
 }
 
-function intersectStudents(
-  a?: string[],
-  b?: string[],
-): string[] {
+function intersectStudents(a?: string[], b?: string[]): string[] {
   if (!a?.length || !b?.length) return [];
   const setB = new Set(b);
   return a.filter((id) => setB.has(id));

@@ -8,10 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 
-import {
-  InMemoryRolesRepository,
-  type BuiltInRoleSeed,
-} from './in-memory-roles-repository.js';
+import { InMemoryRolesRepository, type BuiltInRoleSeed } from './in-memory-roles-repository.js';
 import { RolesService, type RolesAuditEvent } from './roles-service.js';
 import { registerRolesRoutes } from './roles-routes.js';
 
@@ -67,7 +64,7 @@ describe('Tenant Roles Routes', () => {
     app = Fastify();
     await registerRolesRoutes(app, {
       rolesService: service,
-      getTenantId: (req) => (req.headers['x-tenant-id'] as string | undefined),
+      getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
     });
     await app.ready();
   });
@@ -191,9 +188,7 @@ describe('Tenant Roles Routes', () => {
       headers: { 'x-tenant-id': TENANT },
     });
     expect(refetch.statusCode).toBe(200);
-    expect(refetch.json().permissions).toEqual([
-      { resource: 'assessment', action: 'read' },
-    ]);
+    expect(refetch.json().permissions).toEqual([{ resource: 'assessment', action: 'read' }]);
   });
 
   it('lists users with pagination', async () => {

@@ -14,7 +14,9 @@ import { describe, it, expect, vi } from 'vitest';
 import { InProcessSandbox } from './in-process-sandbox.js';
 import type { SandboxExecutionContext, SandboxAuditRecord } from './types.js';
 
-function createTestContext(overrides: Partial<SandboxExecutionContext> = {}): SandboxExecutionContext {
+function createTestContext(
+  overrides: Partial<SandboxExecutionContext> = {},
+): SandboxExecutionContext {
   return {
     tenantId: 'tenant-001',
     pluginId: 'plugin-001',
@@ -441,7 +443,9 @@ describe('InProcessSandbox', () => {
     it('should emit audit record on successful execution', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
       const sandbox = new InProcessSandbox({
-        onAudit: (record) => { auditRecords.push(record); },
+        onAudit: (record) => {
+          auditRecords.push(record);
+        },
       });
       const code = `exports.handler = function() { return 42; };`;
 
@@ -458,7 +462,9 @@ describe('InProcessSandbox', () => {
     it('should emit audit record on execution error', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
       const sandbox = new InProcessSandbox({
-        onAudit: (record) => { auditRecords.push(record); },
+        onAudit: (record) => {
+          auditRecords.push(record);
+        },
       });
       const code = `exports.handler = function() { throw new Error('fail'); };`;
 
@@ -473,7 +479,9 @@ describe('InProcessSandbox', () => {
       const auditRecords: SandboxAuditRecord[] = [];
       const sandbox = new InProcessSandbox({
         quota: { maxCpuTimeMs: 50 },
-        onAudit: (record) => { auditRecords.push(record); },
+        onAudit: (record) => {
+          auditRecords.push(record);
+        },
       });
       const code = `exports.handler = function() { while(true) {} };`;
 
@@ -486,7 +494,9 @@ describe('InProcessSandbox', () => {
     it('should emit audit record on permission denied', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
       const sandbox = new InProcessSandbox({
-        onAudit: (record) => { auditRecords.push(record); },
+        onAudit: (record) => {
+          auditRecords.push(record);
+        },
       });
       const code = `exports.handler = function() { return 1; };`;
 
@@ -499,7 +509,9 @@ describe('InProcessSandbox', () => {
     it('should include correlation ID in audit records', async () => {
       const auditRecords: SandboxAuditRecord[] = [];
       const sandbox = new InProcessSandbox({
-        onAudit: (record) => { auditRecords.push(record); },
+        onAudit: (record) => {
+          auditRecords.push(record);
+        },
       });
       const code = `exports.handler = function() { return 1; };`;
 
@@ -510,7 +522,9 @@ describe('InProcessSandbox', () => {
 
     it('should not fail execution if audit callback throws', async () => {
       const sandbox = new InProcessSandbox({
-        onAudit: () => { throw new Error('Audit storage failed'); },
+        onAudit: () => {
+          throw new Error('Audit storage failed');
+        },
       });
       const code = `exports.handler = function() { return 'ok'; };`;
 

@@ -50,9 +50,7 @@ test.describe('auth — sign-in (federated providers)', () => {
     expect(url.searchParams.get('provider')).toBe('google');
   });
 
-  test('clicking the federated button hits the authorize route handler', async ({
-    page,
-  }) => {
+  test('clicking the federated button hits the authorize route handler', async ({ page }) => {
     await mockOAuthAuthorize(page);
 
     await page.goto('/login');

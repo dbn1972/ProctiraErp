@@ -196,8 +196,10 @@ export class PgTransportRepository implements TransportRepository {
 
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
-    return withPgTenant(this.pool, tenantId, (client) =>
-      client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    return withPgTenant(
+      this.pool,
+      tenantId,
+      (client) => client.query(text, values) as unknown as Promise<pg.QueryResult>,
     );
   }
 
@@ -212,7 +214,9 @@ export class PgTransportRepository implements TransportRepository {
   ): Promise<TransportRouteEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.query(data.tenantId, `INSERT INTO transport_routes (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_routes (
         id, tenant_id, name, description, status, start_location, end_location,
         distance_km, estimated_duration_minutes, operating_days, departure_time,
         return_time, institution_id, created_at, updated_at
@@ -257,7 +261,9 @@ export class PgTransportRepository implements TransportRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.query(tenantId, `UPDATE transport_routes SET
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_routes SET
         name = $3,
         description = $4,
         status = $5,
@@ -295,7 +301,9 @@ export class PgTransportRepository implements TransportRepository {
 
   async findRouteById(id: string, tenantId: string): Promise<TransportRouteEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_routes WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_routes WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -325,13 +333,17 @@ export class PgTransportRepository implements TransportRepository {
     }
 
     const where = conditions.join(' AND ');
-    const countResult = await this.query(tenantId, `SELECT COUNT(*)::int AS total FROM transport_routes WHERE ${where}`,
+    const countResult = await this.query(
+      tenantId,
+      `SELECT COUNT(*)::int AS total FROM transport_routes WHERE ${where}`,
       params,
     );
     const totalItems = Number((countResult.rows[0] as { total: number }).total);
     const offset = (pagination.page - 1) * pagination.pageSize;
     params.push(pagination.pageSize, offset);
-    const dataResult = await this.query(tenantId, `SELECT * FROM transport_routes
+    const dataResult = await this.query(
+      tenantId,
+      `SELECT * FROM transport_routes
        WHERE ${where}
        ORDER BY name
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -346,7 +358,9 @@ export class PgTransportRepository implements TransportRepository {
 
   async deleteRoute(id: string, tenantId: string): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `DELETE FROM transport_routes WHERE id = $1 AND tenant_id = $2`,
+    const result = await this.query(
+      tenantId,
+      `DELETE FROM transport_routes WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
     );
     return (result.rowCount ?? 0) > 0;
@@ -359,7 +373,9 @@ export class PgTransportRepository implements TransportRepository {
   ): Promise<RouteStopEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.query(data.tenantId, `INSERT INTO transport_stops (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_stops (
         id, tenant_id, route_id, name, latitude, longitude, stop_order,
         pickup_time, dropoff_time, created_at, updated_at
       ) VALUES (
@@ -399,7 +415,9 @@ export class PgTransportRepository implements TransportRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.query(tenantId, `UPDATE transport_stops SET
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_stops SET
         route_id = $3,
         name = $4,
         latitude = $5,
@@ -429,7 +447,9 @@ export class PgTransportRepository implements TransportRepository {
 
   async findStopById(id: string, tenantId: string): Promise<RouteStopEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_stops WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_stops WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -438,7 +458,9 @@ export class PgTransportRepository implements TransportRepository {
 
   async listStopsByRoute(routeId: string, tenantId: string): Promise<RouteStopEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_stops
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_stops
        WHERE route_id = $1 AND tenant_id = $2
        ORDER BY stop_order ASC`,
       [routeId, tenantId],
@@ -448,7 +470,9 @@ export class PgTransportRepository implements TransportRepository {
 
   async deleteStop(id: string, tenantId: string): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `DELETE FROM transport_stops WHERE id = $1 AND tenant_id = $2`,
+    const result = await this.query(
+      tenantId,
+      `DELETE FROM transport_stops WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
     );
     return (result.rowCount ?? 0) > 0;
@@ -461,7 +485,9 @@ export class PgTransportRepository implements TransportRepository {
   ): Promise<VehicleEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.query(data.tenantId, `INSERT INTO transport_vehicles (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_vehicles (
         id, tenant_id, registration_number, make, model, year, capacity, status,
         insurance_expiry, last_service_date, created_at, updated_at
       ) VALUES (
@@ -502,7 +528,9 @@ export class PgTransportRepository implements TransportRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.query(tenantId, `UPDATE transport_vehicles SET
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_vehicles SET
         registration_number = $3,
         make = $4,
         model = $5,
@@ -534,7 +562,9 @@ export class PgTransportRepository implements TransportRepository {
 
   async findVehicleById(id: string, tenantId: string): Promise<VehicleEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_vehicles WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_vehicles WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -546,7 +576,9 @@ export class PgTransportRepository implements TransportRepository {
     tenantId: string,
   ): Promise<VehicleEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_vehicles
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_vehicles
        WHERE registration_number = $1 AND tenant_id = $2
        LIMIT 1`,
       [registrationNumber, tenantId],
@@ -579,13 +611,17 @@ export class PgTransportRepository implements TransportRepository {
     }
 
     const where = conditions.join(' AND ');
-    const countResult = await this.query(tenantId, `SELECT COUNT(*)::int AS total FROM transport_vehicles WHERE ${where}`,
+    const countResult = await this.query(
+      tenantId,
+      `SELECT COUNT(*)::int AS total FROM transport_vehicles WHERE ${where}`,
       params,
     );
     const totalItems = Number((countResult.rows[0] as { total: number }).total);
     const offset = (pagination.page - 1) * pagination.pageSize;
     params.push(pagination.pageSize, offset);
-    const dataResult = await this.query(tenantId, `SELECT * FROM transport_vehicles
+    const dataResult = await this.query(
+      tenantId,
+      `SELECT * FROM transport_vehicles
        WHERE ${where}
        ORDER BY registration_number
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -600,7 +636,9 @@ export class PgTransportRepository implements TransportRepository {
 
   async deleteVehicle(id: string, tenantId: string): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `DELETE FROM transport_vehicles WHERE id = $1 AND tenant_id = $2`,
+    const result = await this.query(
+      tenantId,
+      `DELETE FROM transport_vehicles WHERE id = $1 AND tenant_id = $2`,
       [id, tenantId],
     );
     return (result.rowCount ?? 0) > 0;
@@ -613,7 +651,9 @@ export class PgTransportRepository implements TransportRepository {
   ): Promise<DriverAssignmentEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.query(data.tenantId, `INSERT INTO transport_driver_assignments (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_driver_assignments (
         id, tenant_id, vehicle_id, driver_id, route_id, start_date, end_date,
         is_active, created_at, updated_at
       ) VALUES (
@@ -652,7 +692,9 @@ export class PgTransportRepository implements TransportRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.query(tenantId, `UPDATE transport_driver_assignments SET
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_driver_assignments SET
         vehicle_id = $3,
         driver_id = $4,
         route_id = $5,
@@ -683,7 +725,9 @@ export class PgTransportRepository implements TransportRepository {
     tenantId: string,
   ): Promise<DriverAssignmentEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_driver_assignments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_driver_assignments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -717,13 +761,17 @@ export class PgTransportRepository implements TransportRepository {
     }
 
     const where = conditions.join(' AND ');
-    const countResult = await this.query(tenantId, `SELECT COUNT(*)::int AS total FROM transport_driver_assignments WHERE ${where}`,
+    const countResult = await this.query(
+      tenantId,
+      `SELECT COUNT(*)::int AS total FROM transport_driver_assignments WHERE ${where}`,
       params,
     );
     const totalItems = Number((countResult.rows[0] as { total: number }).total);
     const offset = (pagination.page - 1) * pagination.pageSize;
     params.push(pagination.pageSize, offset);
-    const dataResult = await this.query(tenantId, `SELECT * FROM transport_driver_assignments
+    const dataResult = await this.query(
+      tenantId,
+      `SELECT * FROM transport_driver_assignments
        WHERE ${where}
        ORDER BY start_date DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -741,7 +789,9 @@ export class PgTransportRepository implements TransportRepository {
     tenantId: string,
   ): Promise<DriverAssignmentEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_driver_assignments
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_driver_assignments
        WHERE vehicle_id = $1 AND tenant_id = $2 AND is_active = true
        LIMIT 1`,
       [vehicleId, tenantId],
@@ -757,7 +807,9 @@ export class PgTransportRepository implements TransportRepository {
   ): Promise<StudentRouteAssignmentEntity> {
     await this.ensureSchema();
     const now = new Date();
-    const result = await this.query(data.tenantId, `INSERT INTO transport_student_assignments (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_student_assignments (
         id, tenant_id, student_id, route_id, stop_id, start_date, end_date,
         is_active, created_at, updated_at
       ) VALUES (
@@ -796,7 +848,9 @@ export class PgTransportRepository implements TransportRepository {
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };
-    const result = await this.query(tenantId, `UPDATE transport_student_assignments SET
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_student_assignments SET
         student_id = $3,
         route_id = $4,
         stop_id = $5,
@@ -827,7 +881,9 @@ export class PgTransportRepository implements TransportRepository {
     tenantId: string,
   ): Promise<StudentRouteAssignmentEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_student_assignments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_student_assignments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -861,13 +917,17 @@ export class PgTransportRepository implements TransportRepository {
     }
 
     const where = conditions.join(' AND ');
-    const countResult = await this.query(tenantId, `SELECT COUNT(*)::int AS total FROM transport_student_assignments WHERE ${where}`,
+    const countResult = await this.query(
+      tenantId,
+      `SELECT COUNT(*)::int AS total FROM transport_student_assignments WHERE ${where}`,
       params,
     );
     const totalItems = Number((countResult.rows[0] as { total: number }).total);
     const offset = (pagination.page - 1) * pagination.pageSize;
     params.push(pagination.pageSize, offset);
-    const dataResult = await this.query(tenantId, `SELECT * FROM transport_student_assignments
+    const dataResult = await this.query(
+      tenantId,
+      `SELECT * FROM transport_student_assignments
        WHERE ${where}
        ORDER BY start_date DESC
        LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -885,7 +945,9 @@ export class PgTransportRepository implements TransportRepository {
     tenantId: string,
   ): Promise<StudentRouteAssignmentEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM transport_student_assignments
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_student_assignments
        WHERE student_id = $1 AND tenant_id = $2 AND is_active = true
        LIMIT 1`,
       [studentId, tenantId],

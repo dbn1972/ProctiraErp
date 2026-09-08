@@ -13,12 +13,7 @@
  *
  * Charter: Section 6 (Tenant Model)
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { createLogger } from '@proctira/logging';
 import { v4 as uuidv4 } from 'uuid';
@@ -230,10 +225,7 @@ export class TenantService {
       suspendedReason: input.reason,
     });
 
-    logger.info(
-      { tenantId: id, reason: input.reason },
-      'Tenant suspended',
-    );
+    logger.info({ tenantId: id, reason: input.reason }, 'Tenant suspended');
 
     return updated!;
   }
@@ -318,9 +310,7 @@ export class TenantService {
     }
 
     if (tenant.status !== 'decommissioned') {
-      throw new BusinessRuleError(
-        'Only decommissioned tenants can be permanently deleted',
-      );
+      throw new BusinessRuleError('Only decommissioned tenants can be permanently deleted');
     }
 
     if (tenant.dataRetentionUntil && tenant.dataRetentionUntil > new Date()) {
@@ -407,10 +397,7 @@ export class TenantService {
       createdAt: new Date(),
     });
 
-    logger.info(
-      { tenantId, domain: input.domain },
-      'Domain added to tenant',
-    );
+    logger.info({ tenantId, domain: input.domain }, 'Domain added to tenant');
 
     return domain;
   }
@@ -462,11 +449,12 @@ export class TenantService {
 
     const usage = await this.repository.getOrCreateUsage(tenantId);
 
-    const storagePercentage = usage.storageLimitBytes === -1
-      ? 0
-      : usage.storageLimitBytes === 0
-        ? 100
-        : Math.round((usage.storageUsedBytes / usage.storageLimitBytes) * 100);
+    const storagePercentage =
+      usage.storageLimitBytes === -1
+        ? 0
+        : usage.storageLimitBytes === 0
+          ? 100
+          : Math.round((usage.storageUsedBytes / usage.storageLimitBytes) * 100);
 
     return {
       tenantId,
@@ -521,9 +509,7 @@ export class TenantService {
       throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
     }
     if (tenant.status === 'decommissioned') {
-      throw new BusinessRuleError(
-        'Cannot publish branding for a decommissioned tenant',
-      );
+      throw new BusinessRuleError('Cannot publish branding for a decommissioned tenant');
     }
 
     // Task 58.4 — server-side validation guards.
@@ -531,10 +517,7 @@ export class TenantService {
     // UI can render an inline error next to the offending control.
     const validation = validateBrandingTokens(input.tokens);
     if (!validation.ok) {
-      throw new ValidationError(
-        'Branding token validation failed',
-        validation.errors,
-      );
+      throw new ValidationError('Branding token validation failed', validation.errors);
     }
 
     const version = await this.repository.insertThemeVersion({
@@ -593,9 +576,7 @@ export class TenantService {
       throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
     }
     if (tenant.status === 'decommissioned') {
-      throw new BusinessRuleError(
-        'Cannot roll back branding for a decommissioned tenant',
-      );
+      throw new BusinessRuleError('Cannot roll back branding for a decommissioned tenant');
     }
 
     const target = await this.repository.findThemeVersion(tenantId, input.revision);
@@ -690,9 +671,7 @@ export class TenantService {
       throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
     }
     if (tenant.status === 'decommissioned') {
-      throw new BusinessRuleError(
-        'Cannot save branding draft for a decommissioned tenant',
-      );
+      throw new BusinessRuleError('Cannot save branding draft for a decommissioned tenant');
     }
 
     const draft = await this.repository.upsertBrandingDraft({
@@ -701,10 +680,7 @@ export class TenantService {
       savedBy: input.savedBy,
     });
 
-    logger.info(
-      { tenantId, savedBy: draft.savedBy },
-      'Tenant branding draft saved',
-    );
+    logger.info({ tenantId, savedBy: draft.savedBy }, 'Tenant branding draft saved');
 
     return draft;
   }
@@ -733,9 +709,7 @@ export class TenantService {
    *
    * @throws NotFoundError if the tenant does not exist
    */
-  async getBrandingDraft(
-    tenantId: string,
-  ): Promise<TenantBrandingDraftEntity | null> {
+  async getBrandingDraft(tenantId: string): Promise<TenantBrandingDraftEntity | null> {
     const tenant = await this.repository.findTenantById(tenantId);
     if (!tenant) {
       throw new NotFoundError(`Tenant with id '${tenantId}' not found`);
@@ -828,9 +802,7 @@ export class TenantService {
   /**
    * Format a theme version entity for API response.
    */
-  formatThemeVersionResponse(
-    entity: TenantThemeVersionEntity,
-  ): TenantThemeVersionResponse {
+  formatThemeVersionResponse(entity: TenantThemeVersionEntity): TenantThemeVersionResponse {
     return {
       id: entity.id,
       tenantId: entity.tenantId,
@@ -844,9 +816,7 @@ export class TenantService {
   /**
    * Format a branding draft entity for API response (Task 58.3).
    */
-  formatBrandingDraftResponse(
-    entity: TenantBrandingDraftEntity,
-  ): TenantBrandingDraftResponse {
+  formatBrandingDraftResponse(entity: TenantBrandingDraftEntity): TenantBrandingDraftResponse {
     return {
       tenantId: entity.tenantId,
       tokens: entity.tokens,
@@ -885,12 +855,8 @@ export class TenantService {
     if (!override) return base;
 
     return {
-      branding: override.branding
-        ? { ...base.branding, ...override.branding }
-        : base.branding,
-      locale: override.locale
-        ? { ...base.locale, ...override.locale }
-        : base.locale,
+      branding: override.branding ? { ...base.branding, ...override.branding } : base.branding,
+      locale: override.locale ? { ...base.locale, ...override.locale } : base.locale,
       features: override.features
         ? {
             ...base.features,
@@ -901,9 +867,7 @@ export class TenantService {
             },
           }
         : base.features,
-      security: override.security
-        ? { ...base.security, ...override.security }
-        : base.security,
+      security: override.security ? { ...base.security, ...override.security } : base.security,
       // theme is owned by the branding versioning pipeline — never
       // overwritten by a generic config update.
       theme: override.theme ?? base.theme,

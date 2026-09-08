@@ -49,8 +49,7 @@ export const KNOWN_APPLICATION_STATUSES = [
   'waitlisted',
 ] as const;
 
-export type KnownApplicationStatus =
-  (typeof KNOWN_APPLICATION_STATUSES)[number];
+export type KnownApplicationStatus = (typeof KNOWN_APPLICATION_STATUSES)[number];
 
 /** A single status transition recorded against the application. */
 export interface ApplicationStatusHistoryEntry {
@@ -184,12 +183,9 @@ export function normalizeTrackingResult(
     updatedAt: payload.updatedAt ?? payload.submittedAt ?? '',
     expectedCompletionAt: payload.expectedCompletionAt,
     history: Array.isArray(payload.history) ? payload.history : [],
-    followUpActions: Array.isArray(payload.followUpActions)
-      ? payload.followUpActions
-      : [],
+    followUpActions: Array.isArray(payload.followUpActions) ? payload.followUpActions : [],
   };
 }
-
 
 // =============================================================================
 // School Finder client (Task 51.3, Requirement 16.9)
@@ -264,9 +260,7 @@ export type SchoolFinderSearchResult =
  * comma-separated values to keep URLs short while still matching the backend
  * parser, which accepts both the comma form and repeated parameters.
  */
-export function buildSchoolFinderQueryString(
-  input: SchoolFinderQueryInput,
-): string {
+export function buildSchoolFinderQueryString(input: SchoolFinderQueryInput): string {
   const params = new URLSearchParams();
 
   if (

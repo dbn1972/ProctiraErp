@@ -58,7 +58,11 @@ export default defineConfig({
         // need a WebKit install (device preset defaults to webkit).
         {
           name: 'tablet',
-          use: { ...devices['iPad (gen 7)'], defaultBrowserType: 'chromium', browserName: 'chromium' },
+          use: {
+            ...devices['iPad (gen 7)'],
+            defaultBrowserType: 'chromium',
+            browserName: 'chromium',
+          },
         },
       ]
     : [
@@ -74,7 +78,11 @@ export default defineConfig({
         },
         {
           name: 'tablet',
-          use: { ...devices['iPad (gen 7)'], defaultBrowserType: 'chromium', browserName: 'chromium' },
+          use: {
+            ...devices['iPad (gen 7)'],
+            defaultBrowserType: 'chromium',
+            browserName: 'chromium',
+          },
         },
       ],
   webServer: process.env.PLAYWRIGHT_BASE_URL

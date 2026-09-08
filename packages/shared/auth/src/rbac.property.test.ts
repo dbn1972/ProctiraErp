@@ -197,14 +197,9 @@ describe('Property 3: RBAC Area-Scoped Access Control', () => {
           };
 
           // Access resource in the same area as the role assignment — should be granted
-          const result = await evaluatePermission(
-            user,
-            resource,
-            action,
-            registry,
-            resolver,
-            { areaId: assignedArea.id },
-          );
+          const result = await evaluatePermission(user, resource, action, registry, resolver, {
+            areaId: assignedArea.id,
+          });
 
           expect(result.granted).toBe(true);
           expect(result.grantedByRole).toBe('Test Role');
@@ -254,14 +249,9 @@ describe('Property 3: RBAC Area-Scoped Access Control', () => {
 
           // Access resource in every descendant area — all should be granted
           for (const descendantId of descendantIds) {
-            const result = await evaluatePermission(
-              user,
-              resource,
-              action,
-              registry,
-              resolver,
-              { areaId: descendantId },
-            );
+            const result = await evaluatePermission(user, resource, action, registry, resolver, {
+              areaId: descendantId,
+            });
 
             expect(result.granted).toBe(true);
             expect(result.grantedByRole).toBe('Test Role');
@@ -311,14 +301,9 @@ describe('Property 3: RBAC Area-Scoped Access Control', () => {
 
           // Access resource in any ancestor area — all should be denied
           for (const ancestorId of ancestorIds) {
-            const result = await evaluatePermission(
-              user,
-              resource,
-              action,
-              registry,
-              resolver,
-              { areaId: ancestorId },
-            );
+            const result = await evaluatePermission(user, resource, action, registry, resolver, {
+              areaId: ancestorId,
+            });
 
             expect(result.granted).toBe(false);
           }
@@ -367,14 +352,9 @@ describe('Property 3: RBAC Area-Scoped Access Control', () => {
 
           // Access resource in any sibling area — all should be denied
           for (const siblingId of siblingIds) {
-            const result = await evaluatePermission(
-              user,
-              resource,
-              action,
-              registry,
-              resolver,
-              { areaId: siblingId },
-            );
+            const result = await evaluatePermission(user, resource, action, registry, resolver, {
+              areaId: siblingId,
+            });
 
             expect(result.granted).toBe(false);
           }
@@ -432,14 +412,9 @@ describe('Property 3: RBAC Area-Scoped Access Control', () => {
 
           // Access resource in any unrelated area — all should be denied
           for (const unrelatedArea of unrelatedAreas) {
-            const result = await evaluatePermission(
-              user,
-              resource,
-              action,
-              registry,
-              resolver,
-              { areaId: unrelatedArea.id },
-            );
+            const result = await evaluatePermission(user, resource, action, registry, resolver, {
+              areaId: unrelatedArea.id,
+            });
 
             expect(result.granted).toBe(false);
           }
@@ -486,14 +461,9 @@ describe('Property 3: RBAC Area-Scoped Access Control', () => {
 
           // Check every area in the hierarchy
           for (const node of hierarchy.nodes) {
-            const result = await evaluatePermission(
-              user,
-              resource,
-              action,
-              registry,
-              resolver,
-              { areaId: node.id },
-            );
+            const result = await evaluatePermission(user, resource, action, registry, resolver, {
+              areaId: node.id,
+            });
 
             if (expectedAccessible.has(node.id)) {
               expect(result.granted).toBe(true);

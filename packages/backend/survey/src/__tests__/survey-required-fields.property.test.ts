@@ -44,7 +44,11 @@ class MockSurveyRepo implements SurveyRepository {
     return null;
   }
 
-  async update(id: string, tenantId: string, data: Partial<SurveyEntity>): Promise<SurveyEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<SurveyEntity>,
+  ): Promise<SurveyEntity | null> {
     const existing = this.surveys.get(id);
     if (!existing || existing.tenantId !== tenantId) return null;
     const updated = { ...existing, ...data, updatedAt: new Date() };
@@ -59,9 +63,16 @@ class MockSurveyRepo implements SurveyRepository {
     return true;
   }
 
-  async list(tenantId: string, filter: any, pagination: PaginationOptions): Promise<PaginatedResult<SurveyEntity>> {
-    const items = Array.from(this.surveys.values()).filter(s => s.tenantId === tenantId);
-    return { data: items, meta: { page: 1, pageSize: 20, totalItems: items.length, totalPages: 1 } };
+  async list(
+    tenantId: string,
+    filter: any,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<SurveyEntity>> {
+    const items = Array.from(this.surveys.values()).filter((s) => s.tenantId === tenantId);
+    return {
+      data: items,
+      meta: { page: 1, pageSize: 20, totalItems: items.length, totalPages: 1 },
+    };
   }
 }
 
@@ -73,14 +84,21 @@ class MockDistributionRepo implements DistributionRepository {
   }
 
   async createMany(data: any[]): Promise<DistributionRecordEntity[]> {
-    return data.map(d => ({ ...d, createdAt: new Date(), updatedAt: new Date() }));
+    return data.map((d) => ({ ...d, createdAt: new Date(), updatedAt: new Date() }));
   }
 
-  async findBySurveyAndInstitution(tenantId: string, surveyId: string, institutionId: string): Promise<DistributionRecordEntity | null> {
+  async findBySurveyAndInstitution(
+    tenantId: string,
+    surveyId: string,
+    institutionId: string,
+  ): Promise<DistributionRecordEntity | null> {
     return this.records.get(`${surveyId}:${institutionId}`) ?? null;
   }
 
-  async findIncompleteBySurvey(tenantId: string, surveyId: string): Promise<DistributionRecordEntity[]> {
+  async findIncompleteBySurvey(
+    tenantId: string,
+    surveyId: string,
+  ): Promise<DistributionRecordEntity[]> {
     return [];
   }
 
@@ -92,7 +110,10 @@ class MockDistributionRepo implements DistributionRepository {
     return null;
   }
 
-  async countByStatus(tenantId: string, surveyId: string): Promise<{ pending: number; in_progress: number; completed: number }> {
+  async countByStatus(
+    tenantId: string,
+    surveyId: string,
+  ): Promise<{ pending: number; in_progress: number; completed: number }> {
     return { pending: 0, in_progress: 0, completed: 0 };
   }
 }
@@ -141,7 +162,7 @@ describe('Survey Service - Required Fields Validation (Property)', () => {
       fc.asyncProperty(
         // Generate 1-5 required question labels
         fc.array(
-          fc.string({ minLength: 1, maxLength: 30 }).filter(s => s.trim().length > 0),
+          fc.string({ minLength: 1, maxLength: 30 }).filter((s) => s.trim().length > 0),
           { minLength: 1, maxLength: 5 },
         ),
         // Generate which required question index to omit (at least one)
@@ -200,7 +221,7 @@ describe('Survey Service - Required Fields Validation (Property)', () => {
           const omitIndex = omitSeed % questions.length;
           const answers = questions
             .filter((_, i) => i !== omitIndex)
-            .map(q => ({ questionId: q.id, value: 'some answer' }));
+            .map((q) => ({ questionId: q.id, value: 'some answer' }));
 
           // Submission should be rejected due to missing required field
           await expect(

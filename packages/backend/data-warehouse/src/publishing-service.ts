@@ -207,7 +207,11 @@ export class PublishingService {
     if (input.timePeriods && input.timePeriods.length > 0) {
       timePeriodIds = [];
       for (const label of input.timePeriods) {
-        const tp = await this.warehouseRepository.findTimePeriodByLabel(label, warehouseId, tenantId);
+        const tp = await this.warehouseRepository.findTimePeriodByLabel(
+          label,
+          warehouseId,
+          tenantId,
+        );
         if (tp) {
           timePeriodIds.push(tp.id);
         }
@@ -234,7 +238,13 @@ export class PublishingService {
     warehouseId: string,
     indicatorIds?: string[],
   ): Promise<Indicator[]> {
-    const result = await this.warehouseRepository.listIndicators(warehouseId, tenantId, {}, 1, 10000);
+    const result = await this.warehouseRepository.listIndicators(
+      warehouseId,
+      tenantId,
+      {},
+      1,
+      10000,
+    );
     if (indicatorIds && indicatorIds.length > 0) {
       return result.data.filter((i) => indicatorIds.includes(i.id));
     }
@@ -258,8 +268,17 @@ export class PublishingService {
     return new Map(result.data.map((u) => [u.id, u]));
   }
 
-  private async buildSubgroupMap(tenantId: string, warehouseId: string): Promise<Map<string, Subgroup>> {
-    const result = await this.warehouseRepository.listSubgroups(warehouseId, tenantId, {}, 1, 10000);
+  private async buildSubgroupMap(
+    tenantId: string,
+    warehouseId: string,
+  ): Promise<Map<string, Subgroup>> {
+    const result = await this.warehouseRepository.listSubgroups(
+      warehouseId,
+      tenantId,
+      {},
+      1,
+      10000,
+    );
     return new Map(result.data.map((s) => [s.id, s]));
   }
 

@@ -94,8 +94,8 @@ export default async function InstitutionGradebookPage({ params, searchParams }:
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             No sections for this institution yet. Seed with{' '}
-            <code className="text-xs">db/seeds/004_sis_gradebook_credit_section.sql</code> or
-            create sections from master schedule (WS2).
+            <code className="text-xs">db/seeds/004_sis_gradebook_credit_section.sql</code> or create
+            sections from master schedule (WS2).
           </CardContent>
         </Card>
       ) : null}

@@ -4,17 +4,17 @@ World-class redesign of all 124 CivitasOne screens as responsive HTML mockups �
 
 ## What changed vs. the current product
 
-| Problem in current UI | Redesign |
-|---|---|
-| Raw "Class UUID / Subject UUID" text inputs | Searchable entity pickers showing name + context |
-| Spec text leaking into UI ("Requirement 9.7") | Plain, user-facing language |
-| Login card floating in an empty half-page | Branded split layout with product value panel |
-| Empty dashboard ("--" cards) | Role-aware dashboard: KPIs with trends, charts, approvals inbox, quick actions |
-| 14 flat sidebar items, broken bullet icons | Grouped, iconified navigation with tenant switcher and active-item rail |
-| Mobile: duplicate logo, bottom nav overlapping content | Single shell, safe-area-padded bottom nav, drawer menu |
-| Tablet: detached search icon, truncated filters | Inline filter bar that wraps correctly at every width |
-| Text "View / Edit" links in tables | Avatared person cells, status pills, icon row-actions, mobile card transform |
-| No global search, no notifications | Topbar with ⌘K command palette, notifications, theme toggle |
+| Problem in current UI                                  | Redesign                                                                       |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Raw "Class UUID / Subject UUID" text inputs            | Searchable entity pickers showing name + context                               |
+| Spec text leaking into UI ("Requirement 9.7")          | Plain, user-facing language                                                    |
+| Login card floating in an empty half-page              | Branded split layout with product value panel                                  |
+| Empty dashboard ("--" cards)                           | Role-aware dashboard: KPIs with trends, charts, approvals inbox, quick actions |
+| 14 flat sidebar items, broken bullet icons             | Grouped, iconified navigation with tenant switcher and active-item rail        |
+| Mobile: duplicate logo, bottom nav overlapping content | Single shell, safe-area-padded bottom nav, drawer menu                         |
+| Tablet: detached search icon, truncated filters        | Inline filter bar that wraps correctly at every width                          |
+| Text "View / Edit" links in tables                     | Avatared person cells, status pills, icon row-actions, mobile card transform   |
+| No global search, no notifications                     | Topbar with ⌘K command palette, notifications, theme toggle                    |
 
 ## Structure
 

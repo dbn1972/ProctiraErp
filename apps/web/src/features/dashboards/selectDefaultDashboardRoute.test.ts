@@ -26,25 +26,19 @@ function makeInput(overrides: Partial<RoleRouterInput>): RoleRouterInput {
 
 describe('selectDefaultDashboardRoute — scope mapping (Task 52.1, Req 40.9)', () => {
   it('routes country scope to /app/dashboard/country', () => {
-    const target = selectDefaultDashboardRoute(
-      makeInput({ scope: { level: 'country' } }),
-    );
+    const target = selectDefaultDashboardRoute(makeInput({ scope: { level: 'country' } }));
     expect(target).toBe(DASHBOARD_ROUTES.country);
     expect(target).toBe('/app/dashboard/country');
   });
 
   it('routes state scope to /app/dashboard/state', () => {
-    const target = selectDefaultDashboardRoute(
-      makeInput({ scope: { level: 'state' } }),
-    );
+    const target = selectDefaultDashboardRoute(makeInput({ scope: { level: 'state' } }));
     expect(target).toBe(DASHBOARD_ROUTES.state);
     expect(target).toBe('/app/dashboard/state');
   });
 
   it('routes board scope to /app/dashboard/board-admin', () => {
-    const target = selectDefaultDashboardRoute(
-      makeInput({ scope: { level: 'board' } }),
-    );
+    const target = selectDefaultDashboardRoute(makeInput({ scope: { level: 'board' } }));
     expect(target).toBe(DASHBOARD_ROUTES.boardAdmin);
     expect(target).toBe('/app/dashboard/board-admin');
   });
@@ -52,56 +46,50 @@ describe('selectDefaultDashboardRoute — scope mapping (Task 52.1, Req 40.9)', 
 
 describe('selectDefaultDashboardRoute — role mapping (Task 52.1, Req 40.9)', () => {
   it('routes the board-admin role to /app/dashboard/board-admin', () => {
-    expect(
-      selectDefaultDashboardRoute(makeInput({ roles: ['board-admin'] })),
-    ).toBe(DASHBOARD_ROUTES.boardAdmin);
+    expect(selectDefaultDashboardRoute(makeInput({ roles: ['board-admin'] }))).toBe(
+      DASHBOARD_ROUTES.boardAdmin,
+    );
   });
 
   it('routes the principal role to /app/dashboard/school', () => {
     expect(
-      selectDefaultDashboardRoute(
-        makeInput({ scope: { level: 'school' }, roles: ['principal'] }),
-      ),
+      selectDefaultDashboardRoute(makeInput({ scope: { level: 'school' }, roles: ['principal'] })),
     ).toBe(DASHBOARD_ROUTES.school);
   });
 
   it('routes the teacher role to /app/dashboard/teacher', () => {
     expect(
-      selectDefaultDashboardRoute(
-        makeInput({ scope: { level: 'school' }, roles: ['teacher'] }),
-      ),
+      selectDefaultDashboardRoute(makeInput({ scope: { level: 'school' }, roles: ['teacher'] })),
     ).toBe(DASHBOARD_ROUTES.teacher);
   });
 
   it('routes the parent role to /parent', () => {
-    expect(
-      selectDefaultDashboardRoute(makeInput({ roles: ['parent'] })),
-    ).toBe(PARENT_PORTAL_ROUTE);
+    expect(selectDefaultDashboardRoute(makeInput({ roles: ['parent'] }))).toBe(PARENT_PORTAL_ROUTE);
     expect(PARENT_PORTAL_ROUTE).toBe('/parent');
   });
 
   it('routes the guardian role to /parent', () => {
-    expect(
-      selectDefaultDashboardRoute(makeInput({ roles: ['guardian'] })),
-    ).toBe(PARENT_PORTAL_ROUTE);
+    expect(selectDefaultDashboardRoute(makeInput({ roles: ['guardian'] }))).toBe(
+      PARENT_PORTAL_ROUTE,
+    );
   });
 
   it('routes the student role to /parent', () => {
-    expect(
-      selectDefaultDashboardRoute(makeInput({ roles: ['student'] })),
-    ).toBe(PARENT_PORTAL_ROUTE);
+    expect(selectDefaultDashboardRoute(makeInput({ roles: ['student'] }))).toBe(
+      PARENT_PORTAL_ROUTE,
+    );
   });
 
   it('treats common role aliases (snake_case, UPPER) the same as kebab-case', () => {
-    expect(
-      selectDefaultDashboardRoute(makeInput({ roles: ['BOARD_ADMIN'] })),
-    ).toBe(DASHBOARD_ROUTES.boardAdmin);
-    expect(
-      selectDefaultDashboardRoute(makeInput({ roles: ['Board_Admin'] })),
-    ).toBe(DASHBOARD_ROUTES.boardAdmin);
-    expect(
-      selectDefaultDashboardRoute(makeInput({ roles: ['TEACHER'] })),
-    ).toBe(DASHBOARD_ROUTES.teacher);
+    expect(selectDefaultDashboardRoute(makeInput({ roles: ['BOARD_ADMIN'] }))).toBe(
+      DASHBOARD_ROUTES.boardAdmin,
+    );
+    expect(selectDefaultDashboardRoute(makeInput({ roles: ['Board_Admin'] }))).toBe(
+      DASHBOARD_ROUTES.boardAdmin,
+    );
+    expect(selectDefaultDashboardRoute(makeInput({ roles: ['TEACHER'] }))).toBe(
+      DASHBOARD_ROUTES.teacher,
+    );
   });
 });
 
@@ -141,9 +129,7 @@ describe('selectDefaultDashboardRoute — precedence (Task 52.1)', () => {
   });
 
   it('prefers teacher over student when both are held', () => {
-    const target = selectDefaultDashboardRoute(
-      makeInput({ roles: ['teacher', 'student'] }),
-    );
+    const target = selectDefaultDashboardRoute(makeInput({ roles: ['teacher', 'student'] }));
     expect(target).toBe(DASHBOARD_ROUTES.teacher);
   });
 });
@@ -156,9 +142,7 @@ describe('selectDefaultDashboardRoute — fallback (Task 52.1)', () => {
   });
 
   it('falls back to /me for an unrecognised role', () => {
-    const target = selectDefaultDashboardRoute(
-      makeInput({ roles: ['some-future-role'] }),
-    );
+    const target = selectDefaultDashboardRoute(makeInput({ roles: ['some-future-role'] }));
     expect(target).toBe(FALLBACK_ROUTE);
   });
 
@@ -166,18 +150,14 @@ describe('selectDefaultDashboardRoute — fallback (Task 52.1)', () => {
     // District scope is rendered inline inside State_Dashboard (Design §G.2).
     // A user whose only scope is `district` and who holds none of the
     // recognised roles still gets the lowest-privilege landing surface.
-    const target = selectDefaultDashboardRoute(
-      makeInput({ scope: { level: 'district' } }),
-    );
+    const target = selectDefaultDashboardRoute(makeInput({ scope: { level: 'district' } }));
     expect(target).toBe(FALLBACK_ROUTE);
   });
 
   it('handles null/undefined scope and roles without throwing', () => {
-    expect(
-      selectDefaultDashboardRoute({ scope: null, roles: null }),
-    ).toBe(FALLBACK_ROUTE);
-    expect(
-      selectDefaultDashboardRoute({ scope: undefined, roles: undefined }),
-    ).toBe(FALLBACK_ROUTE);
+    expect(selectDefaultDashboardRoute({ scope: null, roles: null })).toBe(FALLBACK_ROUTE);
+    expect(selectDefaultDashboardRoute({ scope: undefined, roles: undefined })).toBe(
+      FALLBACK_ROUTE,
+    );
   });
 });

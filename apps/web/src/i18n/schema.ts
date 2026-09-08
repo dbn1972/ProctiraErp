@@ -615,16 +615,7 @@ export interface MessageSchema {
  * The set of supported Indian Language Set locale codes.
  * Requirement 18 defines these as the primary supported languages.
  */
-export const INDIAN_LANGUAGE_SET = [
-  'en',
-  'hi',
-  'ta',
-  'te',
-  'mr',
-  'bn',
-  'gu',
-  'kn',
-] as const;
+export const INDIAN_LANGUAGE_SET = ['en', 'hi', 'ta', 'te', 'mr', 'bn', 'gu', 'kn'] as const;
 
 export type IndianLocale = (typeof INDIAN_LANGUAGE_SET)[number];
 

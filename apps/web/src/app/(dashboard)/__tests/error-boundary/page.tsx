@@ -31,8 +31,8 @@ function ErrorThrowingContent() {
     <div data-testid="test-page-content">
       <h1 className="text-2xl font-bold">Error Boundary Test Page</h1>
       <p className="mt-2 text-muted-foreground">
-        This page is used to test the error boundary recovery mechanism.
-        Add <code>?throw=1</code> to the URL to trigger a render error.
+        This page is used to test the error boundary recovery mechanism. Add <code>?throw=1</code>{' '}
+        to the URL to trigger a render error.
       </p>
     </div>
   );

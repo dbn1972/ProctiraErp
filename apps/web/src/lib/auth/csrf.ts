@@ -116,7 +116,12 @@ function hostOf(url: string | null): string | null {
  */
 export function verifyRequestOrigin(request: Request): CsrfVerification {
   const fetchSite = request.headers.get('sec-fetch-site')?.toLowerCase();
-  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'same-site' && fetchSite !== 'none') {
+  if (
+    fetchSite &&
+    fetchSite !== 'same-origin' &&
+    fetchSite !== 'same-site' &&
+    fetchSite !== 'none'
+  ) {
     return { ok: false, reason: 'cross-site' };
   }
 

@@ -3,13 +3,7 @@
 import * as React from 'react';
 
 import { Label } from './Label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './Select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './Select';
 import { cn } from './lib/utils';
 
 /**
@@ -91,79 +85,66 @@ export interface RolePickerProps {
   label?: string;
 }
 
-export const RolePicker = React.forwardRef<HTMLButtonElement, RolePickerProps>(
-  function RolePicker(
-    {
-      id,
-      value,
-      onValueChange,
-      roles,
-      loading = false,
-      disabled = false,
-      placeholder,
-      loadingPlaceholder,
-      approvalSuffix,
-      ariaLabel,
-      ariaInvalid,
-      ariaDescribedBy,
-      'data-testid': testId = 'role-picker',
-      className,
-      label,
-    },
-    ref,
-  ) {
-    const generatedId = React.useId();
-    const triggerId = id ?? `${generatedId}-role-trigger`;
+export const RolePicker = React.forwardRef<HTMLButtonElement, RolePickerProps>(function RolePicker(
+  {
+    id,
+    value,
+    onValueChange,
+    roles,
+    loading = false,
+    disabled = false,
+    placeholder,
+    loadingPlaceholder,
+    approvalSuffix,
+    ariaLabel,
+    ariaInvalid,
+    ariaDescribedBy,
+    'data-testid': testId = 'role-picker',
+    className,
+    label,
+  },
+  ref,
+) {
+  const generatedId = React.useId();
+  const triggerId = id ?? `${generatedId}-role-trigger`;
 
-    const effectivePlaceholder =
-      loading && loadingPlaceholder ? loadingPlaceholder : placeholder;
+  const effectivePlaceholder = loading && loadingPlaceholder ? loadingPlaceholder : placeholder;
 
-    return (
-      <div className="space-y-1.5">
-        {label && <Label htmlFor={triggerId}>{label}</Label>}
-        <Select
-          value={value}
-          onValueChange={onValueChange}
-          disabled={disabled || loading}
+  return (
+    <div className="space-y-1.5">
+      {label && <Label htmlFor={triggerId}>{label}</Label>}
+      <Select value={value} onValueChange={onValueChange} disabled={disabled || loading}>
+        <SelectTrigger
+          ref={ref}
+          id={triggerId}
+          className={cn(className)}
+          aria-label={ariaLabel}
+          aria-invalid={ariaInvalid ? 'true' : undefined}
+          aria-describedby={ariaDescribedBy}
+          data-testid={testId}
         >
-          <SelectTrigger
-            ref={ref}
-            id={triggerId}
-            className={cn(className)}
-            aria-label={ariaLabel}
-            aria-invalid={ariaInvalid ? 'true' : undefined}
-            aria-describedby={ariaDescribedBy}
-            data-testid={testId}
-          >
-            <SelectValue placeholder={effectivePlaceholder} />
-          </SelectTrigger>
-          <SelectContent>
-            {roles.map((role) => (
-              <SelectItem
-                key={role.id}
-                value={role.id}
-                data-testid={`${testId}-option-${role.id}`}
-              >
-                <span className="flex flex-col">
-                  <span className="font-medium">
-                    {role.label}
-                    {role.requiresApproval && approvalSuffix && (
-                      <span className="ms-1 text-xs font-normal text-muted-foreground">
-                        {approvalSuffix}
-                      </span>
-                    )}
-                  </span>
-                  {role.description && (
-                    <span className="text-xs text-muted-foreground">
-                      {role.description}
+          <SelectValue placeholder={effectivePlaceholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {roles.map((role) => (
+            <SelectItem key={role.id} value={role.id} data-testid={`${testId}-option-${role.id}`}>
+              <span className="flex flex-col">
+                <span className="font-medium">
+                  {role.label}
+                  {role.requiresApproval && approvalSuffix && (
+                    <span className="ms-1 text-xs font-normal text-muted-foreground">
+                      {approvalSuffix}
                     </span>
                   )}
                 </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    );
-  },
-);
+                {role.description && (
+                  <span className="text-xs text-muted-foreground">{role.description}</span>
+                )}
+              </span>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+});

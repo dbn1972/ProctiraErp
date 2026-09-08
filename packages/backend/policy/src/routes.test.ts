@@ -218,7 +218,12 @@ describe('Policy Routes', () => {
       await app.inject({
         method: 'POST',
         url: '/policies',
-        payload: { ...validPolicyBody, name: 'Another Policy', type: 'data_retention', rules: { retentionDays: 90 } },
+        payload: {
+          ...validPolicyBody,
+          name: 'Another Policy',
+          type: 'data_retention',
+          rules: { retentionDays: 90 },
+        },
       });
 
       const response = await app.inject({
@@ -237,7 +242,12 @@ describe('Policy Routes', () => {
       await app.inject({
         method: 'POST',
         url: '/policies',
-        payload: { ...validPolicyBody, name: 'Retention', type: 'data_retention', rules: { retentionDays: 90 } },
+        payload: {
+          ...validPolicyBody,
+          name: 'Retention',
+          type: 'data_retention',
+          rules: { retentionDays: 90 },
+        },
       });
 
       const response = await app.inject({

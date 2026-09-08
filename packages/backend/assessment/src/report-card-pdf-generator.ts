@@ -16,7 +16,10 @@ export function templateHeading(templateContent: string, fallback = 'Report Card
   const h1Match = /<h1[^>]*>([^<]*)<\/h1>/i.exec(templateContent);
   const candidate = (titleMatch?.[1] ?? h1Match?.[1] ?? '').trim();
   if (candidate && !candidate.includes('{{')) return candidate;
-  const plain = templateContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const plain = templateContent
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!plain || plain.includes('{{') || plain.length > 60) return fallback;
   return plain;
 }

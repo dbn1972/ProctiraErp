@@ -436,11 +436,10 @@ export async function registerTrainingRoutes(
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
-      const result = await trainingService.listSessions(
-        tenantId,
-        paramsResult.data.programId,
-        { page, pageSize },
-      );
+      const result = await trainingService.listSessions(tenantId, paramsResult.data.programId, {
+        page,
+        pageSize,
+      });
       return reply.status(200).send({
         data: result.data.map(formatSessionResponse),
         meta: result.meta,
@@ -658,10 +657,7 @@ export async function registerTrainingRoutes(
    */
   fastify.post(
     `${prefix}/certifications/process-expiry`,
-    async function processExpiryHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function processExpiryHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({
@@ -674,10 +670,7 @@ export async function registerTrainingRoutes(
       const body = request.body as { asOfDate?: string } | undefined;
       const asOfDate = body?.asOfDate;
 
-      const expiredCerts = await trainingService.processExpiredCertifications(
-        tenantId,
-        asOfDate,
-      );
+      const expiredCerts = await trainingService.processExpiredCertifications(tenantId, asOfDate);
 
       return reply.status(200).send({
         processedCount: expiredCerts.length,

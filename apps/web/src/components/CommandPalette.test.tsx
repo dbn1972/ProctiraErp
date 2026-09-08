@@ -81,13 +81,7 @@ vi.mock('@proctira/ui/components', () => {
     <div data-testid="command-empty">{children}</div>
   );
 
-  const CommandGroup = ({
-    children,
-    heading,
-  }: {
-    children: React.ReactNode;
-    heading?: string;
-  }) => (
+  const CommandGroup = ({ children, heading }: { children: React.ReactNode; heading?: string }) => (
     <div data-testid="command-group" data-heading={heading}>
       {children}
     </div>
@@ -104,19 +98,12 @@ vi.mock('@proctira/ui/components', () => {
     value?: string;
     'data-testid'?: string;
   }) => (
-    <div
-      data-testid={props['data-testid']}
-      data-value={value}
-      onClick={onSelect}
-      role="option"
-    >
+    <div data-testid={props['data-testid']} data-value={value} onClick={onSelect} role="option">
       {children}
     </div>
   );
 
-  const CommandShortcut = ({ children }: { children: React.ReactNode }) => (
-    <span>{children}</span>
-  );
+  const CommandShortcut = ({ children }: { children: React.ReactNode }) => <span>{children}</span>;
 
   const CommandSeparator = () => <hr />;
 

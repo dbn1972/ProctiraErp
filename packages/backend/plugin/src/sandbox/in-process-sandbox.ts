@@ -132,10 +132,9 @@ export class InProcessSandbox {
       (vmContext as Record<string, unknown>).__handler = handlerFn;
       (vmContext as Record<string, unknown>).__args = args;
 
-      const invokeScript = new Script(
-        `__handler.apply(null, __args);`,
-        { filename: `plugin-${context.pluginId}-invoke.js` },
-      );
+      const invokeScript = new Script(`__handler.apply(null, __args);`, {
+        filename: `plugin-${context.pluginId}-invoke.js`,
+      });
 
       const handlerResult = invokeScript.runInContext(vmContext, {
         timeout: this.quota.maxCpuTimeMs,
@@ -149,7 +148,10 @@ export class InProcessSandbox {
           handlerResult,
           new Promise<never>((_, reject) =>
             setTimeout(
-              () => reject(new Error(`Execution exceeded wall-time limit (${this.quota.maxWallTimeMs}ms)`)),
+              () =>
+                reject(
+                  new Error(`Execution exceeded wall-time limit (${this.quota.maxWallTimeMs}ms)`),
+                ),
               this.quota.maxWallTimeMs,
             ),
           ),
@@ -205,11 +207,12 @@ export class InProcessSandbox {
       const errorMessage = err instanceof Error ? err.message : String(err);
       const stack = err instanceof Error ? err.stack : undefined;
 
-      const isTimeout = errorMessage.includes('Script execution timed out') ||
+      const isTimeout =
+        errorMessage.includes('Script execution timed out') ||
         errorMessage.includes('exceeded wall-time limit');
 
       const outcome: SandboxAuditRecord['outcome'] = isTimeout ? 'timeout' : 'error';
-      const errorCode = isTimeout ? 'TIMEOUT' as const : 'EXECUTION_ERROR' as const;
+      const errorCode = isTimeout ? ('TIMEOUT' as const) : ('EXECUTION_ERROR' as const);
 
       const auditRecord = this.createAuditRecord(
         context,
@@ -245,10 +248,30 @@ export class InProcessSandbox {
 
     // Restricted require
     const blockedModules = new Set([
-      'fs', 'fs/promises', 'child_process', 'cluster', 'dgram', 'dns',
-      'net', 'tls', 'http', 'https', 'http2', 'os', 'path', 'process',
-      'worker_threads', 'v8', 'vm', 'crypto', 'readline', 'repl',
-      'inspector', 'perf_hooks', 'trace_events', 'wasi',
+      'fs',
+      'fs/promises',
+      'child_process',
+      'cluster',
+      'dgram',
+      'dns',
+      'net',
+      'tls',
+      'http',
+      'https',
+      'http2',
+      'os',
+      'path',
+      'process',
+      'worker_threads',
+      'v8',
+      'vm',
+      'crypto',
+      'readline',
+      'repl',
+      'inspector',
+      'perf_hooks',
+      'trace_events',
+      'wasi',
     ]);
 
     const restrictedRequire = (moduleName: string): never => {
@@ -259,20 +282,33 @@ export class InProcessSandbox {
     };
 
     // Restricted fetch
-    const restrictedFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    const restrictedFetch = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
       if (quota.allowedNetworkHosts.length === 0) {
         throw new Error('[Sandbox] Network access is not permitted for this plugin');
       }
 
       const count = incrementNetworkCount();
       if (count > quota.maxNetworkRequests) {
-        throw new Error(`[Sandbox] Network request quota exceeded (max: ${quota.maxNetworkRequests})`);
+        throw new Error(
+          `[Sandbox] Network request quota exceeded (max: ${quota.maxNetworkRequests})`,
+        );
       }
 
-      const urlStr = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      const urlStr =
+        typeof input === 'string'
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
       const url = new URL(urlStr);
 
-      if (!quota.allowedNetworkHosts.includes(url.hostname) && !quota.allowedNetworkHosts.includes('*')) {
+      if (
+        !quota.allowedNetworkHosts.includes(url.hostname) &&
+        !quota.allowedNetworkHosts.includes('*')
+      ) {
         throw new Error(`[Sandbox] Network access to host '${url.hostname}' is not permitted`);
       }
 

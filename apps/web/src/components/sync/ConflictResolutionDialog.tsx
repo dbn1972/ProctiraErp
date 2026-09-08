@@ -200,9 +200,7 @@ export function ConflictResolutionDialog({
     // resolution token attached so the gateway can correlate).
     await dequeueOperation(active.queueId);
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent(SYNC_AMEND_CONFLICT_EVENT, { detail }),
-      );
+      window.dispatchEvent(new CustomEvent(SYNC_AMEND_CONFLICT_EVENT, { detail }));
     }
     advance();
   }, [active, advance, dequeueOperation, resolutions]);
@@ -219,9 +217,7 @@ export function ConflictResolutionDialog({
     // authoritative server record. Then drop the queued op — the
     // user has explicitly chosen to abandon the local change.
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent(SYNC_DISCARD_CONFLICT_EVENT, { detail }),
-      );
+      window.dispatchEvent(new CustomEvent(SYNC_DISCARD_CONFLICT_EVENT, { detail }));
     }
     await dequeueOperation(active.queueId);
     advance();
@@ -229,22 +225,13 @@ export function ConflictResolutionDialog({
 
   // ─── Field-level resolution toggling ────────────────────────────────────
 
-  const setResolution = useCallback(
-    (field: string, choice: ConflictResolution) => {
-      setResolutions((prev) => ({ ...prev, [field]: choice }));
-    },
-    [],
-  );
+  const setResolution = useCallback((field: string, choice: ConflictResolution) => {
+    setResolutions((prev) => ({ ...prev, [field]: choice }));
+  }, []);
 
   // Build the payload panels once per active conflict.
-  const localPanel = useMemo(
-    () => formatPayload(active?.localPayload),
-    [active],
-  );
-  const serverPanel = useMemo(
-    () => formatPayload(active?.conflict.server_record),
-    [active],
-  );
+  const localPanel = useMemo(() => formatPayload(active?.localPayload), [active]);
+  const serverPanel = useMemo(() => formatPayload(active?.conflict.server_record), [active]);
 
   if (!active) return null;
 
@@ -280,10 +267,7 @@ export function ConflictResolutionDialog({
           data-testid="conflict-fields"
           className="space-y-4"
         >
-          <h3
-            id="conflict-fields-heading"
-            className="text-sm font-semibold text-foreground"
-          >
+          <h3 id="conflict-fields-heading" className="text-sm font-semibold text-foreground">
             {t('fieldsHeading', { count: active.conflict.field_conflicts.length })}
           </h3>
           <ul className="space-y-3">
@@ -380,9 +364,7 @@ function FieldConflictRow({ conflict, resolution, onChange, t }: FieldConflictRo
               onChange={() => onChange('client')}
               data-testid={`conflict-${conflict.field}-keep-client`}
             />
-            <span className="text-xs font-medium text-foreground">
-              {t('keepLocal')}
-            </span>
+            <span className="text-xs font-medium text-foreground">{t('keepLocal')}</span>
           </span>
           <span
             className="break-words text-sm text-foreground"
@@ -401,9 +383,7 @@ function FieldConflictRow({ conflict, resolution, onChange, t }: FieldConflictRo
               onChange={() => onChange('server')}
               data-testid={`conflict-${conflict.field}-use-server`}
             />
-            <span className="text-xs font-medium text-foreground">
-              {t('useServer')}
-            </span>
+            <span className="text-xs font-medium text-foreground">{t('useServer')}</span>
           </span>
           <span
             className="break-words text-sm text-foreground"

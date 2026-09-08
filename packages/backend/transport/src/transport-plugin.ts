@@ -34,10 +34,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the transport service and routes.
  */
 export const transportPlugin = fp(
-  async function transportPluginImpl(
-    fastify: FastifyInstance,
-    options: TransportPluginOptions,
-  ) {
+  async function transportPluginImpl(fastify: FastifyInstance, options: TransportPluginOptions) {
     const { repository, prefix = '/transport' } = options;
 
     // Create transport service instance

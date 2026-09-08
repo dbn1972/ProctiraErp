@@ -24,8 +24,7 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
   let academicPeriodId = '';
   try {
     const periods = await listAcademicPeriods();
-    academicPeriodId =
-      periods.find((p) => p.status === 'active')?.id ?? periods[0]?.id ?? '';
+    academicPeriodId = periods.find((p) => p.status === 'active')?.id ?? periods[0]?.id ?? '';
   } catch {
     academicPeriodId = '';
   }
@@ -60,12 +59,10 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-lg font-bold tracking-tight text-foreground">
-          Master schedule
-        </h2>
+        <h2 className="text-lg font-bold tracking-tight text-foreground">Master schedule</h2>
         <p className="text-sm text-muted-foreground">
-          Course sections, room assignment, rostering, and draft → published
-          workflow. Room and teacher clashes return HTTP 409.
+          Course sections, room assignment, rostering, and draft → published workflow. Room and
+          teacher clashes return HTTP 409.
         </p>
       </div>
 
@@ -86,12 +83,9 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
           {conflicts.length > 0 && (
             <Card>
               <CardContent className="space-y-2 p-6" data-testid="schedule-conflicts">
-                <h3 className="text-base font-semibold">
-                  Schedule conflicts ({conflicts.length})
-                </h3>
+                <h3 className="text-base font-semibold">Schedule conflicts ({conflicts.length})</h3>
                 <p className="text-sm text-muted-foreground">
-                  Conflict engine surface — resolve room/teacher/class double-books
-                  before publish.
+                  Conflict engine surface — resolve room/teacher/class double-books before publish.
                 </p>
                 <ul className="space-y-1 text-sm">
                   {conflicts.slice(0, 12).map((c, idx) => (
@@ -125,8 +119,8 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
             <CardContent className="p-0">
               {sections.length === 0 ? (
                 <p className="px-6 py-8 text-center text-sm text-muted-foreground">
-                  No sections yet. Create a draft section, add meetings on the
-                  Timetable tab, then publish.
+                  No sections yet. Create a draft section, add meetings on the Timetable tab, then
+                  publish.
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -155,8 +149,8 @@ export default async function InstitutionSchedulePage({ params }: PageProps) {
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">
                             {section.defaultRoomId
-                              ? roomLabel.get(section.defaultRoomId) ??
-                                section.defaultRoomId.slice(0, 8)
+                              ? (roomLabel.get(section.defaultRoomId) ??
+                                section.defaultRoomId.slice(0, 8))
                               : '—'}
                           </td>
                           <td className="px-4 py-3 tabular-nums">{section.capacity}</td>

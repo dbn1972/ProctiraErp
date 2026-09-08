@@ -78,7 +78,9 @@ export class InMemoryInfrastructureStore implements InfrastructureStore {
 
   async update(
     id: string,
-    data: Partial<Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>>,
+    data: Partial<
+      Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>
+    >,
   ): Promise<InfrastructureRecord | null> {
     const existing = this.items.get(id);
     if (!existing) return null;

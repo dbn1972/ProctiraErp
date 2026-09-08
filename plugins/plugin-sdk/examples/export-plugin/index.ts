@@ -37,15 +37,8 @@ export default definePlugin({
     owner: 'proctira-official',
     version: '1.0.0',
     supportedProductVersions: '>=1.0.0 <2.0.0',
-    requiredPermissions: [
-      'report.read',
-      'export.write',
-      'student.read',
-      'institution.read',
-    ],
-    requiredExtensionPoints: [
-      'report.export',
-    ],
+    requiredPermissions: ['report.read', 'export.write', 'student.read', 'institution.read'],
+    requiredExtensionPoints: ['report.export'],
     configSchema: {
       type: 'object',
       properties: {
@@ -138,16 +131,13 @@ export default definePlugin({
   ],
 
   eventHandlers: [
-    defineEventHandler(
-      'export.completed',
-      async (event, context): Promise<void> => {
-        // Log export completion for analytics
-        console.log(
-          `[custom-csv-export] Export completed: ${event.data['format']} ` +
-            `(${event.data['rowCount']} rows, ${event.data['fileSize']} bytes)`,
-        );
-      },
-    ),
+    defineEventHandler('export.completed', async (event, context): Promise<void> => {
+      // Log export completion for analytics
+      console.log(
+        `[custom-csv-export] Export completed: ${event.data['format']} ` +
+          `(${event.data['rowCount']} rows, ${event.data['fileSize']} bytes)`,
+      );
+    }),
   ],
 
   uiSlots: [

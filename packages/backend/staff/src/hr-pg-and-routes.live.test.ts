@@ -140,65 +140,95 @@ describe('Pg appraisal + training repositories (live)', () => {
     expect(updated?.scores[0]?.score).toBe(9);
     expect(updated!.updatedAt.getTime()).toBeGreaterThanOrEqual(appraisal.updatedAt.getTime());
 
-    const listed = await appraisals.list(tenantA, { staffId, status: 'SUBMITTED' }, { page: 1, pageSize: 10 });
+    const listed = await appraisals.list(
+      tenantA,
+      { staffId, status: 'SUBMITTED' },
+      { page: 1, pageSize: 10 },
+    );
     expect(listed.meta.totalItems).toBe(1);
-    expect(await appraisals.list(tenantB, {}, { page: 1, pageSize: 10 })).toMatchObject({ meta: { totalItems: 0 } });
+    expect(await appraisals.list(tenantB, {}, { page: 1, pageSize: 10 })).toMatchObject({
+      meta: { totalItems: 0 },
+    });
     expect(await appraisals.update(appraisal.id, tenantB, { status: 'APPROVED' })).toBeNull();
   });
 
-  it.skipIf(!pool)('persists programs/sessions/attendance/certifications and finds expired ones', async () => {
-    const programs = new PgTrainingProgramRepository(pool!);
-    const sessions = new PgTrainingSessionRepository(pool!);
-    const attendance = new PgTrainingAttendanceRepository(pool!);
-    const certs = new PgCertificationRepository(pool!);
-    const tenantId = randomUUID();
-    const staffId = randomUUID();
+  it.skipIf(!pool)(
+    'persists programs/sessions/attendance/certifications and finds expired ones',
+    async () => {
+      const programs = new PgTrainingProgramRepository(pool!);
+      const sessions = new PgTrainingSessionRepository(pool!);
+      const attendance = new PgTrainingAttendanceRepository(pool!);
+      const certs = new PgCertificationRepository(pool!);
+      const tenantId = randomUUID();
+      const staffId = randomUUID();
 
-    const program = await programs.create({
-      id: randomUUID(),
-      tenantId,
-      name: 'First Aid',
-      description: null,
-      startDate: '2026-01-01',
-      endDate: '2026-01-02',
-      provider: 'Red Cross',
-      certificationName: 'First Aid L1',
-      certificationValidityDays: 365,
-    });
-    expect((await programs.list(tenantId, 'first', { page: 1, pageSize: 5 })).meta.totalItems).toBe(1);
-    expect((await programs.list(tenantId, 'nomatch', { page: 1, pageSize: 5 })).meta.totalItems).toBe(0);
+      const program = await programs.create({
+        id: randomUUID(),
+        tenantId,
+        name: 'First Aid',
+        description: null,
+        startDate: '2026-01-01',
+        endDate: '2026-01-02',
+        provider: 'Red Cross',
+        certificationName: 'First Aid L1',
+        certificationValidityDays: 365,
+      });
+      expect(
+        (await programs.list(tenantId, 'first', { page: 1, pageSize: 5 })).meta.totalItems,
+      ).toBe(1);
+      expect(
+        (await programs.list(tenantId, 'nomatch', { page: 1, pageSize: 5 })).meta.totalItems,
+      ).toBe(0);
 
-    const session = await sessions.create({
-      id: randomUUID(),
-      tenantId,
-      programId: program.id,
-      title: 'CPR',
-      date: '2026-01-01',
-      startTime: '09:00',
-      endTime: '11:00',
-      location: 'Hall',
-      instructorName: 'Dr. A',
-    });
-    expect((await sessions.listByProgram(tenantId, program.id, { page: 1, pageSize: 5 })).data[0]?.title).toBe('CPR');
+      const session = await sessions.create({
+        id: randomUUID(),
+        tenantId,
+        programId: program.id,
+        title: 'CPR',
+        date: '2026-01-01',
+        startTime: '09:00',
+        endTime: '11:00',
+        location: 'Hall',
+        instructorName: 'Dr. A',
+      });
+      expect(
+        (await sessions.listByProgram(tenantId, program.id, { page: 1, pageSize: 5 })).data[0]
+          ?.title,
+      ).toBe('CPR');
 
-    await attendance.create({ id: randomUUID(), tenantId, sessionId: session.id, staffId, status: 'PRESENT', comment: null });
-    expect((await attendance.findBySessionAndStaff(session.id, staffId, tenantId))?.status).toBe('PRESENT');
-    expect(await attendance.listByStaff(tenantId, staffId)).toHaveLength(1);
+      await attendance.create({
+        id: randomUUID(),
+        tenantId,
+        sessionId: session.id,
+        staffId,
+        status: 'PRESENT',
+        comment: null,
+      });
+      expect((await attendance.findBySessionAndStaff(session.id, staffId, tenantId))?.status).toBe(
+        'PRESENT',
+      );
+      expect(await attendance.listByStaff(tenantId, staffId)).toHaveLength(1);
 
-    const cert = await certs.create({
-      id: randomUUID(),
-      tenantId,
-      staffId,
-      programId: program.id,
-      certificationName: 'First Aid L1',
-      issuedDate: '2025-01-01',
-      expiryDate: '2026-01-01',
-      status: 'ACTIVE',
-    });
-    expect((await certs.findExpiredCertifications(tenantId, '2026-06-01')).map((c) => c.id)).toEqual([cert.id]);
-    expect(await certs.findExpiredCertifications(tenantId, '2025-06-01')).toEqual([]);
-    const expired = await certs.update(cert.id, tenantId, { status: 'EXPIRED' });
-    expect(expired?.status).toBe('EXPIRED');
-    expect((await certs.list(tenantId, { staffId, status: 'EXPIRED' }, { page: 1, pageSize: 5 })).meta.totalItems).toBe(1);
-  });
+      const cert = await certs.create({
+        id: randomUUID(),
+        tenantId,
+        staffId,
+        programId: program.id,
+        certificationName: 'First Aid L1',
+        issuedDate: '2025-01-01',
+        expiryDate: '2026-01-01',
+        status: 'ACTIVE',
+      });
+      expect(
+        (await certs.findExpiredCertifications(tenantId, '2026-06-01')).map((c) => c.id),
+      ).toEqual([cert.id]);
+      expect(await certs.findExpiredCertifications(tenantId, '2025-06-01')).toEqual([]);
+      const expired = await certs.update(cert.id, tenantId, { status: 'EXPIRED' });
+      expect(expired?.status).toBe('EXPIRED');
+      expect(
+        (await certs.list(tenantId, { staffId, status: 'EXPIRED' }, { page: 1, pageSize: 5 })).meta
+          .totalItems,
+      ).toBe(1);
+    },
+  );
 });

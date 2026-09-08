@@ -12,9 +12,7 @@ import { PasswordStrengthMeter } from './PasswordStrengthMeter';
 
 describe('<PasswordStrengthMeter />', () => {
   it('returns null when grade is null', () => {
-    const { container } = render(
-      <PasswordStrengthMeter grade={null} ratingLabel="Weak" />,
-    );
+    const { container } = render(<PasswordStrengthMeter grade={null} ratingLabel="Weak" />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -74,9 +72,7 @@ describe('<PasswordStrengthMeter />', () => {
         ratingLabel="Weak"
       />,
     );
-    expect(screen.getByTestId('password-meter-bar').className).toContain(
-      'bg-destructive',
-    );
+    expect(screen.getByTestId('password-meter-bar').className).toContain('bg-destructive');
 
     rerender(
       <PasswordStrengthMeter
@@ -84,8 +80,6 @@ describe('<PasswordStrengthMeter />', () => {
         ratingLabel="Strong"
       />,
     );
-    expect(screen.getByTestId('password-meter-bar').className).toContain(
-      'bg-emerald-500',
-    );
+    expect(screen.getByTestId('password-meter-bar').className).toContain('bg-emerald-500');
   });
 });

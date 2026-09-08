@@ -27,12 +27,7 @@ import { expect, type Page } from '@playwright/test';
  * `readonly` tuple so callers cannot mutate it and the type system can
  * surface the exact set of tags via tooltips.
  */
-export const WCAG_2_1_AA_TAGS = [
-  'wcag2a',
-  'wcag2aa',
-  'wcag21a',
-  'wcag21aa',
-] as const;
+export const WCAG_2_1_AA_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] as const;
 
 export interface RunAxeOptions {
   /**
@@ -71,25 +66,18 @@ export interface RunAxeOptions {
  * impact, count) plus the first failing selector for each rule, which
  * is enough context to triage without dumping the full JSON payload.
  */
-export async function runAxe(
-  page: Page,
-  options: RunAxeOptions = {},
-): Promise<void> {
+export async function runAxe(page: Page, options: RunAxeOptions = {}): Promise<void> {
   let builder = new AxeBuilder({ page }).withTags([...WCAG_2_1_AA_TAGS]);
 
   if (options.include) {
-    const includes = Array.isArray(options.include)
-      ? options.include
-      : [options.include];
+    const includes = Array.isArray(options.include) ? options.include : [options.include];
     for (const selector of includes) {
       builder = builder.include(selector);
     }
   }
 
   if (options.exclude) {
-    const excludes = Array.isArray(options.exclude)
-      ? options.exclude
-      : [options.exclude];
+    const excludes = Array.isArray(options.exclude) ? options.exclude : [options.exclude];
     for (const selector of excludes) {
       builder = builder.exclude(selector);
     }
@@ -105,13 +93,10 @@ export async function runAxe(
     return;
   }
 
-  const label = options.checkpointLabel
-    ? ` (${options.checkpointLabel})`
-    : '';
+  const label = options.checkpointLabel ? ` (${options.checkpointLabel})` : '';
   const summary = result.violations
     .map((v) => {
-      const target =
-        v.nodes[0]?.target?.join(' > ') ?? '<no target reported>';
+      const target = v.nodes[0]?.target?.join(' > ') ?? '<no target reported>';
       return `  • [${v.impact ?? 'unknown'}] ${v.id} — ${v.help}\n    first node: ${target}`;
     })
     .join('\n');

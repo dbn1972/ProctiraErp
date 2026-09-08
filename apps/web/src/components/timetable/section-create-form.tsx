@@ -103,7 +103,10 @@ export function SectionCreateForm(props: {
         </Button>
       </div>
       {error && (
-        <p className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p
+          className="sm:col-span-2 lg:col-span-5 text-sm text-red-600 dark:text-red-400"
+          role="alert"
+        >
           {error}
         </p>
       )}

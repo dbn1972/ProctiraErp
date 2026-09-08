@@ -79,7 +79,7 @@ const CHECKLIST_ITEMS = [
 ] as const;
 
 function TransferChecklist() {
-  const done  = CHECKLIST_ITEMS.filter((i) => i.done).length;
+  const done = CHECKLIST_ITEMS.filter((i) => i.done).length;
   const total = CHECKLIST_ITEMS.length;
 
   return (
@@ -108,11 +108,7 @@ function TransferChecklist() {
                 item.done ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground',
               )}
             >
-              {item.done ? (
-                <CheckCircle2 className="h-4 w-4" />
-              ) : (
-                <Clock3 className="h-4 w-4" />
-              )}
+              {item.done ? <CheckCircle2 className="h-4 w-4" /> : <Clock3 className="h-4 w-4" />}
             </span>
             <div className="min-w-0">
               <p
@@ -158,8 +154,8 @@ const APPROVAL_STEPS = [
 ] as const;
 
 const STATUS_STYLES = {
-  done:     'bg-primary text-primary-foreground',
-  active:   'bg-primary/20 text-primary ring-4 ring-primary/10',
+  done: 'bg-primary text-primary-foreground',
+  active: 'bg-primary/20 text-primary ring-4 ring-primary/10',
   upcoming: 'bg-muted text-muted-foreground',
 } as const;
 
@@ -188,18 +184,13 @@ function ApprovalChain() {
                   {i + 1}
                 </span>
                 {i < APPROVAL_STEPS.length - 1 && (
-                  <span
-                    aria-hidden="true"
-                    className="mt-1 h-8 w-px bg-border"
-                  />
+                  <span aria-hidden="true" className="mt-1 h-8 w-px bg-border" />
                 )}
               </div>
 
               {/* text */}
               <div className={cn('pb-5 pt-0.5', i === APPROVAL_STEPS.length - 1 && 'pb-0')}>
-                <p className="text-xs font-semibold leading-none text-foreground">
-                  {step.role}
-                </p>
+                <p className="text-xs font-semibold leading-none text-foreground">{step.role}</p>
                 <p className="mt-1 text-[11px] text-muted-foreground">{step.action}</p>
               </div>
             </li>
@@ -229,17 +220,16 @@ export default async function StudentTransferPage({ params }: PageProps) {
 
   // Build source info for subtitle
   const cd = student.customData ?? {};
-  const gradeSection    = typeof cd['gradeSection']    === 'string' ? cd['gradeSection']    : '';
+  const gradeSection = typeof cd['gradeSection'] === 'string' ? cd['gradeSection'] : '';
   const institutionName = typeof cd['institutionName'] === 'string' ? cd['institutionName'] : '';
-  const subtitleParts   = [
+  const subtitleParts = [
     `${student.firstName} ${student.lastName}`,
-    gradeSection    && `Grade ${gradeSection}`,
+    gradeSection && `Grade ${gradeSection}`,
     institutionName,
   ].filter(Boolean);
 
   return (
     <section aria-labelledby="transfer-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -267,7 +257,6 @@ export default async function StudentTransferPage({ params }: PageProps) {
 
       {/* ── 2-column layout ── */}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-
         {/* ── Main: form ── */}
         <div>
           <Card>
@@ -280,8 +269,8 @@ export default async function StudentTransferPage({ params }: PageProps) {
             <CardContent>
               {activeEnrollments.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  This student has no active enrollment. Enroll the student before
-                  initiating a transfer.
+                  This student has no active enrollment. Enroll the student before initiating a
+                  transfer.
                 </p>
               ) : (
                 <TransferForm

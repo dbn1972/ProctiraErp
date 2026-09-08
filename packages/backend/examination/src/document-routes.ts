@@ -213,10 +213,7 @@ export async function registerDocumentRoutes(
       }
 
       try {
-        const job = await documentGenerationService.getJobStatus(
-          tenantId,
-          paramsResult.data.jobId,
-        );
+        const job = await documentGenerationService.getJobStatus(tenantId, paramsResult.data.jobId);
 
         return reply.status(200).send(serializeJob(job));
       } catch (error: unknown) {
@@ -259,10 +256,7 @@ export async function registerDocumentRoutes(
       }
 
       try {
-        const job = await documentGenerationService.processJob(
-          tenantId,
-          paramsResult.data.jobId,
-        );
+        const job = await documentGenerationService.processJob(tenantId, paramsResult.data.jobId);
 
         return reply.status(200).send(serializeJob(job));
       } catch (error: unknown) {

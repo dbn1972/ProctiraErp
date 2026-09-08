@@ -42,28 +42,21 @@ export default function TeacherDashboard() {
   const { data, isLoading, error } = useTeacherDashboard();
 
   const totalClasses = data?.assignedClasses.length ?? 0;
-  const totalStudents = (data?.assignedClasses ?? []).reduce(
-    (sum, c) => sum + c.studentCount,
-    0,
-  );
+  const totalStudents = (data?.assignedClasses ?? []).reduce((sum, c) => sum + c.studentCount, 0);
   const pendingAttendanceCount = data?.attendancePending.length ?? 0;
 
-  const tasks: ReadonlyArray<ChecklistTask> = (data?.pendingAssessments ?? []).map(
-    (t) => ({
-      id: t.id,
-      title: t.title,
-      description: t.className,
-      meta: t.due ? `Due ${t.due}` : undefined,
-      completed: t.completed,
-    }),
-  );
+  const tasks: ReadonlyArray<ChecklistTask> = (data?.pendingAssessments ?? []).map((t) => ({
+    id: t.id,
+    title: t.title,
+    description: t.className,
+    meta: t.due ? `Due ${t.due}` : undefined,
+    completed: t.completed,
+  }));
 
   return (
     <div className="space-y-6 p-6" data-testid="teacher-dashboard">
       <header>
-        <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">
-          Teacher Dashboard
-        </h1>
+        <h1 className="text-2xl font-semibold text-[hsl(var(--foreground))]">Teacher Dashboard</h1>
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
           Today&apos;s classes, attendance, and pending assessment work.
         </p>
@@ -92,9 +85,7 @@ export default function TeacherDashboard() {
           />
           <KpiCard
             label="Pending assessment tasks"
-            value={NUMBER_FORMAT.format(
-              data?.pendingAssessments.length ?? 0,
-            )}
+            value={NUMBER_FORMAT.format(data?.pendingAssessments.length ?? 0)}
             icon={<ClipboardList className="h-5 w-5" aria-hidden="true" />}
             description="Items awaiting submission"
             loading={isLoading}
@@ -105,10 +96,7 @@ export default function TeacherDashboard() {
       </DashboardSection>
 
       {/* Today's schedule */}
-      <DashboardSection
-        title="Today's schedule"
-        description="Your classes for the day, in order"
-      >
+      <DashboardSection title="Today's schedule" description="Your classes for the day, in order">
         <Card>
           <CardContent className="p-6">
             <TimelineSchedule
@@ -132,22 +120,17 @@ export default function TeacherDashboard() {
             <Card data-testid="attendance-pending">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Mark attendance</CardTitle>
-                <CardDescription>
-                  Tap a class to open the attendance marking flow
-                </CardDescription>
+                <CardDescription>Tap a class to open the attendance marking flow</CardDescription>
               </CardHeader>
               <CardContent>
                 {data.attendancePending.length === 0 ? (
                   <p className="py-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
-                    All attendance entered for today. 
+                    All attendance entered for today.
                   </p>
                 ) : (
                   <ul className="space-y-2">
                     {data.attendancePending.map((cls) => (
-                      <li
-                        key={cls.classId}
-                        data-testid="attendance-pending-item"
-                      >
+                      <li key={cls.classId} data-testid="attendance-pending-item">
                         <Button
                           asChild
                           variant="outline"
@@ -160,9 +143,7 @@ export default function TeacherDashboard() {
                                 aria-hidden="true"
                               />
                               <span className="space-y-0.5">
-                                <span className="block text-sm font-medium">
-                                  {cls.className}
-                                </span>
+                                <span className="block text-sm font-medium">{cls.className}</span>
                                 <span className="block text-xs text-[hsl(var(--muted-foreground))]">
                                   Scheduled at {cls.scheduledAt}
                                 </span>

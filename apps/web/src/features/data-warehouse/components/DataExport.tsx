@@ -67,12 +67,8 @@ export function DataExport({ queryParams, disabled = false }: DataExportProps) {
         <DropdownMenuItem onClick={() => handleExport('xlsx')}>
           {FORMAT_LABELS.xlsx}
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleExport('csv')}>
-          {FORMAT_LABELS.csv}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleExport('di7')}>
-          {FORMAT_LABELS.di7}
-        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleExport('csv')}>{FORMAT_LABELS.csv}</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleExport('di7')}>{FORMAT_LABELS.di7}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

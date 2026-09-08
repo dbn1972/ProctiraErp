@@ -57,9 +57,7 @@ describe('Survey Routes', () => {
         url: '/surveys',
         payload: {
           name: 'Test Survey',
-          questions: [
-            { label: 'Question 1', type: 'text', required: true, order: 0 },
-          ],
+          questions: [{ label: 'Question 1', type: 'text', required: true, order: 0 }],
         },
       });
 
@@ -207,8 +205,14 @@ describe('Survey Routes', () => {
       const areaId = '11111111-1111-4111-8111-111111111111';
       // Add institutions
       institutionLookup.addInstitution({
-        id: 'inst-001', tenantId, areaId, areaName: 'Area 1',
-        typeId: 't1', typeName: 'Type 1', classificationId: 'c1', name: 'School 1',
+        id: 'inst-001',
+        tenantId,
+        areaId,
+        areaName: 'Area 1',
+        typeId: 't1',
+        typeName: 'Type 1',
+        classificationId: 'c1',
+        name: 'School 1',
       });
 
       const response = await app.inject({
@@ -247,8 +251,14 @@ describe('Survey Routes', () => {
       });
 
       institutionLookup.addInstitution({
-        id: instId, tenantId, areaId: '11111111-1111-4111-8111-111111111111', areaName: 'Area 1',
-        typeId: 't1', typeName: 'Type 1', classificationId: 'c1', name: 'School 1',
+        id: instId,
+        tenantId,
+        areaId: '11111111-1111-4111-8111-111111111111',
+        areaName: 'Area 1',
+        typeId: 't1',
+        typeName: 'Type 1',
+        classificationId: 'c1',
+        name: 'School 1',
       });
 
       await app.inject({
@@ -263,9 +273,7 @@ describe('Survey Routes', () => {
         payload: {
           surveyId: created.id,
           institutionId: instId,
-          answers: [
-            { questionId: created.questions[0].id, value: 'My answer' },
-          ],
+          answers: [{ questionId: created.questions[0].id, value: 'My answer' }],
         },
       });
 

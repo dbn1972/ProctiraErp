@@ -60,11 +60,7 @@ export function MeetingCreateForm(props: {
             roomId: roomId || null,
           });
           if (!result.ok) {
-            setError(
-              result.status === 409
-                ? `Conflict (409): ${result.error}`
-                : result.error,
-            );
+            setError(result.status === 409 ? `Conflict (409): ${result.error}` : result.error);
             return;
           }
           router.refresh();
@@ -171,7 +167,10 @@ export function MeetingCreateForm(props: {
         </Button>
       </div>
       {error && (
-        <p className="sm:col-span-2 lg:col-span-6 text-sm text-red-600 dark:text-red-400" role="alert">
+        <p
+          className="sm:col-span-2 lg:col-span-6 text-sm text-red-600 dark:text-red-400"
+          role="alert"
+        >
           {error}
         </p>
       )}

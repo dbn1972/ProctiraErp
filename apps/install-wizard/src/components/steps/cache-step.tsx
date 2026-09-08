@@ -64,7 +64,10 @@ export function CacheStep({ onComplete, onBack }: CacheStepProps) {
                 name="cache-adapter"
                 value="redis"
                 checked={config.adapter === 'redis'}
-                onChange={() => { setConfig((prev) => ({ ...prev, adapter: 'redis' })); setResult(null); }}
+                onChange={() => {
+                  setConfig((prev) => ({ ...prev, adapter: 'redis' }));
+                  setResult(null);
+                }}
                 className="text-primary-700 focus:ring-primary-500"
               />
               <span className="text-sm font-medium">Redis</span>
@@ -75,7 +78,10 @@ export function CacheStep({ onComplete, onBack }: CacheStepProps) {
                 name="cache-adapter"
                 value="memory"
                 checked={config.adapter === 'memory'}
-                onChange={() => { setConfig((prev) => ({ ...prev, adapter: 'memory' })); setResult(null); }}
+                onChange={() => {
+                  setConfig((prev) => ({ ...prev, adapter: 'memory' }));
+                  setResult(null);
+                }}
                 className="text-primary-700 focus:ring-primary-500"
               />
               <span className="text-sm font-medium">In-Memory (dev only)</span>
@@ -87,7 +93,9 @@ export function CacheStep({ onComplete, onBack }: CacheStepProps) {
         {config.adapter === 'redis' && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="cache-host" className="label">Host</label>
+              <label htmlFor="cache-host" className="label">
+                Host
+              </label>
               <input
                 id="cache-host"
                 type="text"
@@ -98,19 +106,25 @@ export function CacheStep({ onComplete, onBack }: CacheStepProps) {
               />
             </div>
             <div>
-              <label htmlFor="cache-port" className="label">Port</label>
+              <label htmlFor="cache-port" className="label">
+                Port
+              </label>
               <input
                 id="cache-port"
                 type="number"
                 className="input-field"
                 value={config.port ?? 6379}
-                onChange={(e) => setConfig((prev) => ({ ...prev, port: parseInt(e.target.value, 10) || 6379 }))}
+                onChange={(e) =>
+                  setConfig((prev) => ({ ...prev, port: parseInt(e.target.value, 10) || 6379 }))
+                }
                 min={1}
                 max={65535}
               />
             </div>
             <div>
-              <label htmlFor="cache-password" className="label">Password (optional)</label>
+              <label htmlFor="cache-password" className="label">
+                Password (optional)
+              </label>
               <input
                 id="cache-password"
                 type="password"
@@ -121,19 +135,25 @@ export function CacheStep({ onComplete, onBack }: CacheStepProps) {
               />
             </div>
             <div>
-              <label htmlFor="cache-db" className="label">Database Index</label>
+              <label htmlFor="cache-db" className="label">
+                Database Index
+              </label>
               <input
                 id="cache-db"
                 type="number"
                 className="input-field"
                 value={config.db ?? 0}
-                onChange={(e) => setConfig((prev) => ({ ...prev, db: parseInt(e.target.value, 10) || 0 }))}
+                onChange={(e) =>
+                  setConfig((prev) => ({ ...prev, db: parseInt(e.target.value, 10) || 0 }))
+                }
                 min={0}
                 max={15}
               />
             </div>
             <div className="sm:col-span-2">
-              <label htmlFor="cache-prefix" className="label">Key Prefix</label>
+              <label htmlFor="cache-prefix" className="label">
+                Key Prefix
+              </label>
               <input
                 id="cache-prefix"
                 type="text"
@@ -149,7 +169,8 @@ export function CacheStep({ onComplete, onBack }: CacheStepProps) {
         {config.adapter === 'memory' && (
           <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3">
             <p className="text-sm text-yellow-800">
-              <strong>Warning:</strong> In-memory cache is not suitable for production. Data is lost on restart and not shared across instances.
+              <strong>Warning:</strong> In-memory cache is not suitable for production. Data is lost
+              on restart and not shared across instances.
             </p>
           </div>
         )}
@@ -208,7 +229,11 @@ function LoadingSpinner() {
   return (
     <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   );
 }

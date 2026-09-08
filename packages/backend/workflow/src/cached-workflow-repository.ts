@@ -30,7 +30,9 @@ export class CachedWorkflowRepository implements WorkflowRepository {
 
   // ─── Workflow Definition operations ────────────────────────────────────────
 
-  async createDefinition(entity: Omit<WorkflowDefinitionEntity, 'createdAt' | 'updatedAt'>): Promise<WorkflowDefinitionEntity> {
+  async createDefinition(
+    entity: Omit<WorkflowDefinitionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<WorkflowDefinitionEntity> {
     return this.delegate.createDefinition(entity);
   }
 
@@ -47,7 +49,11 @@ export class CachedWorkflowRepository implements WorkflowRepository {
     );
   }
 
-  async updateDefinition(id: string, tenantId: string, data: Partial<WorkflowDefinitionEntity>): Promise<WorkflowDefinitionEntity | null> {
+  async updateDefinition(
+    id: string,
+    tenantId: string,
+    data: Partial<WorkflowDefinitionEntity>,
+  ): Promise<WorkflowDefinitionEntity | null> {
     const result = await this.delegate.updateDefinition(id, tenantId, data);
     if (result && this.cache) {
       const key = tenantKey(tenantId, 'workflow-definition', id);
@@ -65,13 +71,19 @@ export class CachedWorkflowRepository implements WorkflowRepository {
     return result;
   }
 
-  async listDefinitions(tenantId: string, filter: WorkflowDefinitionFilter, pagination: PaginationOptions): Promise<PaginatedResult<WorkflowDefinitionEntity>> {
+  async listDefinitions(
+    tenantId: string,
+    filter: WorkflowDefinitionFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<WorkflowDefinitionEntity>> {
     return this.delegate.listDefinitions(tenantId, filter, pagination);
   }
 
   // ─── Workflow Instance operations ──────────────────────────────────────────
 
-  async createInstance(entity: Omit<WorkflowInstanceEntity, 'createdAt' | 'updatedAt'>): Promise<WorkflowInstanceEntity> {
+  async createInstance(
+    entity: Omit<WorkflowInstanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<WorkflowInstanceEntity> {
     return this.delegate.createInstance(entity);
   }
 
@@ -79,11 +91,19 @@ export class CachedWorkflowRepository implements WorkflowRepository {
     return this.delegate.findInstanceById(id, tenantId);
   }
 
-  async updateInstance(id: string, tenantId: string, data: Partial<WorkflowInstanceEntity>): Promise<WorkflowInstanceEntity | null> {
+  async updateInstance(
+    id: string,
+    tenantId: string,
+    data: Partial<WorkflowInstanceEntity>,
+  ): Promise<WorkflowInstanceEntity | null> {
     return this.delegate.updateInstance(id, tenantId, data);
   }
 
-  async listInstances(tenantId: string, filter: WorkflowInstanceFilter, pagination: PaginationOptions): Promise<PaginatedResult<WorkflowInstanceEntity>> {
+  async listInstances(
+    tenantId: string,
+    filter: WorkflowInstanceFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<WorkflowInstanceEntity>> {
     return this.delegate.listInstances(tenantId, filter, pagination);
   }
 

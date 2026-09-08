@@ -170,9 +170,7 @@ describe('PageErrorBoundary', () => {
     }
 
     render(
-      <PageErrorBoundary
-        fallback={<div data-testid="custom-fallback">Custom Error UI</div>}
-      >
+      <PageErrorBoundary fallback={<div data-testid="custom-fallback">Custom Error UI</div>}>
         <ThrowingComponent />
       </PageErrorBoundary>,
     );

@@ -37,16 +37,9 @@ describe('<RolePicker />', () => {
 
   it('renders the placeholder when no role is selected', () => {
     render(
-      <RolePicker
-        value=""
-        onValueChange={() => {}}
-        roles={ROLES}
-        placeholder="Select your role"
-      />,
+      <RolePicker value="" onValueChange={() => {}} roles={ROLES} placeholder="Select your role" />,
     );
-    expect(screen.getByTestId('role-picker').textContent).toContain(
-      'Select your role',
-    );
+    expect(screen.getByTestId('role-picker').textContent).toContain('Select your role');
   });
 
   it('forwards aria-invalid and aria-describedby for error wiring', () => {

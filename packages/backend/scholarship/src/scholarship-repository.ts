@@ -46,7 +46,13 @@ export interface ProgramFilter {
 
 // ─── Application Entity ──────────────────────────────────────────────────────
 
-export type ApplicationStatus = 'draft' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'withdrawn';
+export type ApplicationStatus =
+  | 'draft'
+  | 'submitted'
+  | 'under_review'
+  | 'approved'
+  | 'rejected'
+  | 'withdrawn';
 
 export interface ScholarshipApplicationEntity {
   id: string;
@@ -106,7 +112,11 @@ export interface DisbursementFilter {
 
 // ─── Compliance Entity ───────────────────────────────────────────────────────
 
-export type ComplianceType = 'academic_performance' | 'attendance' | 'community_service' | 'report_submission';
+export type ComplianceType =
+  | 'academic_performance'
+  | 'attendance'
+  | 'community_service'
+  | 'report_submission';
 export type ComplianceStatus = 'compliant' | 'non_compliant' | 'pending_review';
 
 export interface ComplianceRecordEntity {
@@ -157,31 +167,73 @@ export interface UtilizationReportFilter {
 
 export interface ScholarshipRepository {
   // Program operations
-  createProgram(data: Omit<ScholarshipProgramEntity, 'createdAt' | 'updatedAt'>): Promise<ScholarshipProgramEntity>;
-  updateProgram(id: string, tenantId: string, data: Partial<ScholarshipProgramEntity>): Promise<ScholarshipProgramEntity | null>;
+  createProgram(
+    data: Omit<ScholarshipProgramEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ScholarshipProgramEntity>;
+  updateProgram(
+    id: string,
+    tenantId: string,
+    data: Partial<ScholarshipProgramEntity>,
+  ): Promise<ScholarshipProgramEntity | null>;
   findProgramById(id: string, tenantId: string): Promise<ScholarshipProgramEntity | null>;
-  listPrograms(tenantId: string, filter: ProgramFilter, pagination: PaginationOptions): Promise<PaginatedResult<ScholarshipProgramEntity>>;
+  listPrograms(
+    tenantId: string,
+    filter: ProgramFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScholarshipProgramEntity>>;
   deleteProgram(id: string, tenantId: string): Promise<boolean>;
 
   // Application operations
-  createApplication(data: Omit<ScholarshipApplicationEntity, 'createdAt' | 'updatedAt'>): Promise<ScholarshipApplicationEntity>;
-  updateApplication(id: string, tenantId: string, data: Partial<ScholarshipApplicationEntity>): Promise<ScholarshipApplicationEntity | null>;
+  createApplication(
+    data: Omit<ScholarshipApplicationEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ScholarshipApplicationEntity>;
+  updateApplication(
+    id: string,
+    tenantId: string,
+    data: Partial<ScholarshipApplicationEntity>,
+  ): Promise<ScholarshipApplicationEntity | null>;
   findApplicationById(id: string, tenantId: string): Promise<ScholarshipApplicationEntity | null>;
-  listApplications(tenantId: string, filter: ApplicationFilter, pagination: PaginationOptions): Promise<PaginatedResult<ScholarshipApplicationEntity>>;
+  listApplications(
+    tenantId: string,
+    filter: ApplicationFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ScholarshipApplicationEntity>>;
   countApplicationsByProgram(programId: string, tenantId: string): Promise<number>;
-  findApplicationByApplicantAndProgram(applicantId: string, programId: string, tenantId: string): Promise<ScholarshipApplicationEntity | null>;
+  findApplicationByApplicantAndProgram(
+    applicantId: string,
+    programId: string,
+    tenantId: string,
+  ): Promise<ScholarshipApplicationEntity | null>;
 
   // Disbursement operations
-  createDisbursement(data: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'>): Promise<DisbursementEntity>;
-  updateDisbursement(id: string, tenantId: string, data: Partial<DisbursementEntity>): Promise<DisbursementEntity | null>;
+  createDisbursement(
+    data: Omit<DisbursementEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<DisbursementEntity>;
+  updateDisbursement(
+    id: string,
+    tenantId: string,
+    data: Partial<DisbursementEntity>,
+  ): Promise<DisbursementEntity | null>;
   findDisbursementById(id: string, tenantId: string): Promise<DisbursementEntity | null>;
-  listDisbursements(tenantId: string, filter: DisbursementFilter, pagination: PaginationOptions): Promise<PaginatedResult<DisbursementEntity>>;
-  listDisbursementsByApplication(applicationId: string, tenantId: string): Promise<DisbursementEntity[]>;
+  listDisbursements(
+    tenantId: string,
+    filter: DisbursementFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<DisbursementEntity>>;
+  listDisbursementsByApplication(
+    applicationId: string,
+    tenantId: string,
+  ): Promise<DisbursementEntity[]>;
 
   // Compliance operations
-  createComplianceRecord(data: Omit<ComplianceRecordEntity, 'createdAt' | 'updatedAt'>): Promise<ComplianceRecordEntity>;
+  createComplianceRecord(
+    data: Omit<ComplianceRecordEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ComplianceRecordEntity>;
   listComplianceRecords(applicationId: string, tenantId: string): Promise<ComplianceRecordEntity[]>;
 
   // Report operations
-  getUtilizationReport(tenantId: string, filter: UtilizationReportFilter): Promise<UtilizationReportData>;
+  getUtilizationReport(
+    tenantId: string,
+    filter: UtilizationReportFilter,
+  ): Promise<UtilizationReportData>;
 }

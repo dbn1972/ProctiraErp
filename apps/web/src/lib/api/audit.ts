@@ -90,9 +90,7 @@ export async function listAuditEntries(
  * Fetches a single audit entry by ID.
  */
 export async function getAuditEntry(entryId: string): Promise<AuditEntry> {
-  return browserGatewayFetch<AuditEntry>(
-    `/audit/entries/${encodeURIComponent(entryId)}`,
-  );
+  return browserGatewayFetch<AuditEntry>(`/audit/entries/${encodeURIComponent(entryId)}`);
 }
 
 /**
@@ -100,8 +98,6 @@ export async function getAuditEntry(entryId: string): Promise<AuditEntry> {
  * Used to populate the entity type filter dropdown.
  */
 export async function listAuditEntityTypes(): Promise<string[]> {
-  const result = await browserGatewayFetch<{ data: string[] }>(
-    '/audit/entity-types',
-  );
+  const result = await browserGatewayFetch<{ data: string[] }>('/audit/entity-types');
   return result.data;
 }

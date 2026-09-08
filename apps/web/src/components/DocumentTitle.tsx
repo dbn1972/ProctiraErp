@@ -79,9 +79,7 @@ export function resolveDocumentTitle(
   // Requirement 43 AC 6 — the next page load surfaces a sensible title even
   // if a tenant misconfigures the template.
   if (!tpl.includes('{page}') && !tpl.includes('{brand}')) {
-    return trimmedBrand.length === 0
-      ? trimmedPage
-      : `${trimmedPage} | ${trimmedBrand}`;
+    return trimmedBrand.length === 0 ? trimmedPage : `${trimmedPage} | ${trimmedBrand}`;
   }
 
   return tpl

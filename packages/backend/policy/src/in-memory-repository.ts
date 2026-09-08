@@ -32,7 +32,11 @@ export class InMemoryPolicyRepository implements PolicyRepository {
     return entity;
   }
 
-  async update(id: string, tenantId: string, data: Partial<PolicyEntity>): Promise<PolicyEntity | null> {
+  async update(
+    id: string,
+    tenantId: string,
+    data: Partial<PolicyEntity>,
+  ): Promise<PolicyEntity | null> {
     const index = this.policies.findIndex((p) => p.id === id && p.tenantId === tenantId);
     if (index === -1) return null;
 
@@ -48,7 +52,8 @@ export class InMemoryPolicyRepository implements PolicyRepository {
       rules: data.rules ?? existing.rules,
       version: data.version ?? existing.version,
       effectiveFrom: data.effectiveFrom !== undefined ? data.effectiveFrom : existing.effectiveFrom,
-      effectiveUntil: data.effectiveUntil !== undefined ? data.effectiveUntil : existing.effectiveUntil,
+      effectiveUntil:
+        data.effectiveUntil !== undefined ? data.effectiveUntil : existing.effectiveUntil,
       priority: data.priority ?? existing.priority,
       createdAt: existing.createdAt,
       updatedAt: new Date(),
@@ -62,9 +67,11 @@ export class InMemoryPolicyRepository implements PolicyRepository {
   }
 
   async findByName(name: string, tenantId: string): Promise<PolicyEntity | null> {
-    return this.policies.find(
-      (p) => p.name.toLowerCase() === name.toLowerCase() && p.tenantId === tenantId,
-    ) ?? null;
+    return (
+      this.policies.find(
+        (p) => p.name.toLowerCase() === name.toLowerCase() && p.tenantId === tenantId,
+      ) ?? null
+    );
   }
 
   async list(
@@ -151,7 +158,9 @@ export class InMemoryPolicyRepository implements PolicyRepository {
 
   // ─── Policy Assignments ──────────────────────────────────────────────────
 
-  async createAssignment(data: Omit<PolicyAssignmentEntity, 'createdAt'>): Promise<PolicyAssignmentEntity> {
+  async createAssignment(
+    data: Omit<PolicyAssignmentEntity, 'createdAt'>,
+  ): Promise<PolicyAssignmentEntity> {
     const entity: PolicyAssignmentEntity = {
       ...data,
       createdAt: new Date(),
@@ -184,16 +193,17 @@ export class InMemoryPolicyRepository implements PolicyRepository {
     }
 
     if (policyType) {
-      const policyIds = this.policies
-        .filter((p) => p.type === policyType)
-        .map((p) => p.id);
+      const policyIds = this.policies.filter((p) => p.type === policyType).map((p) => p.id);
       filtered = filtered.filter((a) => policyIds.includes(a.policyId));
     }
 
     return filtered;
   }
 
-  async findAssignmentsByPolicy(policyId: string, tenantId: string): Promise<PolicyAssignmentEntity[]> {
+  async findAssignmentsByPolicy(
+    policyId: string,
+    tenantId: string,
+  ): Promise<PolicyAssignmentEntity[]> {
     return this.assignments.filter((a) => a.policyId === policyId && a.tenantId === tenantId);
   }
 

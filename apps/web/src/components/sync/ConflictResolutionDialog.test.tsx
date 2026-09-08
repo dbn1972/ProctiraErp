@@ -71,9 +71,7 @@ const sampleConflict: ConflictPayload = {
   resolution_token: 'tok-abc-123',
 };
 
-function makeDetail(
-  overrides: Partial<SyncConflictEventDetail> = {},
-): SyncConflictEventDetail {
+function makeDetail(overrides: Partial<SyncConflictEventDetail> = {}): SyncConflictEventDetail {
   return {
     queueId: 'op-1',
     method: 'PATCH',
@@ -135,21 +133,13 @@ describe('<ConflictResolutionDialog> — opens on sync:conflict', () => {
     fireConflict(makeDetail());
 
     // studentName row.
-    expect(
-      screen.getByTestId('conflict-studentName-client-value').textContent,
-    ).toBe('Aisha K.');
-    expect(
-      screen.getByTestId('conflict-studentName-server-value').textContent,
-    ).toBe('Aisha Khan');
+    expect(screen.getByTestId('conflict-studentName-client-value').textContent).toBe('Aisha K.');
+    expect(screen.getByTestId('conflict-studentName-server-value').textContent).toBe('Aisha Khan');
 
     // gradeLevel row — non-string scalars render as JSON (so the user
     // can distinguish 5 from "5").
-    expect(
-      screen.getByTestId('conflict-gradeLevel-client-value').textContent,
-    ).toBe('6');
-    expect(
-      screen.getByTestId('conflict-gradeLevel-server-value').textContent,
-    ).toBe('5');
+    expect(screen.getByTestId('conflict-gradeLevel-client-value').textContent).toBe('6');
+    expect(screen.getByTestId('conflict-gradeLevel-server-value').textContent).toBe('5');
   });
 
   it('renders the local and server payload panels', () => {

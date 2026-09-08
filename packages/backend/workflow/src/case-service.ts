@@ -12,11 +12,7 @@ import { NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type {
-  CaseRepository,
-  CaseEntity,
-  CaseFilter,
-} from './case-repository.js';
+import type { CaseRepository, CaseEntity, CaseFilter } from './case-repository.js';
 import type {
   CreateCaseInput,
   UpdateCaseInput,
@@ -115,7 +111,7 @@ export class CaseService {
       if (!validTransitions.includes(input.status)) {
         throw new BusinessRuleError(
           `Cannot transition case from '${existing.status}' to '${input.status}'. ` +
-          `Valid transitions: ${validTransitions.join(', ')}`,
+            `Valid transitions: ${validTransitions.join(', ')}`,
         );
       }
     }
@@ -210,7 +206,7 @@ export class CaseService {
     if (!validTransitions.includes('resolved')) {
       throw new BusinessRuleError(
         `Cannot resolve case from '${existing.status}' status. ` +
-        `Case must be in 'pending_review' status to be resolved.`,
+          `Case must be in 'pending_review' status to be resolved.`,
       );
     }
 

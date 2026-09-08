@@ -151,10 +151,7 @@ export async function registerAppraisalRoutes(
    */
   fastify.get(
     `${prefix}/templates`,
-    async function listTemplatesHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listTemplatesHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
       if (!tenantId) {
         return reply.status(400).send({

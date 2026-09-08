@@ -48,13 +48,28 @@ export {
   THEME_STORAGE_KEY_SUFFIX,
   FALLBACK_STORAGE_KEY,
 } from './ThemeProvider';
-export type { ThemeMode, ResolvedTheme, ThemeContextValue, ThemeProviderProps } from './ThemeProvider';
+export type {
+  ThemeMode,
+  ResolvedTheme,
+  ThemeContextValue,
+  ThemeProviderProps,
+} from './ThemeProvider';
 
 export { ConnectivityProvider, useConnectivity } from './ConnectivityProvider';
-export type { ConnectivityStatus, ConnectivityContextValue, ConnectivityProviderProps } from './ConnectivityProvider';
+export type {
+  ConnectivityStatus,
+  ConnectivityContextValue,
+  ConnectivityProviderProps,
+} from './ConnectivityProvider';
 
 export { AuthProvider, useAuth } from './AuthProvider';
-export type { AuthStatus, AuthUser, UserScope, AuthContextValue, AuthProviderProps } from './AuthProvider';
+export type {
+  AuthStatus,
+  AuthUser,
+  UserScope,
+  AuthContextValue,
+  AuthProviderProps,
+} from './AuthProvider';
 
 export {
   FeatureFlagsProvider,

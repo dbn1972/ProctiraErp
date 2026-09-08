@@ -44,17 +44,9 @@ describe('Assessment Result Routes', () => {
     outcomeRepo = new InMemoryOutcomeRepository();
     resultRepo = new InMemoryAssessmentResultRepository();
 
-    assessmentService = new AssessmentService(
-      gradingSchemeRepo,
-      assessmentItemRepo,
-      outcomeRepo,
-    );
+    assessmentService = new AssessmentService(gradingSchemeRepo, assessmentItemRepo, outcomeRepo);
 
-    resultService = new ResultService(
-      resultRepo,
-      assessmentItemRepo,
-      gradingSchemeRepo,
-    );
+    resultService = new ResultService(resultRepo, assessmentItemRepo, gradingSchemeRepo);
 
     app = Fastify();
 
@@ -226,9 +218,7 @@ describe('Assessment Result Routes', () => {
         payload: {
           subjectId,
           academicPeriodId,
-          rows: [
-            { studentId, assessmentItemId: items[0]!.id, score: 75 },
-          ],
+          rows: [{ studentId, assessmentItemId: items[0]!.id, score: 75 }],
         },
       });
 
@@ -257,12 +247,18 @@ describe('Assessment Result Routes', () => {
     it('should return calculated grade for a student (Requirement 8.4)', async () => {
       // Enter scores
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[0]!.id, score: 90,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[0]!.id,
+        score: 90,
       });
       await resultService.enterSingleResult(tenantId, {
-        subjectId, academicPeriodId, studentId,
-        assessmentItemId: items[1]!.id, score: 85,
+        subjectId,
+        academicPeriodId,
+        studentId,
+        assessmentItemId: items[1]!.id,
+        score: 85,
       });
 
       const response = await app.inject({

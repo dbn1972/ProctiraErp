@@ -1,19 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import {
-  resolveTenantId,
-  isValidUuid,
-  TenantResolutionError,
-} from './tenant-resolution.js';
+import { resolveTenantId, isValidUuid, TenantResolutionError } from './tenant-resolution.js';
 import type { FastifyRequest } from 'fastify';
 
 /**
  * Creates a minimal mock FastifyRequest for testing tenant resolution.
  */
-function createMockRequest(overrides: {
-  user?: Record<string, unknown>;
-  headers?: Record<string, string | undefined>;
-  hostname?: string;
-} = {}): FastifyRequest {
+function createMockRequest(
+  overrides: {
+    user?: Record<string, unknown>;
+    headers?: Record<string, string | undefined>;
+    hostname?: string;
+  } = {},
+): FastifyRequest {
   return {
     user: overrides.user,
     headers: overrides.headers ?? {},
@@ -128,7 +126,9 @@ describe('tenant-resolution', () => {
         });
 
         expect(() => resolveTenantId(request)).toThrow(TenantResolutionError);
-        expect(() => resolveTenantId(request)).toThrow('Invalid tenant ID format in x-tenant-id header');
+        expect(() => resolveTenantId(request)).toThrow(
+          'Invalid tenant ID format in x-tenant-id header',
+        );
       });
     });
 

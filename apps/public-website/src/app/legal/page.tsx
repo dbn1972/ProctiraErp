@@ -1,12 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  ArrowRight,
-  Cookie,
-  FileText,
-  ShieldCheck,
-  ShieldQuestion,
-} from 'lucide-react';
+import { ArrowRight, Cookie, FileText, ShieldCheck, ShieldQuestion } from 'lucide-react';
 
 import { PageHero } from '@/components/layout/page-hero';
 import { Button } from '@/components/ui/button';
@@ -92,13 +86,9 @@ export default function LegalPage() {
                   <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Icon aria-hidden="true" className="h-5 w-5" />
                   </span>
-                  <h2 className="text-lg font-bold tracking-tight text-foreground">
-                    {doc.title}
-                  </h2>
+                  <h2 className="text-lg font-bold tracking-tight text-foreground">{doc.title}</h2>
                 </div>
-                <p className="mt-4 flex-1 leading-relaxed text-muted-foreground">
-                  {doc.summary}
-                </p>
+                <p className="mt-4 flex-1 leading-relaxed text-muted-foreground">{doc.summary}</p>
                 <span className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-primary group-hover:underline">
                   {doc.cta}
                   <ArrowRight aria-hidden="true" className="h-4 w-4" />
@@ -113,11 +103,10 @@ export default function LegalPage() {
             Trademarks, copyright & takedowns
           </h2>
           <p className="mt-3 leading-relaxed text-muted-foreground">
-            &ldquo;ProctiraERP&rdquo; and the ProctiraERP logo are trademarks
-            of their respective owners. Platform source code is licensed under
-            its respective open-source licences; content on this website is
-            provided under the ProctiraERP public-content licence unless noted
-            otherwise. Reports of trademark misuse can be sent to{' '}
+            &ldquo;ProctiraERP&rdquo; and the ProctiraERP logo are trademarks of their respective
+            owners. Platform source code is licensed under its respective open-source licences;
+            content on this website is provided under the ProctiraERP public-content licence unless
+            noted otherwise. Reports of trademark misuse can be sent to{' '}
             <a
               className="font-medium text-primary hover:underline"
               href="mailto:abuse@proctira.org"
@@ -142,15 +131,12 @@ export default function LegalPage() {
         aria-labelledby="legal-cta-heading"
       >
         <div className="container py-20 text-center">
-          <h2
-            id="legal-cta-heading"
-            className="text-3xl font-extrabold tracking-tight md:text-4xl"
-          >
+          <h2 id="legal-cta-heading" className="text-3xl font-extrabold tracking-tight md:text-4xl">
             Can&apos;t find what your legal team needs?
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-primary-foreground/80">
-            We respond to procurement questionnaires, DPA requests, and bespoke
-            contract reviews for government and institutional customers.
+            We respond to procurement questionnaires, DPA requests, and bespoke contract reviews for
+            government and institutional customers.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild variant="accent" size="lg">

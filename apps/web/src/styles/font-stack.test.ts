@@ -57,22 +57,14 @@ describe('Font stack — system-font fallback (Task 55.3, Requirement 39.3)', ()
 
     // The order documented in the spec must be preserved so the browser
     // walks the list in the intended priority.
-    const required = [
-      '-apple-system',
-      'BlinkMacSystemFont',
-      "'Segoe UI'",
-      'Roboto',
-    ];
+    const required = ['-apple-system', 'BlinkMacSystemFont', "'Segoe UI'", 'Roboto'];
     let lastIndex = -1;
     for (const family of required) {
       const idx = computed.indexOf(family);
-      expect(idx, `expected to find ${family} in: ${computed}`).toBeGreaterThan(
-        -1
+      expect(idx, `expected to find ${family} in: ${computed}`).toBeGreaterThan(-1);
+      expect(idx, `expected ${family} after the previous family in: ${computed}`).toBeGreaterThan(
+        lastIndex,
       );
-      expect(
-        idx,
-        `expected ${family} after the previous family in: ${computed}`
-      ).toBeGreaterThan(lastIndex);
       lastIndex = idx;
     }
 

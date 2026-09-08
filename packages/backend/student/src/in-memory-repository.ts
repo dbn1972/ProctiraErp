@@ -6,18 +6,12 @@
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
-import type {
-  StudentEntity,
-  StudentFilter,
-  StudentRepository,
-} from './student-repository.js';
+import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
 
 export class InMemoryStudentRepository implements StudentRepository {
   private students: Map<string, StudentEntity> = new Map();
 
-  async create(
-    data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<StudentEntity> {
+  async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
     const now = new Date();
     const entity: StudentEntity = {
       ...data,
@@ -72,9 +66,7 @@ export class InMemoryStudentRepository implements StudentRepository {
     filter: StudentFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StudentEntity>> {
-    let items = Array.from(this.students.values()).filter(
-      (entity) => entity.tenantId === tenantId,
-    );
+    let items = Array.from(this.students.values()).filter((entity) => entity.tenantId === tenantId);
 
     // Apply filters
     if (filter.gender) {
@@ -123,9 +115,7 @@ export class InMemoryStudentRepository implements StudentRepository {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StudentEntity>> {
     const queryLower = query.toLowerCase();
-    let items = Array.from(this.students.values()).filter(
-      (entity) => entity.tenantId === tenantId,
-    );
+    let items = Array.from(this.students.values()).filter((entity) => entity.tenantId === tenantId);
 
     // Full-text search simulation: match on firstName, lastName, or nationalId
     items = items.filter((entity) => {

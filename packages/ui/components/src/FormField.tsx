@@ -34,68 +34,44 @@ export interface FormFieldProps {
  * Migrated from `apps/web/src/components/ui/form-field.tsx` during task
  * 60.1 so app and package consumers share a single canonical wrapper.
  */
-export const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(
-  function FormField(
-    {
-      id,
-      htmlFor,
-      label,
-      description,
-      hint,
-      error,
-      required,
-      children,
-      className,
-    },
-    ref,
-  ) {
-    const controlId = id ?? htmlFor;
-    const helpText = description ?? hint;
-    const errorId = error && controlId ? `${controlId}-error` : undefined;
-    const descriptionId =
-      helpText && controlId ? `${controlId}-description` : undefined;
+export const FormField = React.forwardRef<HTMLDivElement, FormFieldProps>(function FormField(
+  { id, htmlFor, label, description, hint, error, required, children, className },
+  ref,
+) {
+  const controlId = id ?? htmlFor;
+  const helpText = description ?? hint;
+  const errorId = error && controlId ? `${controlId}-error` : undefined;
+  const descriptionId = helpText && controlId ? `${controlId}-description` : undefined;
 
-    return (
-      <div ref={ref} className={cn('space-y-1.5', className)}>
-        {label && (
-          <Label htmlFor={controlId}>
-            {label}
-            {required && (
-              <span
-                className="ms-1 text-[hsl(var(--destructive))]"
-                aria-hidden="true"
-              >
-                *
-              </span>
-            )}
-          </Label>
-        )}
-        {React.isValidElement(children)
-          ? React.cloneElement(children as React.ReactElement, {
-              id: controlId,
-              'aria-invalid': error ? true : undefined,
-              'aria-describedby':
-                [descriptionId, errorId].filter(Boolean).join(' ') || undefined,
-            })
-          : children}
-        {helpText && !error && (
-          <p
-            id={descriptionId}
-            className="text-xs text-[hsl(var(--muted-foreground))]"
-          >
-            {helpText}
-          </p>
-        )}
-        {error && (
-          <p
-            id={errorId}
-            role="alert"
-            className="text-xs font-medium text-[hsl(var(--destructive))]"
-          >
-            {error}
-          </p>
-        )}
-      </div>
-    );
-  },
-);
+  return (
+    <div ref={ref} className={cn('space-y-1.5', className)}>
+      {label && (
+        <Label htmlFor={controlId}>
+          {label}
+          {required && (
+            <span className="ms-1 text-[hsl(var(--destructive))]" aria-hidden="true">
+              *
+            </span>
+          )}
+        </Label>
+      )}
+      {React.isValidElement(children)
+        ? React.cloneElement(children as React.ReactElement, {
+            id: controlId,
+            'aria-invalid': error ? true : undefined,
+            'aria-describedby': [descriptionId, errorId].filter(Boolean).join(' ') || undefined,
+          })
+        : children}
+      {helpText && !error && (
+        <p id={descriptionId} className="text-xs text-[hsl(var(--muted-foreground))]">
+          {helpText}
+        </p>
+      )}
+      {error && (
+        <p id={errorId} role="alert" className="text-xs font-medium text-[hsl(var(--destructive))]">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+});

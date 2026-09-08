@@ -124,12 +124,8 @@ export type {
   UserListFilter,
   UserRecord,
 } from './roles-repository.js';
-export {
-  InMemoryRolesRepository,
-} from './in-memory-roles-repository.js';
-export type {
-  BuiltInRoleSeed,
-} from './in-memory-roles-repository.js';
+export { InMemoryRolesRepository } from './in-memory-roles-repository.js';
+export type { BuiltInRoleSeed } from './in-memory-roles-repository.js';
 export {
   AssignRolesToUserSchema,
   CreateRoleSchema,

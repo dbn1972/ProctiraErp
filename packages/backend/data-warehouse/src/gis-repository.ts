@@ -23,9 +23,22 @@ export interface GISListResult {
  */
 export interface GISRepository {
   createLayer(layer: GISLayer): Promise<GISLayer>;
-  updateLayer(id: string, warehouseId: string, tenantId: string, updates: Partial<GISLayer>): Promise<GISLayer>;
+  updateLayer(
+    id: string,
+    warehouseId: string,
+    tenantId: string,
+    updates: Partial<GISLayer>,
+  ): Promise<GISLayer>;
   deleteLayer(id: string, warehouseId: string, tenantId: string): Promise<void>;
   findLayerById(id: string, warehouseId: string, tenantId: string): Promise<GISLayer | null>;
-  listLayers(warehouseId: string, tenantId: string, options: GISLayerListOptions): Promise<GISListResult>;
-  findLayersByAreaHierarchy(warehouseId: string, tenantId: string, areaId: string): Promise<GISLayer[]>;
+  listLayers(
+    warehouseId: string,
+    tenantId: string,
+    options: GISLayerListOptions,
+  ): Promise<GISListResult>;
+  findLayersByAreaHierarchy(
+    warehouseId: string,
+    tenantId: string,
+    areaId: string,
+  ): Promise<GISLayer[]>;
 }

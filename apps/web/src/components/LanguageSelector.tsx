@@ -104,9 +104,7 @@ export function LanguageSelector({ className }: LanguageSelectorProps = {}) {
           data-current-locale={locale}
           // Match <ThemeToggle> so the header reads as a coherent cluster
           // of icon buttons (Task 47.4 / Requirement 37 AC 3 — 48 px target).
-          className={['min-h-[48px] min-w-[48px]', className]
-            .filter(Boolean)
-            .join(' ')}
+          className={['min-h-[48px] min-w-[48px]', className].filter(Boolean).join(' ')}
           title={currentNative}
         >
           <Globe className="h-5 w-5" aria-hidden="true" />

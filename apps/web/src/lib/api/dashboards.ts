@@ -25,10 +25,7 @@
  * hook code reads the same way as the rest of the dashboards.
  */
 
-import {
-  BrowserGatewayError,
-  browserGatewayFetch,
-} from './browser-gateway';
+import { BrowserGatewayError, browserGatewayFetch } from './browser-gateway';
 import type {
   BoardAdminDashboardData,
   BoardComparisonData,
@@ -323,9 +320,7 @@ function mapEnrollmentTrend(p: BackendEnrollmentTrendPoint): EnrollmentTrendPoin
 
 // ─── Mappers ────────────────────────────────────────────────────────────────
 
-export function mapCountryAggregate(
-  agg: BackendCountryAggregate,
-): CountryDashboardData {
+export function mapCountryAggregate(agg: BackendCountryAggregate): CountryDashboardData {
   return {
     kpis: agg.kpis.map(mapKpi),
     boards: agg.boards.map(mapBoardRow),
@@ -334,9 +329,7 @@ export function mapCountryAggregate(
   };
 }
 
-export function mapStateAggregate(
-  agg: BackendStateAggregate,
-): StateDashboardData {
+export function mapStateAggregate(agg: BackendStateAggregate): StateDashboardData {
   return {
     stateName: agg.stateName,
     stateCode: agg.stateCode,
@@ -365,9 +358,7 @@ export function mapStateAggregate(
   };
 }
 
-export function mapBoardAdminAggregate(
-  agg: BackendBoardAdminAggregate,
-): BoardAdminDashboardData {
+export function mapBoardAdminAggregate(agg: BackendBoardAdminAggregate): BoardAdminDashboardData {
   return {
     boardName: agg.boardName,
     boardCode: agg.boardCode,
@@ -379,9 +370,7 @@ export function mapBoardAdminAggregate(
   };
 }
 
-export function mapSchoolAggregate(
-  agg: BackendSchoolAggregate,
-): SchoolDashboardData {
+export function mapSchoolAggregate(agg: BackendSchoolAggregate): SchoolDashboardData {
   return {
     kpis: {
       totalStudents: agg.kpis.totalStudents,
@@ -395,9 +384,7 @@ export function mapSchoolAggregate(
   };
 }
 
-export function mapTeacherAggregate(
-  agg: BackendTeacherAggregate,
-): TeacherDashboardData {
+export function mapTeacherAggregate(agg: BackendTeacherAggregate): TeacherDashboardData {
   return {
     assignedClasses: agg.assignedClasses.map((c) => ({
       id: c.id,
@@ -466,10 +453,7 @@ function formatClock(iso: string): string {
   return `${hours}:${minutes}`;
 }
 
-function scheduleStatus(
-  startsAt: string,
-  endsAt: string,
-): 'completed' | 'active' | 'upcoming' {
+function scheduleStatus(startsAt: string, endsAt: string): 'completed' | 'active' | 'upcoming' {
   const start = new Date(startsAt).getTime();
   const end = new Date(endsAt).getTime();
   const now = Date.now();
@@ -482,10 +466,7 @@ function scheduleStatus(
 // ─── Public fetchers ────────────────────────────────────────────────────────
 
 export async function fetchCountryDashboard(signal?: AbortSignal): Promise<CountryDashboardData> {
-  const agg = await browserGatewayFetch<BackendCountryAggregate>(
-    '/dashboards/country',
-    { signal },
-  );
+  const agg = await browserGatewayFetch<BackendCountryAggregate>('/dashboards/country', { signal });
   return mapCountryAggregate(agg);
 }
 
@@ -522,23 +503,17 @@ export async function fetchSchoolDashboard(
   return mapSchoolAggregate(agg);
 }
 
-export async function fetchTeacherDashboard(
-  signal?: AbortSignal,
-): Promise<TeacherDashboardData> {
-  const agg = await browserGatewayFetch<BackendTeacherAggregate>(
-    '/dashboards/teacher',
-    { signal },
-  );
+export async function fetchTeacherDashboard(signal?: AbortSignal): Promise<TeacherDashboardData> {
+  const agg = await browserGatewayFetch<BackendTeacherAggregate>('/dashboards/teacher', { signal });
   return mapTeacherAggregate(agg);
 }
 
 export async function fetchParentStudentDashboard(
   signal?: AbortSignal,
 ): Promise<ParentStudentDashboardData> {
-  const agg = await browserGatewayFetch<BackendParentStudentAggregate>(
-    '/dashboards/me',
-    { signal },
-  );
+  const agg = await browserGatewayFetch<BackendParentStudentAggregate>('/dashboards/me', {
+    signal,
+  });
   return mapParentStudentAggregate(agg);
 }
 

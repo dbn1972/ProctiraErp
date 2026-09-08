@@ -28,7 +28,7 @@ describe('requestContextPlugin', () => {
       const body = response.json();
       expect(body.requestId).toBeDefined();
       expect(body.requestId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );
     });
 
@@ -96,7 +96,7 @@ describe('requestContextPlugin', () => {
       const body = response.json();
       expect(body.correlationId).toBeDefined();
       expect(body.correlationId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );
     });
 
@@ -189,7 +189,7 @@ describe('requestContextPlugin', () => {
       expect(body.correlationId).not.toBe(customRequestId);
       // Correlation ID should be a generated UUID
       expect(body.correlationId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
       );
     });
   });

@@ -111,28 +111,32 @@ describe('Category 7 — Report Export Isolation', () => {
 
   it('concurrent reports across many tenants stay isolated', () => {
     fc.assert(
-      fc.property(distinctTenantSetArb, fc.array(recordArb, { minLength: 1, maxLength: 4 }), (tenantIds, baseRows) => {
-        engine.clear();
-        for (let i = 0; i < tenantIds.length; i += 1) {
-          engine.seed(tenantIds[i]!, baseRows.slice(0, i + 1));
-        }
+      fc.property(
+        distinctTenantSetArb,
+        fc.array(recordArb, { minLength: 1, maxLength: 4 }),
+        (tenantIds, baseRows) => {
+          engine.clear();
+          for (let i = 0; i < tenantIds.length; i += 1) {
+            engine.seed(tenantIds[i]!, baseRows.slice(0, i + 1));
+          }
 
-        const reports = tenantIds.map((id) =>
-          engine.generate({ tenantId: id, reportType: 'students', format: 'csv' }),
-        );
-
-        for (let i = 0; i < reports.length; i += 1) {
-          const report = reports[i]!;
-          const tenantId = tenantIds[i]!;
-          assertNoForeignTenant('report:concurrent', tenantId, report.records);
-          assertNoForeignTenantInString(
-            'report:concurrent',
-            tenantId,
-            report.filePath,
-            tenantIds.filter((id) => id !== tenantId),
+          const reports = tenantIds.map((id) =>
+            engine.generate({ tenantId: id, reportType: 'students', format: 'csv' }),
           );
-        }
-      }),
+
+          for (let i = 0; i < reports.length; i += 1) {
+            const report = reports[i]!;
+            const tenantId = tenantIds[i]!;
+            assertNoForeignTenant('report:concurrent', tenantId, report.records);
+            assertNoForeignTenantInString(
+              'report:concurrent',
+              tenantId,
+              report.filePath,
+              tenantIds.filter((id) => id !== tenantId),
+            );
+          }
+        },
+      ),
       { numRuns: 30 },
     );
   });

@@ -19,11 +19,7 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
 
-import type {
-  StaffEntity,
-  StaffFilter,
-  StaffRepository,
-} from './staff-repository.js';
+import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
 
 const PROFILE_KEY = '__profile';
 
@@ -103,9 +99,7 @@ function toEntity(row: StaffRow): StaffEntity {
 export class PrismaStaffRepository implements StaffRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(
-    data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<StaffEntity> {
+  async create(data: Omit<StaffEntity, 'createdAt' | 'updatedAt'>): Promise<StaffEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
       const row = (await tx.staff.create({
         data: {

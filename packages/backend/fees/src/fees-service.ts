@@ -15,10 +15,7 @@ import type {
   LedgerAccount,
   PaymentMethod,
 } from './fees-repository.js';
-import {
-  SandboxPaymentAdapter,
-  type PaymentAdapter,
-} from './payment-adapter.js';
+import { SandboxPaymentAdapter, type PaymentAdapter } from './payment-adapter.js';
 
 export interface CreateFeePlanInput {
   code?: string;
@@ -259,9 +256,7 @@ export class FeesService {
     }
 
     if (input.amountCents != null && input.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError(
-        'Payment amountCents must equal invoice.amountCents',
-      );
+      throw new BusinessRuleError('Payment amountCents must equal invoice.amountCents');
     }
 
     const charge = await this.paymentAdapter.charge({
@@ -278,9 +273,7 @@ export class FeesService {
     }
 
     if (charge.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError(
-        'Charge amountCents must equal invoice.amountCents',
-      );
+      throw new BusinessRuleError('Charge amountCents must equal invoice.amountCents');
     }
 
     const paidAt = new Date();
@@ -296,9 +289,7 @@ export class FeesService {
     });
 
     if (payment.amountCents !== invoice.amountCents) {
-      throw new BusinessRuleError(
-        'payment.amountCents must equal invoice.amountCents',
-      );
+      throw new BusinessRuleError('payment.amountCents must equal invoice.amountCents');
     }
 
     const receipt = await this.repository.createReceipt({

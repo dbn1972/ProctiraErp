@@ -32,34 +32,26 @@ const testNotifications: Notification[] = [
 
 describe('NotificationBell', () => {
   it('renders bell button', () => {
-    render(
-      <NotificationBell notifications={testNotifications} />
-    );
+    render(<NotificationBell notifications={testNotifications} />);
 
     expect(screen.getByRole('button', { name: /notifications/i })).toBeInTheDocument();
   });
 
   it('shows unread count badge', () => {
-    render(
-      <NotificationBell notifications={testNotifications} unreadCount={2} />
-    );
+    render(<NotificationBell notifications={testNotifications} unreadCount={2} />);
 
     expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('calculates unread count from notifications when not provided', () => {
-    render(
-      <NotificationBell notifications={testNotifications} />
-    );
+    render(<NotificationBell notifications={testNotifications} />);
 
     const button = screen.getByRole('button', { name: /notifications.*2 unread/i });
     expect(button).toBeInTheDocument();
   });
 
   it('opens notification panel on click', () => {
-    render(
-      <NotificationBell notifications={testNotifications} />
-    );
+    render(<NotificationBell notifications={testNotifications} />);
 
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
 
@@ -74,25 +66,20 @@ describe('NotificationBell', () => {
       <NotificationBell
         notifications={testNotifications}
         onNotificationClick={onNotificationClick}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
     fireEvent.click(screen.getByRole('button', { name: /new student enrolled/i }));
 
     expect(onNotificationClick).toHaveBeenCalledWith(
-      expect.objectContaining({ id: '1', title: 'New Student Enrolled' })
+      expect.objectContaining({ id: '1', title: 'New Student Enrolled' }),
     );
   });
 
   it('calls onMarkRead when a notification is clicked', () => {
     const onMarkRead = vi.fn();
-    render(
-      <NotificationBell
-        notifications={testNotifications}
-        onMarkRead={onMarkRead}
-      />
-    );
+    render(<NotificationBell notifications={testNotifications} onMarkRead={onMarkRead} />);
 
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
     fireEvent.click(screen.getByRole('button', { name: /new student enrolled/i }));
@@ -102,12 +89,7 @@ describe('NotificationBell', () => {
 
   it('shows mark all read button and calls onMarkAllRead', () => {
     const onMarkAllRead = vi.fn();
-    render(
-      <NotificationBell
-        notifications={testNotifications}
-        onMarkAllRead={onMarkAllRead}
-      />
-    );
+    render(<NotificationBell notifications={testNotifications} onMarkAllRead={onMarkAllRead} />);
 
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
 
@@ -118,21 +100,14 @@ describe('NotificationBell', () => {
   });
 
   it('shows real-time indicator when hasRealTimeUpdates is true', () => {
-    render(
-      <NotificationBell
-        notifications={testNotifications}
-        hasRealTimeUpdates
-      />
-    );
+    render(<NotificationBell notifications={testNotifications} hasRealTimeUpdates />);
 
     const pulse = document.querySelector('.proctira-notification-bell__pulse');
     expect(pulse).toBeInTheDocument();
   });
 
   it('shows empty state when no notifications', () => {
-    render(
-      <NotificationBell notifications={[]} />
-    );
+    render(<NotificationBell notifications={[]} />);
 
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
     expect(screen.getByText('No notifications')).toBeInTheDocument();
@@ -140,7 +115,7 @@ describe('NotificationBell', () => {
 
   it('limits visible notifications to maxVisible', () => {
     render(
-      <NotificationBell notifications={testNotifications} maxVisible={1} onViewAll={vi.fn()} />
+      <NotificationBell notifications={testNotifications} maxVisible={1} onViewAll={vi.fn()} />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: /notifications/i }));
@@ -151,17 +126,13 @@ describe('NotificationBell', () => {
   });
 
   it('disables bell when disabled', () => {
-    render(
-      <NotificationBell notifications={testNotifications} disabled />
-    );
+    render(<NotificationBell notifications={testNotifications} disabled />);
 
     expect(screen.getByRole('button', { name: /notifications/i })).toBeDisabled();
   });
 
   it('has proper WCAG attributes', () => {
-    render(
-      <NotificationBell notifications={testNotifications} />
-    );
+    render(<NotificationBell notifications={testNotifications} />);
 
     const button = screen.getByRole('button', { name: /notifications/i });
     expect(button).toHaveAttribute('aria-haspopup', 'true');

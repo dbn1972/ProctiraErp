@@ -9,13 +9,7 @@
  * Limits mirror packages/backend/billing DEFAULT_TIER_RATE_LIMITS.
  */
 
-export type PlanTier =
-  | 'free'
-  | 'starter'
-  | 'professional'
-  | 'enterprise'
-  | 'custom'
-  | string;
+export type PlanTier = 'free' | 'starter' | 'professional' | 'enterprise' | 'custom' | string;
 
 export interface TierQuota {
   maxRequests: number;

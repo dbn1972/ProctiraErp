@@ -68,9 +68,7 @@ export default async function PlansPage() {
                   <li
                     key={e.key}
                     className={`flex items-start gap-2 text-sm ${
-                      e.enabled
-                        ? 'text-foreground'
-                        : 'text-muted-foreground line-through'
+                      e.enabled ? 'text-foreground' : 'text-muted-foreground line-through'
                     }`}
                   >
                     {e.enabled ? (
@@ -90,9 +88,7 @@ export default async function PlansPage() {
               </ul>
             </CardContent>
             <CardFooter className="justify-between border-t border-border pt-4">
-              <span className="font-mono text-xs text-muted-foreground">
-                {plan.id}
-              </span>
+              <span className="font-mono text-xs text-muted-foreground">{plan.id}</span>
               <Link
                 href={`/plans/${plan.id}`}
                 className="text-sm font-medium text-[hsl(var(--accent))] hover:underline"
@@ -107,9 +103,7 @@ export default async function PlansPage() {
       <Card className="mt-6">
         <CardHeader>
           <CardTitle>Entitlement comparison</CardTitle>
-          <CardDescription>
-            Feature flags resolved per plan.
-          </CardDescription>
+          <CardDescription>Feature flags resolved per plan.</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -128,9 +122,7 @@ export default async function PlansPage() {
               {allEntitlements.map(([key, label]) => (
                 <TableRow key={key}>
                   <TableCell className="font-medium">{label}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground">
-                    {key}
-                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">{key}</TableCell>
                   {plans.map((plan) => {
                     const ent = plan.entitlements.find((e) => e.key === key);
                     const enabled = ent?.enabled ?? false;
@@ -139,9 +131,7 @@ export default async function PlansPage() {
                         {enabled ? (
                           <Badge variant="success">Included</Badge>
                         ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Not included
-                          </span>
+                          <span className="text-xs text-muted-foreground">Not included</span>
                         )}
                       </TableCell>
                     );

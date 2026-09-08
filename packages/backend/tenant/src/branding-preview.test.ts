@@ -110,8 +110,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
     await registerTenantRoutes(app, { tenantService: service });
     await registerBrandingRoutes(app, {
       tenantService: service,
-      getTenantId: (req: FastifyRequest) =>
-        req.headers['x-tenant-id'] as string | undefined,
+      getTenantId: (req: FastifyRequest) => req.headers['x-tenant-id'] as string | undefined,
       hasPermission: testHasPermission,
     });
     await app.ready();
@@ -138,11 +137,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
-  const saveDraft = (
-    tokens: ThemeTokens,
-    asUser: keyof typeof testUsers,
-    savedBy = EDITOR_BOB,
-  ) =>
+  const saveDraft = (tokens: ThemeTokens, asUser: keyof typeof testUsers, savedBy = EDITOR_BOB) =>
     app.inject({
       method: 'POST',
       url: '/tenant/branding/draft',
@@ -153,11 +148,13 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       payload: { tokens, savedBy },
     });
 
-  const getActive = (overrides: {
-    asUser?: keyof typeof testUsers;
-    cookie?: string;
-    header?: string;
-  } = {}) => {
+  const getActive = (
+    overrides: {
+      asUser?: keyof typeof testUsers;
+      cookie?: string;
+      header?: string;
+    } = {},
+  ) => {
     const headers: Record<string, string> = { 'x-tenant-id': tenantId };
     if (overrides.asUser) headers['x-test-user'] = overrides.asUser;
     if (overrides.cookie !== undefined) headers['cookie'] = overrides.cookie;
@@ -404,8 +401,7 @@ describe('Tenant Branding Preview Path (Task 58.3)', () => {
       await registerTenantRoutes(closedApp, { tenantService: closedService });
       await registerBrandingRoutes(closedApp, {
         tenantService: closedService,
-        getTenantId: (req) =>
-          req.headers['x-tenant-id'] as string | undefined,
+        getTenantId: (req) => req.headers['x-tenant-id'] as string | undefined,
         // No `hasPermission` — should default to "deny everything".
       });
       await closedApp.ready();

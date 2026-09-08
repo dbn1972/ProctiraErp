@@ -65,7 +65,11 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
   { id: 'fees', path: '/fees', requiredPermissions: ['fees.read'] },
   { id: 'scholarships', path: '/scholarships', requiredPermissions: ['scholarship.read'] },
   { id: 'gradebook-records', path: '/students/records', requiredPermissions: ['gradebook.read'] },
-  { id: 'examinations-board-exports', path: '/examinations/board-exports', requiredPermissions: ['examination.read'] },
+  {
+    id: 'examinations-board-exports',
+    path: '/examinations/board-exports',
+    requiredPermissions: ['examination.read'],
+  },
   { id: 'parent-portal', path: '/parent', requiredPermissions: ['parent.read'] },
 ];
 

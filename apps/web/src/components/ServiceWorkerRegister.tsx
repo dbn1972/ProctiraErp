@@ -35,9 +35,7 @@ export interface ServiceWorkerRegisterProps {
   scriptUrl?: string;
 }
 
-export function ServiceWorkerRegister({
-  scriptUrl,
-}: ServiceWorkerRegisterProps): null {
+export function ServiceWorkerRegister({ scriptUrl }: ServiceWorkerRegisterProps): null {
   useEffect(() => {
     registerServiceWorker(scriptUrl ? { scriptUrl } : {});
   }, [scriptUrl]);

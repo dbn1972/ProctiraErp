@@ -315,12 +315,20 @@ describe('Staff Routes', () => {
       await app.inject({
         method: 'POST',
         url: '/staff',
-        payload: validCreateBody({ firstName: 'Alice', lastName: 'Wonder', identityNumber: 'ID-AW' }),
+        payload: validCreateBody({
+          firstName: 'Alice',
+          lastName: 'Wonder',
+          identityNumber: 'ID-AW',
+        }),
       });
       await app.inject({
         method: 'POST',
         url: '/staff',
-        payload: validCreateBody({ firstName: 'Bob', lastName: 'Builder', identityNumber: 'ID-BB' }),
+        payload: validCreateBody({
+          firstName: 'Bob',
+          lastName: 'Builder',
+          identityNumber: 'ID-BB',
+        }),
       });
 
       const response = await app.inject({

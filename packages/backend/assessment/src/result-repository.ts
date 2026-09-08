@@ -50,7 +50,9 @@ export interface StudentSubjectResult {
  */
 export interface AssessmentResultRepository {
   /** Create or update a single result entry */
-  upsert(data: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>): Promise<AssessmentResultEntity>;
+  upsert(
+    data: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AssessmentResultEntity>;
 
   /** Create or update multiple result entries in bulk */
   bulkUpsert(

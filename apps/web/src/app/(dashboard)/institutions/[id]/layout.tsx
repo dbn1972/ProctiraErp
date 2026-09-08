@@ -27,7 +27,12 @@ interface InstitutionLayoutProps {
 }
 
 function nameFor(options: { id: string; name: string }[], id: string): string {
-  return options.find((o) => o.id === id)?.name.replace(/^(—\s)+/, '').trim() ?? '';
+  return (
+    options
+      .find((o) => o.id === id)
+      ?.name.replace(/^(—\s)+/, '')
+      .trim() ?? ''
+  );
 }
 
 function readStr(cd: Record<string, unknown> | null | undefined, key: string): string {
@@ -35,10 +40,7 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
   return typeof v === 'string' ? v : '';
 }
 
-export default async function InstitutionLayout({
-  params,
-  children,
-}: InstitutionLayoutProps) {
+export default async function InstitutionLayout({ params, children }: InstitutionLayoutProps) {
   const institution = await loadInstitution(params.id);
 
   if (!institution) {
@@ -53,15 +55,17 @@ export default async function InstitutionLayout({
   ]);
 
   const cd = (institution as unknown as { customData?: Record<string, unknown> }).customData ?? {};
-  const areaName  = nameFor(areas, institution.areaId);
-  const typeName  = nameFor(types, institution.typeId);
-  const medium    = readStr(cd, 'medium');
-  const isActive  = institution.status === 'ACTIVE';
+  const areaName = nameFor(areas, institution.areaId);
+  const typeName = nameFor(types, institution.typeId);
+  const medium = readStr(cd, 'medium');
+  const isActive = institution.status === 'ACTIVE';
 
   // Build the meta line, dropping empty parts.
   const metaParts = [
     institution.code && (
-      <span key="code" className="font-mono">{institution.code}</span>
+      <span key="code" className="font-mono">
+        {institution.code}
+      </span>
     ),
     areaName && <span key="area">{areaName}</span>,
     typeName && <span key="type">{typeName}</span>,
@@ -70,7 +74,6 @@ export default async function InstitutionLayout({
 
   return (
     <section className="space-y-6">
-
       {/* ── Hero head ── */}
       <div className="flex flex-col gap-3">
         <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
@@ -108,7 +111,11 @@ export default async function InstitutionLayout({
                 <p className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-muted-foreground">
                   {metaParts.map((part, i) => (
                     <span key={i} className="flex items-center gap-1.5">
-                      {i > 0 && <span aria-hidden="true" className="select-none">·</span>}
+                      {i > 0 && (
+                        <span aria-hidden="true" className="select-none">
+                          ·
+                        </span>
+                      )}
                       {part}
                     </span>
                   ))}

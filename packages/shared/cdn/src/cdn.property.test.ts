@@ -20,9 +20,7 @@ const assetCategoryArb: fc.Arbitrary<AssetCategory> = fc.constantFrom(
 );
 
 const safePathSegmentArb = fc.stringOf(
-  fc.constantFrom(
-    ...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split(''),
-  ),
+  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-_.'.split('')),
   { minLength: 1, maxLength: 20 },
 );
 
@@ -31,10 +29,10 @@ const assetPathArb = fc
   .map((segments) => segments.join('/'));
 
 const tenantIdArb = fc
-  .stringOf(
-    fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-    { minLength: 3, maxLength: 30 },
-  )
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+    minLength: 3,
+    maxLength: 30,
+  })
   .filter((s) => /^[a-z]/.test(s));
 
 const versionArb = fc.oneof(
@@ -82,7 +80,9 @@ describe('CDN URL Builder Properties', () => {
         const expectedBase = config.baseUrl.endsWith('/')
           ? config.baseUrl.slice(0, -1)
           : config.baseUrl;
-        expect(result.url).toMatch(new RegExp(`^${expectedBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+        expect(result.url).toMatch(
+          new RegExp(`^${expectedBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+        );
       }),
       { numRuns: 200 },
     );
@@ -150,8 +150,7 @@ describe('CDN URL Builder Properties', () => {
     fc.assert(
       fc.property(assetUrlOptionsArb, cdnConfigArb, (options, config) => {
         const result = buildAssetUrl(options, config);
-        const shouldBeVersioned =
-          config.cache?.enableVersioning !== false && !!options.version;
+        const shouldBeVersioned = config.cache?.enableVersioning !== false && !!options.version;
         expect(result.versioned).toBe(shouldBeVersioned);
       }),
       { numRuns: 200 },

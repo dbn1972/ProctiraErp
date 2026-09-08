@@ -13,14 +13,17 @@ import type { AccountLockoutService } from './lockout-service.js';
 import { verifyPassword } from './local-auth.js';
 import type { SessionService } from './session-service.js';
 import { InvalidRefreshTokenError } from './token-service.js';
-import type { RefreshTokenStore , TokenService} from './token-service.js';
+import type { RefreshTokenStore, TokenService } from './token-service.js';
 
 /**
  * Interface for user lookup (provided by the consuming application).
  */
 export interface UserLookup {
   /** Find a user by username/email within a tenant */
-  findByUsername(username: string, tenantId: string): Promise<{
+  findByUsername(
+    username: string,
+    tenantId: string,
+  ): Promise<{
     id: string;
     email: string;
     displayName: string;
@@ -32,7 +35,10 @@ export interface UserLookup {
     isActive: boolean;
   } | null>;
   /** Find a user by ID */
-  findById(userId: string, tenantId: string): Promise<{
+  findById(
+    userId: string,
+    tenantId: string,
+  ): Promise<{
     id: string;
     email: string;
     displayName: string;
@@ -92,8 +98,12 @@ export async function registerAuthRoutes(
           message: 'Username and password are required',
           statusCode: 400,
           errors: [
-            ...(!username ? [{ field: 'username', rule: 'required', message: 'Username is required' }] : []),
-            ...(!password ? [{ field: 'password', rule: 'required', message: 'Password is required' }] : []),
+            ...(!username
+              ? [{ field: 'username', rule: 'required', message: 'Username is required' }]
+              : []),
+            ...(!password
+              ? [{ field: 'password', rule: 'required', message: 'Password is required' }]
+              : []),
           ],
         });
       }
@@ -215,7 +225,9 @@ export async function registerAuthRoutes(
           code: 'VALIDATION_ERROR',
           message: 'Refresh token is required',
           statusCode: 400,
-          errors: [{ field: 'refreshToken', rule: 'required', message: 'Refresh token is required' }],
+          errors: [
+            { field: 'refreshToken', rule: 'required', message: 'Refresh token is required' },
+          ],
         });
       }
 
@@ -272,11 +284,7 @@ export async function registerAuthRoutes(
         };
 
         // Perform token rotation (validates, revokes old, issues new)
-        const tokens = await tokenService.refreshTokenPair(
-          refreshToken,
-          authUser,
-          request.ip,
-        );
+        const tokens = await tokenService.refreshTokenPair(refreshToken, authUser, request.ip);
 
         return reply.status(200).send({ tokens });
       } catch (error: unknown) {
@@ -299,10 +307,7 @@ export async function registerAuthRoutes(
   fastify.post(
     `${prefix}/logout`,
     { preHandler: [fastify.authenticate] },
-    async function logoutHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function logoutHandler(request: FastifyRequest, reply: FastifyReply) {
       const user = request.user;
 
       // Invalidate the session
@@ -324,10 +329,7 @@ export async function registerAuthRoutes(
   fastify.get(
     `${prefix}/me`,
     { preHandler: [fastify.authenticate] },
-    async function meHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function meHandler(request: FastifyRequest, reply: FastifyReply) {
       const jwtUser = request.user;
 
       // Validate session is still active

@@ -34,7 +34,9 @@ export function SuccessCard() {
       <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-accent-50 ring-8 ring-accent-50/40">
         <CheckCircle2 className="h-10 w-10 text-accent-600" aria-hidden="true" />
       </div>
-      <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-gray-900">{t('submitSuccess')}</h1>
+      <h1 className="mt-5 text-3xl font-extrabold tracking-tight text-gray-900">
+        {t('submitSuccess')}
+      </h1>
 
       <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-gray-600">
         {t('keepTrackingNumber')}

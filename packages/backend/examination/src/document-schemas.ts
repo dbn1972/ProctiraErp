@@ -17,9 +17,7 @@ export const GenerateDocumentsSchema = Type.Object({
     Type.Literal('seating_plan'),
     Type.Literal('result_certificate'),
   ]),
-  candidateIds: Type.Optional(
-    Type.Array(Type.String({ format: 'uuid' }), { maxItems: 500 }),
-  ),
+  candidateIds: Type.Optional(Type.Array(Type.String({ format: 'uuid' }), { maxItems: 500 })),
   centerId: Type.Optional(Type.String({ format: 'uuid' })),
 });
 

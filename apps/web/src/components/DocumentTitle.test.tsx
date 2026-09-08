@@ -54,24 +54,18 @@ describe('resolveDocumentTitle', () => {
   });
 
   it('honours a tenant-supplied template with custom separator', () => {
-    expect(resolveDocumentTitle('{brand} — {page}', 'Track', 'EduZo')).toBe(
-      'EduZo — Track',
-    );
+    expect(resolveDocumentTitle('{brand} — {page}', 'Track', 'EduZo')).toBe('EduZo — Track');
   });
 
   it('falls back to the Design §M default when template is empty', () => {
-    expect(resolveDocumentTitle('', 'Dashboard', 'ProctiraERP')).toBe(
-      'Dashboard | ProctiraERP',
-    );
+    expect(resolveDocumentTitle('', 'Dashboard', 'ProctiraERP')).toBe('Dashboard | ProctiraERP');
     expect(resolveDocumentTitle(undefined, 'Dashboard', 'ProctiraERP')).toBe(
       'Dashboard | ProctiraERP',
     );
   });
 
   it('returns just the page title when brand name is missing', () => {
-    expect(resolveDocumentTitle('{page} | {brand}', 'Dashboard', '')).toBe(
-      'Dashboard |',
-    );
+    expect(resolveDocumentTitle('{page} | {brand}', 'Dashboard', '')).toBe('Dashboard |');
     expect(resolveDocumentTitle('', 'Dashboard', '')).toBe('Dashboard');
   });
 
@@ -86,37 +80,26 @@ describe('resolveDocumentTitle', () => {
 // ─── <DocumentTitle> integration ──────────────────────────────────────────
 
 function renderWith(brand: Brand | undefined, node: React.ReactNode) {
-  return render(
-    <BrandConfigProvider initialBrand={brand}>{node}</BrandConfigProvider>,
-  );
+  return render(<BrandConfigProvider initialBrand={brand}>{node}</BrandConfigProvider>);
 }
 
 describe('<DocumentTitle> with brand', () => {
   it('sets document.title using the tenant template', async () => {
-    renderWith(
-      SAMPLE_BRAND,
-      <DocumentTitle pageTitle="Track Application" />,
-    );
+    renderWith(SAMPLE_BRAND, <DocumentTitle pageTitle="Track Application" />);
     await waitFor(() => {
       expect(document.title).toBe('Track Application · EduZo');
     });
   });
 
   it('uses the canonical Design §M default for the ProctiraERP brand', async () => {
-    renderWith(
-      DEFAULT_BRAND,
-      <DocumentTitle pageTitle="Dashboard" />,
-    );
+    renderWith(DEFAULT_BRAND, <DocumentTitle pageTitle="Dashboard" />);
     await waitFor(() => {
       expect(document.title).toBe('Dashboard | ProctiraERP');
     });
   });
 
   it('re-applies the title when the page title changes (navigation)', async () => {
-    const { rerender } = renderWith(
-      DEFAULT_BRAND,
-      <DocumentTitle pageTitle="Dashboard" />,
-    );
+    const { rerender } = renderWith(DEFAULT_BRAND, <DocumentTitle pageTitle="Dashboard" />);
     await waitFor(() => {
       expect(document.title).toBe('Dashboard | ProctiraERP');
     });
@@ -132,13 +115,7 @@ describe('<DocumentTitle> with brand', () => {
   });
 
   it('honours a per-render template override', async () => {
-    renderWith(
-      DEFAULT_BRAND,
-      <DocumentTitle
-        pageTitle="Login"
-        template="{brand} :: {page}"
-      />,
-    );
+    renderWith(DEFAULT_BRAND, <DocumentTitle pageTitle="Login" template="{brand} :: {page}" />);
     await waitFor(() => {
       expect(document.title).toBe('ProctiraERP :: Login');
     });

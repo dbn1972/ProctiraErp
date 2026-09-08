@@ -136,22 +136,8 @@ jobs:
       - name: Check hardcoded brand strings (non-TypeScript assets)
         run: pnpm run check:brand-strings
 
-      - name: Check formatting (tip commit only)
-        run: |
-          # Match turbo tip-only filtering: do not fail the PR on pre-existing
-          # repo-wide Prettier drift / unparseable Helm templates.
-          mapfile -t FILES < <(
-            git diff --name-only --diff-filter=ACMR HEAD~1 HEAD -- \
-              '*.ts' '*.tsx' '*.js' '*.jsx' '*.json' '*.md' '*.yaml' '*.yml' \
-              | grep -vE '^(infrastructure/helm/.*/templates/|pnpm-lock\.yaml$)' \
-              || true
-          )
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "No tip-commit format targets; skipping."
-            exit 0
-          fi
-          echo "Checking ${#FILES[@]} tip file(s)"
-          pnpm exec prettier --check "${FILES[@]}"
+      - name: Check formatting (repo-wide, G-733)
+        run: pnpm run format:check
 
   # ---------------------------------------------------------------------------
   # Type Check - TypeScript compilation

@@ -46,7 +46,13 @@ const definitionBody = {
   entityType: 'student_transfer',
   states: [
     { id: 'draft', name: 'Draft', type: 'INITIAL', assigneeType: 'user', assigneeId: 'creator' },
-    { id: 'review', name: 'Review', type: 'INTERMEDIATE', assigneeType: 'role', assigneeId: 'admin' },
+    {
+      id: 'review',
+      name: 'Review',
+      type: 'INTERMEDIATE',
+      assigneeType: 'role',
+      assigneeId: 'admin',
+    },
     { id: 'done', name: 'Done', type: 'FINAL', assigneeType: 'role', assigneeId: 'admin' },
   ],
   transitions: [
@@ -121,7 +127,7 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     });
     expect(audit.statusCode).toBe(200);
     const auditBody = audit.json() as { data?: unknown[] } | unknown[];
-    const records = Array.isArray(auditBody) ? auditBody : auditBody.data ?? [];
+    const records = Array.isArray(auditBody) ? auditBody : (auditBody.data ?? []);
     expect(records).toHaveLength(2);
 
     const caseRes = await app.inject({
@@ -197,7 +203,9 @@ describe.skipIf(!live)('workflow engine on Postgres', () => {
     expect(await repo.findDefinitionById(definition.id, tenantB)).toBeNull();
     expect(await repo.findInstanceById(instance.id, tenantB)).toBeNull();
     expect(await repo.getAuditHistory(instance.id, tenantB)).toEqual([]);
-    expect((await repo.listDefinitions(tenantB, {}, { page: 1, pageSize: 10 })).meta.totalItems).toBe(0);
+    expect(
+      (await repo.listDefinitions(tenantB, {}, { page: 1, pageSize: 10 })).meta.totalItems,
+    ).toBe(0);
     expect(
       (await repo.listInstances(tenantA, { status: 'ACTIVE' }, { page: 1, pageSize: 10 })).meta
         .totalItems,

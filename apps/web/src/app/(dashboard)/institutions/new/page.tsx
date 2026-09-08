@@ -29,7 +29,6 @@ export default async function NewInstitutionPage() {
 
   return (
     <section aria-labelledby="register-institution-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -40,9 +39,8 @@ export default async function NewInstitutionPage() {
             Register institution
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create a new school profile with its UDISE identity, location, and
-            administration details. It will appear on the district roster once
-            approved.
+            Create a new school profile with its UDISE identity, location, and administration
+            details. It will appear on the district roster once approved.
           </p>
         </div>
         <div className="shrink-0">
@@ -60,8 +58,7 @@ export default async function NewInstitutionPage() {
         <CardHeader>
           <CardTitle className="text-base">Institution profile</CardTitle>
           <CardDescription>
-            Identity, location, classification, and contact details. Fields marked
-            * are required.
+            Identity, location, classification, and contact details. Fields marked * are required.
           </CardDescription>
         </CardHeader>
         <CardContent>

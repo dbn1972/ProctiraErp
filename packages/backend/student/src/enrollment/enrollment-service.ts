@@ -10,11 +10,7 @@
  *         with transfer date and reason; transition statuses accordingly
  * - 6.4: Reject transfer if destination institution does not exist or is inactive
  */
-import {
-  NotFoundError,
-  BusinessRuleError,
-  EnrollmentStatus,
-} from '@proctira/common';
+import { NotFoundError, BusinessRuleError, EnrollmentStatus } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -47,19 +43,12 @@ export class EnrollmentService {
     input: CreateEnrollmentInput,
   ): Promise<EnrollmentEntity> {
     // Validate institution exists and is active
-    const institution = await this.repository.findInstitutionById(
-      input.institutionId,
-      tenantId,
-    );
+    const institution = await this.repository.findInstitutionById(input.institutionId, tenantId);
     if (!institution) {
-      throw new NotFoundError(
-        `Institution with id '${input.institutionId}' not found`,
-      );
+      throw new NotFoundError(`Institution with id '${input.institutionId}' not found`);
     }
     if (institution.status !== 'active' && institution.status !== 'ACTIVE') {
-      throw new BusinessRuleError(
-        'Cannot enroll student at an inactive institution',
-      );
+      throw new BusinessRuleError('Cannot enroll student at an inactive institution');
     }
 
     const enrollmentId = uuidv4();
@@ -173,14 +162,10 @@ export class EnrollmentService {
       tenantId,
     );
     if (!sourceEnrollment) {
-      throw new NotFoundError(
-        `Source enrollment with id '${input.sourceEnrollmentId}' not found`,
-      );
+      throw new NotFoundError(`Source enrollment with id '${input.sourceEnrollmentId}' not found`);
     }
     if (sourceEnrollment.studentId !== input.studentId) {
-      throw new BusinessRuleError(
-        'Source enrollment does not belong to the specified student',
-      );
+      throw new BusinessRuleError('Source enrollment does not belong to the specified student');
     }
     if (sourceEnrollment.status !== EnrollmentStatus.ENROLLED) {
       throw new BusinessRuleError(
@@ -199,9 +184,7 @@ export class EnrollmentService {
       );
     }
     if (destinationInstitution.status !== 'active' && destinationInstitution.status !== 'ACTIVE') {
-      throw new BusinessRuleError(
-        `Transfer rejected: destination institution is inactive`,
-      );
+      throw new BusinessRuleError(`Transfer rejected: destination institution is inactive`);
     }
 
     // Step 1: Set source enrollment to TRANSFERRED
@@ -214,9 +197,7 @@ export class EnrollmentService {
       },
     );
     if (!updatedSource) {
-      throw new NotFoundError(
-        `Source enrollment with id '${input.sourceEnrollmentId}' not found`,
-      );
+      throw new NotFoundError(`Source enrollment with id '${input.sourceEnrollmentId}' not found`);
     }
 
     // Record history entry for source (transferred out)

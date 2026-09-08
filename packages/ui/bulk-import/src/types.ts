@@ -66,7 +66,10 @@ export interface BulkImportProps {
   /** Callback when file is selected for validation */
   onFileValidate: (file: File) => Promise<ImportValidationResult>;
   /** Callback when import is confirmed */
-  onImportConfirm: (file: File, mappings: ImportColumnMapping[]) => Promise<{ success: number; failed: number }>;
+  onImportConfirm: (
+    file: File,
+    mappings: ImportColumnMapping[],
+  ) => Promise<{ success: number; failed: number }>;
   /** Callback to download a template file */
   onDownloadTemplate?: () => void;
   /** Callback when import is cancelled */

@@ -46,7 +46,11 @@ function extractRule(message: string): string {
 /**
  * Generates a human-readable error message from a Typebox validation error.
  */
-function formatMessage(error: { path: string; message: string; schema: Record<string, unknown> }): string {
+function formatMessage(error: {
+  path: string;
+  message: string;
+  schema: Record<string, unknown>;
+}): string {
   const field = formatFieldPath(error.path) || 'value';
   const message = error.message;
 

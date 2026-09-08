@@ -26,10 +26,7 @@ interface StudentStatusTabsProps {
  * Horizontal status-filter tabs for the students list page.
  * Uses URL search param `status` — client-side navigation only.
  */
-export function StudentStatusTabs({
-  activeStatus,
-  counts,
-}: StudentStatusTabsProps) {
+export function StudentStatusTabs({ activeStatus, counts }: StudentStatusTabsProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [, startTransition] = useTransition();
@@ -77,9 +74,7 @@ export function StudentStatusTabs({
               <span
                 className={cn(
                   'rounded-full px-1.5 py-px text-xs font-semibold tabular-nums',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'bg-muted text-muted-foreground',
+                  isActive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
                 )}
               >
                 {count.toLocaleString()}

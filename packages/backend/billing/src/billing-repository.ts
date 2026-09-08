@@ -127,10 +127,15 @@ export interface BillingRepository {
   // ─── Subscription CRUD ───────────────────────────────────────────────────
 
   /** Create a new subscription */
-  createSubscription(data: Omit<SubscriptionEntity, 'createdAt' | 'updatedAt'>): Promise<SubscriptionEntity>;
+  createSubscription(
+    data: Omit<SubscriptionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<SubscriptionEntity>;
 
   /** Update an existing subscription */
-  updateSubscription(id: string, data: Partial<SubscriptionEntity>): Promise<SubscriptionEntity | null>;
+  updateSubscription(
+    id: string,
+    data: Partial<SubscriptionEntity>,
+  ): Promise<SubscriptionEntity | null>;
 
   /** Find a subscription by ID */
   findSubscriptionById(id: string): Promise<SubscriptionEntity | null>;
@@ -144,7 +149,9 @@ export interface BillingRepository {
   // ─── Entitlements ────────────────────────────────────────────────────────
 
   /** Create or update entitlements for a subscription */
-  upsertEntitlements(entitlements: Omit<EntitlementEntity, 'createdAt' | 'updatedAt'>[]): Promise<EntitlementEntity[]>;
+  upsertEntitlements(
+    entitlements: Omit<EntitlementEntity, 'createdAt' | 'updatedAt'>[],
+  ): Promise<EntitlementEntity[]>;
 
   /** Find entitlements for a tenant */
   findEntitlementsByTenant(tenantId: string): Promise<EntitlementEntity[]>;
@@ -170,7 +177,12 @@ export interface BillingRepository {
   incrementUsage(id: string, increment: number): Promise<UsageEntity>;
 
   /** Get usage for a tenant and metric in a period */
-  getUsage(tenantId: string, metric: string, periodStart: Date, periodEnd: Date): Promise<UsageEntity | null>;
+  getUsage(
+    tenantId: string,
+    metric: string,
+    periodStart: Date,
+    periodEnd: Date,
+  ): Promise<UsageEntity | null>;
 
   /** Get all usage records for a tenant in a period */
   getUsageByTenant(tenantId: string, periodStart: Date, periodEnd: Date): Promise<UsageEntity[]>;

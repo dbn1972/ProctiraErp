@@ -8,22 +8,22 @@ by `Tabs.keyboard.test.tsx`.
 
 ## Reading & writing focus
 
-| Key | Action |
-| --- | --- |
-| `Tab` | Move focus into the tab list. Focus lands on the active (`data-state="active"`) trigger. |
+| Key                                         | Action                                                                                                    |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `Tab`                                       | Move focus into the tab list. Focus lands on the active (`data-state="active"`) trigger.                  |
 | `Tab` (when focus is on the active trigger) | Move focus out of the tab list and into the active panel (or the next focusable element after the panel). |
-| `Shift + Tab` | Reverse direction of `Tab`. |
+| `Shift + Tab`                               | Reverse direction of `Tab`.                                                                               |
 
 ## Roving tab index inside the tab list
 
-| Key | Action |
-| --- | --- |
-| `ArrowRight` | (Horizontal orientation) Move focus to the next tab; wraps to the first tab when on the last. |
-| `ArrowLeft` | (Horizontal orientation) Move focus to the previous tab; wraps to the last tab when on the first. |
-| `ArrowDown` | (Vertical orientation) Move focus to the next tab; wraps. |
-| `ArrowUp` | (Vertical orientation) Move focus to the previous tab; wraps. |
-| `Home` | Move focus to the first tab. |
-| `End` | Move focus to the last tab. |
+| Key          | Action                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| `ArrowRight` | (Horizontal orientation) Move focus to the next tab; wraps to the first tab when on the last.     |
+| `ArrowLeft`  | (Horizontal orientation) Move focus to the previous tab; wraps to the last tab when on the first. |
+| `ArrowDown`  | (Vertical orientation) Move focus to the next tab; wraps.                                         |
+| `ArrowUp`    | (Vertical orientation) Move focus to the previous tab; wraps.                                     |
+| `Home`       | Move focus to the first tab.                                                                      |
+| `End`        | Move focus to the last tab.                                                                       |
 
 ## Activation
 
@@ -31,15 +31,15 @@ Radix Tabs default to **automatic activation** (`activationMode="automatic"`):
 the focused tab is activated immediately. When the consumer opts into
 `activationMode="manual"` (e.g., expensive panels):
 
-| Key | Action |
-| --- | --- |
+| Key     | Action                     |
+| ------- | -------------------------- |
 | `Enter` | Activates the focused tab. |
 | `Space` | Activates the focused tab. |
 
 ## RTL handling
 
 Radix Tabs reads the document direction (`dir="rtl"`) and swaps
-`ArrowLeft`/`ArrowRight` so that "next" always means *visually next* in
+`ArrowLeft`/`ArrowRight` so that "next" always means _visually next_ in
 the user's reading order. No additional handling is required by
 consumers.
 

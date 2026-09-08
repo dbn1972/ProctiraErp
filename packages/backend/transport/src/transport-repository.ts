@@ -124,38 +124,92 @@ export interface StudentAssignmentFilter {
 
 export interface TransportRepository {
   // Route operations
-  createRoute(data: Omit<TransportRouteEntity, 'createdAt' | 'updatedAt'>): Promise<TransportRouteEntity>;
-  updateRoute(id: string, tenantId: string, data: Partial<TransportRouteEntity>): Promise<TransportRouteEntity | null>;
+  createRoute(
+    data: Omit<TransportRouteEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TransportRouteEntity>;
+  updateRoute(
+    id: string,
+    tenantId: string,
+    data: Partial<TransportRouteEntity>,
+  ): Promise<TransportRouteEntity | null>;
   findRouteById(id: string, tenantId: string): Promise<TransportRouteEntity | null>;
-  listRoutes(tenantId: string, filter: RouteFilter, pagination: PaginationOptions): Promise<PaginatedResult<TransportRouteEntity>>;
+  listRoutes(
+    tenantId: string,
+    filter: RouteFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<TransportRouteEntity>>;
   deleteRoute(id: string, tenantId: string): Promise<boolean>;
 
   // Route stop operations
   createStop(data: Omit<RouteStopEntity, 'createdAt' | 'updatedAt'>): Promise<RouteStopEntity>;
-  updateStop(id: string, tenantId: string, data: Partial<RouteStopEntity>): Promise<RouteStopEntity | null>;
+  updateStop(
+    id: string,
+    tenantId: string,
+    data: Partial<RouteStopEntity>,
+  ): Promise<RouteStopEntity | null>;
   findStopById(id: string, tenantId: string): Promise<RouteStopEntity | null>;
   listStopsByRoute(routeId: string, tenantId: string): Promise<RouteStopEntity[]>;
   deleteStop(id: string, tenantId: string): Promise<boolean>;
 
   // Vehicle operations
   createVehicle(data: Omit<VehicleEntity, 'createdAt' | 'updatedAt'>): Promise<VehicleEntity>;
-  updateVehicle(id: string, tenantId: string, data: Partial<VehicleEntity>): Promise<VehicleEntity | null>;
+  updateVehicle(
+    id: string,
+    tenantId: string,
+    data: Partial<VehicleEntity>,
+  ): Promise<VehicleEntity | null>;
   findVehicleById(id: string, tenantId: string): Promise<VehicleEntity | null>;
-  findVehicleByRegistration(registrationNumber: string, tenantId: string): Promise<VehicleEntity | null>;
-  listVehicles(tenantId: string, filter: VehicleFilter, pagination: PaginationOptions): Promise<PaginatedResult<VehicleEntity>>;
+  findVehicleByRegistration(
+    registrationNumber: string,
+    tenantId: string,
+  ): Promise<VehicleEntity | null>;
+  listVehicles(
+    tenantId: string,
+    filter: VehicleFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<VehicleEntity>>;
   deleteVehicle(id: string, tenantId: string): Promise<boolean>;
 
   // Driver assignment operations
-  createDriverAssignment(data: Omit<DriverAssignmentEntity, 'createdAt' | 'updatedAt'>): Promise<DriverAssignmentEntity>;
-  updateDriverAssignment(id: string, tenantId: string, data: Partial<DriverAssignmentEntity>): Promise<DriverAssignmentEntity | null>;
+  createDriverAssignment(
+    data: Omit<DriverAssignmentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<DriverAssignmentEntity>;
+  updateDriverAssignment(
+    id: string,
+    tenantId: string,
+    data: Partial<DriverAssignmentEntity>,
+  ): Promise<DriverAssignmentEntity | null>;
   findDriverAssignmentById(id: string, tenantId: string): Promise<DriverAssignmentEntity | null>;
-  listDriverAssignments(tenantId: string, filter: DriverAssignmentFilter, pagination: PaginationOptions): Promise<PaginatedResult<DriverAssignmentEntity>>;
-  findActiveDriverAssignment(vehicleId: string, tenantId: string): Promise<DriverAssignmentEntity | null>;
+  listDriverAssignments(
+    tenantId: string,
+    filter: DriverAssignmentFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<DriverAssignmentEntity>>;
+  findActiveDriverAssignment(
+    vehicleId: string,
+    tenantId: string,
+  ): Promise<DriverAssignmentEntity | null>;
 
   // Student route assignment operations
-  createStudentAssignment(data: Omit<StudentRouteAssignmentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentRouteAssignmentEntity>;
-  updateStudentAssignment(id: string, tenantId: string, data: Partial<StudentRouteAssignmentEntity>): Promise<StudentRouteAssignmentEntity | null>;
-  findStudentAssignmentById(id: string, tenantId: string): Promise<StudentRouteAssignmentEntity | null>;
-  listStudentAssignments(tenantId: string, filter: StudentAssignmentFilter, pagination: PaginationOptions): Promise<PaginatedResult<StudentRouteAssignmentEntity>>;
-  findActiveStudentAssignment(studentId: string, tenantId: string): Promise<StudentRouteAssignmentEntity | null>;
+  createStudentAssignment(
+    data: Omit<StudentRouteAssignmentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<StudentRouteAssignmentEntity>;
+  updateStudentAssignment(
+    id: string,
+    tenantId: string,
+    data: Partial<StudentRouteAssignmentEntity>,
+  ): Promise<StudentRouteAssignmentEntity | null>;
+  findStudentAssignmentById(
+    id: string,
+    tenantId: string,
+  ): Promise<StudentRouteAssignmentEntity | null>;
+  listStudentAssignments(
+    tenantId: string,
+    filter: StudentAssignmentFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<StudentRouteAssignmentEntity>>;
+  findActiveStudentAssignment(
+    studentId: string,
+    tenantId: string,
+  ): Promise<StudentRouteAssignmentEntity | null>;
 }

@@ -16,10 +16,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { ResultPublicationService } from './result-publication-service.js';
-import {
-  ResultExaminationParamsSchema,
-  type ResultExaminationParams,
-} from './result-schemas.js';
+import { ResultExaminationParamsSchema, type ResultExaminationParams } from './result-schemas.js';
 
 /**
  * Options for registering result publication routes.

@@ -37,8 +37,6 @@ test.describe('auth — sign-in (MFA challenge)', () => {
     // The 6-digit code group is rendered with role="group" and an
     // accessible name; this is the contract `mfa-form.keyboard.md`
     // pins down.
-    await expect(
-      page.getByRole('group', { name: /verification code/i }),
-    ).toBeVisible();
+    await expect(page.getByRole('group', { name: /verification code/i })).toBeVisible();
   });
 });

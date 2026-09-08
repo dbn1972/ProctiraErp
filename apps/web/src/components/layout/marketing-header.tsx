@@ -66,10 +66,7 @@ const PRIMARY_NAV_LINKS: readonly MarketingNavLink[] = [
  * pathname. Exact match for `/`, prefix match for everything else so
  * sub-routes (e.g. `/features/integrations`) still highlight the parent.
  */
-export function isMarketingNavActive(
-  pathname: string | null | undefined,
-  href: string,
-): boolean {
+export function isMarketingNavActive(pathname: string | null | undefined, href: string): boolean {
   if (!pathname) return false;
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -167,12 +164,7 @@ export function MarketingHeader() {
         >
           <Link href="/login">{tCta('signIn')}</Link>
         </Button>
-        <Button
-          asChild
-          variant="default"
-          size="sm"
-          data-testid="marketing-header-get-started"
-        >
+        <Button asChild variant="default" size="sm" data-testid="marketing-header-get-started">
           <Link href="/demo">{tCta('getStarted')}</Link>
         </Button>
       </div>

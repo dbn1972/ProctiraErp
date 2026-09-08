@@ -68,7 +68,9 @@ export class PgKeycloakIdentityStore implements KeycloakIdentityStore {
 
   async findIdentity(externalId: string) {
     const row = await this.identities.get(externalId);
-    return row ? { id: row.id, userId: row.userId, tenantId: row.tenantId, email: row.email } : null;
+    return row
+      ? { id: row.id, userId: row.userId, tenantId: row.tenantId, email: row.email }
+      : null;
   }
 
   async touchIdentity(id: string): Promise<void> {

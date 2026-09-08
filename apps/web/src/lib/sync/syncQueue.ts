@@ -183,9 +183,7 @@ function getBrand(): string {
  */
 function openDatabase(): Promise<IDBDatabase> {
   if (typeof indexedDB === 'undefined') {
-    return Promise.reject(
-      new Error('Sync_Queue: indexedDB is not available in this environment'),
-    );
+    return Promise.reject(new Error('Sync_Queue: indexedDB is not available in this environment'));
   }
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
@@ -202,8 +200,7 @@ function openDatabase(): Promise<IDBDatabase> {
 
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error('IndexedDB open failed'));
-    request.onblocked = () =>
-      reject(new Error('Sync_Queue: open blocked by another connection'));
+    request.onblocked = () => reject(new Error('Sync_Queue: open blocked by another connection'));
   });
 }
 
@@ -346,9 +343,7 @@ export async function persistAttempt(
   lastError: string,
 ): Promise<SyncQueueOperation | null> {
   return withStore('readwrite', async (store) => {
-    const existing = (await awaitRequest(store.get(id))) as
-      | SyncQueueOperation
-      | undefined;
+    const existing = (await awaitRequest(store.get(id))) as SyncQueueOperation | undefined;
     if (!existing) return null;
     const updated: SyncQueueOperation = {
       ...existing,

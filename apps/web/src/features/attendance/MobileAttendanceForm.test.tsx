@@ -32,14 +32,7 @@
 import 'fake-indexeddb/auto';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 
 import {
@@ -107,14 +100,10 @@ afterEach(async () => {
 
 describe('<MobileAttendanceForm> — touch-target sizing', () => {
   it('renders four status buttons per row, each at the 48 × 48 px floor', () => {
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
 
     for (const row of ROSTER) {
-      const group = screen.getByTestId(
-        `mobile-attendance-status-group-${row.studentId}`,
-      );
+      const group = screen.getByTestId(`mobile-attendance-status-group-${row.studentId}`);
       const buttons = group.querySelectorAll('[role="radio"]');
       expect(buttons.length).toBe(4);
       for (const button of Array.from(buttons)) {
@@ -129,32 +118,22 @@ describe('<MobileAttendanceForm> — touch-target sizing', () => {
   });
 
   it('paints an icon next to each status label so the control is not icon-only', () => {
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
 
-    const group = screen.getByTestId(
-      `mobile-attendance-status-group-${ROSTER[0]!.studentId}`,
-    );
+    const group = screen.getByTestId(`mobile-attendance-status-group-${ROSTER[0]!.studentId}`);
     const buttons = Array.from(group.querySelectorAll('[role="radio"]'));
     for (const button of buttons) {
       // lucide-react icons render as <svg>; the text label sits in a
       // sibling <span>. Both must be present so the affordance is
       // discoverable without colour alone (Requirement 37 AC 7).
       expect(button.querySelector('svg')).not.toBeNull();
-      expect(button.textContent ?? '').toMatch(
-        /Present|Absent|Late|Excused/,
-      );
+      expect(button.textContent ?? '').toMatch(/Present|Absent|Late|Excused/);
     }
   });
 
   it('keeps the comment toggle at the 48 × 48 px floor', () => {
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
-    const toggle = screen.getByTestId(
-      `mobile-attendance-comment-toggle-${ROSTER[0]!.studentId}`,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
+    const toggle = screen.getByTestId(`mobile-attendance-comment-toggle-${ROSTER[0]!.studentId}`);
     const className = toggle.getAttribute('class') ?? '';
     expect(className).toContain('h-12');
     expect(className).toContain('w-12');
@@ -165,26 +144,16 @@ describe('<MobileAttendanceForm> — touch-target sizing', () => {
 
 describe('<MobileAttendanceForm> — button state transitions', () => {
   it('marks PRESENT as the initial active selection', () => {
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
-    const present = screen.getByTestId(
-      `mobile-attendance-status-${ROSTER[0]!.studentId}-PRESENT`,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
+    const present = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-PRESENT`);
     expect(present.getAttribute('aria-checked')).toBe('true');
     expect(present.getAttribute('data-active')).toBe('true');
   });
 
   it('flips active state on click and clears the previous selection', () => {
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
-    const present = screen.getByTestId(
-      `mobile-attendance-status-${ROSTER[0]!.studentId}-PRESENT`,
-    );
-    const absent = screen.getByTestId(
-      `mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
+    const present = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-PRESENT`);
+    const absent = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`);
 
     act(() => {
       fireEvent.click(absent);
@@ -197,12 +166,8 @@ describe('<MobileAttendanceForm> — button state transitions', () => {
   });
 
   it('does not affect sibling rows when one row changes', () => {
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
-    const row1Late = screen.getByTestId(
-      `mobile-attendance-status-${ROSTER[0]!.studentId}-LATE`,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
+    const row1Late = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-LATE`);
 
     act(() => {
       fireEvent.click(row1Late);
@@ -216,18 +181,12 @@ describe('<MobileAttendanceForm> — button state transitions', () => {
   });
 
   it('toggles the comment input via an explicit on-screen control (no hover)', () => {
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
-    const toggle = screen.getByTestId(
-      `mobile-attendance-comment-toggle-${ROSTER[0]!.studentId}`,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
+    const toggle = screen.getByTestId(`mobile-attendance-comment-toggle-${ROSTER[0]!.studentId}`);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     // Comment input is hidden until the toggle is clicked.
     expect(
-      screen.queryByTestId(
-        `mobile-attendance-comment-input-${ROSTER[0]!.studentId}`,
-      ),
+      screen.queryByTestId(`mobile-attendance-comment-input-${ROSTER[0]!.studentId}`),
     ).toBeNull();
 
     act(() => {
@@ -236,9 +195,7 @@ describe('<MobileAttendanceForm> — button state transitions', () => {
 
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(
-      screen.getByTestId(
-        `mobile-attendance-comment-input-${ROSTER[0]!.studentId}`,
-      ),
+      screen.getByTestId(`mobile-attendance-comment-input-${ROSTER[0]!.studentId}`),
     ).toBeTruthy();
   });
 });
@@ -249,13 +206,9 @@ describe('<MobileAttendanceForm> — useDraftAutosave integration', () => {
   it('persists status changes to localStorage after the autosave debounce', () => {
     vi.useFakeTimers();
     try {
-      render(
-        <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-      );
+      render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
 
-      const absent = screen.getByTestId(
-        `mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`,
-      );
+      const absent = screen.getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-ABSENT`);
       act(() => {
         fireEvent.click(absent);
       });
@@ -273,9 +226,7 @@ describe('<MobileAttendanceForm> — useDraftAutosave integration', () => {
           rows: Array<{ studentId: string; status: string }>;
         };
       };
-      const persisted = parsed.values.rows.find(
-        (r) => r.studentId === ROSTER[0]!.studentId,
-      );
+      const persisted = parsed.values.rows.find((r) => r.studentId === ROSTER[0]!.studentId);
       expect(persisted?.status).toBe('ABSENT');
     } finally {
       vi.useRealTimers();
@@ -312,22 +263,16 @@ describe('<MobileAttendanceForm> — useDraftAutosave integration', () => {
       }),
     );
 
-    render(
-      <MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />,
-    );
+    render(<MobileAttendanceForm roster={ROSTER} defaults={DEFAULTS} />);
 
     expect(
       screen
-        .getByTestId(
-          `mobile-attendance-status-${ROSTER[0]!.studentId}-LATE`,
-        )
+        .getByTestId(`mobile-attendance-status-${ROSTER[0]!.studentId}-LATE`)
         .getAttribute('aria-checked'),
     ).toBe('true');
     expect(
       screen
-        .getByTestId(
-          `mobile-attendance-status-${ROSTER[1]!.studentId}-EXCUSED`,
-        )
+        .getByTestId(`mobile-attendance-status-${ROSTER[1]!.studentId}-EXCUSED`)
         .getAttribute('aria-checked'),
     ).toBe('true');
   });
@@ -338,9 +283,9 @@ describe('<MobileAttendanceForm> — useDraftAutosave integration', () => {
 describe('<MobileAttendanceForm> — submission routing', () => {
   it('invokes the supplied submitter when online', async () => {
     const submit = vi.fn(
-      async (
-        _payload: MobileAttendanceSubmission,
-      ): Promise<MobileAttendanceSubmitResult> => ({ status: 'success' }),
+      async (_payload: MobileAttendanceSubmission): Promise<MobileAttendanceSubmitResult> => ({
+        status: 'success',
+      }),
     );
 
     render(
@@ -373,9 +318,9 @@ describe('<MobileAttendanceForm> — submission routing', () => {
 
   it('routes the bulk payload through Sync_Queue.enqueue when offline', async () => {
     const submit = vi.fn(
-      async (
-        _payload: MobileAttendanceSubmission,
-      ): Promise<MobileAttendanceSubmitResult> => ({ status: 'success' }),
+      async (_payload: MobileAttendanceSubmission): Promise<MobileAttendanceSubmitResult> => ({
+        status: 'success',
+      }),
     );
 
     render(
@@ -428,9 +373,7 @@ describe('<MobileAttendanceForm> — submission routing', () => {
 
   it('falls through to Sync_Queue when an online submission fails', async () => {
     const submit = vi.fn(
-      async (
-        _payload: MobileAttendanceSubmission,
-      ): Promise<MobileAttendanceSubmitResult> => ({
+      async (_payload: MobileAttendanceSubmission): Promise<MobileAttendanceSubmitResult> => ({
         status: 'error',
         message: 'boom',
       }),

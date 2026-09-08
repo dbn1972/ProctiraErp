@@ -25,15 +25,7 @@
  *     enrollment trend, wrapped in a <Card> from ui-components
  */
 
-import {
-  Briefcase,
-  Calendar,
-  ChevronRight,
-  Scale,
-  School,
-  TrendingUp,
-  Users,
-} from 'lucide-react';
+import { Briefcase, Calendar, ChevronRight, Scale, School, TrendingUp, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   CartesianGrid,
@@ -65,12 +57,7 @@ import {
 } from '@proctira/ui-dashboards';
 
 import { useCountryDashboardData } from '../api';
-import type {
-  BoardRow,
-  DashboardKpi,
-  EnrollmentTrendPoint,
-  StateRow,
-} from '../api';
+import type { BoardRow, DashboardKpi, EnrollmentTrendPoint, StateRow } from '../api';
 
 const ICONS: Record<string, KpiCardProps['icon']> = {
   schools: <School className="h-5 w-5" aria-hidden="true" />,
@@ -169,10 +156,7 @@ function buildStateColumns(): ReadonlyArray<DataTableCardColumn<StateRow>> {
       id: 'drill',
       header: '',
       cell: () => (
-        <ChevronRight
-          className="h-4 w-4 text-[hsl(var(--muted-foreground))]"
-          aria-hidden="true"
-        />
+        <ChevronRight className="h-4 w-4 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
       ),
       headerClassName: 'text-end',
       className: 'text-end',
@@ -195,9 +179,7 @@ function EnrollmentTrendCard({ trend, loading }: EnrollmentTrendCardProps) {
     <Card data-testid="enrollment-trend-card">
       <CardHeader>
         <CardTitle>Enrollment Trend</CardTitle>
-        <CardDescription>
-          Students (millions) by board, last 5 academic years
-        </CardDescription>
+        <CardDescription>Students (millions) by board, last 5 academic years</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -281,8 +263,7 @@ export default function CountryDashboard() {
           Country Dashboard
         </h1>
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          National-level KPIs across all states and boards. Click a state to
-          drill down.
+          National-level KPIs across all states and boards. Click a state to drill down.
         </p>
       </header>
 

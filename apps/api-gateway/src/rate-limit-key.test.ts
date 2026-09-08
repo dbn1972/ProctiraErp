@@ -40,9 +40,9 @@ describe('rateLimitKeyFor (G-731)', () => {
   });
 
   it('falls back to the host-resolved tenant when the token has none', () => {
-    expect(
-      rateLimitKeyFor(fakeRequest({ tenantId: 'host-tenant', user: { sub: 'user-2' } })),
-    ).toBe('host-tenant:user-2');
+    expect(rateLimitKeyFor(fakeRequest({ tenantId: 'host-tenant', user: { sub: 'user-2' } }))).toBe(
+      'host-tenant:user-2',
+    );
     expect(rateLimitKeyFor(fakeRequest({ user: { sub: 'user-3' } }))).toBe('user:user-3');
   });
 });

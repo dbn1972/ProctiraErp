@@ -101,7 +101,7 @@ export function FileUpload({
 
       return { valid, errors };
     },
-    [accept, maxSize, maxFiles, files.length]
+    [accept, maxSize, maxFiles, files.length],
   );
 
   const handleFiles = useCallback(
@@ -119,7 +119,7 @@ export function FileUpload({
         onFilesSelected(valid);
       }
     },
-    [validateFiles, onFilesSelected, onValidationError]
+    [validateFiles, onFilesSelected, onValidationError],
   );
 
   const handleDragEnter = useCallback(
@@ -128,7 +128,7 @@ export function FileUpload({
       e.stopPropagation();
       if (!disabled) setIsDragOver(true);
     },
-    [disabled]
+    [disabled],
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -143,7 +143,7 @@ export function FileUpload({
       e.stopPropagation();
       if (!disabled) setIsDragOver(true);
     },
-    [disabled]
+    [disabled],
   );
 
   const handleDrop = useCallback(
@@ -155,7 +155,7 @@ export function FileUpload({
       if (disabled) return;
       handleFiles(e.dataTransfer.files);
     },
-    [disabled, handleFiles]
+    [disabled, handleFiles],
   );
 
   const handleInputChange = useCallback(
@@ -166,7 +166,7 @@ export function FileUpload({
         fileInputRef.current.value = '';
       }
     },
-    [handleFiles]
+    [handleFiles],
   );
 
   const handleBrowseClick = useCallback(() => {
@@ -180,7 +180,7 @@ export function FileUpload({
         handleBrowseClick();
       }
     },
-    [handleBrowseClick]
+    [handleBrowseClick],
   );
 
   const acceptString = accept?.join(',');
@@ -212,7 +212,10 @@ export function FileUpload({
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         className={`proctira-file-upload__dropzone ${isDragOver ? 'proctira-file-upload__dropzone--active' : ''} ${disabled ? 'proctira-file-upload__dropzone--disabled' : ''}`}
-        aria-label={dropZoneLabel ?? `Drop files here or click to browse. ${accept ? `Accepted types: ${accept.join(', ')}` : ''} ${maxSize ? `Maximum size: ${formatFileSize(maxSize)}` : ''}`}
+        aria-label={
+          dropZoneLabel ??
+          `Drop files here or click to browse. ${accept ? `Accepted types: ${accept.join(', ')}` : ''} ${maxSize ? `Maximum size: ${formatFileSize(maxSize)}` : ''}`
+        }
         aria-disabled={disabled}
       >
         <div className="proctira-file-upload__icon" aria-hidden="true">
@@ -256,7 +259,10 @@ export function FileUpload({
                   </div>
                 )}
                 {uploadedFile.status === 'complete' && (
-                  <span className="proctira-file-upload__status--complete" aria-label="Upload complete">
+                  <span
+                    className="proctira-file-upload__status--complete"
+                    aria-label="Upload complete"
+                  >
                     ✓
                   </span>
                 )}

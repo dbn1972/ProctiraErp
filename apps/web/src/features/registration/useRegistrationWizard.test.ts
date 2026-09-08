@@ -211,9 +211,7 @@ describe('useRegistrationWizard — Zod validation gates advancement', () => {
       advanced = result.current.goNext();
     });
     expect(advanced).toBe(false);
-    expect(
-      result.current.errors.some((e) => e.path.endsWith('rank')),
-    ).toBe(true);
+    expect(result.current.errors.some((e) => e.path.endsWith('rank'))).toBe(true);
   });
 
   it('rejects more than 3 ranked preferences (Requirement 16 AC 10)', () => {

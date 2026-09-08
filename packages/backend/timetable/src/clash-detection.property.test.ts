@@ -4,11 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import * as fc from 'fast-check';
 
-import {
-  detectClashes,
-  intervalsOverlap,
-  type MeetingSlot,
-} from './clash-detection.js';
+import { detectClashes, intervalsOverlap, type MeetingSlot } from './clash-detection.js';
 import { detectMeetingClashes, type MeetingSlotLike } from './clash-helper.js';
 
 const timeArb = fc
@@ -20,20 +16,22 @@ const orderedIntervalArb = fc
   .filter(([a, b]) => a < b)
   .map(([startTime, endTime]) => ({ startTime, endTime }));
 
-const meetingSlotArb: fc.Arbitrary<MeetingSlot> = fc.record({
-  id: fc.uuid(),
-  dayOfWeek: fc.integer({ min: 1, max: 7 }),
-  startTime: fc.constant('09:00'),
-  endTime: fc.constant('10:00'),
-  teacherId: fc.option(fc.uuid(), { nil: undefined }),
-  roomId: fc.option(fc.uuid(), { nil: undefined }),
-  studentIds: fc.option(fc.array(fc.uuid(), { maxLength: 3 }), { nil: undefined }),
-}).chain((base) =>
-  orderedIntervalArb.map((interval) => ({
-    ...base,
-    ...interval,
-  })),
-);
+const meetingSlotArb: fc.Arbitrary<MeetingSlot> = fc
+  .record({
+    id: fc.uuid(),
+    dayOfWeek: fc.integer({ min: 1, max: 7 }),
+    startTime: fc.constant('09:00'),
+    endTime: fc.constant('10:00'),
+    teacherId: fc.option(fc.uuid(), { nil: undefined }),
+    roomId: fc.option(fc.uuid(), { nil: undefined }),
+    studentIds: fc.option(fc.array(fc.uuid(), { maxLength: 3 }), { nil: undefined }),
+  })
+  .chain((base) =>
+    orderedIntervalArb.map((interval) => ({
+      ...base,
+      ...interval,
+    })),
+  );
 
 const periodMeetingArb: fc.Arbitrary<MeetingSlotLike> = fc.record({
   id: fc.uuid(),
@@ -49,9 +47,9 @@ describe('clash-detection properties (G-304)', () => {
   it('intervalsOverlap is symmetric for any valid pair', () => {
     fc.assert(
       fc.property(orderedIntervalArb, orderedIntervalArb, (a, b) => {
-        expect(
-          intervalsOverlap(a.startTime, a.endTime, b.startTime, b.endTime),
-        ).toBe(intervalsOverlap(b.startTime, b.endTime, a.startTime, a.endTime));
+        expect(intervalsOverlap(a.startTime, a.endTime, b.startTime, b.endTime)).toBe(
+          intervalsOverlap(b.startTime, b.endTime, a.startTime, a.endTime),
+        );
       }),
       { numRuns: 80 },
     );

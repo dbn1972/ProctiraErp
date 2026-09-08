@@ -59,9 +59,7 @@ function operationLabel(op: string): string {
   }
 }
 
-function operationBadgeVariant(
-  op: string,
-): 'default' | 'secondary' | 'destructive' | 'outline' {
+function operationBadgeVariant(op: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (op) {
     case 'CREATE':
       return 'default';
@@ -103,7 +101,9 @@ export default function AuditDetailPage(): JSX.Element {
         }
       });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [entryId]);
 
   // ─── Loading ────────────────────────────────────────────────────────
@@ -152,12 +152,7 @@ export default function AuditDetailPage(): JSX.Element {
   return (
     <div className="space-y-6 p-6">
       {/* Back navigation */}
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => navigate(-1)}
-        data-testid="back-button"
-      >
+      <Button variant="ghost" size="sm" onClick={() => navigate(-1)} data-testid="back-button">
         ← Back to audit trail
       </Button>
 
@@ -181,9 +176,7 @@ export default function AuditDetailPage(): JSX.Element {
             <div>
               <dt className="text-sm font-medium text-muted-foreground">Timestamp</dt>
               <dd>
-                <time dateTime={entry.timestamp}>
-                  {new Date(entry.timestamp).toLocaleString()}
-                </time>
+                <time dateTime={entry.timestamp}>{new Date(entry.timestamp).toLocaleString()}</time>
               </dd>
             </div>
             <div>
@@ -240,9 +233,7 @@ export default function AuditDetailPage(): JSX.Element {
               <TableBody>
                 {entry.changes.map((change: AuditFieldChange) => (
                   <TableRow key={change.field} data-testid={`change-row-${change.field}`}>
-                    <TableCell className="font-mono text-sm font-medium">
-                      {change.field}
-                    </TableCell>
+                    <TableCell className="font-mono text-sm font-medium">{change.field}</TableCell>
                     <TableCell>
                       <DiffValue value={change.before} variant="before" />
                     </TableCell>
@@ -277,14 +268,16 @@ function DiffValue({
     return <span className="text-muted-foreground italic">—</span>;
   }
 
-  const bgClass = variant === 'before' ? 'bg-red-50 dark:bg-red-950/20' : 'bg-green-50 dark:bg-green-950/20';
-  const borderClass = variant === 'before' ? 'border-red-200 dark:border-red-800' : 'border-green-200 dark:border-green-800';
+  const bgClass =
+    variant === 'before' ? 'bg-red-50 dark:bg-red-950/20' : 'bg-green-50 dark:bg-green-950/20';
+  const borderClass =
+    variant === 'before'
+      ? 'border-red-200 dark:border-red-800'
+      : 'border-green-200 dark:border-green-800';
 
   if (isMultiline) {
     return (
-      <pre
-        className={`text-xs p-2 rounded border overflow-x-auto ${bgClass} ${borderClass}`}
-      >
+      <pre className={`text-xs p-2 rounded border overflow-x-auto ${bgClass} ${borderClass}`}>
         {formatted}
       </pre>
     );

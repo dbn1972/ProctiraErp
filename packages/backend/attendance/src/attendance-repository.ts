@@ -184,8 +184,14 @@ export interface ThresholdCheckResult {
  */
 export interface AttendanceRepository {
   // Student attendance
-  createStudentAttendance(data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>): Promise<StudentAttendanceEntity>;
-  updateStudentAttendance(id: string, tenantId: string, data: Partial<StudentAttendanceEntity>): Promise<StudentAttendanceEntity | null>;
+  createStudentAttendance(
+    data: Omit<StudentAttendanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<StudentAttendanceEntity>;
+  updateStudentAttendance(
+    id: string,
+    tenantId: string,
+    data: Partial<StudentAttendanceEntity>,
+  ): Promise<StudentAttendanceEntity | null>;
   findStudentAttendance(
     tenantId: string,
     studentId: string,
@@ -216,8 +222,14 @@ export interface AttendanceRepository {
   ): Promise<number>;
 
   // Staff attendance
-  createStaffAttendance(data: Omit<StaffAttendanceEntity, 'createdAt' | 'updatedAt'>): Promise<StaffAttendanceEntity>;
-  updateStaffAttendance(id: string, tenantId: string, data: Partial<StaffAttendanceEntity>): Promise<StaffAttendanceEntity | null>;
+  createStaffAttendance(
+    data: Omit<StaffAttendanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<StaffAttendanceEntity>;
+  updateStaffAttendance(
+    id: string,
+    tenantId: string,
+    data: Partial<StaffAttendanceEntity>,
+  ): Promise<StaffAttendanceEntity | null>;
   findStaffAttendance(
     tenantId: string,
     staffId: string,
@@ -237,10 +249,7 @@ export interface AttendanceRepository {
     tenantId: string,
     institutionId: string,
   ): Promise<AcademicPeriodInfo | null>;
-  getAcademicPeriodById(
-    tenantId: string,
-    periodId: string,
-  ): Promise<AcademicPeriodInfo | null>;
+  getAcademicPeriodById(tenantId: string, periodId: string): Promise<AcademicPeriodInfo | null>;
 
   // Institution config
   getInstitutionAttendanceConfig(
@@ -256,5 +265,8 @@ export interface AttendanceRepository {
 
   // Audit (tenantId binds the RLS context — attendance_audit derives tenancy from its parent row)
   createAuditEntry(entry: AttendanceAuditEntry): Promise<void>;
-  getAuditEntriesForAttendance(attendanceId: string, tenantId?: string): Promise<AttendanceAuditEntry[]>;
+  getAuditEntriesForAttendance(
+    attendanceId: string,
+    tenantId?: string,
+  ): Promise<AttendanceAuditEntry[]>;
 }

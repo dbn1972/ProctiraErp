@@ -5,14 +5,8 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import {
-  createImportJob,
-  type CreateImportJobInput,
-} from '@/lib/api/data-warehouse';
-import {
-  generateReport,
-  type GenerateReportInput,
-} from '@/lib/api/reports';
+import { createImportJob, type CreateImportJobInput } from '@/lib/api/data-warehouse';
+import { generateReport, type GenerateReportInput } from '@/lib/api/reports';
 
 export interface InsightsActionState {
   status: 'idle' | 'success' | 'error';

@@ -143,12 +143,11 @@ export function toCreateExaminationInput(
       maxScore: g.maxScore,
       passThreshold: g.passThreshold,
       thresholds: g.thresholds.map((t) => {
-        const row: CreateExaminationInput['gradingSchemes'][number]['thresholds'][number] =
-          {
-            grade: t.grade.trim(),
-            minScore: t.minScore,
-            maxScore: t.maxScore,
-          };
+        const row: CreateExaminationInput['gradingSchemes'][number]['thresholds'][number] = {
+          grade: t.grade.trim(),
+          minScore: t.minScore,
+          maxScore: t.maxScore,
+        };
         if (t.descriptor && t.descriptor.trim()) {
           row.descriptor = t.descriptor.trim();
         }
@@ -164,10 +163,10 @@ export function toCreateExaminationInput(
 
 /** List examinations with optional status filtering. */
 export async function listExaminations(): Promise<Examination[]> {
-  const result = await gatewayFetch<{ data: ExaminationApiRecord[] }>(
-    '/examinations',
-    { throwOnError: false, next: { revalidate: 0 } },
-  );
+  const result = await gatewayFetch<{ data: ExaminationApiRecord[] }>('/examinations', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
   const rows = result.data?.data ?? [];
   return rows.map(normalizeExamination);
 }
@@ -182,9 +181,7 @@ export async function getExamination(id: string): Promise<Examination | null> {
 }
 
 /** Create an examination via POST /examinations (gateway → examination plugin). */
-export async function createExamination(
-  input: CreateExaminationInput,
-): Promise<Examination> {
+export async function createExamination(input: CreateExaminationInput): Promise<Examination> {
   const result = await gatewayFetch<ExaminationApiRecord>('/examinations', {
     method: 'POST',
     json: input,
@@ -207,9 +204,7 @@ export async function listExaminationCandidates(
 }
 
 /** List results for an examination. */
-export async function listExaminationResults(
-  examinationId: string,
-): Promise<ExaminationResult[]> {
+export async function listExaminationResults(examinationId: string): Promise<ExaminationResult[]> {
   const result = await gatewayFetch<{ data: ExaminationResult[] }>(
     `/examinations/${examinationId}/results`,
     { throwOnError: false, next: { revalidate: 0 } },

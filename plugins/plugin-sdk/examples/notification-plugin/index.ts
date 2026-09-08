@@ -18,20 +18,22 @@ export default definePlugin({
     owner: 'proctira-official',
     version: '1.0.0',
     supportedProductVersions: '>=1.0.0 <2.0.0',
-    requiredPermissions: [
-      'attendance.read',
-      'notification.send',
-      'student.read',
-    ],
-    requiredExtensionPoints: [
-      'student.after-create',
-    ],
+    requiredPermissions: ['attendance.read', 'notification.send', 'student.read'],
+    requiredExtensionPoints: ['student.after-create'],
     configSchema: {
       type: 'object',
       properties: {
         webhookUrl: { type: 'string', description: 'External webhook URL for notifications' },
-        thresholdPercentage: { type: 'number', description: 'Absence threshold percentage', default: 20 },
-        notifyGuardians: { type: 'boolean', description: 'Whether to notify guardians', default: true },
+        thresholdPercentage: {
+          type: 'number',
+          description: 'Absence threshold percentage',
+          default: 20,
+        },
+        notifyGuardians: {
+          type: 'boolean',
+          description: 'Whether to notify guardians',
+          default: true,
+        },
       },
       required: ['webhookUrl'],
     },

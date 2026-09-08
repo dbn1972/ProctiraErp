@@ -68,7 +68,12 @@ export function isBrandingPreviewEnabled(): boolean {
  */
 export function enableBrandingPreview(
   value: string = PREVIEW_COOKIE_DEFAULT_VALUE,
-  options: { maxAgeSeconds?: number; path?: string; sameSite?: 'Lax' | 'Strict' | 'None'; secure?: boolean } = {},
+  options: {
+    maxAgeSeconds?: number;
+    path?: string;
+    sameSite?: 'Lax' | 'Strict' | 'None';
+    secure?: boolean;
+  } = {},
 ): void {
   if (!isBrowser()) return;
   const {
@@ -91,9 +96,7 @@ export function enableBrandingPreview(
  * Disables branding preview by expiring the cookie. The gateway then
  * resumes returning published tokens for the next request.
  */
-export function disableBrandingPreview(
-  options: { path?: string } = {},
-): void {
+export function disableBrandingPreview(options: { path?: string } = {}): void {
   if (!isBrowser()) return;
   const { path = '/' } = options;
   document.cookie = `${PREVIEW_COOKIE_NAME}=; Path=${path}; Max-Age=0; SameSite=Lax`;

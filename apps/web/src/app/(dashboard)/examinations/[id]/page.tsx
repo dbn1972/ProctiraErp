@@ -6,12 +6,7 @@
 import { notFound } from 'next/navigation';
 import { CalendarDays, CheckCircle2, Users } from 'lucide-react';
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { getExamination } from '@/lib/api/examinations';
 
@@ -44,7 +39,10 @@ function KpiCard({
     <Card>
       <CardContent className="p-5">
         <div className="mb-3 flex items-center justify-between">
-          <span aria-hidden="true" className={cn('flex h-9 w-9 items-center justify-center rounded-lg', iconBg)}>
+          <span
+            aria-hidden="true"
+            className={cn('flex h-9 w-9 items-center justify-center rounded-lg', iconBg)}
+          >
             <Icon className="h-5 w-5" />
           </span>
           <span className="text-xs font-medium text-muted-foreground">{label}</span>
@@ -104,7 +102,9 @@ export default async function ExaminationOverviewPage({ params }: PageProps) {
         <CardContent className="pb-4">
           <dl>
             <FactRow label="Name">{exam.name}</FactRow>
-            <FactRow label="Code"><span className="font-mono">{exam.code}</span></FactRow>
+            <FactRow label="Code">
+              <span className="font-mono">{exam.code}</span>
+            </FactRow>
             <FactRow label="Examination date">{formatDate(exam.examinationDate) ?? '—'}</FactRow>
             <FactRow label="Registration window">
               {regStart && regEnd ? `${regStart} → ${regEnd}` : 'Not set'}

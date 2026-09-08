@@ -6,10 +6,7 @@
  */
 import { revalidatePath } from 'next/cache';
 
-import {
-  createExamination,
-  toCreateExaminationInput,
-} from '@/lib/api/examinations';
+import { createExamination, toCreateExaminationInput } from '@/lib/api/examinations';
 import { GatewayError } from '@/lib/api/gateway';
 import {
   createExaminationFormSchema,
@@ -23,9 +20,7 @@ export interface ActionState<T = unknown> {
   data?: T;
 }
 
-function zodFlatten(
-  fieldErrors: Record<string, string[] | undefined>,
-): Record<string, string> {
+function zodFlatten(fieldErrors: Record<string, string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(fieldErrors)) {
     if (value && value.length > 0 && value[0]) out[key] = value[0];
@@ -33,10 +28,7 @@ function zodFlatten(
   return out;
 }
 
-function toErrorState<T = unknown>(
-  error: unknown,
-  fallback: string,
-): ActionState<T> {
+function toErrorState<T = unknown>(error: unknown, fallback: string): ActionState<T> {
   if (error instanceof GatewayError) {
     return { status: 'error', message: error.message || fallback };
   }
@@ -59,9 +51,7 @@ export async function createExaminationAction(
   }
 
   try {
-    const examination = await createExamination(
-      toCreateExaminationInput(parsed.data),
-    );
+    const examination = await createExamination(toCreateExaminationInput(parsed.data));
     revalidatePath('/examinations');
     return {
       status: 'success',

@@ -67,9 +67,7 @@ function resolveSqlPath(filename: string): string {
   return candidates[0]!;
 }
 
-export async function ensureFeesSchema(
-  pool: PgPoolLike = getSharedFeesPool()!,
-): Promise<void> {
+export async function ensureFeesSchema(pool: PgPoolLike = getSharedFeesPool()!): Promise<void> {
   if (!pool) throw new Error('DATABASE_URL is required for fees schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
@@ -263,7 +261,11 @@ export class PgFeesRepository implements FeesRepository {
       };
       let debitCents = 0;
       let creditCents = 0;
-      for (const raw of result.rows as { account: LedgerAccount; debit: string; credit: string }[]) {
+      for (const raw of result.rows as {
+        account: LedgerAccount;
+        debit: string;
+        credit: string;
+      }[]) {
         const d = Number(raw.debit);
         const c = Number(raw.credit);
         debitCents += d;

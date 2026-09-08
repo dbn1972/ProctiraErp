@@ -15,33 +15,33 @@ The contract below is exercised by `DataGrid.keyboard.test.tsx`.
 
 ## Tab order
 
-| Step | Element | Notes |
-| --- | --- | --- |
-| 1 | Filter inputs (when `enableFiltering` is true) | One `<input>` per filterable column. |
-| 2 | Export button (when `enableExport` is true) | Single button. |
-| 3 | Sortable column headers | One `<button>` per sortable column. Non-sortable headers are skipped. |
-| 4 | Per-row interactive cells | Each focusable widget that consumers render inside `cell()` (e.g., row-action buttons). Rows are walked top-to-bottom. |
-| 5 | Pagination controls | First, Previous, Next, Last buttons. |
-| 6 | Page-size `<select>` | Single combobox. |
+| Step | Element                                        | Notes                                                                                                                  |
+| ---- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| 1    | Filter inputs (when `enableFiltering` is true) | One `<input>` per filterable column.                                                                                   |
+| 2    | Export button (when `enableExport` is true)    | Single button.                                                                                                         |
+| 3    | Sortable column headers                        | One `<button>` per sortable column. Non-sortable headers are skipped.                                                  |
+| 4    | Per-row interactive cells                      | Each focusable widget that consumers render inside `cell()` (e.g., row-action buttons). Rows are walked top-to-bottom. |
+| 5    | Pagination controls                            | First, Previous, Next, Last buttons.                                                                                   |
+| 6    | Page-size `<select>`                           | Single combobox.                                                                                                       |
 
 `Shift + Tab` walks the same sequence in reverse.
 
 ## Sorting
 
-| Key | Action |
-| --- | --- |
+| Key     | Action                                                                                |
+| ------- | ------------------------------------------------------------------------------------- |
 | `Enter` | Toggles the sort on the focused column header (none → ascending → descending → none). |
-| `Space` | Same as `Enter` — `<button>` semantics. |
+| `Space` | Same as `Enter` — `<button>` semantics.                                               |
 
 The header carries `aria-sort` (`none` / `ascending` / `descending`)
 so screen readers announce the new state.
 
 ## Pagination
 
-| Key | Action |
-| --- | --- |
-| `Enter` / `Space` | Activates the focused pagination button. |
-| `Tab` | Moves through the four buttons in order: first, previous, next, last, then into the page-size select. |
+| Key               | Action                                                                                                |
+| ----------------- | ----------------------------------------------------------------------------------------------------- |
+| `Enter` / `Space` | Activates the focused pagination button.                                                              |
+| `Tab`             | Moves through the four buttons in order: first, previous, next, last, then into the page-size select. |
 
 The pagination region exposes `aria-live="polite"` on its info
 caption so screen readers announce "Page 2 of 10" automatically when

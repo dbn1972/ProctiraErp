@@ -131,9 +131,7 @@ function toEntity(row: StudentRow): StudentEntity {
 export class PrismaStudentRepository implements StudentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async create(
-    data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<StudentEntity> {
+  async create(data: Omit<StudentEntity, 'createdAt' | 'updatedAt'>): Promise<StudentEntity> {
     return withTenantTransaction(this.prisma, data.tenantId, async (tx) => {
       const row = (await tx.student.create({
         data: {
@@ -201,10 +199,7 @@ export class PrismaStudentRepository implements StudentRepository {
     });
   }
 
-  async findByNationalId(
-    nationalId: string,
-    tenantId: string,
-  ): Promise<StudentEntity | null> {
+  async findByNationalId(nationalId: string, tenantId: string): Promise<StudentEntity | null> {
     return withTenantTransaction(this.prisma, tenantId, async (tx) => {
       const row = (await tx.student.findFirst({
         where: { nationalId, tenantId, deletedAt: null },
@@ -272,10 +267,7 @@ export class PrismaStudentRepository implements StudentRepository {
 // Query builders (pure helpers — no DB access, easy to unit test in isolation)
 // ---------------------------------------------------------------------------
 
-function buildListWhere(
-  tenantId: string,
-  filter: StudentFilter,
-): Record<string, unknown> {
+function buildListWhere(tenantId: string, filter: StudentFilter): Record<string, unknown> {
   const where: Record<string, unknown> = { tenantId, deletedAt: null };
   if (filter.gender) {
     where.gender = filter.gender;
@@ -286,10 +278,7 @@ function buildListWhere(
   return where;
 }
 
-function buildSearchWhere(
-  tenantId: string,
-  query: string,
-): Record<string, unknown> {
+function buildSearchWhere(tenantId: string, query: string): Record<string, unknown> {
   // Each whitespace-separated term must match the first name, last name, or
   // national id (case-insensitive). This makes "John Smith" match a student
   // named John Smith, while a single term still does a broad contains match.
@@ -306,20 +295,12 @@ function buildSearchWhere(
 
 function nameOrNationalIdMatch(term: string): Array<Record<string, unknown>> {
   const contains = { contains: term, mode: 'insensitive' as const };
-  return [
-    { firstName: contains },
-    { lastName: contains },
-    { nationalId: contains },
-  ];
+  return [{ firstName: contains }, { lastName: contains }, { nationalId: contains }];
 }
 
-function buildOrderBy(
-  pagination: PaginationOptions,
-): Record<string, 'asc' | 'desc'> {
+function buildOrderBy(pagination: PaginationOptions): Record<string, 'asc' | 'desc'> {
   const sortBy =
-    pagination.sortBy && SORTABLE_COLUMNS.has(pagination.sortBy)
-      ? pagination.sortBy
-      : 'lastName';
+    pagination.sortBy && SORTABLE_COLUMNS.has(pagination.sortBy) ? pagination.sortBy : 'lastName';
   const sortOrder = pagination.sortOrder ?? 'asc';
   return { [sortBy]: sortOrder };
 }

@@ -16,9 +16,7 @@ import { ADMIN_AUTH_COOKIES, decodeAdminToken } from '@/lib/auth';
 
 /** Base URL for the API gateway. Can be overridden via env. */
 export const GATEWAY_BASE_URL =
-  process.env['NEXT_PUBLIC_GATEWAY_URL'] ??
-  process.env['GATEWAY_URL'] ??
-  'http://localhost:3000';
+  process.env['NEXT_PUBLIC_GATEWAY_URL'] ?? process.env['GATEWAY_URL'] ?? 'http://localhost:3000';
 
 /** API version prefix used by the gateway. */
 export const GATEWAY_API_PREFIX = '/api/v1';
@@ -83,9 +81,7 @@ export async function gatewayFetch<T>(
 
   const url = path.startsWith('http')
     ? path
-    : `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}${
-        path.startsWith('/') ? path : `/${path}`
-      }`;
+    : `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}${path.startsWith('/') ? path : `/${path}`}`;
 
   const fetchInit: RequestInit & { next?: GatewayRequestInit['next'] } = {
     ...init,
@@ -145,9 +141,7 @@ export async function gatewayFetch<T>(
   return { status: response.status, ok: true, data: (payload as T) ?? null };
 }
 
-function isErrorPayload(
-  value: unknown,
-): value is { code: string; message: string } {
+function isErrorPayload(value: unknown): value is { code: string; message: string } {
   return (
     typeof value === 'object' &&
     value !== null &&

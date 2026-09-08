@@ -12,10 +12,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json(
-      { message: 'Invalid request body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
   const { token, newPassword } = body;
@@ -51,8 +48,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json(
       {
         message:
-          data.message ||
-          'The reset link is invalid or has expired. Please request a new one.',
+          data.message || 'The reset link is invalid or has expired. Please request a new one.',
       },
       { status: upstream.status },
     );

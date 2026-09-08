@@ -36,10 +36,10 @@ interface JwtPayload {
 const jwtArb: fc.Arbitrary<JwtPayload> = fc.record({
   sub: uuidV4Arb,
   tenantId: uuidV4Arb,
-  roles: fc.array(
-    fc.constantFrom('admin', 'teacher', 'principal', 'staff'),
-    { minLength: 1, maxLength: 3 },
-  ),
+  roles: fc.array(fc.constantFrom('admin', 'teacher', 'principal', 'staff'), {
+    minLength: 1,
+    maxLength: 3,
+  }),
   exp: fc.integer({ min: 0, max: 86_400 }).map((delta) => Math.floor(Date.now() / 1000) + delta),
 });
 
@@ -169,11 +169,17 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
     }
 
     fc.assert(
-      fc.property(jwtArb, uuidV4Arb, resourceTypeArb, actionVerbArb, (token, otherTenant, _type, _act) => {
-        fc.pre(token.tenantId !== otherTenant);
-        const adminToken: TokenPayload = { ...token, roles: ['admin', ...token.roles] };
-        expect(evaluate(adminToken, { tenantId: otherTenant })).toBe(false);
-      }),
+      fc.property(
+        jwtArb,
+        uuidV4Arb,
+        resourceTypeArb,
+        actionVerbArb,
+        (token, otherTenant, _type, _act) => {
+          fc.pre(token.tenantId !== otherTenant);
+          const adminToken: TokenPayload = { ...token, roles: ['admin', ...token.roles] };
+          expect(evaluate(adminToken, { tenantId: otherTenant })).toBe(false);
+        },
+      ),
       { numRuns: 100 },
     );
   });

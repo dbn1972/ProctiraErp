@@ -29,9 +29,7 @@ export const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 8;
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
-export function accessTokenCookieOptions(
-  maxAge: number = ACCESS_TOKEN_MAX_AGE,
-): AuthCookieOptions {
+export function accessTokenCookieOptions(maxAge: number = ACCESS_TOKEN_MAX_AGE): AuthCookieOptions {
   return {
     httpOnly: true,
     secure: IS_PRODUCTION,

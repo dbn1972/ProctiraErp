@@ -20,8 +20,7 @@ import {
 
 const { Pool } = pg;
 
-export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> &
-  Partial<Pick<pg.Pool, 'connect'>>;
+export type PgPoolLike = Pick<pg.Pool, 'query' | 'end'> & Partial<Pick<pg.Pool, 'connect'>>;
 
 let sharedPool: pg.Pool | null = null;
 let schemaReady: Promise<void> | null = null;

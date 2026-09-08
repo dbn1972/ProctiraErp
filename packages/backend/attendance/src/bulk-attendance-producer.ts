@@ -57,7 +57,10 @@ export class BulkAttendanceProducer {
    * @param records - Array of attendance records to process
    * @returns Job reference with the generated job ID
    */
-  async publishBulkAttendance(tenantId: string, records: AttendanceRecord[]): Promise<BulkAttendanceJobRef> {
+  async publishBulkAttendance(
+    tenantId: string,
+    records: AttendanceRecord[],
+  ): Promise<BulkAttendanceJobRef> {
     const jobId = crypto.randomUUID();
     const topic = buildTenantName(tenantId, 'attendance.bulk');
 

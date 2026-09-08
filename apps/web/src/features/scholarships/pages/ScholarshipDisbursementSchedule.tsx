@@ -209,7 +209,11 @@ export default function ScholarshipDisbursementSchedule() {
 
       {/* Loading */}
       {loading && (
-        <div role="status" aria-label="Loading disbursements" className="text-muted-foreground text-sm">
+        <div
+          role="status"
+          aria-label="Loading disbursements"
+          className="text-muted-foreground text-sm"
+        >
           Loading disbursements…
         </div>
       )}
@@ -239,15 +243,11 @@ export default function ScholarshipDisbursementSchedule() {
               ) : (
                 disbursements.map((d) => (
                   <tr key={d.id} className="hover:bg-muted/30">
-                    <td className="px-4 py-3 font-mono text-xs">
-                      {d.applicationId.slice(0, 8)}…
-                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">{d.applicationId.slice(0, 8)}…</td>
                     <td className="px-4 py-3 text-right tabular-nums font-medium">
                       {formatCurrency(d.amount)}
                     </td>
-                    <td className="px-4 py-3 text-xs">
-                      {formatDate(d.scheduledDate)}
-                    </td>
+                    <td className="px-4 py-3 text-xs">{formatDate(d.scheduledDate)}</td>
                     <td className="px-4 py-3 text-xs">
                       {d.paidDate ? formatDate(d.paidDate) : '—'}
                     </td>

@@ -4,24 +4,15 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
-import {
-  createBreakGlassRequest,
-  decideBreakGlassRequest,
-} from '@/lib/api/break-glass';
-import {
-  BREAK_GLASS_MAX_MINUTES,
-  BREAK_GLASS_USE_CASES,
-} from '@/lib/api/break-glass-constants';
+import { createBreakGlassRequest, decideBreakGlassRequest } from '@/lib/api/break-glass';
+import { BREAK_GLASS_MAX_MINUTES, BREAK_GLASS_USE_CASES } from '@/lib/api/break-glass-constants';
 import { requireRole } from '@/lib/auth/server';
 
 const createSchema = z.object({
   targetTenantId: z.string().min(1, 'Target tenant is required.'),
   scope: z.enum(['read', 'support', 'admin']),
   useCase: z.enum(BREAK_GLASS_USE_CASES),
-  justification: z
-    .string()
-    .min(20, 'Provide at least 20 characters of justification.')
-    .max(2000),
+  justification: z.string().min(20, 'Provide at least 20 characters of justification.').max(2000),
   durationMinutes: z
     .number()
     .int()
@@ -70,10 +61,7 @@ export async function createBreakGlassAction(
 export async function breakGlassDecisionAction(formData: FormData): Promise<void> {
   await requireRole('breakGlassApprove');
   const id = String(formData.get('id') ?? '');
-  const decision = String(formData.get('decision') ?? '') as
-    | 'approve'
-    | 'deny'
-    | 'revoke';
+  const decision = String(formData.get('decision') ?? '') as 'approve' | 'deny' | 'revoke';
   const reason = String(formData.get('reason') ?? '');
   if (!id || !decision) return;
   await decideBreakGlassRequest(id, decision, reason);

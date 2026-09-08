@@ -60,9 +60,7 @@ export interface FeatureFlagsContextValue {
   isEnabled: (key: FeatureFlagKey) => boolean;
 }
 
-const FeatureFlagsContext = createContext<FeatureFlagsContextValue | undefined>(
-  undefined,
-);
+const FeatureFlagsContext = createContext<FeatureFlagsContextValue | undefined>(undefined);
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
@@ -76,10 +74,7 @@ export interface FeatureFlagsProviderProps {
   initialFlags?: Partial<Record<FeatureFlagKey, boolean>>;
 }
 
-export function FeatureFlagsProvider({
-  children,
-  initialFlags,
-}: FeatureFlagsProviderProps) {
+export function FeatureFlagsProvider({ children, initialFlags }: FeatureFlagsProviderProps) {
   const value = useMemo<FeatureFlagsContextValue>(() => {
     const merged: Record<FeatureFlagKey, boolean> = {
       ...DEFAULT_FEATURE_FLAGS,
@@ -92,11 +87,7 @@ export function FeatureFlagsProvider({
     };
   }, [initialFlags]);
 
-  return (
-    <FeatureFlagsContext.Provider value={value}>
-      {children}
-    </FeatureFlagsContext.Provider>
-  );
+  return <FeatureFlagsContext.Provider value={value}>{children}</FeatureFlagsContext.Provider>;
 }
 
 // ─── Hook ────────────────────────────────────────────────────────────────────

@@ -110,10 +110,7 @@ export function TaskChecklist({
     >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ListChecks
-            className="h-5 w-5 text-[hsl(var(--muted-foreground))]"
-            aria-hidden="true"
-          />
+          <ListChecks className="h-5 w-5 text-[hsl(var(--muted-foreground))]" aria-hidden="true" />
           {title}
         </CardTitle>
         {description ? <CardDescription>{description}</CardDescription> : null}
@@ -128,31 +125,21 @@ export function TaskChecklist({
             Unable to load tasks.
           </p>
         ) : loading ? (
-          <ul
-            className="space-y-3"
-            data-testid="task-checklist-skeleton"
-          >
-            {Array.from({ length: Math.max(1, loadingRowCount) }).map(
-              (_, i) => (
-                <li key={i} className="flex items-start gap-3">
-                  <Skeleton className="h-4 w-4 rounded" />
-                  <Skeleton className="h-4 flex-1 rounded" />
-                </li>
-              ),
-            )}
+          <ul className="space-y-3" data-testid="task-checklist-skeleton">
+            {Array.from({ length: Math.max(1, loadingRowCount) }).map((_, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-4 flex-1 rounded" />
+              </li>
+            ))}
           </ul>
         ) : tasks.length === 0 ? (
           <div
             className="flex flex-col items-center gap-2 py-8 text-center"
             data-testid="task-checklist-empty"
           >
-            <CheckCircle2
-              className="h-8 w-8 text-[hsl(var(--success))]"
-              aria-hidden="true"
-            />
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {emptyMessage}
-            </p>
+            <CheckCircle2 className="h-8 w-8 text-[hsl(var(--success))]" aria-hidden="true" />
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{emptyMessage}</p>
           </div>
         ) : (
           <ul className="space-y-3" aria-label={title}>
@@ -162,12 +149,8 @@ export function TaskChecklist({
                 onToggle(task);
                 announce(
                   task.completed
-                    ? `Task reopened: ${
-                        typeof task.title === 'string' ? task.title : ''
-                      }`
-                    : `Task completed: ${
-                        typeof task.title === 'string' ? task.title : ''
-                      }`,
+                    ? `Task reopened: ${typeof task.title === 'string' ? task.title : ''}`
+                    : `Task completed: ${typeof task.title === 'string' ? task.title : ''}`,
                 );
               };
               return (
@@ -181,19 +164,14 @@ export function TaskChecklist({
                     checked={task.completed}
                     disabled={!onToggle}
                     onCheckedChange={handleToggle}
-                    aria-label={
-                      typeof task.title === 'string'
-                        ? task.title
-                        : 'Toggle task'
-                    }
+                    aria-label={typeof task.title === 'string' ? task.title : 'Toggle task'}
                     className="mt-0.5"
                   />
                   <div className="flex-1 space-y-0.5">
                     <p
                       className={cn(
                         'text-sm font-medium text-[hsl(var(--foreground))]',
-                        task.completed &&
-                          'text-[hsl(var(--muted-foreground))] line-through',
+                        task.completed && 'text-[hsl(var(--muted-foreground))] line-through',
                       )}
                     >
                       {task.title}
@@ -204,9 +182,7 @@ export function TaskChecklist({
                       </p>
                     ) : null}
                     {task.meta ? (
-                      <p className="text-xs text-[hsl(var(--muted-foreground))]">
-                        {task.meta}
-                      </p>
+                      <p className="text-xs text-[hsl(var(--muted-foreground))]">{task.meta}</p>
                     ) : null}
                   </div>
                 </li>

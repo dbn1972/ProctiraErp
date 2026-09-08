@@ -13,10 +13,7 @@ import type { TimelineItem } from '@proctira/ui-dashboards';
 
 import { fetchTeacherDashboard } from '@/lib/api/dashboards';
 
-import type {
-  DashboardQueryResult,
-  TeacherDashboardData,
-} from './types';
+import type { DashboardQueryResult, TeacherDashboardData } from './types';
 
 const SCHEDULE: ReadonlyArray<TimelineItem> = [
   {

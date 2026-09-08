@@ -15,11 +15,10 @@ import React from 'react';
  *   - When `priority` is set, `loading` becomes `"eager"` and
  *     `fetchpriority="high"` is applied so the browser preloads it.
  */
-export interface ImgProps
-  extends Omit<
-    React.ImgHTMLAttributes<HTMLImageElement>,
-    'width' | 'height' | 'loading' | 'decoding'
-  > {
+export interface ImgProps extends Omit<
+  React.ImgHTMLAttributes<HTMLImageElement>,
+  'width' | 'height' | 'loading' | 'decoding'
+> {
   /** Required: rendered width in CSS pixels (or any valid CSS length string). */
   width: number | string;
   /** Required: rendered height in CSS pixels (or any valid CSS length string). */
@@ -48,16 +47,7 @@ export interface ImgProps
  * Validates: Requirements 39.1, 39.2 — Design J.
  */
 export const Img = React.forwardRef<HTMLImageElement, ImgProps>(function Img(
-  {
-    priority = false,
-    loading,
-    decoding,
-    width,
-    height,
-    alt,
-    fetchpriority,
-    ...rest
-  },
+  { priority = false, loading, decoding, width, height, alt, fetchpriority, ...rest },
   ref,
 ) {
   const resolvedLoading = loading ?? (priority ? 'eager' : 'lazy');
@@ -65,11 +55,8 @@ export const Img = React.forwardRef<HTMLImageElement, ImgProps>(function Img(
   // The DOM attribute is `fetchpriority` (all lowercase). React 18
   // does not recognise the camelCase variant, so we forward the
   // attribute via spread to stay compatible with both React 18 and 19.
-  const resolvedFetchPriority =
-    fetchpriority ?? (priority ? 'high' : undefined);
-  const fetchPriorityAttr = resolvedFetchPriority
-    ? { fetchpriority: resolvedFetchPriority }
-    : null;
+  const resolvedFetchPriority = fetchpriority ?? (priority ? 'high' : undefined);
+  const fetchPriorityAttr = resolvedFetchPriority ? { fetchpriority: resolvedFetchPriority } : null;
 
   return (
     <img

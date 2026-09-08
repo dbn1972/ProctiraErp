@@ -56,9 +56,7 @@ export function InstallWizard() {
         <CompleteStep />
       ) : (
         <>
-          {wizard.currentStep === 'database' && (
-            <DatabaseStep onComplete={handleStepComplete} />
-          )}
+          {wizard.currentStep === 'database' && <DatabaseStep onComplete={handleStepComplete} />}
           {wizard.currentStep === 'storage' && (
             <StorageStep onComplete={handleStepComplete} onBack={handleStepBack} />
           )}

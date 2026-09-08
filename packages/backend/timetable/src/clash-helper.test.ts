@@ -56,9 +56,7 @@ describe('detectMeetingClashes', () => {
   });
 
   it('flags section clash and room clash independently', () => {
-    const existing = [
-      meeting({ id: 'm1', staffId: staffA, sectionId: section1, roomId: room1 }),
-    ];
+    const existing = [meeting({ id: 'm1', staffId: staffA, sectionId: section1, roomId: room1 })];
     const conflicts = detectMeetingClashes(existing, {
       staffId: staffB,
       sectionId: section1,

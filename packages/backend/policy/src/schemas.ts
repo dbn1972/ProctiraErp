@@ -54,10 +54,20 @@ export type PolicyScope = Static<typeof PolicyScopeEnum>;
  * Data retention policy rules.
  */
 export const DataRetentionRulesSchema = Type.Object({
-  retentionDays: Type.Number({ minimum: 1, maximum: 36500, description: 'Number of days to retain data' }),
-  archiveAfterDays: Type.Optional(Type.Number({ minimum: 1, description: 'Days before archiving' })),
-  deleteAfterArchive: Type.Optional(Type.Boolean({ description: 'Whether to delete after archive period' })),
-  entityTypes: Type.Optional(Type.Array(Type.String(), { description: 'Entity types this policy applies to' })),
+  retentionDays: Type.Number({
+    minimum: 1,
+    maximum: 36500,
+    description: 'Number of days to retain data',
+  }),
+  archiveAfterDays: Type.Optional(
+    Type.Number({ minimum: 1, description: 'Days before archiving' }),
+  ),
+  deleteAfterArchive: Type.Optional(
+    Type.Boolean({ description: 'Whether to delete after archive period' }),
+  ),
+  entityTypes: Type.Optional(
+    Type.Array(Type.String(), { description: 'Entity types this policy applies to' }),
+  ),
 });
 
 export type DataRetentionRules = Static<typeof DataRetentionRulesSchema>;
@@ -67,13 +77,23 @@ export type DataRetentionRules = Static<typeof DataRetentionRulesSchema>;
  */
 export const PasswordComplexityRulesSchema = Type.Object({
   minLength: Type.Number({ minimum: 4, maximum: 128, description: 'Minimum password length' }),
-  maxLength: Type.Optional(Type.Number({ minimum: 8, maximum: 256, description: 'Maximum password length' })),
+  maxLength: Type.Optional(
+    Type.Number({ minimum: 8, maximum: 256, description: 'Maximum password length' }),
+  ),
   requireUppercase: Type.Boolean({ description: 'Require at least one uppercase letter' }),
   requireLowercase: Type.Boolean({ description: 'Require at least one lowercase letter' }),
   requireNumbers: Type.Boolean({ description: 'Require at least one number' }),
   requireSpecialChars: Type.Boolean({ description: 'Require at least one special character' }),
-  preventReuse: Type.Optional(Type.Number({ minimum: 0, maximum: 24, description: 'Number of previous passwords to prevent reuse' })),
-  maxAgeDays: Type.Optional(Type.Number({ minimum: 1, maximum: 365, description: 'Maximum password age in days' })),
+  preventReuse: Type.Optional(
+    Type.Number({
+      minimum: 0,
+      maximum: 24,
+      description: 'Number of previous passwords to prevent reuse',
+    }),
+  ),
+  maxAgeDays: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 365, description: 'Maximum password age in days' }),
+  ),
 });
 
 export type PasswordComplexityRules = Static<typeof PasswordComplexityRulesSchema>;
@@ -82,11 +102,25 @@ export type PasswordComplexityRules = Static<typeof PasswordComplexityRulesSchem
  * Session timeout policy rules.
  */
 export const SessionTimeoutRulesSchema = Type.Object({
-  idleTimeoutMinutes: Type.Number({ minimum: 1, maximum: 1440, description: 'Idle timeout in minutes' }),
-  absoluteTimeoutMinutes: Type.Number({ minimum: 5, maximum: 1440, description: 'Absolute session timeout in minutes' }),
-  warnBeforeTimeoutMinutes: Type.Optional(Type.Number({ minimum: 1, description: 'Minutes before timeout to warn user' })),
-  allowRememberMe: Type.Optional(Type.Boolean({ description: 'Allow remember-me extended sessions' })),
-  rememberMeDays: Type.Optional(Type.Number({ minimum: 1, maximum: 30, description: 'Remember-me duration in days' })),
+  idleTimeoutMinutes: Type.Number({
+    minimum: 1,
+    maximum: 1440,
+    description: 'Idle timeout in minutes',
+  }),
+  absoluteTimeoutMinutes: Type.Number({
+    minimum: 5,
+    maximum: 1440,
+    description: 'Absolute session timeout in minutes',
+  }),
+  warnBeforeTimeoutMinutes: Type.Optional(
+    Type.Number({ minimum: 1, description: 'Minutes before timeout to warn user' }),
+  ),
+  allowRememberMe: Type.Optional(
+    Type.Boolean({ description: 'Allow remember-me extended sessions' }),
+  ),
+  rememberMeDays: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 30, description: 'Remember-me duration in days' }),
+  ),
 });
 
 export type SessionTimeoutRules = Static<typeof SessionTimeoutRulesSchema>;
@@ -95,16 +129,26 @@ export type SessionTimeoutRules = Static<typeof SessionTimeoutRulesSchema>;
  * Rate limiting policy rules.
  */
 export const RateLimitingRulesSchema = Type.Object({
-  windowMs: Type.Number({ minimum: 1000, maximum: 3600000, description: 'Rate limit window in milliseconds' }),
-  maxRequests: Type.Number({ minimum: 1, maximum: 100000, description: 'Maximum requests per window' }),
-  keyStrategy: Type.Optional(Type.Union([
-    Type.Literal('ip'),
-    Type.Literal('user'),
-    Type.Literal('tenant'),
-    Type.Literal('api_key'),
-  ], { description: 'How to identify rate limit subjects' })),
+  windowMs: Type.Number({
+    minimum: 1000,
+    maximum: 3600000,
+    description: 'Rate limit window in milliseconds',
+  }),
+  maxRequests: Type.Number({
+    minimum: 1,
+    maximum: 100000,
+    description: 'Maximum requests per window',
+  }),
+  keyStrategy: Type.Optional(
+    Type.Union(
+      [Type.Literal('ip'), Type.Literal('user'), Type.Literal('tenant'), Type.Literal('api_key')],
+      { description: 'How to identify rate limit subjects' },
+    ),
+  ),
   skipSuccessful: Type.Optional(Type.Boolean({ description: 'Only count failed requests' })),
-  endpoints: Type.Optional(Type.Array(Type.String(), { description: 'Specific endpoints to rate limit' })),
+  endpoints: Type.Optional(
+    Type.Array(Type.String(), { description: 'Specific endpoints to rate limit' }),
+  ),
 });
 
 export type RateLimitingRules = Static<typeof RateLimitingRulesSchema>;
@@ -131,10 +175,26 @@ export const CreatePolicySchema = Type.Object({
   description: Type.Optional(Type.String({ maxLength: 1000, description: 'Policy description' })),
   type: PolicyTypeEnum,
   scope: PolicyScopeEnum,
-  rules: Type.Record(Type.String(), Type.Unknown(), { description: 'Policy rules (validated per type)' }),
-  effectiveFrom: Type.Optional(Type.String({ format: 'date-time', description: 'When the policy becomes effective (ISO 8601)' })),
-  effectiveUntil: Type.Optional(Type.String({ format: 'date-time', description: 'When the policy expires (ISO 8601)' })),
-  priority: Type.Optional(Type.Number({ minimum: 0, maximum: 1000, default: 100, description: 'Priority for conflict resolution (higher wins)' })),
+  rules: Type.Record(Type.String(), Type.Unknown(), {
+    description: 'Policy rules (validated per type)',
+  }),
+  effectiveFrom: Type.Optional(
+    Type.String({
+      format: 'date-time',
+      description: 'When the policy becomes effective (ISO 8601)',
+    }),
+  ),
+  effectiveUntil: Type.Optional(
+    Type.String({ format: 'date-time', description: 'When the policy expires (ISO 8601)' }),
+  ),
+  priority: Type.Optional(
+    Type.Number({
+      minimum: 0,
+      maximum: 1000,
+      default: 100,
+      description: 'Priority for conflict resolution (higher wins)',
+    }),
+  ),
 });
 
 export type CreatePolicyInput = Static<typeof CreatePolicySchema>;
@@ -145,10 +205,20 @@ export type CreatePolicyInput = Static<typeof CreatePolicySchema>;
 export const UpdatePolicySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Policy name' })),
   description: Type.Optional(Type.String({ maxLength: 1000, description: 'Policy description' })),
-  rules: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: 'Policy rules (validated per type)' })),
-  effectiveFrom: Type.Optional(Type.String({ format: 'date-time', description: 'When the policy becomes effective' })),
-  effectiveUntil: Type.Optional(Type.String({ format: 'date-time', description: 'When the policy expires' })),
-  priority: Type.Optional(Type.Number({ minimum: 0, maximum: 1000, description: 'Priority for conflict resolution' })),
+  rules: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), {
+      description: 'Policy rules (validated per type)',
+    }),
+  ),
+  effectiveFrom: Type.Optional(
+    Type.String({ format: 'date-time', description: 'When the policy becomes effective' }),
+  ),
+  effectiveUntil: Type.Optional(
+    Type.String({ format: 'date-time', description: 'When the policy expires' }),
+  ),
+  priority: Type.Optional(
+    Type.Number({ minimum: 0, maximum: 1000, description: 'Priority for conflict resolution' }),
+  ),
 });
 
 export type UpdatePolicyInput = Static<typeof UpdatePolicySchema>;
@@ -169,14 +239,26 @@ export type PolicyParams = Static<typeof PolicyParamsSchema>;
  * Schema for policy list query parameters.
  */
 export const PolicyListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   type: Type.Optional(PolicyTypeEnum),
   scope: Type.Optional(PolicyScopeEnum),
   status: Type.Optional(PolicyStatusEnum),
   search: Type.Optional(Type.String({ description: 'Search by name or description' })),
-  sortBy: Type.Optional(Type.String({ enum: ['name', 'type', 'createdAt', 'priority'], default: 'name', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' })),
+  sortBy: Type.Optional(
+    Type.String({
+      enum: ['name', 'type', 'createdAt', 'priority'],
+      default: 'name',
+      description: 'Sort field',
+    }),
+  ),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+  ),
 });
 
 export type PolicyListQuery = Static<typeof PolicyListQuerySchema>;
@@ -189,7 +271,9 @@ export type PolicyListQuery = Static<typeof PolicyListQuerySchema>;
 export const PolicyEvaluationRequestSchema = Type.Object({
   type: PolicyTypeEnum,
   tenantId: Type.Optional(Type.String({ description: 'Tenant ID for scoped evaluation' })),
-  institutionId: Type.Optional(Type.String({ description: 'Institution ID for scoped evaluation' })),
+  institutionId: Type.Optional(
+    Type.String({ description: 'Institution ID for scoped evaluation' }),
+  ),
 });
 
 export type PolicyEvaluationRequest = Static<typeof PolicyEvaluationRequestSchema>;
@@ -204,12 +288,13 @@ export const CreatePolicyAssignmentSchema = Type.Object({
     pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     description: 'Policy UUID to assign',
   }),
-  targetType: Type.Union([
-    Type.Literal('platform'),
-    Type.Literal('tenant'),
-    Type.Literal('institution'),
-  ], { description: 'Target scope type' }),
-  targetId: Type.Optional(Type.String({ description: 'Target entity ID (null for platform scope)' })),
+  targetType: Type.Union(
+    [Type.Literal('platform'), Type.Literal('tenant'), Type.Literal('institution')],
+    { description: 'Target scope type' },
+  ),
+  targetId: Type.Optional(
+    Type.String({ description: 'Target entity ID (null for platform scope)' }),
+  ),
 });
 
 export type CreatePolicyAssignmentInput = Static<typeof CreatePolicyAssignmentSchema>;
@@ -256,13 +341,20 @@ export type PolicyListResponse = Static<typeof PolicyListResponseSchema>;
  * Schema for policy evaluation response.
  */
 export const PolicyEvaluationResponseSchema = Type.Object({
-  effectivePolicy: Type.Union([PolicyResponseSchema, Type.Null()], { description: 'The effective policy after inheritance resolution' }),
-  inheritanceChain: Type.Array(Type.Object({
-    scope: PolicyScopeEnum,
-    policyId: Type.Union([Type.String(), Type.Null()]),
-    policyName: Type.Union([Type.String(), Type.Null()]),
-  }), { description: 'Policies at each inheritance level' }),
-  mergedRules: Type.Record(Type.String(), Type.Unknown(), { description: 'Merged rules from all applicable policies' }),
+  effectivePolicy: Type.Union([PolicyResponseSchema, Type.Null()], {
+    description: 'The effective policy after inheritance resolution',
+  }),
+  inheritanceChain: Type.Array(
+    Type.Object({
+      scope: PolicyScopeEnum,
+      policyId: Type.Union([Type.String(), Type.Null()]),
+      policyName: Type.Union([Type.String(), Type.Null()]),
+    }),
+    { description: 'Policies at each inheritance level' },
+  ),
+  mergedRules: Type.Record(Type.String(), Type.Unknown(), {
+    description: 'Merged rules from all applicable policies',
+  }),
 });
 
 export type PolicyEvaluationResponse = Static<typeof PolicyEvaluationResponseSchema>;
@@ -278,7 +370,9 @@ export const PolicyVersionResponseSchema = Type.Object({
   effectiveFrom: Type.Union([Type.String(), Type.Null()], { description: 'Effective start date' }),
   effectiveUntil: Type.Union([Type.String(), Type.Null()], { description: 'Effective end date' }),
   createdAt: Type.String({ description: 'Creation timestamp (ISO 8601)' }),
-  createdBy: Type.Union([Type.String(), Type.Null()], { description: 'User who created this version' }),
+  createdBy: Type.Union([Type.String(), Type.Null()], {
+    description: 'User who created this version',
+  }),
 });
 
 export type PolicyVersionResponse = Static<typeof PolicyVersionResponseSchema>;

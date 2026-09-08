@@ -39,36 +39,35 @@
  *   }
  */
 
-"use strict";
+'use strict';
 
-const DEFAULT_BUTTON_COMPONENTS = ["Button", "IconButton"];
+const DEFAULT_BUTTON_COMPONENTS = ['Button', 'IconButton'];
 const DEFAULT_ICON_PACKAGES = [
-  "lucide-react",
-  "react-icons",
-  "@heroicons/react",
-  "@heroicons/react/24/outline",
-  "@heroicons/react/24/solid",
-  "@heroicons/react/20/solid",
-  "@heroicons/react/16/solid",
+  'lucide-react',
+  'react-icons',
+  '@heroicons/react',
+  '@heroicons/react/24/outline',
+  '@heroicons/react/24/solid',
+  '@heroicons/react/20/solid',
+  '@heroicons/react/16/solid',
 ];
-const DEFAULT_ICON_NAME_PATTERN = "Icon$";
+const DEFAULT_ICON_NAME_PATTERN = 'Icon$';
 const VISUALLY_HIDDEN_CLASS_RE =
   /(?:^|\s)(?:sr-only|visually-hidden|visually_hidden|screen-reader-only|screenreader-only|aria-hidden)(?:\s|$)/;
 
-const DOCS_URL =
-  "https://proctira.dev/docs/eslint/icon-only-button-requires-aria-label";
+const DOCS_URL = 'https://proctira.dev/docs/eslint/icon-only-button-requires-aria-label';
 
 /**
  * Get the JSX element tag name as a string (handles `<Foo>` and `<Foo.Bar>`).
  */
 function getJsxName(nameNode) {
   if (!nameNode) return null;
-  if (nameNode.type === "JSXIdentifier") return nameNode.name;
-  if (nameNode.type === "JSXMemberExpression") {
+  if (nameNode.type === 'JSXIdentifier') return nameNode.name;
+  if (nameNode.type === 'JSXMemberExpression') {
     const object = getJsxName(nameNode.object);
     return object ? `${object}.${nameNode.property.name}` : nameNode.property.name;
   }
-  if (nameNode.type === "JSXNamespacedName") {
+  if (nameNode.type === 'JSXNamespacedName') {
     return `${nameNode.namespace.name}:${nameNode.name.name}`;
   }
   return null;
@@ -79,7 +78,7 @@ function getJsxName(nameNode) {
  */
 function getSimpleName(fullName) {
   if (!fullName) return null;
-  const parts = fullName.split(".");
+  const parts = fullName.split('.');
   return parts[parts.length - 1];
 }
 
@@ -89,7 +88,7 @@ function getSimpleName(fullName) {
  */
 function findAttribute(openingElement, name) {
   for (const attr of openingElement.attributes) {
-    if (attr.type === "JSXAttribute" && attr.name && attr.name.name === name) {
+    if (attr.type === 'JSXAttribute' && attr.name && attr.name.name === name) {
       return attr;
     }
   }
@@ -106,30 +105,28 @@ function attributeHasMeaningfulValue(attr) {
   // Bare boolean attribute (`<Button aria-label />`) is not meaningful.
   if (attr.value == null) return false;
 
-  if (attr.value.type === "Literal") {
-    if (typeof attr.value.value === "string") {
+  if (attr.value.type === 'Literal') {
+    if (typeof attr.value.value === 'string') {
       return attr.value.value.trim().length > 0;
     }
     return Boolean(attr.value.value);
   }
 
-  if (attr.value.type === "JSXExpressionContainer") {
+  if (attr.value.type === 'JSXExpressionContainer') {
     const expr = attr.value.expression;
     if (!expr) return false;
-    if (expr.type === "JSXEmptyExpression") return false;
-    if (expr.type === "Literal") {
+    if (expr.type === 'JSXEmptyExpression') return false;
+    if (expr.type === 'Literal') {
       if (expr.value === null) return false;
-      if (typeof expr.value === "string") return expr.value.trim().length > 0;
+      if (typeof expr.value === 'string') return expr.value.trim().length > 0;
       return Boolean(expr.value);
     }
-    if (expr.type === "TemplateLiteral") {
+    if (expr.type === 'TemplateLiteral') {
       // `${var}` is ambiguous — treat as present.
       if (expr.expressions.length > 0) return true;
-      return expr.quasis.some(
-        (q) => q.value && q.value.cooked && q.value.cooked.trim().length > 0,
-      );
+      return expr.quasis.some((q) => q.value && q.value.cooked && q.value.cooked.trim().length > 0);
     }
-    if (expr.type === "Identifier" && expr.name === "undefined") return false;
+    if (expr.type === 'Identifier' && expr.name === 'undefined') return false;
     return true;
   }
 
@@ -141,17 +138,17 @@ function attributeHasMeaningfulValue(attr) {
  * visually-hidden utility class (sr-only, visually-hidden, etc.).
  */
 function hasVisuallyHiddenClass(openingElement) {
-  const cls = findAttribute(openingElement, "className");
+  const cls = findAttribute(openingElement, 'className');
   if (!cls || !cls.value) return false;
-  if (cls.value.type === "Literal" && typeof cls.value.value === "string") {
+  if (cls.value.type === 'Literal' && typeof cls.value.value === 'string') {
     return VISUALLY_HIDDEN_CLASS_RE.test(cls.value.value);
   }
-  if (cls.value.type === "JSXExpressionContainer") {
+  if (cls.value.type === 'JSXExpressionContainer') {
     const expr = cls.value.expression;
-    if (expr && expr.type === "Literal" && typeof expr.value === "string") {
+    if (expr && expr.type === 'Literal' && typeof expr.value === 'string') {
       return VISUALLY_HIDDEN_CLASS_RE.test(expr.value);
     }
-    if (expr && expr.type === "TemplateLiteral") {
+    if (expr && expr.type === 'TemplateLiteral') {
       return expr.quasis.some(
         (q) => q.value && q.value.cooked && VISUALLY_HIDDEN_CLASS_RE.test(q.value.cooked),
       );
@@ -165,19 +162,20 @@ function hasVisuallyHiddenClass(openingElement) {
  */
 function isEmptyChild(child) {
   if (!child) return true;
-  if (child.type === "JSXText") {
+  if (child.type === 'JSXText') {
     return child.value.trim().length === 0;
   }
-  if (child.type === "Literal" && typeof child.value === "string") {
+  if (child.type === 'Literal' && typeof child.value === 'string') {
     return child.value.trim().length === 0;
   }
-  if (child.type === "JSXExpressionContainer") {
+  if (child.type === 'JSXExpressionContainer') {
     const expr = child.expression;
     if (!expr) return true;
-    if (expr.type === "JSXEmptyExpression") return true;
-    if (expr.type === "Literal" && (expr.value === null || expr.value === false)) return true;
-    if (expr.type === "Identifier" && expr.name === "undefined") return true;
-    if (expr.type === "Literal" && typeof expr.value === "string" && expr.value.trim() === "") return true;
+    if (expr.type === 'JSXEmptyExpression') return true;
+    if (expr.type === 'Literal' && (expr.value === null || expr.value === false)) return true;
+    if (expr.type === 'Identifier' && expr.name === 'undefined') return true;
+    if (expr.type === 'Literal' && typeof expr.value === 'string' && expr.value.trim() === '')
+      return true;
   }
   return false;
 }
@@ -189,26 +187,24 @@ function isEmptyChild(child) {
  */
 function isVisibleTextChild(child) {
   if (!child) return false;
-  if (child.type === "JSXText") return child.value.trim().length > 0;
-  if (child.type === "Literal" && typeof child.value === "string") {
+  if (child.type === 'JSXText') return child.value.trim().length > 0;
+  if (child.type === 'Literal' && typeof child.value === 'string') {
     return child.value.trim().length > 0;
   }
-  if (child.type === "JSXExpressionContainer") {
+  if (child.type === 'JSXExpressionContainer') {
     const expr = child.expression;
     if (!expr) return false;
-    if (expr.type === "Literal" && typeof expr.value === "string") {
+    if (expr.type === 'Literal' && typeof expr.value === 'string') {
       return expr.value.trim().length > 0;
     }
-    if (expr.type === "TemplateLiteral") {
+    if (expr.type === 'TemplateLiteral') {
       if (expr.expressions.length > 0) return true;
-      return expr.quasis.some(
-        (q) => q.value && q.value.cooked && q.value.cooked.trim().length > 0,
-      );
+      return expr.quasis.some((q) => q.value && q.value.cooked && q.value.cooked.trim().length > 0);
     }
     // Function calls (e.g. t('key')) — assume they yield visible text.
-    if (expr.type === "CallExpression") return true;
+    if (expr.type === 'CallExpression') return true;
     // Identifier reference — could be a label var; assume visible text.
-    if (expr.type === "Identifier" && expr.name !== "undefined") return true;
+    if (expr.type === 'Identifier' && expr.name !== 'undefined') return true;
   }
   return false;
 }
@@ -219,7 +215,7 @@ function isVisibleTextChild(child) {
  * text inside). This satisfies the icon+label rule.
  */
 function isVisuallyHiddenLabel(child) {
-  if (!child || child.type !== "JSXElement") return false;
+  if (!child || child.type !== 'JSXElement') return false;
   if (!hasVisuallyHiddenClass(child.openingElement)) return false;
   // Must contain at least one visible text child to be a real label.
   return child.children.some((c) => isVisibleTextChild(c));
@@ -227,28 +223,28 @@ function isVisuallyHiddenLabel(child) {
 
 module.exports = {
   meta: {
-    type: "problem",
+    type: 'problem',
     docs: {
       description:
-        "Require an accessible name (aria-label, aria-labelledby, title, or visually-hidden label) on icon-only buttons.",
-      category: "Accessibility",
+        'Require an accessible name (aria-label, aria-labelledby, title, or visually-hidden label) on icon-only buttons.',
+      category: 'Accessibility',
       recommended: true,
       url: DOCS_URL,
     },
     schema: [
       {
-        type: "object",
+        type: 'object',
         additionalProperties: false,
         properties: {
           components: {
-            type: "array",
-            items: { type: "string" },
+            type: 'array',
+            items: { type: 'string' },
             uniqueItems: true,
           },
-          iconNamePattern: { type: "string" },
+          iconNamePattern: { type: 'string' },
           iconPackages: {
-            type: "array",
-            items: { type: "string" },
+            type: 'array',
+            items: { type: 'string' },
             uniqueItems: true,
           },
         },
@@ -256,7 +252,7 @@ module.exports = {
     ],
     messages: {
       missingAccessibleName:
-        "Icon-only <{{component}}> must have an accessible name. Add `aria-label`, `aria-labelledby`, `title`, or a visually-hidden text label (e.g. <span className=\"sr-only\">…</span>). See {{url}}.",
+        'Icon-only <{{component}}> must have an accessible name. Add `aria-label`, `aria-labelledby`, `title`, or a visually-hidden text label (e.g. <span className="sr-only">…</span>). See {{url}}.',
     },
   },
 
@@ -267,9 +263,7 @@ module.exports = {
       ...(Array.isArray(options.components) ? options.components : []),
     ]);
     const iconPackages = new Set(
-      Array.isArray(options.iconPackages)
-        ? options.iconPackages
-        : DEFAULT_ICON_PACKAGES,
+      Array.isArray(options.iconPackages) ? options.iconPackages : DEFAULT_ICON_PACKAGES,
     );
     let iconNameRegex;
     try {
@@ -286,17 +280,20 @@ module.exports = {
 
     function isIconJsxElement(child) {
       if (!child) return false;
-      if (child.type === "JSXFragment") {
+      if (child.type === 'JSXFragment') {
         // Fragment containing only icons counts as icon-only too.
-        return child.children.length > 0 && child.children.every((c) => isEmptyChild(c) || isIconJsxElement(c));
+        return (
+          child.children.length > 0 &&
+          child.children.every((c) => isEmptyChild(c) || isIconJsxElement(c))
+        );
       }
-      if (child.type !== "JSXElement") return false;
+      if (child.type !== 'JSXElement') return false;
       const fullName = getJsxName(child.openingElement.name);
       if (!fullName) return false;
       const simple = getSimpleName(fullName);
 
       // Native <svg/> is treated as an icon.
-      if (fullName === "svg") return true;
+      if (fullName === 'svg') return true;
 
       if (iconImportNames.has(simple)) return true;
       if (iconNameRegex.test(simple)) return true;
@@ -315,7 +312,7 @@ module.exports = {
       if (buttonComponents.has(simple) || buttonComponents.has(fullName)) {
         return { check: true, name: fullName };
       }
-      if (findAttribute(openingElement, "data-icon-only")) {
+      if (findAttribute(openingElement, 'data-icon-only')) {
         return { check: true, name: fullName };
       }
       return { check: false };
@@ -340,10 +337,7 @@ module.exports = {
         }
         // An empty sr-only/visually-hidden wrapper carries no label text, so
         // we skip it and let the icon-only detection still flag the button.
-        if (
-          child.type === "JSXElement" &&
-          hasVisuallyHiddenClass(child.openingElement)
-        ) {
+        if (child.type === 'JSXElement' && hasVisuallyHiddenClass(child.openingElement)) {
           continue;
         }
         if (isVisibleTextChild(child)) {
@@ -357,12 +351,12 @@ module.exports = {
         // JSXExpressionContainer with a non-string non-template expression
         // we can't statically evaluate — treat as non-icon to avoid false
         // positives.
-        if (child.type === "JSXExpressionContainer") {
+        if (child.type === 'JSXExpressionContainer') {
           hasNonIconElement = true;
           continue;
         }
         // JSXElement that isn't an icon → treat as non-icon content.
-        if (child.type === "JSXElement" || child.type === "JSXFragment") {
+        if (child.type === 'JSXElement' || child.type === 'JSXFragment') {
           hasNonIconElement = true;
           continue;
         }
@@ -375,16 +369,17 @@ module.exports = {
     }
 
     function hasAccessibleNameAttribute(openingElement) {
-      if (attributeHasMeaningfulValue(findAttribute(openingElement, "aria-label"))) return true;
-      if (attributeHasMeaningfulValue(findAttribute(openingElement, "aria-labelledby"))) return true;
-      if (attributeHasMeaningfulValue(findAttribute(openingElement, "title"))) return true;
+      if (attributeHasMeaningfulValue(findAttribute(openingElement, 'aria-label'))) return true;
+      if (attributeHasMeaningfulValue(findAttribute(openingElement, 'aria-labelledby')))
+        return true;
+      if (attributeHasMeaningfulValue(findAttribute(openingElement, 'title'))) return true;
       return false;
     }
 
     return {
       ImportDeclaration(node) {
         const source = node.source && node.source.value;
-        if (!source || typeof source !== "string") return;
+        if (!source || typeof source !== 'string') return;
         // Match exact package or any subpath, e.g. `@heroicons/react/24/outline`.
         let matches = false;
         for (const pkg of iconPackages) {
@@ -396,9 +391,9 @@ module.exports = {
         if (!matches) return;
         for (const spec of node.specifiers) {
           if (
-            spec.type === "ImportSpecifier" ||
-            spec.type === "ImportDefaultSpecifier" ||
-            spec.type === "ImportNamespaceSpecifier"
+            spec.type === 'ImportSpecifier' ||
+            spec.type === 'ImportDefaultSpecifier' ||
+            spec.type === 'ImportNamespaceSpecifier'
           ) {
             if (spec.local && spec.local.name) {
               iconImportNames.add(spec.local.name);
@@ -423,7 +418,7 @@ module.exports = {
 
         context.report({
           node: opening,
-          messageId: "missingAccessibleName",
+          messageId: 'missingAccessibleName',
           data: { component: decision.name, url: DOCS_URL },
         });
       },

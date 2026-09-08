@@ -129,13 +129,17 @@ export class GradebookService {
     const row = await this.repo.getTranscript(tenantId, id);
     if (!row) throw new NotFoundError(`Transcript ${id} not found`);
     const meta = row.metadata ?? {};
-    const pick = (key: string): string | null => (typeof meta[key] === 'string' ? (meta[key]) : null);
+    const pick = (key: string): string | null => (typeof meta[key] === 'string' ? meta[key] : null);
     const target =
       format === 'html'
         ? { path: pick('pdfLitePath'), ext: 'html', contentType: 'text/html; charset=utf-8' }
         : format === 'json'
           ? { path: pick('jsonPath'), ext: 'json', contentType: 'application/json; charset=utf-8' }
-          : { path: pick('pdfPath') ?? row.artifactUri, ext: 'pdf', contentType: 'application/pdf' };
+          : {
+              path: pick('pdfPath') ?? row.artifactUri,
+              ext: 'pdf',
+              contentType: 'application/pdf',
+            };
     if (!target.path) throw new NotFoundError(`Transcript ${format} artifact missing`);
     const root = transcriptArtifactRoot();
     if (!target.path.startsWith(root) && !target.path.startsWith('/tmp/')) {
@@ -312,7 +316,8 @@ export class GradebookService {
       lastWorkflowAt: now,
       lastWorkflowBy: actorId(user),
     };
-    const lockedAt = next === 'LOCKED' ? (entry.lockedAt ?? now) : action === 'reopen' ? null : entry.lockedAt;
+    const lockedAt =
+      next === 'LOCKED' ? (entry.lockedAt ?? now) : action === 'reopen' ? null : entry.lockedAt;
     const updated = await this.repo.updateGradeEntry(tenantId, entryId, {
       metadata,
       lockedAt,

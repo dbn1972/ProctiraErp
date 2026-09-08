@@ -30,18 +30,9 @@ const items: ReadonlyArray<TimelineItem> = [
 
 describe('<TimelineSchedule />', () => {
   it('renders one row per item, grouped under date headers', () => {
-    render(
-      <TimelineSchedule
-        title="Today's schedule"
-        items={items}
-        data-testid="schedule"
-      />,
-    );
+    render(<TimelineSchedule title="Today's schedule" items={items} data-testid="schedule" />);
 
-    expect(screen.getByTestId('schedule')).toHaveAttribute(
-      'data-state',
-      'ready',
-    );
+    expect(screen.getByTestId('schedule')).toHaveAttribute('data-state', 'ready');
     const dateHeaders = screen.getAllByTestId('timeline-date-header');
     expect(dateHeaders).toHaveLength(1);
     expect(dateHeaders[0].textContent).toBe('Today');
@@ -64,10 +55,7 @@ describe('<TimelineSchedule />', () => {
       />,
     );
 
-    expect(screen.getByTestId('schedule')).toHaveAttribute(
-      'data-state',
-      'loading',
-    );
+    expect(screen.getByTestId('schedule')).toHaveAttribute('data-state', 'loading');
     const skel = screen.getByTestId('timeline-schedule-skeleton');
     expect(within(skel).getAllByRole('listitem')).toHaveLength(2);
     expect(screen.queryAllByTestId('timeline-item')).toHaveLength(0);
@@ -75,15 +63,9 @@ describe('<TimelineSchedule />', () => {
 
   it('renders the empty-state message when items is empty', () => {
     render(
-      <TimelineSchedule
-        title="Today's schedule"
-        items={[]}
-        emptyMessage="Nothing scheduled"
-      />,
+      <TimelineSchedule title="Today's schedule" items={[]} emptyMessage="Nothing scheduled" />,
     );
-    expect(screen.getByTestId('timeline-schedule-empty').textContent).toBe(
-      'Nothing scheduled',
-    );
+    expect(screen.getByTestId('timeline-schedule-empty').textContent).toBe('Nothing scheduled');
   });
 
   it('renders an error state with role="alert" when error is set', () => {
@@ -102,13 +84,7 @@ describe('<TimelineSchedule />', () => {
   });
 
   it('shows a "now" marker on the active item when nowId is supplied', () => {
-    render(
-      <TimelineSchedule
-        title="Today's schedule"
-        items={items}
-        nowId="b"
-      />,
-    );
+    render(<TimelineSchedule title="Today's schedule" items={items} nowId="b" />);
 
     const marker = screen.getByTestId('timeline-now-marker');
     expect(marker).toBeInTheDocument();

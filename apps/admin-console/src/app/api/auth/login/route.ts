@@ -20,18 +20,12 @@ export async function POST(request: Request): Promise<NextResponse> {
   try {
     body = (await request.json()) as { email?: string; password?: string };
   } catch {
-    return NextResponse.json(
-      { message: 'Invalid request body.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Invalid request body.' }, { status: 400 });
   }
 
   const { email, password } = body;
   if (!email || !password) {
-    return NextResponse.json(
-      { message: 'Email and password are required.' },
-      { status: 400 },
-    );
+    return NextResponse.json({ message: 'Email and password are required.' }, { status: 400 });
   }
 
   let upstream: Response;
@@ -49,8 +43,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   } catch {
     return NextResponse.json(
       {
-        message:
-          'The authentication service is currently unavailable. Please try again shortly.',
+        message: 'The authentication service is currently unavailable. Please try again shortly.',
       },
       { status: 503 },
     );

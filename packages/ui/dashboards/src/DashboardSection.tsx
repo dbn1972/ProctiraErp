@@ -102,10 +102,7 @@ export function DashboardSection({
       {title}
     </button>
   ) : (
-    <h2
-      id={headingId}
-      className="text-lg font-semibold text-[hsl(var(--foreground))]"
-    >
+    <h2 id={headingId} className="text-lg font-semibold text-[hsl(var(--foreground))]">
       {title}
     </h2>
   );
@@ -121,38 +118,23 @@ export function DashboardSection({
         <div className="space-y-1">
           {heading}
           {description ? (
-            <p className="text-sm text-[hsl(var(--muted-foreground))]">
-              {description}
-            </p>
+            <p className="text-sm text-[hsl(var(--muted-foreground))]">{description}</p>
           ) : null}
         </div>
         {action ? (
-          <div
-            className="flex items-center gap-2"
-            data-testid="dashboard-section-action"
-          >
+          <div className="flex items-center gap-2" data-testid="dashboard-section-action">
             {action}
           </div>
         ) : null}
       </div>
 
       {(!collapsible || expanded) && (
-        <div
-          id={bodyId}
-          className={cn(bodyClassName)}
-          data-testid="dashboard-section-body"
-        >
+        <div id={bodyId} className={cn(bodyClassName)} data-testid="dashboard-section-body">
           {loading ? (
-            <div
-              className="space-y-3"
-              aria-busy="true"
-              data-testid="dashboard-section-skeleton"
-            >
-              {Array.from({ length: Math.max(0, loadingPlaceholders) }).map(
-                (_, i) => (
-                  <Skeleton key={i} className="h-20 w-full rounded-lg" />
-                ),
-              )}
+            <div className="space-y-3" aria-busy="true" data-testid="dashboard-section-skeleton">
+              {Array.from({ length: Math.max(0, loadingPlaceholders) }).map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full rounded-lg" />
+              ))}
             </div>
           ) : (
             children

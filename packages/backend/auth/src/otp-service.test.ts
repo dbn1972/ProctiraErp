@@ -4,7 +4,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { InMemoryOtpChallengeStore, OtpAuthError, OtpService, hashOtpCode } from './otp-service.js';
-import { ConsoleSmsProvider, maskPhone, redactOtpDigits, type SmsProvider } from './sms-provider.js';
+import {
+  ConsoleSmsProvider,
+  maskPhone,
+  redactOtpDigits,
+  type SmsProvider,
+} from './sms-provider.js';
 
 describe('hashOtpCode', () => {
   it('is deterministic and not plaintext', () => {

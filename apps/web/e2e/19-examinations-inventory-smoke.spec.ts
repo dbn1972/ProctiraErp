@@ -26,9 +26,7 @@ const SEEDED_DETAIL_ROUTES: ReadonlyArray<{ path: string; heading: RegExp }> = [
 
 test.describe('Examinations — unauthenticated inventory (ungated)', () => {
   for (const route of UNGATED_ROUTES) {
-    test(`${route.path} unauthenticated → /login with body + heading`, async ({
-      page,
-    }) => {
+    test(`${route.path} unauthenticated → /login with body + heading`, async ({ page }) => {
       await page.goto(route.path, { waitUntil: 'domcontentloaded' });
       await expect(page).toHaveURL(/\/login/);
       await expect(page.locator('body')).toBeVisible();
@@ -69,9 +67,7 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
     });
   }
 
-  test('create form validates required CreateExamination fields client-side', async ({
-    page,
-  }) => {
+  test('create form validates required CreateExamination fields client-side', async ({ page }) => {
     await page.goto('/examinations/new', { waitUntil: 'domcontentloaded' });
     await expect(page.getByTestId('examination-create-form')).toHaveAttribute(
       'data-hydrated',
@@ -115,12 +111,8 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
 
     await Promise.race([
       page.waitForURL(/\/examinations\/[0-9a-f-]{36}/i, { timeout: 20_000 }),
-      page
-        .getByTestId('examination-create-error')
-        .waitFor({ state: 'visible', timeout: 20_000 }),
-      page
-        .getByTestId('examination-create-success')
-        .waitFor({ state: 'visible', timeout: 20_000 }),
+      page.getByTestId('examination-create-error').waitFor({ state: 'visible', timeout: 20_000 }),
+      page.getByTestId('examination-create-success').waitFor({ state: 'visible', timeout: 20_000 }),
     ]);
     await expect(page.getByTestId('examination-create-demo-ack')).toHaveCount(0);
   });

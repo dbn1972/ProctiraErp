@@ -177,9 +177,7 @@ export default function ScholarshipReviewQueue() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Review Queue</h1>
-          <p className="text-muted-foreground mt-1">
-            Review and process scholarship applications.
-          </p>
+          <p className="text-muted-foreground mt-1">Review and process scholarship applications.</p>
         </div>
       </div>
 
@@ -239,7 +237,11 @@ export default function ScholarshipReviewQueue() {
 
       {/* Loading */}
       {loading && (
-        <div role="status" aria-label="Loading applications" className="text-muted-foreground text-sm">
+        <div
+          role="status"
+          aria-label="Loading applications"
+          className="text-muted-foreground text-sm"
+        >
           Loading applications…
         </div>
       )}
@@ -289,9 +291,13 @@ export default function ScholarshipReviewQueue() {
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-xs font-mono">{app.applicantId.slice(0, 8)}…</div>
+                        <div className="font-medium text-xs font-mono">
+                          {app.applicantId.slice(0, 8)}…
+                        </div>
                         {app.gender && (
-                          <div className="text-muted-foreground text-xs capitalize">{app.gender}</div>
+                          <div className="text-muted-foreground text-xs capitalize">
+                            {app.gender}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 py-3">
@@ -307,9 +313,7 @@ export default function ScholarshipReviewQueue() {
                       <td className="px-4 py-3 text-right tabular-nums">
                         {topRecord?.gpa != null ? topRecord.gpa.toFixed(2) : '—'}
                       </td>
-                      <td className="px-4 py-3 text-xs">
-                        {formatDate(app.submittedAt)}
-                      </td>
+                      <td className="px-4 py-3 text-xs">{formatDate(app.submittedAt)}</td>
                       <td className="px-4 py-3">
                         {(app.status === 'submitted' || app.status === 'under_review') && (
                           <div className="flex gap-1">

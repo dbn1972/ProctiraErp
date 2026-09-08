@@ -24,23 +24,23 @@ export type AdapterStatus = 'configured' | 'pending' | 'failed';
 // ─── Configuration Schemas ───────────────────────────────────────────────────
 
 export const CdnConfigSchema = Type.Object({
-  adapter: Type.Union([
-    Type.Literal('cloudfront'),
-    Type.Literal('nginx'),
-    Type.Literal('custom'),
-  ]),
+  adapter: Type.Union([Type.Literal('cloudfront'), Type.Literal('nginx'), Type.Literal('custom')]),
   baseUrl: Type.String({ minLength: 1 }),
   tenantAware: Type.Boolean({ default: true }),
   brandingPrefix: Type.Optional(Type.String()),
   staticPrefix: Type.Optional(Type.String()),
-  cloudfront: Type.Optional(Type.Object({
-    distributionId: Type.String(),
-    region: Type.Optional(Type.String()),
-  })),
-  custom: Type.Optional(Type.Object({
-    invalidationEndpoint: Type.Optional(Type.String()),
-    headers: Type.Optional(Type.Record(Type.String(), Type.String())),
-  })),
+  cloudfront: Type.Optional(
+    Type.Object({
+      distributionId: Type.String(),
+      region: Type.Optional(Type.String()),
+    }),
+  ),
+  custom: Type.Optional(
+    Type.Object({
+      invalidationEndpoint: Type.Optional(Type.String()),
+      headers: Type.Optional(Type.Record(Type.String(), Type.String())),
+    }),
+  ),
 });
 
 export const DatabaseConfigSchema = Type.Object({
@@ -76,34 +76,38 @@ export const CacheConfigSchema = Type.Object({
 });
 
 export const QueueConfigSchema = Type.Object({
-  backend: Type.Union([
-    Type.Literal('kafka'),
-    Type.Literal('rabbitmq'),
-    Type.Literal('sqs'),
-  ]),
-  kafka: Type.Optional(Type.Object({
-    brokers: Type.Array(Type.String(), { minItems: 1 }),
-    clientId: Type.String({ minLength: 1 }),
-    groupId: Type.Optional(Type.String()),
-    ssl: Type.Optional(Type.Boolean()),
-  })),
-  rabbitmq: Type.Optional(Type.Object({
-    url: Type.String({ minLength: 1 }),
-    exchange: Type.String({ minLength: 1 }),
-    exchangeType: Type.Optional(Type.Union([
-      Type.Literal('direct'),
-      Type.Literal('topic'),
-      Type.Literal('fanout'),
-      Type.Literal('headers'),
-    ])),
-  })),
-  sqs: Type.Optional(Type.Object({
-    region: Type.String({ minLength: 1 }),
-    queueUrlPrefix: Type.String({ minLength: 1 }),
-    accessKeyId: Type.Optional(Type.String()),
-    secretAccessKey: Type.Optional(Type.String()),
-    endpoint: Type.Optional(Type.String()),
-  })),
+  backend: Type.Union([Type.Literal('kafka'), Type.Literal('rabbitmq'), Type.Literal('sqs')]),
+  kafka: Type.Optional(
+    Type.Object({
+      brokers: Type.Array(Type.String(), { minItems: 1 }),
+      clientId: Type.String({ minLength: 1 }),
+      groupId: Type.Optional(Type.String()),
+      ssl: Type.Optional(Type.Boolean()),
+    }),
+  ),
+  rabbitmq: Type.Optional(
+    Type.Object({
+      url: Type.String({ minLength: 1 }),
+      exchange: Type.String({ minLength: 1 }),
+      exchangeType: Type.Optional(
+        Type.Union([
+          Type.Literal('direct'),
+          Type.Literal('topic'),
+          Type.Literal('fanout'),
+          Type.Literal('headers'),
+        ]),
+      ),
+    }),
+  ),
+  sqs: Type.Optional(
+    Type.Object({
+      region: Type.String({ minLength: 1 }),
+      queueUrlPrefix: Type.String({ minLength: 1 }),
+      accessKeyId: Type.Optional(Type.String()),
+      secretAccessKey: Type.Optional(Type.String()),
+      endpoint: Type.Optional(Type.String()),
+    }),
+  ),
 });
 
 // ─── Inferred Types ──────────────────────────────────────────────────────────

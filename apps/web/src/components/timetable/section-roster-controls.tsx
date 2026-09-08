@@ -45,22 +45,14 @@ export function SectionPublishControls(props: {
                   sectionId: props.sectionId,
                 });
             if (!result.ok) {
-              setError(
-                result.status === 409
-                  ? `Conflict (409): ${result.error}`
-                  : result.error,
-              );
+              setError(result.status === 409 ? `Conflict (409): ${result.error}` : result.error);
               return;
             }
             router.refresh();
           });
         }}
       >
-        {pending
-          ? 'Working…'
-          : isPublished
-            ? 'Unpublish to draft'
-            : 'Publish schedule'}
+        {pending ? 'Working…' : isPublished ? 'Unpublish to draft' : 'Publish schedule'}
       </Button>
       {error && (
         <p className="w-full text-sm text-red-600 dark:text-red-400" role="alert">

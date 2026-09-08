@@ -68,7 +68,10 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
                 name="storage-adapter"
                 value="s3"
                 checked={config.adapter === 's3'}
-                onChange={() => { setConfig((prev) => ({ ...prev, adapter: 's3' })); setResult(null); }}
+                onChange={() => {
+                  setConfig((prev) => ({ ...prev, adapter: 's3' }));
+                  setResult(null);
+                }}
                 className="text-primary-700 focus:ring-primary-500"
               />
               <span className="text-sm font-medium">Amazon S3</span>
@@ -79,7 +82,10 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
                 name="storage-adapter"
                 value="minio"
                 checked={config.adapter === 'minio'}
-                onChange={() => { setConfig((prev) => ({ ...prev, adapter: 'minio', forcePathStyle: true })); setResult(null); }}
+                onChange={() => {
+                  setConfig((prev) => ({ ...prev, adapter: 'minio', forcePathStyle: true }));
+                  setResult(null);
+                }}
                 className="text-primary-700 focus:ring-primary-500"
               />
               <span className="text-sm font-medium">MinIO</span>
@@ -90,7 +96,9 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
         {/* Connection Details */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="storage-bucket" className="label">Bucket Name</label>
+            <label htmlFor="storage-bucket" className="label">
+              Bucket Name
+            </label>
             <input
               id="storage-bucket"
               type="text"
@@ -101,7 +109,9 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
             />
           </div>
           <div>
-            <label htmlFor="storage-region" className="label">Region</label>
+            <label htmlFor="storage-region" className="label">
+              Region
+            </label>
             <input
               id="storage-region"
               type="text"
@@ -113,7 +123,9 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
           </div>
           {config.adapter === 'minio' && (
             <div className="sm:col-span-2">
-              <label htmlFor="storage-endpoint" className="label">Endpoint URL</label>
+              <label htmlFor="storage-endpoint" className="label">
+                Endpoint URL
+              </label>
               <input
                 id="storage-endpoint"
                 type="text"
@@ -125,7 +137,9 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
             </div>
           )}
           <div>
-            <label htmlFor="storage-key" className="label">Access Key ID</label>
+            <label htmlFor="storage-key" className="label">
+              Access Key ID
+            </label>
             <input
               id="storage-key"
               type="text"
@@ -136,7 +150,9 @@ export function StorageStep({ onComplete, onBack }: StorageStepProps) {
             />
           </div>
           <div>
-            <label htmlFor="storage-secret" className="label">Secret Access Key</label>
+            <label htmlFor="storage-secret" className="label">
+              Secret Access Key
+            </label>
             <input
               id="storage-secret"
               type="password"
@@ -200,7 +216,11 @@ function LoadingSpinner() {
   return (
     <svg className="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   );
 }

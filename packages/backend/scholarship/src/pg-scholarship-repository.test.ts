@@ -5,7 +5,10 @@ import { randomUUID } from 'node:crypto';
 
 import { describe, expect, it } from 'vitest';
 
-import { createScholarshipRepository, isPgScholarshipEnabled } from './create-scholarship-repository.js';
+import {
+  createScholarshipRepository,
+  isPgScholarshipEnabled,
+} from './create-scholarship-repository.js';
 import { InMemoryScholarshipRepository } from './in-memory-repository.js';
 import { getSharedScholarshipPool, PgScholarshipRepository } from './pg-scholarship-repository.js';
 

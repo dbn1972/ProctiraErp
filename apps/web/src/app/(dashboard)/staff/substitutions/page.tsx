@@ -15,10 +15,7 @@ export const dynamic = 'force-dynamic';
 const DAY_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default async function StaffSubstitutionsPage() {
-  const [subsResult, meetingsResult] = await Promise.all([
-    listSubstitutions(),
-    listMeetings(),
-  ]);
+  const [subsResult, meetingsResult] = await Promise.all([listSubstitutions(), listMeetings()]);
 
   const apiError = !subsResult.ok
     ? subsResult.error
@@ -116,9 +113,7 @@ export default async function StaffSubstitutionsPage() {
                           <td className="px-4 py-3 font-mono text-xs">
                             {s.substituteStaffId.slice(0, 8)}…
                           </td>
-                          <td className="px-4 py-3 text-muted-foreground">
-                            {s.reason ?? '—'}
-                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{s.reason ?? '—'}</td>
                           <td className="px-4 py-3 text-xs">{s.status}</td>
                         </tr>
                       ))}

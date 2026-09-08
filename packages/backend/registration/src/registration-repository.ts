@@ -108,7 +108,10 @@ export interface RegistrationRepository {
    * Find a registration by tracking number. `tenantId` binds the RLS tenant
    * context (required against Postgres since 021 FORCEs RLS for table owners).
    */
-  findByTrackingNumber(trackingNumber: string, tenantId?: string): Promise<RegistrationEntity | null>;
+  findByTrackingNumber(
+    trackingNumber: string,
+    tenantId?: string,
+  ): Promise<RegistrationEntity | null>;
 
   /** Find a registration by ID (see `findByTrackingNumber` for `tenantId`). */
   findById(id: string, tenantId?: string): Promise<RegistrationEntity | null>;

@@ -28,10 +28,10 @@ export const dynamic = 'force-dynamic';
 /* ---------------------------------------------------------------- stepper */
 
 const IMPORT_STEPS = [
-  { label: 'Upload',   hint: 'Select file' },
+  { label: 'Upload', hint: 'Select file' },
   { label: 'Validate', hint: 'Check rows' },
-  { label: 'Review',   hint: 'Resolve issues' },
-  { label: 'Import',   hint: 'Save records' },
+  { label: 'Review', hint: 'Resolve issues' },
+  { label: 'Import', hint: 'Save records' },
 ] as const;
 
 /** Visual-only stepper — active step is managed client-side inside BulkImportPanel. */
@@ -40,19 +40,16 @@ function ImportStepper({ active = 1 }: { active?: number }) {
     <nav aria-label="Import steps" className="mb-2">
       <ol className="flex items-start gap-0">
         {IMPORT_STEPS.map((step, i) => {
-          const num     = i + 1;
-          const isDone  = num < active;
-          const isActive= num === active;
+          const num = i + 1;
+          const isDone = num < active;
+          const isActive = num === active;
           return (
             <li key={step.label} className="flex flex-1 items-start">
               {/* connector line before (except first) */}
               {i > 0 && (
                 <div
                   aria-hidden="true"
-                  className={cn(
-                    'mt-4 h-0.5 flex-1',
-                    isDone ? 'bg-primary' : 'bg-border',
-                  )}
+                  className={cn('mt-4 h-0.5 flex-1', isDone ? 'bg-primary' : 'bg-border')}
                 />
               )}
 
@@ -69,10 +66,21 @@ function ImportStepper({ active = 1 }: { active?: number }) {
                   )}
                 >
                   {isDone ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    >
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
-                  ) : num}
+                  ) : (
+                    num
+                  )}
                 </span>
                 <span
                   className={cn(
@@ -89,10 +97,7 @@ function ImportStepper({ active = 1 }: { active?: number }) {
               {i < IMPORT_STEPS.length - 1 && (
                 <div
                   aria-hidden="true"
-                  className={cn(
-                    'mt-4 h-0.5 flex-1',
-                    isDone ? 'bg-primary' : 'bg-border',
-                  )}
+                  className={cn('mt-4 h-0.5 flex-1', isDone ? 'bg-primary' : 'bg-border')}
                 />
               )}
             </li>
@@ -108,7 +113,6 @@ function ImportStepper({ active = 1 }: { active?: number }) {
 export default function StudentBulkImportPage() {
   return (
     <section aria-labelledby="import-heading" className="space-y-6">
-
       {/* ── Page head ── */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -119,9 +123,8 @@ export default function StudentBulkImportPage() {
             Bulk import students
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Map your spreadsheet columns to ProctiraERP fields. Every row is
-            validated before any record is created — nothing is saved until you
-            confirm.
+            Map your spreadsheet columns to ProctiraERP fields. Every row is validated before any
+            record is created — nothing is saved until you confirm.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -132,10 +135,7 @@ export default function StudentBulkImportPage() {
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <a
-              href="/api/students/import/template"
-              download="students-import-template.xlsx"
-            >
+            <a href="/api/students/import/template" download="students-import-template.xlsx">
               <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
               Download template
             </a>
@@ -151,10 +151,9 @@ export default function StudentBulkImportPage() {
         <CardHeader>
           <CardTitle className="text-base">Step 1 — Prepare your file</CardTitle>
           <CardDescription>
-            Use the template above to fill in student details with the required
-            columns and formats. Required: First Name, Last Name, Date of Birth
-            (YYYY-MM-DD). Optional: Gender, National ID, Nationality, Guardian
-            Name, Guardian Phone, Contact Email.
+            Use the template above to fill in student details with the required columns and formats.
+            Required: First Name, Last Name, Date of Birth (YYYY-MM-DD). Optional: Gender, National
+            ID, Nationality, Guardian Name, Guardian Phone, Contact Email.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -164,9 +163,9 @@ export default function StudentBulkImportPage() {
         <CardHeader>
           <CardTitle className="text-base">Step 2 — Upload and review</CardTitle>
           <CardDescription>
-            Drop the completed Excel file (.xlsx, up to 50&nbsp;MB). We&apos;ll
-            validate every row and highlight failures or duplicates before
-            importing. Nothing is saved until you confirm.
+            Drop the completed Excel file (.xlsx, up to 50&nbsp;MB). We&apos;ll validate every row
+            and highlight failures or duplicates before importing. Nothing is saved until you
+            confirm.
           </CardDescription>
         </CardHeader>
         <CardContent>

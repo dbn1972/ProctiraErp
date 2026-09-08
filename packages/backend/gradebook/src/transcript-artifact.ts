@@ -93,7 +93,7 @@ export function buildTranscriptPdf(input: TranscriptArtifactInput): Buffer {
   if (input.signature) flow.keyValue('Signature (HMAC-SHA256)', input.signature);
   flow.paragraph(
     'This transcript is immutable once issued; later corrections are published as a new version. ' +
-      'Verify the checksum against the issuing institution\'s records.',
+      "Verify the checksum against the issuing institution's records.",
     { size: 8, grey: 0.4 },
   );
   return flow.finish();

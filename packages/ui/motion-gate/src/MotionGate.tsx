@@ -85,9 +85,7 @@ export function MotionGate({ children, forceReduce, forceMotion }: MotionGatePro
   }, [systemPrefersReduced, forceReduce, forceMotion]);
 
   return (
-    <MotionPreferenceContext.Provider value={value}>
-      {children}
-    </MotionPreferenceContext.Provider>
+    <MotionPreferenceContext.Provider value={value}>{children}</MotionPreferenceContext.Provider>
   );
 }
 

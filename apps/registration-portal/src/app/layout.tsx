@@ -14,11 +14,7 @@ export const metadata: Metadata = {
  * Public-facing — no authentication required.
  * Supports RTL/LTR direction based on locale.
  */
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();
   const direction = getDirection(locale);

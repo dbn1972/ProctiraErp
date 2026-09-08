@@ -55,7 +55,8 @@ export class InMemoryWorkflowRepository implements WorkflowRepository {
       description: data.description !== undefined ? data.description : existing.description,
       states: data.states ?? existing.states,
       transitions: data.transitions ?? existing.transitions,
-      escalationRules: data.escalationRules !== undefined ? data.escalationRules : existing.escalationRules,
+      escalationRules:
+        data.escalationRules !== undefined ? data.escalationRules : existing.escalationRules,
       createdAt: existing.createdAt,
       updatedAt: new Date(),
     };

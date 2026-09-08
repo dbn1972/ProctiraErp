@@ -85,10 +85,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the assessment service and routes.
  */
 export const assessmentPlugin = fp(
-  async function assessmentPluginImpl(
-    fastify: FastifyInstance,
-    options: AssessmentPluginOptions,
-  ) {
+  async function assessmentPluginImpl(fastify: FastifyInstance, options: AssessmentPluginOptions) {
     const {
       gradingSchemeRepository,
       assessmentItemRepository,

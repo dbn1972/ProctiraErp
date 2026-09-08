@@ -59,7 +59,12 @@ export interface InfrastructureStore {
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<{ items: InfrastructureRecord[]; total: number }>;
   findAllByInstitution(institutionId: string): Promise<InfrastructureRecord[]>;
-  update(id: string, data: Partial<Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>>): Promise<InfrastructureRecord | null>;
+  update(
+    id: string,
+    data: Partial<
+      Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>
+    >,
+  ): Promise<InfrastructureRecord | null>;
   delete(id: string): Promise<boolean>;
   hasChildren(id: string): Promise<boolean>;
 }
@@ -173,9 +178,7 @@ export class InfrastructureService {
       );
     }
     if (parent.institutionId !== institutionId) {
-      throw new BusinessRuleError(
-        'Parent infrastructure item belongs to a different institution',
-      );
+      throw new BusinessRuleError('Parent infrastructure item belongs to a different institution');
     }
   }
 

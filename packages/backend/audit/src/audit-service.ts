@@ -11,11 +11,7 @@
  * - 21.4: Support filtering by entity type, user, date range, operation type.
  * - 21.5: Configurable retention with automated archival of expired entries.
  */
-import {
-  BusinessRuleError,
-  NotFoundError,
-  ValidationError,
-} from '@proctira/common';
+import { BusinessRuleError, NotFoundError, ValidationError } from '@proctira/common';
 import type { PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -149,7 +145,7 @@ export class AuditService {
    * Useful for bulk operations that affect multiple entities.
    */
   async recordAuditBatch(inputs: RecordAuditInput[]): Promise<AuditLogEntry[]> {
-    const createInputs: CreateAuditLogInput[] = inputs.map(input => {
+    const createInputs: CreateAuditLogInput[] = inputs.map((input) => {
       this.validateAuditInput(input);
       return {
         id: uuidv4(),
@@ -182,7 +178,11 @@ export class AuditService {
       const end = new Date(input.endDate);
       if (start > end) {
         throw new ValidationError('startDate must be before or equal to endDate', [
-          { field: 'startDate', rule: 'range', message: 'startDate must be before or equal to endDate' },
+          {
+            field: 'startDate',
+            rule: 'range',
+            message: 'startDate must be before or equal to endDate',
+          },
         ]);
       }
     }
@@ -242,19 +242,31 @@ export class AuditService {
   async setRetentionConfig(input: SetRetentionInput): Promise<AuditRetentionConfig> {
     if (input.retentionMonths < 1) {
       throw new ValidationError('Retention period must be at least 1 month', [
-        { field: 'retentionMonths', rule: 'minimum', message: 'Retention period must be at least 1 month' },
+        {
+          field: 'retentionMonths',
+          rule: 'minimum',
+          message: 'Retention period must be at least 1 month',
+        },
       ]);
     }
 
     if (input.retentionMonths > 120) {
       throw new ValidationError('Retention period cannot exceed 120 months (10 years)', [
-        { field: 'retentionMonths', rule: 'maximum', message: 'Retention period cannot exceed 120 months (10 years)' },
+        {
+          field: 'retentionMonths',
+          rule: 'maximum',
+          message: 'Retention period cannot exceed 120 months (10 years)',
+        },
       ]);
     }
 
     if (input.archivalEnabled && !input.archivalDestination) {
       throw new ValidationError('Archival destination is required when archival is enabled', [
-        { field: 'archivalDestination', rule: 'required', message: 'Archival destination is required when archival is enabled' },
+        {
+          field: 'archivalDestination',
+          rule: 'required',
+          message: 'Archival destination is required when archival is enabled',
+        },
       ]);
     }
 

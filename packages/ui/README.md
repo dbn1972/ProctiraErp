@@ -6,17 +6,17 @@ Every package is a workspace member with the name pattern
 `@proctira/ui/<package-name>` (configured in `tsconfig.base.json` and
 mirrored by each consumer's `tsconfig.json`).
 
-| Package | Purpose |
-|---------|---------|
-| `area-picker` | Hierarchical administrative-area picker. |
-| `bulk-import` | Multi-step Excel/CSV import wizard. |
-| `components` | **Canonical shadcn/ui primitives** (Button, Card, Input, Dialog, Sheet, Combobox shells, etc.) plus ProctiraERP-specific wrappers (`Img`, `FormField`). The single source of truth consumed across every app via `@proctira/ui/components`. See [shadcn primitives](#shadcn-primitives--proctiraui-components) below. |
-| `data-grid` | Server-driven data grid with virtual scrolling. |
-| `file-upload` | Resumable, chunked file uploader. |
-| `form-builder` | Schema-driven form renderer. |
-| `language-switcher` | Locale/RTL switcher. |
-| `motion-gate` | Reduced-motion preference provider. |
-| `notification-bell` | Real-time notification bell + dropdown. |
+| Package             | Purpose                                                                                                                                                                                                                                                                                                               |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `area-picker`       | Hierarchical administrative-area picker.                                                                                                                                                                                                                                                                              |
+| `bulk-import`       | Multi-step Excel/CSV import wizard.                                                                                                                                                                                                                                                                                   |
+| `components`        | **Canonical shadcn/ui primitives** (Button, Card, Input, Dialog, Sheet, Combobox shells, etc.) plus ProctiraERP-specific wrappers (`Img`, `FormField`). The single source of truth consumed across every app via `@proctira/ui/components`. See [shadcn primitives](#shadcn-primitives--proctiraui-components) below. |
+| `data-grid`         | Server-driven data grid with virtual scrolling.                                                                                                                                                                                                                                                                       |
+| `file-upload`       | Resumable, chunked file uploader.                                                                                                                                                                                                                                                                                     |
+| `form-builder`      | Schema-driven form renderer.                                                                                                                                                                                                                                                                                          |
+| `language-switcher` | Locale/RTL switcher.                                                                                                                                                                                                                                                                                                  |
+| `motion-gate`       | Reduced-motion preference provider.                                                                                                                                                                                                                                                                                   |
+| `notification-bell` | Real-time notification bell + dropdown.                                                                                                                                                                                                                                                                               |
 
 ## shadcn Primitives — `@proctira/ui/components`
 
@@ -115,15 +115,15 @@ regression tests).
 
 Wrap any lucide icon whose meaning depends on the reading direction:
 
-| Category | Example icons |
-|----------|--------------|
-| Chevrons | `ChevronRight`, `ChevronLeft`, `ChevronsRight`, `ChevronsLeft` |
-| Arrows | `ArrowRight`, `ArrowLeft`, `ArrowUpRight`, `ArrowDownLeft`, `ArrowBigRight`, `MoveRight` |
-| Indent / Outdent | `IndentIncrease`, `IndentDecrease` |
-| Mail / Reply chains | `Reply`, `ReplyAll`, `Forward` |
-| Corners | `CornerDownRight`, `CornerUpRight`, `CornerDownLeft`, `CornerUpLeft` |
-| Panels / Sidebars | `PanelLeftOpen`, `PanelRightOpen`, `PanelLeftClose`, `PanelRightClose` |
-| Skip controls | `SkipForward`, `SkipBack`, `Rewind`, `FastForward` |
+| Category            | Example icons                                                                            |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| Chevrons            | `ChevronRight`, `ChevronLeft`, `ChevronsRight`, `ChevronsLeft`                           |
+| Arrows              | `ArrowRight`, `ArrowLeft`, `ArrowUpRight`, `ArrowDownLeft`, `ArrowBigRight`, `MoveRight` |
+| Indent / Outdent    | `IndentIncrease`, `IndentDecrease`                                                       |
+| Mail / Reply chains | `Reply`, `ReplyAll`, `Forward`                                                           |
+| Corners             | `CornerDownRight`, `CornerUpRight`, `CornerDownLeft`, `CornerUpLeft`                     |
+| Panels / Sidebars   | `PanelLeftOpen`, `PanelRightOpen`, `PanelLeftClose`, `PanelRightClose`                   |
+| Skip controls       | `SkipForward`, `SkipBack`, `Rewind`, `FastForward`                                       |
 
 The convention: **pick the LTR-correct icon (the one that points
 "forward" in English) and let the wrapper mirror it for RTL.** Don't
@@ -135,18 +135,18 @@ markup apart and defeats the whole point of the wrapper.
 Render direction-neutral icons directly — **never** through
 `<DirectionalIcon>`:
 
-| Category | Example icons |
-|----------|--------------|
-| Search / filter | `Search`, `Filter`, `SlidersHorizontal` |
-| Identity | `User`, `Users`, `UserCircle`, `UserPlus` |
-| Date / time | `Calendar`, `Clock`, `Hourglass` |
-| System | `Bell`, `Settings`, `Globe`, `Sun`, `Moon`, `Monitor` |
-| Indicators | `Check`, `X`, `Plus`, `Minus`, `AlertTriangle`, `Info` |
-| Navigation chrome | `Menu`, `MoreHorizontal`, `MoreVertical` |
-| Actions | `Download`, `Upload`, `Save`, `Edit`, `Trash`, `Copy` |
-| Auth / privacy | `Lock`, `Unlock`, `Eye`, `EyeOff`, `Shield` |
-| Communication | `Mail`, `Phone`, `MessageSquare` |
-| Brand / favorites | `Star`, `Heart`, `Bookmark` |
+| Category          | Example icons                                          |
+| ----------------- | ------------------------------------------------------ |
+| Search / filter   | `Search`, `Filter`, `SlidersHorizontal`                |
+| Identity          | `User`, `Users`, `UserCircle`, `UserPlus`              |
+| Date / time       | `Calendar`, `Clock`, `Hourglass`                       |
+| System            | `Bell`, `Settings`, `Globe`, `Sun`, `Moon`, `Monitor`  |
+| Indicators        | `Check`, `X`, `Plus`, `Minus`, `AlertTriangle`, `Info` |
+| Navigation chrome | `Menu`, `MoreHorizontal`, `MoreVertical`               |
+| Actions           | `Download`, `Upload`, `Save`, `Edit`, `Trash`, `Copy`  |
+| Auth / privacy    | `Lock`, `Unlock`, `Eye`, `EyeOff`, `Shield`            |
+| Communication     | `Mail`, `Phone`, `MessageSquare`                       |
+| Brand / favorites | `Star`, `Heart`, `Bookmark`                            |
 
 These icons are visually symmetric or have no left/right semantic, so
 mirroring them produces a backwards glyph that confuses screen readers
@@ -158,7 +158,7 @@ import { Search, Bell, User } from 'lucide-react';
 
 <button aria-label="Search">
   <Search className="h-5 w-5" aria-hidden="true" />
-</button>
+</button>;
 ```
 
 #### Quick decision flow
@@ -212,9 +212,7 @@ export function App() {
     <BrandConfigProvider>
       <LanguageProvider>
         <ThemeProvider>
-          <MotionGate>
-            {/* …rest of the tree… */}
-          </MotionGate>
+          <MotionGate>{/* …rest of the tree… */}</MotionGate>
         </ThemeProvider>
       </LanguageProvider>
     </BrandConfigProvider>
@@ -255,7 +253,7 @@ const reduced = useReducedMotion(); // boolean, SSR-safe (false on server)
 - `forceReduce` — disable motion regardless of OS preference (useful for
   storybook / QA).
 - `forceMotion` — keep motion on regardless of OS preference. Reserved for
-  *essential* animations (loading bars, progress indicators); use sparingly.
+  _essential_ animations (loading bars, progress indicators); use sparingly.
 
 ### 2. Tailwind `motion-safe:*` and `motion-reduce:*` variants
 
@@ -316,15 +314,15 @@ next to its source so it stays in lockstep with the implementation, and
 each is exercised by a `*.keyboard.test.tsx` Vitest + Testing Library
 suite.
 
-| Component | Contract | Tests |
-|-----------|----------|-------|
-| `<Tabs>` | [`packages/ui/components/src/Tabs.keyboard.md`](./components/src/Tabs.keyboard.md) | `Tabs.keyboard.test.tsx` |
-| `<Dialog>` | [`packages/ui/components/src/Dialog.keyboard.md`](./components/src/Dialog.keyboard.md) | `Dialog.keyboard.test.tsx` |
-| `<Sheet>` | [`packages/ui/components/src/Sheet.keyboard.md`](./components/src/Sheet.keyboard.md) | `Sheet.keyboard.test.tsx` |
-| `<Command>` / Combobox | [`packages/ui/components/src/Command.keyboard.md`](./components/src/Command.keyboard.md) | `Command.keyboard.test.tsx` |
-| `<DataGrid>` | [`packages/ui/data-grid/src/DataGrid.keyboard.md`](./data-grid/src/DataGrid.keyboard.md) | `DataGrid.keyboard.test.tsx` |
-| `<Sidebar>` (apps/web) | [`apps/web/src/components/layout/sidebar.keyboard.md`](../../apps/web/src/components/layout/sidebar.keyboard.md) | `sidebar.keyboard.test.tsx` |
-| `<MfaForm>` code input (apps/web) | [`apps/web/src/app/(auth)/mfa/mfa-form.keyboard.md`](../../apps/web/src/app/(auth)/mfa/mfa-form.keyboard.md) | `mfa-form.keyboard.test.tsx` |
+| Component                         | Contract                                                                                                         | Tests                        |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `<Tabs>`                          | [`packages/ui/components/src/Tabs.keyboard.md`](./components/src/Tabs.keyboard.md)                               | `Tabs.keyboard.test.tsx`     |
+| `<Dialog>`                        | [`packages/ui/components/src/Dialog.keyboard.md`](./components/src/Dialog.keyboard.md)                           | `Dialog.keyboard.test.tsx`   |
+| `<Sheet>`                         | [`packages/ui/components/src/Sheet.keyboard.md`](./components/src/Sheet.keyboard.md)                             | `Sheet.keyboard.test.tsx`    |
+| `<Command>` / Combobox            | [`packages/ui/components/src/Command.keyboard.md`](./components/src/Command.keyboard.md)                         | `Command.keyboard.test.tsx`  |
+| `<DataGrid>`                      | [`packages/ui/data-grid/src/DataGrid.keyboard.md`](./data-grid/src/DataGrid.keyboard.md)                         | `DataGrid.keyboard.test.tsx` |
+| `<Sidebar>` (apps/web)            | [`apps/web/src/components/layout/sidebar.keyboard.md`](../../apps/web/src/components/layout/sidebar.keyboard.md) | `sidebar.keyboard.test.tsx`  |
+| `<MfaForm>` code input (apps/web) | [`apps/web/src/app/(auth)/mfa/mfa-form.keyboard.md`](<../../apps/web/src/app/(auth)/mfa/mfa-form.keyboard.md>)   | `mfa-form.keyboard.test.tsx` |
 
 When you add a new interactive component or change an existing
 keyboard model:

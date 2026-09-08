@@ -34,10 +34,7 @@ declare module 'fastify' {
  * Fastify plugin that registers the theme service and routes.
  */
 export const themePlugin = fp(
-  async function themePluginImpl(
-    fastify: FastifyInstance,
-    options: ThemePluginOptions,
-  ) {
+  async function themePluginImpl(fastify: FastifyInstance, options: ThemePluginOptions) {
     const { repository, config = {}, prefix = '/themes' } = options;
 
     // Create theme service instance

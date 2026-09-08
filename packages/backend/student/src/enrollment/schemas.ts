@@ -31,10 +31,12 @@ export const CreateEnrollmentSchema = Type.Object({
     pattern: UuidPattern,
     description: 'Grade UUID',
   }),
-  classId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Class UUID (optional)',
-  })),
+  classId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Class UUID (optional)',
+    }),
+  ),
   academicPeriodId: Type.String({
     pattern: UuidPattern,
     description: 'Academic period UUID',
@@ -51,10 +53,9 @@ export type CreateEnrollmentInput = Static<typeof CreateEnrollmentSchema>;
  * Schema for updating enrollment status (withdraw, graduate).
  */
 export const UpdateEnrollmentStatusSchema = Type.Object({
-  status: Type.Union([
-    Type.Literal('WITHDRAWN'),
-    Type.Literal('GRADUATED'),
-  ], { description: 'New enrollment status' }),
+  status: Type.Union([Type.Literal('WITHDRAWN'), Type.Literal('GRADUATED')], {
+    description: 'New enrollment status',
+  }),
   reason: Type.String({
     minLength: 1,
     maxLength: 500,
@@ -89,10 +90,12 @@ export const StudentTransferSchema = Type.Object({
     pattern: UuidPattern,
     description: 'Grade at destination institution',
   }),
-  destinationClassId: Type.Optional(Type.String({
-    pattern: UuidPattern,
-    description: 'Class at destination institution (optional)',
-  })),
+  destinationClassId: Type.Optional(
+    Type.String({
+      pattern: UuidPattern,
+      description: 'Class at destination institution (optional)',
+    }),
+  ),
   academicPeriodId: Type.String({
     pattern: UuidPattern,
     description: 'Academic period UUID for the new enrollment',
@@ -143,10 +146,12 @@ export const EnrollmentListQuerySchema = Type.Object({
   studentId: Type.Optional(Type.String({ description: 'Filter by student ID' })),
   institutionId: Type.Optional(Type.String({ description: 'Filter by institution ID' })),
   academicPeriodId: Type.Optional(Type.String({ description: 'Filter by academic period ID' })),
-  status: Type.Optional(Type.String({
-    enum: ['ENROLLED', 'TRANSFERRED', 'WITHDRAWN', 'GRADUATED'],
-    description: 'Filter by enrollment status',
-  })),
+  status: Type.Optional(
+    Type.String({
+      enum: ['ENROLLED', 'TRANSFERRED', 'WITHDRAWN', 'GRADUATED'],
+      description: 'Filter by enrollment status',
+    }),
+  ),
 });
 
 export type EnrollmentListQuery = Static<typeof EnrollmentListQuerySchema>;

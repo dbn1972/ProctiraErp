@@ -256,9 +256,7 @@ describe('Attendance Routes', () => {
         institutionId: INSTITUTION_ID,
         tenantId: TENANT_ID,
         recordingMode: 'subject',
-        leaveTypes: [
-          { id: 'lt-001', name: 'Sick Leave', code: 'SICK', isActive: true },
-        ],
+        leaveTypes: [{ id: 'lt-001', name: 'Sick Leave', code: 'SICK', isActive: true }],
       });
 
       const response = await app.inject({

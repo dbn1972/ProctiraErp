@@ -36,7 +36,10 @@ export class InMemoryResultRepository implements ResultRepository {
     this.publicationResults.set(result.examinationId, result);
   }
 
-  async getPublicationResult(examinationId: string, _tenantId: string): Promise<PublicationResult | null> {
+  async getPublicationResult(
+    examinationId: string,
+    _tenantId: string,
+  ): Promise<PublicationResult | null> {
     return this.publicationResults.get(examinationId) ?? null;
   }
 
@@ -48,7 +51,10 @@ export class InMemoryResultRepository implements ResultRepository {
     this.resultAnalyses.set(analysis.examinationId, analysis);
   }
 
-  async getResultAnalysis(examinationId: string, _tenantId: string): Promise<ResultAnalysis | null> {
+  async getResultAnalysis(
+    examinationId: string,
+    _tenantId: string,
+  ): Promise<ResultAnalysis | null> {
     return this.resultAnalyses.get(examinationId) ?? null;
   }
 

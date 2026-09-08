@@ -42,22 +42,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  CheckCircle2,
-  Clock,
-  Loader2,
-  MessageSquare,
-  ShieldQuestion,
-  XCircle,
-} from 'lucide-react';
+import { CheckCircle2, Clock, Loader2, MessageSquare, ShieldQuestion, XCircle } from 'lucide-react';
 
 import { Input } from '@proctira/ui/components';
 import { useDraftAutosave } from '@/lib/draft/useDraftAutosave';
 import { enqueue as enqueueSyncOperation } from '@/lib/sync/syncQueue';
-import {
-  GATEWAY_API_PREFIX,
-  GATEWAY_BASE_URL,
-} from '@/lib/api/gateway';
+import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL } from '@/lib/api/gateway';
 import type { RosterEntry } from '@/lib/api/attendance';
 import { cn } from '@/lib/utils';
 
@@ -222,30 +212,28 @@ export const MOBILE_ATTENDANCE_SUBMIT_URL = `${GATEWAY_BASE_URL}${GATEWAY_API_PR
  * cookie; the caller may also supply a custom submit prop that
  * dispatches the Server Action when mounted from a Next page.
  */
-export const defaultMobileAttendanceSubmitter: MobileAttendanceSubmitter =
-  async (payload) => {
-    try {
-      const response = await fetch(MOBILE_ATTENDANCE_SUBMIT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) {
-        return {
-          status: 'error',
-          message: `Server returned ${response.status}`,
-        };
-      }
-      return { status: 'success' };
-    } catch (error) {
+export const defaultMobileAttendanceSubmitter: MobileAttendanceSubmitter = async (payload) => {
+  try {
+    const response = await fetch(MOBILE_ATTENDANCE_SUBMIT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
       return {
         status: 'error',
-        message:
-          error instanceof Error ? error.message : 'Network request failed',
+        message: `Server returned ${response.status}`,
       };
     }
-  };
+    return { status: 'success' };
+  } catch (error) {
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Network request failed',
+    };
+  }
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -253,8 +241,7 @@ function rosterToRows(roster: RosterEntry[]): MobileAttendanceRow[] {
   return roster.map((entry) => ({
     studentId: entry.studentId,
     studentName: entry.studentName,
-    status:
-      (entry.attendance?.status as AttendanceStatus | undefined) ?? 'PRESENT',
+    status: (entry.attendance?.status as AttendanceStatus | undefined) ?? 'PRESENT',
     comment: entry.attendance?.comment ?? '',
   }));
 }
@@ -276,7 +263,6 @@ function readNavigatorOnline(): boolean {
   return navigator.onLine !== false;
 }
 
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 /**
@@ -295,23 +281,16 @@ export function MobileAttendanceForm({
   // ─── State ────────────────────────────────────────────────────────────────
   const [institutionId, setInstitutionId] = useState(defaults.institutionId);
   const [classId, setClassId] = useState(defaults.classId);
-  const [academicPeriodId, setAcademicPeriodId] = useState(
-    defaults.academicPeriodId,
-  );
+  const [academicPeriodId, setAcademicPeriodId] = useState(defaults.academicPeriodId);
   const [date, setDate] = useState(defaults.date);
-  const [rows, setRows] = useState<MobileAttendanceRow[]>(() =>
-    rosterToRows(roster),
-  );
+  const [rows, setRows] = useState<MobileAttendanceRow[]>(() => rosterToRows(roster));
   const [expandedComment, setExpandedComment] = useState<string | null>(null);
-  const [submission, setSubmission] = useState<MobileAttendanceSubmitResult | null>(
-    null,
-  );
+  const [submission, setSubmission] = useState<MobileAttendanceSubmitResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ─── Draft autosave (Requirement 38 AC 8) ─────────────────────────────────
   const resolvedDraftFormId =
-    draftFormId ??
-    `mobile-attendance-marking-${academicPeriodId || 'default'}`;
+    draftFormId ?? `mobile-attendance-marking-${academicPeriodId || 'default'}`;
   const draft = useDraftAutosave<DraftSnapshot>(resolvedDraftFormId);
 
   // Hydrate from the persisted draft once on mount. Subsequent local
@@ -359,30 +338,18 @@ export function MobileAttendanceForm({
 
   // ─── Mutations ────────────────────────────────────────────────────────────
 
-  const setRowStatus = useCallback(
-    (studentId: string, status: AttendanceStatus) => {
-      // Note: we route the mutation through the same `setRows` setter
-      // the autosave effect observes. The subsequent autosave call
-      // captures the updated grid through the `useDraftAutosave`
-      // hook (Task 53.3 sub-task — selection mutations are written
-      // through useDraftAutosave).
-      setRows((prev) =>
-        prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)),
-      );
-    },
-    [],
-  );
+  const setRowStatus = useCallback((studentId: string, status: AttendanceStatus) => {
+    // Note: we route the mutation through the same `setRows` setter
+    // the autosave effect observes. The subsequent autosave call
+    // captures the updated grid through the `useDraftAutosave`
+    // hook (Task 53.3 sub-task — selection mutations are written
+    // through useDraftAutosave).
+    setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, status } : r)));
+  }, []);
 
-  const setRowComment = useCallback(
-    (studentId: string, comment: string) => {
-      setRows((prev) =>
-        prev.map((r) =>
-          r.studentId === studentId ? { ...r, comment } : r,
-        ),
-      );
-    },
-    [],
-  );
+  const setRowComment = useCallback((studentId: string, comment: string) => {
+    setRows((prev) => prev.map((r) => (r.studentId === studentId ? { ...r, comment } : r)));
+  }, []);
 
   const toggleCommentRow = useCallback((studentId: string) => {
     setExpandedComment((prev) => (prev === studentId ? null : studentId));
@@ -434,8 +401,7 @@ export function MobileAttendanceForm({
         });
         const result: MobileAttendanceSubmitResult = {
           status: 'queued',
-          message:
-            'You are offline — the marking is saved and will sync automatically.',
+          message: 'You are offline — the marking is saved and will sync automatically.',
         };
         setSubmission(result);
         draft.clear();
@@ -443,9 +409,7 @@ export function MobileAttendanceForm({
         setSubmission({
           status: 'error',
           message:
-            error instanceof Error
-              ? error.message
-              : 'Could not queue the operation for replay.',
+            error instanceof Error ? error.message : 'Could not queue the operation for replay.',
         });
       } finally {
         setIsSubmitting(false);
@@ -577,9 +541,7 @@ export function MobileAttendanceForm({
               <opt.Icon className="h-4 w-4" />
             </span>
             <span>{opt.label}</span>
-            <span className="text-base font-semibold tabular-nums">
-              {summary[opt.value]}
-            </span>
+            <span className="text-base font-semibold tabular-nums">{summary[opt.value]}</span>
           </div>
         ))}
       </div>
@@ -669,17 +631,12 @@ export function MobileAttendanceForm({
                 {/* Collapsible comment input — explicit on-screen control,
                     no hover-only affordance (Requirement 41 AC 5). */}
                 {isCommentOpen ? (
-                  <div
-                    id={`mobile-attendance-comment-${row.studentId}`}
-                    className="mt-3"
-                  >
+                  <div id={`mobile-attendance-comment-${row.studentId}`} className="mt-3">
                     <label className="flex flex-col gap-1 text-sm">
                       <span className="font-medium">Comment</span>
                       <Input
                         value={row.comment}
-                        onChange={(event) =>
-                          setRowComment(row.studentId, event.target.value)
-                        }
+                        onChange={(event) => setRowComment(row.studentId, event.target.value)}
                         placeholder="Optional"
                         aria-label={`Comment for ${row.studentName}`}
                         data-testid={`mobile-attendance-comment-input-${row.studentId}`}
@@ -704,8 +661,7 @@ export function MobileAttendanceForm({
             'rounded-md border px-3 py-2 text-sm',
             submission.status === 'success' &&
               'border-emerald-500/40 bg-emerald-500/10 text-emerald-700',
-            submission.status === 'queued' &&
-              'border-amber-500/40 bg-amber-500/10 text-amber-800',
+            submission.status === 'queued' && 'border-amber-500/40 bg-amber-500/10 text-amber-800',
             submission.status === 'error' &&
               'border-[hsl(var(--destructive))]/40 bg-[hsl(var(--destructive))]/10 text-[hsl(var(--destructive))]',
           )}
@@ -727,9 +683,7 @@ export function MobileAttendanceForm({
           data-testid="mobile-attendance-submit"
           className="inline-flex min-h-[48px] w-full items-center justify-center gap-3 rounded-md bg-[hsl(var(--primary))] px-4 text-sm font-semibold text-[hsl(var(--primary-foreground))] transition-colors hover:bg-[hsl(var(--primary))]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
         >
-          {isSubmitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          ) : null}
+          {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
           {isSubmitting ? 'Saving…' : 'Save attendance'}
         </button>
       ) : null}

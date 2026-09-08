@@ -91,10 +91,7 @@ export class InMemoryRolesRepository implements RolesRepository {
     return map.get(id) ?? null;
   }
 
-  async findRoleByName(
-    tenantId: string,
-    name: string,
-  ): Promise<RoleEntity | null> {
+  async findRoleByName(tenantId: string, name: string): Promise<RoleEntity | null> {
     const map = this.ensureTenant(tenantId);
     const lower = name.trim().toLowerCase();
     for (const role of map.values()) {
@@ -103,9 +100,7 @@ export class InMemoryRolesRepository implements RolesRepository {
     return null;
   }
 
-  async createRole(
-    data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>,
-  ): Promise<RoleEntity> {
+  async createRole(data: Omit<RoleEntity, 'createdAt' | 'updatedAt'>): Promise<RoleEntity> {
     const map = this.ensureTenant(data.tenantId);
     const now = new Date();
     const entity: RoleEntity = { ...data, createdAt: now, updatedAt: now };
@@ -116,9 +111,7 @@ export class InMemoryRolesRepository implements RolesRepository {
   async updateRole(
     tenantId: string,
     id: string,
-    data: Partial<
-      Omit<RoleEntity, 'id' | 'tenantId' | 'builtIn' | 'createdAt' | 'updatedAt'>
-    >,
+    data: Partial<Omit<RoleEntity, 'id' | 'tenantId' | 'builtIn' | 'createdAt' | 'updatedAt'>>,
   ): Promise<RoleEntity | null> {
     const map = this.ensureTenant(tenantId);
     const existing = map.get(id);
@@ -167,9 +160,7 @@ export class InMemoryRolesRepository implements RolesRepository {
     if (filter.search && filter.search.trim()) {
       const q = filter.search.trim().toLowerCase();
       rows = rows.filter(
-        (u) =>
-          u.email.toLowerCase().includes(q) ||
-          u.displayName.toLowerCase().includes(q),
+        (u) => u.email.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q),
       );
     }
     if (filter.roleId) {

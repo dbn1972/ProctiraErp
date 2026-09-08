@@ -253,8 +253,8 @@ export default function HealthRecord() {
         <div className="text-5xl">🔒</div>
         <h1 className="text-2xl font-semibold">Access Denied</h1>
         <p className="text-muted-foreground text-center max-w-md">
-          You do not have permission to view health records. Only authorized health
-          personnel and the student&apos;s guardian may access this information.
+          You do not have permission to view health records. Only authorized health personnel and
+          the student&apos;s guardian may access this information.
         </p>
       </div>
     );
@@ -264,9 +264,7 @@ export default function HealthRecord() {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-semibold">Health Records</h1>
-        <p className="text-muted-foreground mt-2">
-          Select a student to view their health records.
-        </p>
+        <p className="text-muted-foreground mt-2">Select a student to view their health records.</p>
       </div>
     );
   }
@@ -317,7 +315,11 @@ export default function HealthRecord() {
 
       {/* Loading state */}
       {loading && (
-        <div role="status" aria-label="Loading health records" className="text-muted-foreground text-sm">
+        <div
+          role="status"
+          aria-label="Loading health records"
+          className="text-muted-foreground text-sm"
+        >
           Loading…
         </div>
       )}
@@ -410,13 +412,17 @@ function AllergiesPanel({ data }: { data: Allergy[] }) {
               <td className="px-4 py-3 font-medium">{a.allergyType}</td>
               <td className="px-4 py-3">{a.description}</td>
               <td className="px-4 py-3">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLES[a.severity] ?? ''}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SEVERITY_STYLES[a.severity] ?? ''}`}
+                >
                   {a.severity}
                 </span>
               </td>
               <td className="px-4 py-3 text-xs">{a.reaction ?? '—'}</td>
               <td className="px-4 py-3 text-xs">{a.treatment ?? '—'}</td>
-              <td className="px-4 py-3 text-xs">{a.diagnosedDate ? formatDate(a.diagnosedDate) : '—'}</td>
+              <td className="px-4 py-3 text-xs">
+                {a.diagnosedDate ? formatDate(a.diagnosedDate) : '—'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -448,11 +454,15 @@ function ConditionsPanel({ data }: { data: Condition[] }) {
               <td className="px-4 py-3 font-medium">{c.conditionName}</td>
               <td className="px-4 py-3 text-xs">{c.conditionType}</td>
               <td className="px-4 py-3">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CONDITION_STATUS_STYLES[c.status] ?? ''}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${CONDITION_STATUS_STYLES[c.status] ?? ''}`}
+                >
                   {c.status}
                 </span>
               </td>
-              <td className="px-4 py-3 text-xs">{c.diagnosedDate ? formatDate(c.diagnosedDate) : '—'}</td>
+              <td className="px-4 py-3 text-xs">
+                {c.diagnosedDate ? formatDate(c.diagnosedDate) : '—'}
+              </td>
               <td className="px-4 py-3 text-xs line-clamp-1">{c.treatment ?? '—'}</td>
               <td className="px-4 py-3 text-xs">{c.medication ?? '—'}</td>
             </tr>
@@ -488,7 +498,9 @@ function VaccinationsPanel({ data }: { data: Vaccination[] }) {
               <td className="px-4 py-3 text-xs">{formatDate(v.dateAdministered)}</td>
               <td className="px-4 py-3 text-xs">{v.administeredBy ?? '—'}</td>
               <td className="px-4 py-3 text-xs">{v.batchNumber ?? '—'}</td>
-              <td className="px-4 py-3 text-xs">{v.nextDueDate ? formatDate(v.nextDueDate) : '—'}</td>
+              <td className="px-4 py-3 text-xs">
+                {v.nextDueDate ? formatDate(v.nextDueDate) : '—'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -519,14 +531,20 @@ function ScreeningsPanel({ data }: { data: ScreeningProgram[] }) {
               <td className="px-4 py-3">
                 <div className="font-medium">{s.name}</div>
                 {s.description && (
-                  <div className="text-muted-foreground text-xs mt-0.5 line-clamp-1">{s.description}</div>
+                  <div className="text-muted-foreground text-xs mt-0.5 line-clamp-1">
+                    {s.description}
+                  </div>
                 )}
               </td>
               <td className="px-4 py-3 text-xs">{s.gradeLevel}</td>
               <td className="px-4 py-3 text-xs">{s.assessmentTypes.join(', ')}</td>
-              <td className="px-4 py-3 text-xs">{s.scheduledDate ? formatDate(s.scheduledDate) : '—'}</td>
+              <td className="px-4 py-3 text-xs">
+                {s.scheduledDate ? formatDate(s.scheduledDate) : '—'}
+              </td>
               <td className="px-4 py-3">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SCREENING_STATUS_STYLES[s.status] ?? ''}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${SCREENING_STATUS_STYLES[s.status] ?? ''}`}
+                >
                   {s.status}
                 </span>
               </td>
@@ -563,11 +581,15 @@ function ReferralsPanel({ data }: { data: Referral[] }) {
               <td className="px-4 py-3 text-xs">{r.referredTo}</td>
               <td className="px-4 py-3 text-xs line-clamp-1">{r.reason}</td>
               <td className="px-4 py-3">
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${REFERRAL_STATUS_STYLES[r.status] ?? ''}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${REFERRAL_STATUS_STYLES[r.status] ?? ''}`}
+                >
                   {r.status}
                 </span>
               </td>
-              <td className="px-4 py-3 text-xs">{r.appointmentDate ? formatDate(r.appointmentDate) : '—'}</td>
+              <td className="px-4 py-3 text-xs">
+                {r.appointmentDate ? formatDate(r.appointmentDate) : '—'}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -577,7 +599,5 @@ function ReferralsPanel({ data }: { data: Referral[] }) {
 }
 
 function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="text-center py-12 text-muted-foreground text-sm">{message}</div>
-  );
+  return <div className="text-center py-12 text-muted-foreground text-sm">{message}</div>;
 }

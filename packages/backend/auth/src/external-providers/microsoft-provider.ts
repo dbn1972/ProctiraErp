@@ -38,7 +38,9 @@ export interface MicrosoftProviderOptions {
 /**
  * Extract user profile from Microsoft Graph /me response.
  */
-export const extractMicrosoftUserInfo: UserInfoExtractor = (data: Record<string, unknown>): ExternalUserProfile => {
+export const extractMicrosoftUserInfo: UserInfoExtractor = (
+  data: Record<string, unknown>,
+): ExternalUserProfile => {
   const id = data['id'] as string | undefined;
   const mail = data['mail'] as string | undefined;
   const userPrincipalName = data['userPrincipalName'] as string | undefined;
@@ -49,7 +51,9 @@ export const extractMicrosoftUserInfo: UserInfoExtractor = (data: Record<string,
   const email = mail ?? userPrincipalName;
 
   if (!id || !email) {
-    throw new Error('Microsoft userinfo response missing required fields (id, mail/userPrincipalName)');
+    throw new Error(
+      'Microsoft userinfo response missing required fields (id, mail/userPrincipalName)',
+    );
   }
 
   return {

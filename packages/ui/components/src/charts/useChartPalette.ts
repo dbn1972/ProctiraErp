@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * useChartPalette — Read the active theme's chart tokens from CSS custom
@@ -108,9 +108,7 @@ function isBrowser(): boolean {
 function readToken(name: ChartTokenName, fallback: string): string {
   if (!isBrowser()) return fallback;
   try {
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return value.length > 0 ? value : fallback;
   } catch {
     return fallback;
@@ -127,9 +125,7 @@ function readToken(name: ChartTokenName, fallback: string): string {
 function readCssVar(name: string, fallback: string): string {
   if (!isBrowser()) return fallback;
   try {
-    const value = getComputedStyle(document.documentElement)
-      .getPropertyValue(name)
-      .trim();
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     return value.length > 0 ? value : fallback;
   } catch {
     return fallback;

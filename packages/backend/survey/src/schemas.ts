@@ -68,14 +68,16 @@ export type DropdownOption = Static<typeof DropdownOptionSchema>;
 
 export const TableColumnSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Column name' }),
-  type: Type.Union([
-    Type.Literal('text'),
-    Type.Literal('number'),
-    Type.Literal('date'),
-    Type.Literal('dropdown'),
-  ], { description: 'Column data type' }),
-  required: Type.Optional(Type.Boolean({ default: false, description: 'Whether column is required' })),
-  options: Type.Optional(Type.Array(DropdownOptionSchema, { description: 'Options for dropdown columns' })),
+  type: Type.Union(
+    [Type.Literal('text'), Type.Literal('number'), Type.Literal('date'), Type.Literal('dropdown')],
+    { description: 'Column data type' },
+  ),
+  required: Type.Optional(
+    Type.Boolean({ default: false, description: 'Whether column is required' }),
+  ),
+  options: Type.Optional(
+    Type.Array(DropdownOptionSchema, { description: 'Options for dropdown columns' }),
+  ),
 });
 
 export type TableColumn = Static<typeof TableColumnSchema>;
@@ -89,32 +91,45 @@ export type TableColumn = Static<typeof TableColumnSchema>;
 export const QuestionSchema = Type.Object({
   label: Type.String({ minLength: 1, maxLength: 500, description: 'Question label/text' }),
   type: QuestionTypeEnum,
-  required: Type.Optional(Type.Boolean({ default: false, description: 'Whether the question is required' })),
+  required: Type.Optional(
+    Type.Boolean({ default: false, description: 'Whether the question is required' }),
+  ),
   order: Type.Number({ minimum: 0, description: 'Display order of the question' }),
-  options: Type.Optional(Type.Array(DropdownOptionSchema, {
-    description: 'Options for dropdown/checkbox questions',
-  })),
-  columns: Type.Optional(Type.Array(TableColumnSchema, {
-    description: 'Column definitions for table questions',
-  })),
-  repeaterFields: Type.Optional(Type.Array(Type.Object({
-    label: Type.String({ minLength: 1, maxLength: 255 }),
-    type: Type.Union([
-      Type.Literal('text'),
-      Type.Literal('number'),
-      Type.Literal('date'),
-      Type.Literal('dropdown'),
-    ]),
-    required: Type.Optional(Type.Boolean({ default: false })),
-    options: Type.Optional(Type.Array(DropdownOptionSchema)),
-  }), { description: 'Field definitions for repeater questions' })),
-  validation: Type.Optional(Type.Object({
-    min: Type.Optional(Type.Number({ description: 'Minimum value for number questions' })),
-    max: Type.Optional(Type.Number({ description: 'Maximum value for number questions' })),
-    minLength: Type.Optional(Type.Number({ description: 'Minimum length for text questions' })),
-    maxLength: Type.Optional(Type.Number({ description: 'Maximum length for text questions' })),
-    pattern: Type.Optional(Type.String({ description: 'Regex pattern for text questions' })),
-  })),
+  options: Type.Optional(
+    Type.Array(DropdownOptionSchema, {
+      description: 'Options for dropdown/checkbox questions',
+    }),
+  ),
+  columns: Type.Optional(
+    Type.Array(TableColumnSchema, {
+      description: 'Column definitions for table questions',
+    }),
+  ),
+  repeaterFields: Type.Optional(
+    Type.Array(
+      Type.Object({
+        label: Type.String({ minLength: 1, maxLength: 255 }),
+        type: Type.Union([
+          Type.Literal('text'),
+          Type.Literal('number'),
+          Type.Literal('date'),
+          Type.Literal('dropdown'),
+        ]),
+        required: Type.Optional(Type.Boolean({ default: false })),
+        options: Type.Optional(Type.Array(DropdownOptionSchema)),
+      }),
+      { description: 'Field definitions for repeater questions' },
+    ),
+  ),
+  validation: Type.Optional(
+    Type.Object({
+      min: Type.Optional(Type.Number({ description: 'Minimum value for number questions' })),
+      max: Type.Optional(Type.Number({ description: 'Maximum value for number questions' })),
+      minLength: Type.Optional(Type.Number({ description: 'Minimum length for text questions' })),
+      maxLength: Type.Optional(Type.Number({ description: 'Maximum length for text questions' })),
+      pattern: Type.Optional(Type.String({ description: 'Regex pattern for text questions' })),
+    }),
+  ),
 });
 
 export type QuestionInput = Static<typeof QuestionSchema>;
@@ -128,7 +143,9 @@ export type QuestionInput = Static<typeof QuestionSchema>;
 export const CreateSurveySchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Survey name' }),
   description: Type.Optional(Type.String({ maxLength: 2000, description: 'Survey description' })),
-  academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' })),
+  academicPeriodId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
+  ),
   startDate: Type.Optional(Type.String({ description: 'Survey start date (ISO 8601)' })),
   endDate: Type.Optional(Type.String({ description: 'Survey end date (ISO 8601)' })),
   questions: Type.Array(QuestionSchema, {
@@ -144,14 +161,18 @@ export type CreateSurveyInput = Static<typeof CreateSurveySchema>;
 export const UpdateSurveySchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Survey name' })),
   description: Type.Optional(Type.String({ maxLength: 2000, description: 'Survey description' })),
-  academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' })),
+  academicPeriodId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Academic period UUID' }),
+  ),
   startDate: Type.Optional(Type.String({ description: 'Survey start date (ISO 8601)' })),
   endDate: Type.Optional(Type.String({ description: 'Survey end date (ISO 8601)' })),
   status: Type.Optional(SurveyStatusEnum),
-  questions: Type.Optional(Type.Array(QuestionSchema, {
-    minItems: 1,
-    description: 'Survey questions',
-  })),
+  questions: Type.Optional(
+    Type.Array(QuestionSchema, {
+      minItems: 1,
+      description: 'Survey questions',
+    }),
+  ),
 });
 
 export type UpdateSurveyInput = Static<typeof UpdateSurveySchema>;
@@ -167,8 +188,12 @@ export type SurveyParams = Static<typeof SurveyParamsSchema>;
 // ─── Survey List Query Schema ────────────────────────────────────────────────
 
 export const SurveyListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   status: Type.Optional(SurveyStatusEnum),
   search: Type.Optional(Type.String({ description: 'Search by name' })),
 });
@@ -185,19 +210,25 @@ export const QuestionResponseSchema = Type.Object({
   order: Type.Number(),
   options: Type.Optional(Type.Array(DropdownOptionSchema)),
   columns: Type.Optional(Type.Array(TableColumnSchema)),
-  repeaterFields: Type.Optional(Type.Array(Type.Object({
-    label: Type.String(),
-    type: Type.String(),
-    required: Type.Boolean(),
-    options: Type.Optional(Type.Array(DropdownOptionSchema)),
-  }))),
-  validation: Type.Optional(Type.Object({
-    min: Type.Optional(Type.Number()),
-    max: Type.Optional(Type.Number()),
-    minLength: Type.Optional(Type.Number()),
-    maxLength: Type.Optional(Type.Number()),
-    pattern: Type.Optional(Type.String()),
-  })),
+  repeaterFields: Type.Optional(
+    Type.Array(
+      Type.Object({
+        label: Type.String(),
+        type: Type.String(),
+        required: Type.Boolean(),
+        options: Type.Optional(Type.Array(DropdownOptionSchema)),
+      }),
+    ),
+  ),
+  validation: Type.Optional(
+    Type.Object({
+      min: Type.Optional(Type.Number()),
+      max: Type.Optional(Type.Number()),
+      minLength: Type.Optional(Type.Number()),
+      maxLength: Type.Optional(Type.Number()),
+      pattern: Type.Optional(Type.String()),
+    }),
+  ),
 });
 
 export const SurveyResponseSchema = Type.Object({
@@ -225,20 +256,28 @@ export type SurveyResponse = Static<typeof SurveyResponseSchema>;
 export const DistributeSurveySchema = Type.Object({
   surveyId: Type.String({ pattern: UUID_PATTERN, description: 'Survey UUID to distribute' }),
   filters: Type.Object({
-    areaIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), {
-      description: 'Filter by area IDs',
-    })),
-    institutionTypeIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), {
-      description: 'Filter by institution type IDs',
-    })),
-    classificationIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), {
-      description: 'Filter by classification IDs',
-    })),
+    areaIds: Type.Optional(
+      Type.Array(Type.String({ pattern: UUID_PATTERN }), {
+        description: 'Filter by area IDs',
+      }),
+    ),
+    institutionTypeIds: Type.Optional(
+      Type.Array(Type.String({ pattern: UUID_PATTERN }), {
+        description: 'Filter by institution type IDs',
+      }),
+    ),
+    classificationIds: Type.Optional(
+      Type.Array(Type.String({ pattern: UUID_PATTERN }), {
+        description: 'Filter by classification IDs',
+      }),
+    ),
   }),
   dueDate: Type.Optional(Type.String({ description: 'Due date for completion (ISO 8601)' })),
-  reminderDays: Type.Optional(Type.Array(Type.Number({ minimum: 1 }), {
-    description: 'Days before due date to send reminders',
-  })),
+  reminderDays: Type.Optional(
+    Type.Array(Type.Number({ minimum: 1 }), {
+      description: 'Days before due date to send reminders',
+    }),
+  ),
 });
 
 export type DistributeSurveyInput = Static<typeof DistributeSurveySchema>;
@@ -251,11 +290,17 @@ export type DistributeSurveyInput = Static<typeof DistributeSurveySchema>;
  */
 export const SubmitSurveySchema = Type.Object({
   surveyId: Type.String({ pattern: UUID_PATTERN, description: 'Survey UUID' }),
-  institutionId: Type.String({ pattern: UUID_PATTERN, description: 'Institution UUID submitting the response' }),
-  answers: Type.Array(Type.Object({
-    questionId: Type.String({ pattern: UUID_PATTERN, description: 'Question UUID' }),
-    value: Type.Unknown({ description: 'Answer value (type depends on question type)' }),
-  }), { description: 'Array of question answers' }),
+  institutionId: Type.String({
+    pattern: UUID_PATTERN,
+    description: 'Institution UUID submitting the response',
+  }),
+  answers: Type.Array(
+    Type.Object({
+      questionId: Type.String({ pattern: UUID_PATTERN, description: 'Question UUID' }),
+      value: Type.Unknown({ description: 'Answer value (type depends on question type)' }),
+    }),
+    { description: 'Array of question answers' },
+  ),
 });
 
 export type SubmitSurveyInput = Static<typeof SubmitSurveySchema>;
@@ -284,9 +329,11 @@ export type DistributionRecordResponse = Static<typeof DistributionRecordRespons
 
 export const SendReminderSchema = Type.Object({
   surveyId: Type.String({ pattern: UUID_PATTERN, description: 'Survey UUID' }),
-  institutionIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), {
-    description: 'Specific institution IDs to remind (all incomplete if omitted)',
-  })),
+  institutionIds: Type.Optional(
+    Type.Array(Type.String({ pattern: UUID_PATTERN }), {
+      description: 'Specific institution IDs to remind (all incomplete if omitted)',
+    }),
+  ),
 });
 
 export type SendReminderInput = Static<typeof SendReminderSchema>;
@@ -299,10 +346,11 @@ export type SendReminderInput = Static<typeof SendReminderSchema>;
  */
 export const AggregateResponsesQuerySchema = Type.Object({
   surveyId: Type.String({ pattern: UUID_PATTERN, description: 'Survey UUID' }),
-  groupBy: Type.Optional(Type.Union([
-    Type.Literal('area'),
-    Type.Literal('institution_type'),
-  ], { description: 'Cross-tabulation dimension' })),
+  groupBy: Type.Optional(
+    Type.Union([Type.Literal('area'), Type.Literal('institution_type')], {
+      description: 'Cross-tabulation dimension',
+    }),
+  ),
 });
 
 export type AggregateResponsesQuery = Static<typeof AggregateResponsesQuerySchema>;
@@ -315,19 +363,25 @@ export const AggregatedResponseSchema = Type.Object({
   totalDistributed: Type.Number(),
   totalCompleted: Type.Number(),
   completionRate: Type.Number(),
-  questionSummaries: Type.Array(Type.Object({
-    questionId: Type.String(),
-    questionLabel: Type.String(),
-    questionType: QuestionTypeEnum,
-    summary: Type.Unknown({ description: 'Aggregated data (varies by question type)' }),
-  })),
-  crossTabulation: Type.Optional(Type.Array(Type.Object({
-    groupKey: Type.String(),
-    groupLabel: Type.String(),
-    totalDistributed: Type.Number(),
-    totalCompleted: Type.Number(),
-    completionRate: Type.Number(),
-  }))),
+  questionSummaries: Type.Array(
+    Type.Object({
+      questionId: Type.String(),
+      questionLabel: Type.String(),
+      questionType: QuestionTypeEnum,
+      summary: Type.Unknown({ description: 'Aggregated data (varies by question type)' }),
+    }),
+  ),
+  crossTabulation: Type.Optional(
+    Type.Array(
+      Type.Object({
+        groupKey: Type.String(),
+        groupLabel: Type.String(),
+        totalDistributed: Type.Number(),
+        totalCompleted: Type.Number(),
+        completionRate: Type.Number(),
+      }),
+    ),
+  ),
 });
 
 export type AggregatedResponse = Static<typeof AggregatedResponseSchema>;

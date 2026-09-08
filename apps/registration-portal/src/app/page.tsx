@@ -61,16 +61,16 @@ function Hero() {
                 {t('applyCta')}
                 <ArrowRight className="h-5 w-5" aria-hidden="true" />
               </Link>
-              <Link
-                href="/track"
-                className="btn-secondary h-12 px-6 text-base font-semibold"
-              >
+              <Link href="/track" className="btn-secondary h-12 px-6 text-base font-semibold">
                 {t('trackCta')}
               </Link>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3">
               {[t('step1Desc'), t('step3Desc'), t('step4Desc')].map((label) => (
-                <span key={label} className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                <span
+                  key={label}
+                  className="flex items-center gap-2 text-sm font-medium text-gray-600"
+                >
                   <CheckCircle2 className="h-4 w-4 text-accent-600" aria-hidden="true" />
                   {label}
                 </span>
@@ -126,7 +126,9 @@ function FeatureRow({
     <div
       className={`flex items-center gap-3 py-3 ${last ? '' : 'border-b border-dashed border-gray-200'}`}
     >
-      <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${toneClass}`}>
+      <span
+        className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg ${toneClass}`}
+      >
         {icon}
       </span>
       <div className="min-w-0">
@@ -165,7 +167,12 @@ function HowItWorks() {
     { n: 1, title: t('step1Title'), desc: t('step1Desc'), icon: <Search className="h-6 w-6" /> },
     { n: 2, title: t('step2Title'), desc: t('step2Desc'), icon: <FileText className="h-6 w-6" /> },
     { n: 3, title: t('step3Title'), desc: t('step3Desc'), icon: <Upload className="h-6 w-6" /> },
-    { n: 4, title: t('step4Title'), desc: t('step4Desc'), icon: <CheckCircle2 className="h-6 w-6" /> },
+    {
+      n: 4,
+      title: t('step4Title'),
+      desc: t('step4Desc'),
+      icon: <CheckCircle2 className="h-6 w-6" />,
+    },
   ];
 
   return (

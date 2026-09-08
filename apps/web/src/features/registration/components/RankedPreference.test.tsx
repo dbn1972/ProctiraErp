@@ -19,10 +19,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
-import {
-  RankedPreference,
-  MAX_RANKED_PREFERENCES,
-} from './RankedPreference';
+import { RankedPreference, MAX_RANKED_PREFERENCES } from './RankedPreference';
 import type { SchoolPreference } from '../schemas';
 
 const A: SchoolPreference = { schoolId: 'a', schoolName: 'Alpha High', rank: 1 };
@@ -37,15 +34,9 @@ describe('<RankedPreference>', () => {
   });
 
   it('renders one row per preference in array order', () => {
-    render(
-      <RankedPreference preferences={[A, B, C]} onChange={() => undefined} />,
-    );
+    render(<RankedPreference preferences={[A, B, C]} onChange={() => undefined} />);
     const rows = screen.getAllByRole('listitem');
-    expect(rows.map((row) => row.getAttribute('data-rank'))).toEqual([
-      '1',
-      '2',
-      '3',
-    ]);
+    expect(rows.map((row) => row.getAttribute('data-rank'))).toEqual(['1', '2', '3']);
     expect(screen.getByText('Alpha High')).toBeTruthy();
     expect(screen.getByText('Beta High')).toBeTruthy();
     expect(screen.getByText('Gamma High')).toBeTruthy();
@@ -73,9 +64,7 @@ describe('<RankedPreference>', () => {
 
   it('removes a preference and re-derives ranks so the gap closes', () => {
     const onChange = vi.fn();
-    render(
-      <RankedPreference preferences={[A, B, C]} onChange={onChange} />,
-    );
+    render(<RankedPreference preferences={[A, B, C]} onChange={onChange} />);
     fireEvent.click(screen.getByTestId('remove-b'));
     expect(onChange).toHaveBeenCalledTimes(1);
     const next = onChange.mock.calls[0]![0] as SchoolPreference[];
@@ -86,13 +75,7 @@ describe('<RankedPreference>', () => {
   });
 
   it('respects the disabled flag on drag handle and remove button', () => {
-    render(
-      <RankedPreference
-        preferences={[A, B]}
-        onChange={() => undefined}
-        disabled
-      />,
-    );
+    render(<RankedPreference preferences={[A, B]} onChange={() => undefined} disabled />);
     const handle = screen.getByTestId('drag-handle-a') as HTMLButtonElement;
     const removeButton = screen.getByTestId('remove-a') as HTMLButtonElement;
     expect(handle.disabled).toBe(true);
@@ -100,9 +83,7 @@ describe('<RankedPreference>', () => {
   });
 
   it('exposes a polite live region for screen-reader announcements', () => {
-    render(
-      <RankedPreference preferences={[A, B, C]} onChange={() => undefined} />,
-    );
+    render(<RankedPreference preferences={[A, B, C]} onChange={() => undefined} />);
     const live = screen.getByTestId('ranked-preference-live-region');
     expect(live.getAttribute('aria-live')).toBe('polite');
     expect(live.getAttribute('role')).toBe('status');
@@ -110,9 +91,9 @@ describe('<RankedPreference>', () => {
 
   it('announces removals through the live region', () => {
     function Wrapper() {
-      const [items, setItems] = (
-        require('react') as typeof import('react')
-      ).useState<SchoolPreference[]>([A, B, C]);
+      const [items, setItems] = (require('react') as typeof import('react')).useState<
+        SchoolPreference[]
+      >([A, B, C]);
       return <RankedPreference preferences={items} onChange={setItems} />;
     }
     render(<Wrapper />);
@@ -127,9 +108,9 @@ describe('<RankedPreference>', () => {
 
   it('reorders preferences via the keyboard sensor (Space + ArrowDown + Space)', () => {
     function Wrapper() {
-      const [items, setItems] = (
-        require('react') as typeof import('react')
-      ).useState<SchoolPreference[]>([A, B, C]);
+      const [items, setItems] = (require('react') as typeof import('react')).useState<
+        SchoolPreference[]
+      >([A, B, C]);
       return <RankedPreference preferences={items} onChange={setItems} />;
     }
     render(<Wrapper />);

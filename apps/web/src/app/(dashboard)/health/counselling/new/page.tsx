@@ -7,13 +7,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
-import {
-  Button,
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@proctira/ui/components';
+import { Button, Card, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { canAccessHealthRecords } from '@/lib/api/health';
 
@@ -54,8 +48,8 @@ export default async function NewCounsellingSessionPage() {
           Schedule counselling session
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Create a confidential session record. Writes go to the health counselling API when
-          the gateway is available.
+          Create a confidential session record. Writes go to the health counselling API when the
+          gateway is available.
         </p>
       </div>
 

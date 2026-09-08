@@ -92,10 +92,7 @@ export interface ReportCardData {
  * Interface for PDF generation (allows swapping implementations).
  */
 export interface PdfGenerator {
-  generateReportCardPdf(
-    templateContent: string,
-    data: ReportCardData,
-  ): Promise<Buffer>;
+  generateReportCardPdf(templateContent: string, data: ReportCardData): Promise<Buffer>;
 }
 
 /** Optional collaborators for the report-card service (G-716). */
@@ -423,10 +420,7 @@ export class ReportCardService {
    *
    * Requirement 8.7: Full report card generation.
    */
-  async processReportCardJob(
-    tenantId: string,
-    jobId: string,
-  ): Promise<ReportCardJobEntity> {
+  async processReportCardJob(tenantId: string, jobId: string): Promise<ReportCardJobEntity> {
     const job = await this.jobRepo.findById(jobId, tenantId);
     if (!job) {
       throw new NotFoundError(`Report card job with id '${jobId}' not found`);
@@ -454,7 +448,11 @@ export class ReportCardService {
 
       // Get teacher comments
       const comments = template.includeComments
-        ? await this.commentRepo.findByStudentAndPeriod(tenantId, job.studentId, job.academicPeriodId)
+        ? await this.commentRepo.findByStudentAndPeriod(
+            tenantId,
+            job.studentId,
+            job.academicPeriodId,
+          )
         : [];
 
       // Build comment map (subjectId -> comment)
@@ -533,7 +531,8 @@ export class ReportCardService {
       return completedJob!;
     } catch (error: unknown) {
       // Mark as failed
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error during PDF generation';
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error during PDF generation';
       const failedJob = await this.jobRepo.updateStatus(jobId, tenantId, 'failed', {
         errorMessage,
       });
@@ -597,7 +596,12 @@ export class ReportCardService {
     for (const subjectId of subjectIds) {
       try {
         results.push(
-          await this.resultService.calculateStudentGrade(tenantId, studentId, subjectId, academicPeriodId),
+          await this.resultService.calculateStudentGrade(
+            tenantId,
+            studentId,
+            subjectId,
+            academicPeriodId,
+          ),
         );
       } catch (error) {
         // A subject whose assessment items or grading scheme were removed

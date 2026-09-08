@@ -22,9 +22,7 @@ import { mockForgotPassword } from './helpers';
 import { runAxe } from '../helpers/axe';
 
 test.describe('auth — forgot password (non-disclosing)', () => {
-  test('shows the same confirmation for any submitted email', async ({
-    page,
-  }) => {
+  test('shows the same confirmation for any submitted email', async ({ page }) => {
     await mockForgotPassword(page);
 
     await page.goto('/forgot-password');
@@ -38,9 +36,7 @@ test.describe('auth — forgot password (non-disclosing)', () => {
     // and includes the submitted address, never confirming whether it
     // is registered.
     await expect(page.getByText(/check your email/i)).toBeVisible();
-    await expect(
-      page.getByText(/we sent a reset link to user@example\.org/i),
-    ).toBeVisible();
+    await expect(page.getByText(/we sent a reset link to user@example\.org/i)).toBeVisible();
   });
 
   test('unknown email yields the same confirmation copy', async ({ page }) => {

@@ -14,10 +14,10 @@ import { cn } from '@/lib/utils';
 type StaffType = 'ALL' | 'TEACHING' | 'NON_TEACHING' | 'ON_LEAVE';
 
 const TABS: { value: StaffType; label: string }[] = [
-  { value: 'ALL',          label: 'All' },
-  { value: 'TEACHING',     label: 'Teaching' },
+  { value: 'ALL', label: 'All' },
+  { value: 'TEACHING', label: 'Teaching' },
   { value: 'NON_TEACHING', label: 'Non-teaching' },
-  { value: 'ON_LEAVE',     label: 'On leave' },
+  { value: 'ON_LEAVE', label: 'On leave' },
 ];
 
 interface StaffTypeTabsProps {
@@ -26,7 +26,7 @@ interface StaffTypeTabsProps {
 }
 
 export function StaffTypeTabs({ activeType, counts }: StaffTypeTabsProps) {
-  const router       = useRouter();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const navigateTo = useCallback(
@@ -51,7 +51,7 @@ export function StaffTypeTabs({ activeType, counts }: StaffTypeTabsProps) {
     >
       {TABS.map((tab) => {
         const isActive = tab.value === activeType;
-        const count    = counts?.[tab.value];
+        const count = counts?.[tab.value];
         return (
           <button
             key={tab.value}
@@ -71,9 +71,7 @@ export function StaffTypeTabs({ activeType, counts }: StaffTypeTabsProps) {
               <span
                 className={cn(
                   'rounded-full px-1.5 py-0.5 text-[11px] font-semibold leading-none tabular-nums',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'bg-muted text-muted-foreground',
+                  isActive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground',
                 )}
               >
                 {count.toLocaleString()}

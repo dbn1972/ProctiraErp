@@ -28,9 +28,9 @@ describe('validateAdminAccount', () => {
       validateAdminAccount({ ...valid, password: 'longenough', confirmPassword: 'longenough' })
         ?.password,
     ).toMatch(/letter and one number/i);
-    expect(
-      validateAdminAccount({ ...valid, confirmPassword: 'other' })?.confirmPassword,
-    ).toMatch(/match/i);
+    expect(validateAdminAccount({ ...valid, confirmPassword: 'other' })?.confirmPassword).toMatch(
+      /match/i,
+    );
   });
 
   it('rejects invalid tenant slug', () => {

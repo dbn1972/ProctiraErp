@@ -15,8 +15,7 @@ import { loginAsTenantAdmin } from './fixtures/auth';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
-const SCHEME_ID =
-  process.env.E2E_GRADING_SCHEME_ID ?? '44444444-4444-4444-8444-444444444444';
+const SCHEME_ID = process.env.E2E_GRADING_SCHEME_ID ?? '44444444-4444-4444-8444-444444444444';
 
 const ASSESSMENT_ROUTES: { id: string; path: string; heading?: RegExp }[] = [
   { id: 'schemes-list', path: '/assessments', heading: /assessment/i },

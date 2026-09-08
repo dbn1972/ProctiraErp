@@ -98,11 +98,7 @@ export async function registerRolesRoutes(
   fastify: FastifyInstance,
   options: RolesRoutesOptions,
 ): Promise<void> {
-  const {
-    rolesService,
-    prefix = '/tenant',
-    getTenantId = defaultTenantIdResolver,
-  } = options;
+  const { rolesService, prefix = '/tenant', getTenantId = defaultTenantIdResolver } = options;
 
   // GET /tenant/roles -----------------------------------------------------
 
@@ -136,10 +132,7 @@ export async function registerRolesRoutes(
 
   fastify.post(
     `${prefix}/roles`,
-    async (
-      request: FastifyRequest<{ Body: CreateRoleInput }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Body: CreateRoleInput }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -170,10 +163,7 @@ export async function registerRolesRoutes(
 
   fastify.get(
     `${prefix}/roles/:id`,
-    async (
-      request: FastifyRequest<{ Params: RoleParams }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: RoleParams }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -287,10 +277,7 @@ export async function registerRolesRoutes(
 
   fastify.delete(
     `${prefix}/roles/:id`,
-    async (
-      request: FastifyRequest<{ Params: RoleParams }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Params: RoleParams }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -317,10 +304,7 @@ export async function registerRolesRoutes(
 
   fastify.get(
     `${prefix}/users`,
-    async (
-      request: FastifyRequest<{ Querystring: ListUsersQuery }>,
-      reply: FastifyReply,
-    ) => {
+    async (request: FastifyRequest<{ Querystring: ListUsersQuery }>, reply: FastifyReply) => {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
 
@@ -418,9 +402,7 @@ function handleError(error: unknown, reply: FastifyReply): FastifyReply {
       code: error.code,
       message: error.message,
       statusCode: error.statusCode,
-      ...('errors' in error
-        ? { errors: (error as { errors: unknown }).errors }
-        : {}),
+      ...('errors' in error ? { errors: (error as { errors: unknown }).errors } : {}),
     });
   }
   throw error as Error;

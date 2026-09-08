@@ -6,19 +6,19 @@
 
 ## Inventory
 
-| Screen | Route | Role | Auth | Notes |
-| --- | --- | --- | --- | --- |
-| Institutions · Schedule | `/institutions/[id]/schedule` | Registrar | Login | Sections list + create + publish |
-| Section roster | `/institutions/[id]/schedule/[sectionId]` | Registrar | Login | Enroll/withdraw |
-| Attendance · published periods | `/attendance?institutionId=` | Clerk | Login | Read-only meeting slots |
+| Screen                         | Route                                     | Role      | Auth  | Notes                            |
+| ------------------------------ | ----------------------------------------- | --------- | ----- | -------------------------------- |
+| Institutions · Schedule        | `/institutions/[id]/schedule`             | Registrar | Login | Sections list + create + publish |
+| Section roster                 | `/institutions/[id]/schedule/[sectionId]` | Registrar | Login | Enroll/withdraw                  |
+| Attendance · published periods | `/attendance?institutionId=`              | Clerk     | Login | Read-only meeting slots          |
 
 ## Automated
 
-| Suite | Spec | Gate |
-| --- | --- | --- |
-| Ungated inventory → /login | `e2e/23-master-schedule-inventory-smoke.spec.ts` | Always |
-| Authenticated inventory | same file | `E2E_BACKEND_READY=1` |
-| Domain conflict engine | `@proctira/backend-timetable` vitest | Always |
+| Suite                      | Spec                                             | Gate                  |
+| -------------------------- | ------------------------------------------------ | --------------------- |
+| Ungated inventory → /login | `e2e/23-master-schedule-inventory-smoke.spec.ts` | Always                |
+| Authenticated inventory    | same file                                        | `E2E_BACKEND_READY=1` |
+| Domain conflict engine     | `@proctira/backend-timetable` vitest             | Always                |
 
 ## Unit results (this agent)
 
@@ -31,12 +31,12 @@ Tests       20 passed (20)
 
 Applied `db/seeds/004_sis_master_schedule_demo.sql`:
 
-| Entity | Count |
-| --- | --- |
-| Rooms (seed marker) | 3 |
-| Sections | 2 (1 PUBLISHED, 1 DRAFT) |
-| Meetings | 3 |
-| Enrollments | 3 |
+| Entity              | Count                    |
+| ------------------- | ------------------------ |
+| Rooms (seed marker) | 3                        |
+| Sections            | 2 (1 PUBLISHED, 1 DRAFT) |
+| Meetings            | 3                        |
+| Enrollments         | 3                        |
 
 ## Residuals
 

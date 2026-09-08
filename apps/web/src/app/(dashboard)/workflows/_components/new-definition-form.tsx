@@ -7,14 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 
-import {
-  Button,
-  Card,
-  CardContent,
-  FormField,
-  Input,
-  Textarea,
-} from '@proctira/ui/components';
+import { Button, Card, CardContent, FormField, Input, Textarea } from '@proctira/ui/components';
 
 import { createWorkflowDefinitionAction } from '../actions';
 
@@ -64,9 +57,7 @@ export function NewDefinitionForm() {
         return;
       }
       router.push(
-        result.definitionId
-          ? `/workflows/definitions/${result.definitionId}`
-          : '/workflows',
+        result.definitionId ? `/workflows/definitions/${result.definitionId}` : '/workflows',
       );
       router.refresh();
     });
@@ -92,12 +83,7 @@ export function NewDefinitionForm() {
             />
           </FormField>
           <FormField id="wf-module" label="Module" required>
-            <Input
-              id="wf-module"
-              name="module"
-              placeholder="student"
-              disabled={pending}
-            />
+            <Input id="wf-module" name="module" placeholder="student" disabled={pending} />
           </FormField>
           <FormField
             id="wf-steps"
@@ -115,7 +101,11 @@ export function NewDefinitionForm() {
           </FormField>
 
           {error ? (
-            <p className="text-sm text-destructive" role="alert" data-testid="workflow-definition-error">
+            <p
+              className="text-sm text-destructive"
+              role="alert"
+              data-testid="workflow-definition-error"
+            >
               {error}
             </p>
           ) : null}

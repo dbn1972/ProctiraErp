@@ -19,9 +19,7 @@ import type {
 /**
  * Result of validating a custom field value.
  */
-export type CustomFieldValidationResult =
-  | { valid: true }
-  | { valid: false; errors: FieldError[] };
+export type CustomFieldValidationResult = { valid: true } | { valid: false; errors: FieldError[] };
 
 /**
  * Validates a value against a custom field definition's type and rules.
@@ -54,7 +52,13 @@ export function validateCustomFieldValue(
   }
 
   // Type-specific validation
-  const typeErrors = validateByType(definition.fieldType, value, fieldPath, definition.label, rules);
+  const typeErrors = validateByType(
+    definition.fieldType,
+    value,
+    fieldPath,
+    definition.label,
+    rules,
+  );
   errors.push(...typeErrors);
 
   if (errors.length > 0) {
@@ -90,11 +94,13 @@ function validateByType(
     case 'file':
       return validateFile(value, fieldPath, label, rules);
     default:
-      return [{
-        field: fieldPath,
-        message: `${label} has unsupported field type`,
-        rule: 'type',
-      }];
+      return [
+        {
+          field: fieldPath,
+          message: `${label} has unsupported field type`,
+          rule: 'type',
+        },
+      ];
   }
 }
 
@@ -194,11 +200,7 @@ function validateNumber(
 /**
  * Validates date field values (ISO 8601 date string).
  */
-function validateDate(
-  value: unknown,
-  fieldPath: string,
-  label: string,
-): FieldError[] {
+function validateDate(value: unknown, fieldPath: string, label: string): FieldError[] {
   const errors: FieldError[] = [];
 
   if (typeof value !== 'string') {
@@ -269,11 +271,7 @@ function validateDropdown(
 /**
  * Validates checkbox field values (must be boolean).
  */
-function validateCheckbox(
-  value: unknown,
-  fieldPath: string,
-  label: string,
-): FieldError[] {
+function validateCheckbox(value: unknown, fieldPath: string, label: string): FieldError[] {
   const errors: FieldError[] = [];
 
   if (typeof value !== 'boolean') {

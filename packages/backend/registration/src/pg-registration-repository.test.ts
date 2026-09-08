@@ -64,7 +64,9 @@ describe('PgRegistrationRepository pipeline persist', () => {
         guardianPhone: '+911234567890',
         guardianEmail: null,
         customFields: [],
-        documents: [{ fileName: 'id.pdf', fileType: 'application/pdf', fileSize: 1024, documentType: 'id' }],
+        documents: [
+          { fileName: 'id.pdf', fileType: 'application/pdf', fileSize: 1024, documentType: 'id' },
+        ],
         preferredLanguage: 'en',
         remarks: null,
       });
@@ -73,11 +75,21 @@ describe('PgRegistrationRepository pipeline persist', () => {
       const byTracking = await repo.findByTrackingNumber(trackingNumber, tenantId);
       expect(byTracking?.id).toBe(applicationId);
 
-      const underReview = await repo.updateStatus(applicationId, 'under_review', 'Staff reviewing', tenantId);
+      const underReview = await repo.updateStatus(
+        applicationId,
+        'under_review',
+        'Staff reviewing',
+        tenantId,
+      );
       expect(underReview?.status).toBe('under_review');
       expect(underReview?.remarks).toBe('Staff reviewing');
 
-      const waitlisted = await repo.updateStatus(applicationId, 'waitlisted', 'Capacity full', tenantId);
+      const waitlisted = await repo.updateStatus(
+        applicationId,
+        'waitlisted',
+        'Capacity full',
+        tenantId,
+      );
       expect(waitlisted?.status).toBe('waitlisted');
 
       const listed = await repo.listByTenant(tenantId);

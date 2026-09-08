@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import {
-  BOOTSTRAP_STEPS,
-  markStepComplete,
-  type BootstrapStep,
-} from '@/lib/bootstrap-lock';
+import { BOOTSTRAP_STEPS, markStepComplete, type BootstrapStep } from '@/lib/bootstrap-lock';
 import { assertInstallSecurity } from '@/lib/install-security';
 
 export const runtime = 'nodejs';
@@ -24,13 +20,21 @@ export async function POST(
 ): Promise<NextResponse> {
   const security = assertInstallSecurity(request);
   if (!security.ok) {
-    return NextResponse.json({ success: false, error: security.error }, { status: security.status });
+    return NextResponse.json(
+      { success: false, error: security.error },
+      { status: security.status },
+    );
   }
 
   const stepParam = context.params.step;
   if (!isBootstrapStep(stepParam)) {
     return NextResponse.json(
-      { success: false, step: stepParam, message: 'Unknown step', error: 'Unknown configure step.' },
+      {
+        success: false,
+        step: stepParam,
+        message: 'Unknown step',
+        error: 'Unknown configure step.',
+      },
       { status: 404 },
     );
   }

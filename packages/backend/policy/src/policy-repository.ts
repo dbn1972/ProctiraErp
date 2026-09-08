@@ -114,7 +114,9 @@ export interface PolicyRepository {
   // ─── Policy Assignments ──────────────────────────────────────────────────
 
   /** Create a policy assignment */
-  createAssignment(data: Omit<PolicyAssignmentEntity, 'createdAt'>): Promise<PolicyAssignmentEntity>;
+  createAssignment(
+    data: Omit<PolicyAssignmentEntity, 'createdAt'>,
+  ): Promise<PolicyAssignmentEntity>;
 
   /** Remove a policy assignment */
   removeAssignment(id: string, tenantId: string): Promise<boolean>;

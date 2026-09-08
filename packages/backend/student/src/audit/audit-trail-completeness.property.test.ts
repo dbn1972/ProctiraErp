@@ -25,28 +25,34 @@ import type { AuditableRecord } from './diff.js';
 /**
  * Generates a valid user ID string.
  */
-const userIdArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-  { minLength: 3, maxLength: 30 },
-).map((s) => `user-${s}`);
+const userIdArb: fc.Arbitrary<string> = fc
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+    minLength: 3,
+    maxLength: 30,
+  })
+  .map((s) => `user-${s}`);
 
 /**
  * Generates a valid tenant ID string.
  */
-const tenantIdArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-  { minLength: 3, maxLength: 20 },
-).map((s) => `tenant-${s}`);
+const tenantIdArb: fc.Arbitrary<string> = fc
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+    minLength: 3,
+    maxLength: 20,
+  })
+  .map((s) => `tenant-${s}`);
 
 /**
  * Generates a valid IP address string.
  */
-const ipAddressArb: fc.Arbitrary<string> = fc.tuple(
-  fc.integer({ min: 1, max: 255 }),
-  fc.integer({ min: 0, max: 255 }),
-  fc.integer({ min: 0, max: 255 }),
-  fc.integer({ min: 1, max: 254 }),
-).map(([a, b, c, d]) => `${a}.${b}.${c}.${d}`);
+const ipAddressArb: fc.Arbitrary<string> = fc
+  .tuple(
+    fc.integer({ min: 1, max: 255 }),
+    fc.integer({ min: 0, max: 255 }),
+    fc.integer({ min: 0, max: 255 }),
+    fc.integer({ min: 1, max: 254 }),
+  )
+  .map(([a, b, c, d]) => `${a}.${b}.${c}.${d}`);
 
 /**
  * Generates an audit context with all required fields.
@@ -61,16 +67,22 @@ const auditContextArb: fc.Arbitrary<AuditContext> = fc.record({
  * Generates a valid entity type string.
  */
 const entityTypeArb: fc.Arbitrary<string> = fc.constantFrom(
-  'student', 'enrollment', 'guardian', 'contact', 'identity_document',
+  'student',
+  'enrollment',
+  'guardian',
+  'contact',
+  'identity_document',
 );
 
 /**
  * Generates a valid entity ID string.
  */
-const entityIdArb: fc.Arbitrary<string> = fc.stringOf(
-  fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')),
-  { minLength: 3, maxLength: 20 },
-).map((s) => `entity-${s}`);
+const entityIdArb: fc.Arbitrary<string> = fc
+  .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789-'.split('')), {
+    minLength: 3,
+    maxLength: 20,
+  })
+  .map((s) => `entity-${s}`);
 
 /**
  * Generates a field name (alphanumeric, camelCase-like).
@@ -94,10 +106,7 @@ const fieldValueArb: fc.Arbitrary<string | number | boolean> = fc.oneof(
  * Ensures field names are unique and not in the default excluded set.
  */
 const auditableRecordArb: fc.Arbitrary<AuditableRecord> = fc
-  .array(
-    fc.tuple(fieldNameArb, fieldValueArb),
-    { minLength: 1, maxLength: 5 },
-  )
+  .array(fc.tuple(fieldNameArb, fieldValueArb), { minLength: 1, maxLength: 5 })
   .map((pairs) => {
     const record: AuditableRecord = {};
     const excluded = new Set(['updatedAt', 'createdAt']);
@@ -121,10 +130,7 @@ function modifiedRecordArb(original: AuditableRecord): fc.Arbitrary<AuditableRec
   if (keys.length === 0) {
     return fc.constant({ name: 'modified' });
   }
-  return fc.tuple(
-    fc.constantFrom(...keys),
-    fieldValueArb,
-  ).map(([keyToChange, newValue]) => {
+  return fc.tuple(fc.constantFrom(...keys), fieldValueArb).map(([keyToChange, newValue]) => {
     const modified = { ...original };
     // Ensure the value is actually different
     if (modified[keyToChange] === newValue) {
@@ -238,7 +244,11 @@ describe('Property 14: Audit Trail Completeness', () => {
           const modifiedState = await fc.sample(modifiedRecordArb(oldState), 1)[0];
 
           const entry = await service.recordUpdate(
-            context, entityType, entityId, oldState, modifiedState,
+            context,
+            entityType,
+            entityId,
+            oldState,
+            modifiedState,
           );
 
           // Entry must exist since we guaranteed at least one field changed

@@ -43,13 +43,7 @@ describe('pickSeriesColor', () => {
   // case is the pure helper to make sure modulo logic stays correct even
   // when the palette is supplied by hand.
   const palette = {
-    series: ['#1', '#2', '#3', '#4', '#5'] as readonly [
-      string,
-      string,
-      string,
-      string,
-      string,
-    ],
+    series: ['#1', '#2', '#3', '#4', '#5'] as readonly [string, string, string, string, string],
     axis: '#a',
     axisTick: '#a',
     grid: '#a',

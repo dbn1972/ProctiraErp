@@ -152,8 +152,7 @@ function mapApplication(row: Record<string, unknown>): ScholarshipApplicationEnt
     personalStatement: row.personal_statement == null ? null : String(row.personal_statement),
     areaId: row.area_id == null ? null : String(row.area_id),
     gender: row.gender == null ? null : String(row.gender),
-    workflowInstanceId:
-      row.workflow_instance_id == null ? null : String(row.workflow_instance_id),
+    workflowInstanceId: row.workflow_instance_id == null ? null : String(row.workflow_instance_id),
     submittedAt: toDate(row.submitted_at),
     reviewedAt: toDateOrNull(row.reviewed_at),
     createdAt: toDate(row.created_at),
@@ -716,9 +715,7 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         `SELECT * FROM scholarship_programs WHERE tenant_id = $1`,
         [tenantId],
       );
-      const programs = programsResult.rows.map((row) =>
-        mapProgram(row as Record<string, unknown>),
-      );
+      const programs = programsResult.rows.map((row) => mapProgram(row as Record<string, unknown>));
 
       const appConditions = ['tenant_id = $1'];
       const appParams: unknown[] = [tenantId];

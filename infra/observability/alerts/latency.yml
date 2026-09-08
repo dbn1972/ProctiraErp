@@ -19,12 +19,12 @@ groups:
           team: engineering
           slo: latency
         annotations:
-          summary: "{{ $labels.service }} P95 latency above 500ms"
+          summary: '{{ $labels.service }} P95 latency above 500ms'
           description: |
             Service {{ $labels.service }} P95 latency is {{ $value | humanizeDuration }} over
             the last 5 minutes (SLO: < 500ms).
-          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#latency-high"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"
+          runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#latency-high'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'
 
       - alert: ServiceP99LatencyHigh
         expr: |
@@ -38,9 +38,9 @@ groups:
           team: engineering
           slo: latency
         annotations:
-          summary: "{{ $labels.service }} P99 latency above 2s"
+          summary: '{{ $labels.service }} P99 latency above 2s'
           description: |
             Service {{ $labels.service }} P99 latency is {{ $value | humanizeDuration }}
             over the last 5 minutes. Sustained tail latency, page on-call.
-          runbook_url: "https://runbooks.proctira.org/services/{{ $labels.service }}.md#latency-critical"
-          dashboard_url: "https://grafana.proctira.org/d/proctira-service-overview"
+          runbook_url: 'https://runbooks.proctira.org/services/{{ $labels.service }}.md#latency-critical'
+          dashboard_url: 'https://grafana.proctira.org/d/proctira-service-overview'

@@ -33,9 +33,6 @@ export function createStudent(overrides: Partial<Student> = {}): Student {
 /**
  * Creates a list of Student entities.
  */
-export function createStudentList(
-  count: number = 10,
-  overrides: Partial<Student> = {},
-): Student[] {
+export function createStudentList(count: number = 10, overrides: Partial<Student> = {}): Student[] {
   return Array.from({ length: count }, () => createStudent(overrides));
 }

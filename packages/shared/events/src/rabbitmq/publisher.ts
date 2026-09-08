@@ -8,16 +8,15 @@ import amqplib from 'amqplib';
 
 import type { TaskMessage } from '../types';
 
-import type {
-  RabbitMQConfig} from './config';
-import {
-  DEFAULT_RABBITMQ_CONFIG,
-  buildTenantRoutingKey,
-} from './config';
+import type { RabbitMQConfig } from './config';
+import { DEFAULT_RABBITMQ_CONFIG, buildTenantRoutingKey } from './config';
 
 export class RabbitMQPublisher {
   private config: Required<
-    Pick<RabbitMQConfig, 'url' | 'exchange' | 'exchangeType' | 'deadLetterExchange' | 'durable' | 'heartbeat'>
+    Pick<
+      RabbitMQConfig,
+      'url' | 'exchange' | 'exchangeType' | 'deadLetterExchange' | 'durable' | 'heartbeat'
+    >
   > &
     RabbitMQConfig;
   private connection: ChannelModel | null = null;
@@ -41,19 +40,15 @@ export class RabbitMQPublisher {
     this.channel = await this.connection.createChannel();
 
     // Assert the main exchange
-    await this.channel.assertExchange(
-      this.config.exchange,
-      this.config.exchangeType ?? 'topic',
-      { durable: this.config.durable }
-    );
+    await this.channel.assertExchange(this.config.exchange, this.config.exchangeType ?? 'topic', {
+      durable: this.config.durable,
+    });
 
     // Assert the dead-letter exchange
     if (this.config.deadLetterExchange) {
-      await this.channel.assertExchange(
-        this.config.deadLetterExchange,
-        'topic',
-        { durable: this.config.durable }
-      );
+      await this.channel.assertExchange(this.config.deadLetterExchange, 'topic', {
+        durable: this.config.durable,
+      });
     }
 
     this.connected = true;
@@ -114,7 +109,7 @@ export class RabbitMQPublisher {
       this.config.exchange,
       routingKey,
       Buffer.from(JSON.stringify(task)),
-      publishOptions
+      publishOptions,
     );
   }
 
@@ -137,11 +132,7 @@ export class RabbitMQPublisher {
    * @param queueName - Base queue name
    * @param routingPattern - Routing key pattern to bind (e.g., 'report.*')
    */
-  async ensureQueue(
-    tenantId: string,
-    queueName: string,
-    routingPattern: string
-  ): Promise<void> {
+  async ensureQueue(tenantId: string, queueName: string, routingPattern: string): Promise<void> {
     if (!this.connected || !this.channel) {
       throw new Error('RabbitMQPublisher is not connected. Call connect() first.');
     }
@@ -155,11 +146,7 @@ export class RabbitMQPublisher {
       await this.channel.assertQueue(dlqName, {
         durable: this.config.durable,
       });
-      await this.channel.bindQueue(
-        dlqName,
-        this.config.deadLetterExchange,
-        routingKey
-      );
+      await this.channel.bindQueue(dlqName, this.config.deadLetterExchange, routingKey);
     }
 
     // Assert main queue with dead-letter exchange configuration

@@ -41,7 +41,10 @@ export class PostgresDestinationConnector implements DestinationConnector {
     if (!this.config.table) {
       return { valid: false, error: 'Table is required' };
     }
-    if (this.config.writeMode === 'upsert' && (!this.config.upsertKey || this.config.upsertKey.length === 0)) {
+    if (
+      this.config.writeMode === 'upsert' &&
+      (!this.config.upsertKey || this.config.upsertKey.length === 0)
+    ) {
       return { valid: false, error: 'Upsert key columns are required for upsert write mode' };
     }
     return { valid: true };

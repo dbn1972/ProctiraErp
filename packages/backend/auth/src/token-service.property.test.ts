@@ -33,15 +33,15 @@ import {
  * Generates a valid access token expiration in seconds within the allowed range (5min–24h).
  */
 const accessTokenExpiresInArb: fc.Arbitrary<number> = fc.integer({
-  min: MIN_ACCESS_TOKEN_EXPIRES,  // 300 seconds (5 minutes)
-  max: MAX_ACCESS_TOKEN_EXPIRES,  // 86400 seconds (24 hours)
+  min: MIN_ACCESS_TOKEN_EXPIRES, // 300 seconds (5 minutes)
+  max: MAX_ACCESS_TOKEN_EXPIRES, // 86400 seconds (24 hours)
 });
 
 /**
  * Generates a valid refresh token max lifetime in seconds (1 day to 30 days).
  */
 const refreshTokenLifetimeArb: fc.Arbitrary<number> = fc.integer({
-  min: 24 * 60 * 60,              // 1 day minimum for meaningful testing
+  min: 24 * 60 * 60, // 1 day minimum for meaningful testing
   max: MAX_REFRESH_TOKEN_LIFETIME, // 30 days
 });
 
@@ -59,10 +59,10 @@ const authUserArb: fc.Arbitrary<AuthUser> = fc.record({
   roles: fc.array(
     fc.record({
       roleId: fc.uuid(),
-      roleName: fc.stringOf(
-        fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz_'.split('')),
-        { minLength: 3, maxLength: 15 },
-      ),
+      roleName: fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz_'.split('')), {
+        minLength: 3,
+        maxLength: 15,
+      }),
       areaId: fc.uuid(),
     }),
     { minLength: 0, maxLength: 3 },
@@ -88,13 +88,20 @@ const sessionIdArb: fc.Arbitrary<string> = fc.uuid();
  * A JWT signer that captures the expiration and produces decodable tokens.
  * Tracks the `exp` claim that would be set by a real JWT library.
  */
-function createTrackingJwtSigner(): JwtSigner & { lastSignedExpiration: number | null; lastPayload: Record<string, unknown> | null } {
+function createTrackingJwtSigner(): JwtSigner & {
+  lastSignedExpiration: number | null;
+  lastPayload: Record<string, unknown> | null;
+} {
   let lastSignedExpiration: number | null = null;
   let lastPayload: Record<string, unknown> | null = null;
 
   return {
-    get lastSignedExpiration() { return lastSignedExpiration; },
-    get lastPayload() { return lastPayload; },
+    get lastSignedExpiration() {
+      return lastSignedExpiration;
+    },
+    get lastPayload() {
+      return lastPayload;
+    },
     sign(payload: Record<string, unknown>, options?: { expiresIn: number }): string {
       lastPayload = payload;
       const iat = (payload['iat'] as number) ?? Math.floor(Date.now() / 1000);
@@ -114,7 +121,9 @@ function createTrackingJwtSigner(): JwtSigner & { lastSignedExpiration: number |
 /**
  * In-memory refresh token store for property testing.
  */
-function createInMemoryRefreshTokenStore(): RefreshTokenStore & { tokens: Map<string, RefreshToken> } {
+function createInMemoryRefreshTokenStore(): RefreshTokenStore & {
+  tokens: Map<string, RefreshToken>;
+} {
   const tokens = new Map<string, RefreshToken>();
 
   return {
@@ -378,109 +387,97 @@ describe('Property 4: Token Refresh with Valid Refresh Token', () => {
 
   it('the previous refresh token is invalidated after rotation', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        sessionIdArb,
-        async (user, sessionId) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const jwtSigner = createTrackingJwtSigner();
-          const store = createInMemoryRefreshTokenStore();
-          const tokenService = new TokenService(config, jwtSigner, store);
+      fc.asyncProperty(authUserArb, sessionIdArb, async (user, sessionId) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const jwtSigner = createTrackingJwtSigner();
+        const store = createInMemoryRefreshTokenStore();
+        const tokenService = new TokenService(config, jwtSigner, store);
 
-          // Issue initial token pair
-          const original = await tokenService.issueTokenPair(user, sessionId);
+        // Issue initial token pair
+        const original = await tokenService.issueTokenPair(user, sessionId);
 
-          // Refresh
-          await tokenService.refreshTokenPair(original.refreshToken, user);
+        // Refresh
+        await tokenService.refreshTokenPair(original.refreshToken, user);
 
-          // The old refresh token must be revoked
-          const oldToken = store.tokens.get(original.refreshToken);
-          expect(oldToken).toBeDefined();
-          expect(oldToken!.revoked).toBe(true);
-          expect(oldToken!.revokedReason).toBe('Rotated');
-        },
-      ),
+        // The old refresh token must be revoked
+        const oldToken = store.tokens.get(original.refreshToken);
+        expect(oldToken).toBeDefined();
+        expect(oldToken!.revoked).toBe(true);
+        expect(oldToken!.revokedReason).toBe('Rotated');
+      }),
       { numRuns: 100 },
     );
   });
 
   it('attempting to reuse a rotated refresh token fails and revokes all session tokens', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        sessionIdArb,
-        async (user, sessionId) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const jwtSigner = createTrackingJwtSigner();
-          const store = createInMemoryRefreshTokenStore();
-          const tokenService = new TokenService(config, jwtSigner, store);
+      fc.asyncProperty(authUserArb, sessionIdArb, async (user, sessionId) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const jwtSigner = createTrackingJwtSigner();
+        const store = createInMemoryRefreshTokenStore();
+        const tokenService = new TokenService(config, jwtSigner, store);
 
-          // Issue and then refresh
-          const original = await tokenService.issueTokenPair(user, sessionId);
-          await tokenService.refreshTokenPair(original.refreshToken, user);
+        // Issue and then refresh
+        const original = await tokenService.issueTokenPair(user, sessionId);
+        await tokenService.refreshTokenPair(original.refreshToken, user);
 
-          // Attempting to reuse the old (now revoked) refresh token must fail
-          await expect(
-            tokenService.refreshTokenPair(original.refreshToken, user),
-          ).rejects.toThrow(InvalidRefreshTokenError);
+        // Attempting to reuse the old (now revoked) refresh token must fail
+        await expect(tokenService.refreshTokenPair(original.refreshToken, user)).rejects.toThrow(
+          InvalidRefreshTokenError,
+        );
 
-          // All tokens for the session should be revoked (token reuse detection)
-          for (const [, token] of store.tokens) {
-            if (token.sessionId === sessionId) {
-              expect(token.revoked).toBe(true);
-            }
+        // All tokens for the session should be revoked (token reuse detection)
+        for (const [, token] of store.tokens) {
+          if (token.sessionId === sessionId) {
+            expect(token.revoked).toBe(true);
           }
-        },
-      ),
+        }
+      }),
       { numRuns: 100 },
     );
   });
 
   it('an expired refresh token cannot be used to obtain a new token pair', async () => {
     await fc.assert(
-      fc.asyncProperty(
-        authUserArb,
-        sessionIdArb,
-        async (user, sessionId) => {
-          const config = createAuthConfig({
-            jwt: {
-              secret: 'test-secret',
-              issuer: 'test-issuer',
-              audience: 'test-audience',
-              accessTokenExpiresIn: 900,
-            },
-          });
-          const jwtSigner = createTrackingJwtSigner();
-          const store = createInMemoryRefreshTokenStore();
-          const tokenService = new TokenService(config, jwtSigner, store);
+      fc.asyncProperty(authUserArb, sessionIdArb, async (user, sessionId) => {
+        const config = createAuthConfig({
+          jwt: {
+            secret: 'test-secret',
+            issuer: 'test-issuer',
+            audience: 'test-audience',
+            accessTokenExpiresIn: 900,
+          },
+        });
+        const jwtSigner = createTrackingJwtSigner();
+        const store = createInMemoryRefreshTokenStore();
+        const tokenService = new TokenService(config, jwtSigner, store);
 
-          // Issue a token pair
-          const original = await tokenService.issueTokenPair(user, sessionId);
+        // Issue a token pair
+        const original = await tokenService.issueTokenPair(user, sessionId);
 
-          // Manually expire the refresh token (simulate time passing)
-          const storedToken = store.tokens.get(original.refreshToken);
-          storedToken!.expiresAt = new Date(Date.now() - 1000); // expired 1 second ago
+        // Manually expire the refresh token (simulate time passing)
+        const storedToken = store.tokens.get(original.refreshToken);
+        storedToken!.expiresAt = new Date(Date.now() - 1000); // expired 1 second ago
 
-          // Attempting to refresh with an expired token must fail
-          await expect(
-            tokenService.refreshTokenPair(original.refreshToken, user),
-          ).rejects.toThrow(InvalidRefreshTokenError);
-        },
-      ),
+        // Attempting to refresh with an expired token must fail
+        await expect(tokenService.refreshTokenPair(original.refreshToken, user)).rejects.toThrow(
+          InvalidRefreshTokenError,
+        );
+      }),
       { numRuns: 100 },
     );
   });

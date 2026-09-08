@@ -55,7 +55,9 @@ export function entityIdFromPath(pathname: string): string {
 }
 
 export function hashValue(value: unknown): string {
-  return createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex');
+  return createHash('sha256')
+    .update(JSON.stringify(value ?? null))
+    .digest('hex');
 }
 
 export function buildAuditValues(

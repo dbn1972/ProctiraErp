@@ -11,12 +11,7 @@
  * - 11.4: Track disbursement schedules, payment status, and recipient compliance
  * - 11.5: Generate reports on scholarship utilization by program, area, gender, and institution
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult, FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -98,7 +93,11 @@ export class ScholarshipService {
     // Validate date range
     if (input.applicationStartDate >= input.applicationEndDate) {
       throw new ValidationError('Application start date must be before end date', [
-        { field: 'applicationEndDate', rule: 'dateRange', message: 'End date must be after start date' },
+        {
+          field: 'applicationEndDate',
+          rule: 'dateRange',
+          message: 'End date must be after start date',
+        },
       ]);
     }
 
@@ -149,21 +148,31 @@ export class ScholarshipService {
     const endDate = input.applicationEndDate ?? existing.applicationEndDate;
     if (startDate >= endDate) {
       throw new ValidationError('Application start date must be before end date', [
-        { field: 'applicationEndDate', rule: 'dateRange', message: 'End date must be after start date' },
+        {
+          field: 'applicationEndDate',
+          rule: 'dateRange',
+          message: 'End date must be after start date',
+        },
       ]);
     }
 
     const updateData: Partial<ScholarshipProgramEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
-    if (input.applicationStartDate !== undefined) updateData.applicationStartDate = input.applicationStartDate;
-    if (input.applicationEndDate !== undefined) updateData.applicationEndDate = input.applicationEndDate;
+    if (input.applicationStartDate !== undefined)
+      updateData.applicationStartDate = input.applicationStartDate;
+    if (input.applicationEndDate !== undefined)
+      updateData.applicationEndDate = input.applicationEndDate;
     if (input.totalSlots !== undefined) updateData.totalSlots = input.totalSlots;
-    if (input.amountPerRecipient !== undefined) updateData.amountPerRecipient = input.amountPerRecipient;
+    if (input.amountPerRecipient !== undefined)
+      updateData.amountPerRecipient = input.amountPerRecipient;
     if (input.currency !== undefined) updateData.currency = input.currency;
-    if (input.disbursementFrequency !== undefined) updateData.disbursementFrequency = input.disbursementFrequency as ScholarshipProgramEntity['disbursementFrequency'];
+    if (input.disbursementFrequency !== undefined)
+      updateData.disbursementFrequency =
+        input.disbursementFrequency as ScholarshipProgramEntity['disbursementFrequency'];
     if (input.eligibility !== undefined) updateData.eligibility = input.eligibility;
-    if (input.status !== undefined) updateData.status = input.status as ScholarshipProgramEntity['status'];
+    if (input.status !== undefined)
+      updateData.status = input.status as ScholarshipProgramEntity['status'];
     if (input.academicPeriodId !== undefined) updateData.academicPeriodId = input.academicPeriodId;
     if (input.fundingSourceId !== undefined) updateData.fundingSourceId = input.fundingSourceId;
 
@@ -480,7 +489,8 @@ export class ScholarshipService {
       paymentStatus: input.paymentStatus as DisbursementEntity['paymentStatus'],
     };
     if (input.paidDate !== undefined) updateData.paidDate = input.paidDate;
-    if (input.transactionReference !== undefined) updateData.transactionReference = input.transactionReference;
+    if (input.transactionReference !== undefined)
+      updateData.transactionReference = input.transactionReference;
     if (input.notes !== undefined) updateData.notes = input.notes;
 
     const updated = await this.repository.updateDisbursement(id, tenantId, updateData);

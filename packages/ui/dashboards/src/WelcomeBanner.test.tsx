@@ -37,26 +37,15 @@ describe('<WelcomeBanner />', () => {
 
     const banner = screen.getByTestId('banner');
     expect(banner).toHaveAttribute('data-state', 'ready');
-    expect(screen.getByTestId('welcome-banner-greeting').textContent).toMatch(
-      /, Aarav$/,
-    );
+    expect(screen.getByTestId('welcome-banner-greeting').textContent).toMatch(/, Aarav$/);
     expect(screen.getByTestId('welcome-banner-subtitle').textContent).toBe(
       'Welcome back to ProctiraERP.',
     );
-    expect(screen.getByTestId('welcome-banner-attention').textContent).toBe(
-      '3 approvals pending',
-    );
+    expect(screen.getByTestId('welcome-banner-attention').textContent).toBe('3 approvals pending');
   });
 
   it('renders skeletons while loading', () => {
-    render(
-      <WelcomeBanner
-        userName="Aarav"
-        brandName="ProctiraERP"
-        loading
-        data-testid="banner"
-      />,
-    );
+    render(<WelcomeBanner userName="Aarav" brandName="ProctiraERP" loading data-testid="banner" />);
 
     const banner = screen.getByTestId('banner');
     expect(banner).toHaveAttribute('data-state', 'loading');

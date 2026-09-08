@@ -38,7 +38,7 @@ export function createQueueAdapter(config: QueueAdapterConfig): QueueAdapter {
       if (!config.kafka) {
         throw new Error(
           'Kafka configuration is required when backend is "kafka". ' +
-          'Provide config.kafka with at least brokers and clientId.'
+            'Provide config.kafka with at least brokers and clientId.',
         );
       }
       return new KafkaAdapter(config.kafka);
@@ -48,7 +48,7 @@ export function createQueueAdapter(config: QueueAdapterConfig): QueueAdapter {
       if (!config.rabbitmq) {
         throw new Error(
           'RabbitMQ configuration is required when backend is "rabbitmq". ' +
-          'Provide config.rabbitmq with at least url and exchange.'
+            'Provide config.rabbitmq with at least url and exchange.',
         );
       }
       return new RabbitMQAdapter(config.rabbitmq);
@@ -58,7 +58,7 @@ export function createQueueAdapter(config: QueueAdapterConfig): QueueAdapter {
       if (!config.sqs) {
         throw new Error(
           'SQS configuration is required when backend is "sqs". ' +
-          'Provide config.sqs with at least region and queueUrlPrefix.'
+            'Provide config.sqs with at least region and queueUrlPrefix.',
         );
       }
       return new SQSAdapter(config.sqs);
@@ -107,7 +107,7 @@ export function createQueueAdapterFromEnv(): QueueAdapter {
   if (!backend) {
     throw new Error(
       'QUEUE_BACKEND environment variable is required. ' +
-      'Set it to "kafka", "rabbitmq", or "sqs".'
+        'Set it to "kafka", "rabbitmq", or "sqs".',
     );
   }
 
@@ -118,7 +118,7 @@ export function createQueueAdapterFromEnv(): QueueAdapter {
 
       if (!brokers || !clientId) {
         throw new Error(
-          'KAFKA_BROKERS and KAFKA_CLIENT_ID environment variables are required for Kafka backend.'
+          'KAFKA_BROKERS and KAFKA_CLIENT_ID environment variables are required for Kafka backend.',
         );
       }
 
@@ -151,7 +151,7 @@ export function createQueueAdapterFromEnv(): QueueAdapter {
 
       if (!url || !exchange) {
         throw new Error(
-          'RABBITMQ_URL and RABBITMQ_EXCHANGE environment variables are required for RabbitMQ backend.'
+          'RABBITMQ_URL and RABBITMQ_EXCHANGE environment variables are required for RabbitMQ backend.',
         );
       }
 
@@ -160,7 +160,9 @@ export function createQueueAdapterFromEnv(): QueueAdapter {
         rabbitmq: {
           url,
           exchange,
-          exchangeType: (process.env['RABBITMQ_EXCHANGE_TYPE'] as 'direct' | 'topic' | 'fanout' | 'headers') ?? 'topic',
+          exchangeType:
+            (process.env['RABBITMQ_EXCHANGE_TYPE'] as 'direct' | 'topic' | 'fanout' | 'headers') ??
+            'topic',
           deadLetterExchange: process.env['RABBITMQ_DLX'] ?? 'dlx',
           prefetchCount: process.env['RABBITMQ_PREFETCH']
             ? parseInt(process.env['RABBITMQ_PREFETCH'], 10)
@@ -175,7 +177,7 @@ export function createQueueAdapterFromEnv(): QueueAdapter {
 
       if (!region || !queueUrlPrefix) {
         throw new Error(
-          'SQS_REGION and SQS_QUEUE_URL_PREFIX environment variables are required for SQS backend.'
+          'SQS_REGION and SQS_QUEUE_URL_PREFIX environment variables are required for SQS backend.',
         );
       }
 

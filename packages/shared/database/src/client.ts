@@ -49,13 +49,13 @@ export function createPrismaClient(options?: {
   }
 
   // Apply connection pool configuration to the datasource URL
-  const datasourceUrl = withPoolConfig(
-    options?.datasourceUrl ?? process.env['DATABASE_URL']
-  );
+  const datasourceUrl = withPoolConfig(options?.datasourceUrl ?? process.env['DATABASE_URL']);
 
   const client = new PrismaClient({
     datasourceUrl,
-    log: options?.log ?? (process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error']),
+    log:
+      options?.log ??
+      (process.env.NODE_ENV === 'development' ? ['query', 'warn', 'error'] : ['warn', 'error']),
   });
 
   if (process.env.NODE_ENV !== 'production') {

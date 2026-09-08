@@ -236,8 +236,10 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   /** G-710: every query runs with the tenant GUC bound so RLS applies. */
   private query(tenantId: string, text: string, values?: unknown[]): Promise<pg.QueryResult> {
-    return withPgTenant(this.pool, tenantId, (client) =>
-      client.query(text, values) as unknown as Promise<pg.QueryResult>,
+    return withPgTenant(
+      this.pool,
+      tenantId,
+      (client) => client.query(text, values) as unknown as Promise<pg.QueryResult>,
     );
   }
 
@@ -250,7 +252,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     data: Omit<ParentChildLinkEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<ParentChildLinkEntity> {
     await this.ensureSchema();
-    const result = await this.query(data.tenantId, `INSERT INTO parent_child_links (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_child_links (
          id, tenant_id, parent_user_id, student_id, relationship, status
        ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [data.id, data.tenantId, data.parentUserId, data.studentId, data.relationship, data.status],
@@ -263,7 +267,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     parentUserId: string,
   ): Promise<ParentChildLinkEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_child_links
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_child_links
        WHERE tenant_id = $1 AND parent_user_id = $2 AND status = 'active'
        ORDER BY created_at DESC`,
       [tenantId, parentUserId],
@@ -276,7 +282,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     studentId: string,
   ): Promise<ParentChildLinkEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_child_links
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_child_links
        WHERE tenant_id = $1 AND student_id = $2
        ORDER BY created_at DESC`,
       [tenantId, studentId],
@@ -286,7 +294,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async findChildLink(id: string, tenantId: string): Promise<ParentChildLinkEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_child_links WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_child_links WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -295,7 +305,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async hasActiveLink(tenantId: string, parentUserId: string, studentId: string): Promise<boolean> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT 1 FROM parent_child_links
+    const result = await this.query(
+      tenantId,
+      `SELECT 1 FROM parent_child_links
        WHERE tenant_id = $1 AND parent_user_id = $2 AND student_id = $3 AND status = 'active'
        LIMIT 1`,
       [tenantId, parentUserId, studentId],
@@ -307,7 +319,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     data: Omit<MessageThreadEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<MessageThreadEntity> {
     await this.ensureSchema();
-    const result = await this.query(data.tenantId, `INSERT INTO parent_message_threads (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_message_threads (
          id, tenant_id, student_id, subject, created_by, status
        ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [data.id, data.tenantId, data.studentId, data.subject, data.createdBy, data.status],
@@ -321,7 +335,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   ): Promise<MessageThreadEntity[]> {
     await this.ensureSchema();
     if (studentIds.length === 0) return [];
-    const result = await this.query(tenantId, `SELECT * FROM parent_message_threads
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_message_threads
        WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
        ORDER BY updated_at DESC`,
       [tenantId, studentIds],
@@ -331,7 +347,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async findThreadById(id: string, tenantId: string): Promise<MessageThreadEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_message_threads WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_message_threads WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -340,12 +358,16 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async createMessage(data: Omit<MessageEntity, 'createdAt'>): Promise<MessageEntity> {
     await this.ensureSchema();
-    const insertResult = await this.query(data.tenantId, `INSERT INTO parent_messages (
+    const insertResult = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_messages (
          id, thread_id, tenant_id, sender_user_id, sender_role, body
        ) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [data.id, data.threadId, data.tenantId, data.senderUserId, data.senderRole, data.body],
     );
-    await this.query(data.tenantId, `UPDATE parent_message_threads SET updated_at = now() WHERE id = $1 AND tenant_id = $2`,
+    await this.query(
+      data.tenantId,
+      `UPDATE parent_message_threads SET updated_at = now() WHERE id = $1 AND tenant_id = $2`,
       [data.threadId, data.tenantId],
     );
     return mapMessage(insertResult.rows[0] as Record<string, unknown>);
@@ -353,7 +375,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async listMessagesForThread(tenantId: string, threadId: string): Promise<MessageEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_messages
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_messages
        WHERE tenant_id = $1 AND thread_id = $2
        ORDER BY created_at ASC`,
       [tenantId, threadId],
@@ -365,7 +389,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     data: Omit<ConsentEntity, 'createdAt' | 'updatedAt' | 'decidedAt'>,
   ): Promise<ConsentEntity> {
     await this.ensureSchema();
-    const result = await this.query(data.tenantId, `INSERT INTO parent_consents (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_consents (
          id, tenant_id, student_id, parent_user_id, consent_type, title, description, status, created_by
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
       [
@@ -385,7 +411,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async listConsentsForParent(tenantId: string, parentUserId: string): Promise<ConsentEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_consents
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_consents
        WHERE tenant_id = $1 AND parent_user_id = $2
        ORDER BY created_at DESC`,
       [tenantId, parentUserId],
@@ -395,7 +423,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async findConsentById(id: string, tenantId: string): Promise<ConsentEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_consents WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_consents WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -428,7 +458,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     sets.push(`updated_at = now()`);
     values.push(id, tenantId);
 
-    const result = await this.query(tenantId, `UPDATE parent_consents
+    const result = await this.query(
+      tenantId,
+      `UPDATE parent_consents
        SET ${sets.join(', ')}
        WHERE id = $${i++} AND tenant_id = $${i}
        RETURNING *`,
@@ -442,7 +474,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     data: Omit<FeePlanEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<FeePlanEntity> {
     await this.ensureSchema();
-    const result = await this.query(data.tenantId, `INSERT INTO parent_fee_plans (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_fee_plans (
          id, tenant_id, code, name, description, amount_cents, currency, frequency, status, created_by
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
       [
@@ -463,7 +497,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async listFeePlans(tenantId: string): Promise<FeePlanEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => mapPlan(row as Record<string, unknown>));
@@ -471,7 +507,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async findFeePlanById(id: string, tenantId: string): Promise<FeePlanEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_plans WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_plans WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -482,7 +520,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     data: Omit<FeeInvoiceEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<FeeInvoiceEntity> {
     await this.ensureSchema();
-    const result = await this.query(data.tenantId, `INSERT INTO parent_fee_invoices (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_fee_invoices (
          id, tenant_id, student_id, plan_id, title, description, amount_cents, currency, status, due_at, created_by
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
       [
@@ -508,7 +548,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   ): Promise<FeeInvoiceEntity[]> {
     await this.ensureSchema();
     if (studentIds.length === 0) return [];
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_invoices
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_invoices
        WHERE tenant_id = $1 AND student_id = ANY($2::uuid[])
        ORDER BY created_at DESC`,
       [tenantId, studentIds],
@@ -518,7 +560,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_invoices WHERE tenant_id = $1 ORDER BY created_at DESC`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_invoices WHERE tenant_id = $1 ORDER BY created_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => mapInvoice(row as Record<string, unknown>));
@@ -526,7 +570,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_invoices WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_invoices WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;
@@ -542,7 +588,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
     if (data.status === undefined) {
       return this.findInvoiceById(id, tenantId);
     }
-    const result = await this.query(tenantId, `UPDATE parent_fee_invoices
+    const result = await this.query(
+      tenantId,
+      `UPDATE parent_fee_invoices
        SET status = $1, updated_at = now()
        WHERE id = $2 AND tenant_id = $3
        RETURNING *`,
@@ -554,7 +602,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {
     await this.ensureSchema();
-    const result = await this.query(data.tenantId, `INSERT INTO parent_fee_payments (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_fee_payments (
          id, invoice_id, tenant_id, payer_user_id, amount_cents, method, status, paid_at
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [
@@ -573,7 +623,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 ORDER BY paid_at DESC`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_payments WHERE tenant_id = $1 ORDER BY paid_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => mapPayment(row as Record<string, unknown>));
@@ -581,7 +633,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async createReceipt(data: Omit<FeeReceiptEntity, 'createdAt'>): Promise<FeeReceiptEntity> {
     await this.ensureSchema();
-    const result = await this.query(data.tenantId, `INSERT INTO parent_fee_receipts (
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO parent_fee_receipts (
          id, tenant_id, payment_id, invoice_id, receipt_number, amount_cents, currency, issued_at
        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [
@@ -600,7 +654,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async listReceiptsForTenant(tenantId: string): Promise<FeeReceiptEntity[]> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 ORDER BY issued_at DESC`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_receipts WHERE tenant_id = $1 ORDER BY issued_at DESC`,
       [tenantId],
     );
     return result.rows.map((row) => mapReceipt(row as Record<string, unknown>));
@@ -612,7 +668,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
   ): Promise<FeeReceiptEntity[]> {
     await this.ensureSchema();
     if (invoiceIds.length === 0) return [];
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_receipts
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_receipts
        WHERE tenant_id = $1 AND invoice_id = ANY($2::uuid[])
        ORDER BY issued_at DESC`,
       [tenantId, invoiceIds],
@@ -622,7 +680,9 @@ export class PgParentPortalRepository implements ParentPortalRepository {
 
   async findReceiptById(id: string, tenantId: string): Promise<FeeReceiptEntity | null> {
     await this.ensureSchema();
-    const result = await this.query(tenantId, `SELECT * FROM parent_fee_receipts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM parent_fee_receipts WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [id, tenantId],
     );
     if (!result.rows[0]) return null;

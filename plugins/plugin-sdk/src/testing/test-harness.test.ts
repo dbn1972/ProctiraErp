@@ -60,9 +60,9 @@ describe('createTestHarness', () => {
     const plugin = definePlugin({ manifest: testManifest });
     const harness = createTestHarness(plugin);
 
-    await expect(
-      harness.invokeHook('nonexistent.hook', {}),
-    ).rejects.toThrow("No hook registered for extension point 'nonexistent.hook'");
+    await expect(harness.invokeHook('nonexistent.hook', {})).rejects.toThrow(
+      "No hook registered for extension point 'nonexistent.hook'",
+    );
   });
 
   it('should invoke a registered event handler', async () => {
@@ -89,9 +89,9 @@ describe('createTestHarness', () => {
     const plugin = definePlugin({ manifest: testManifest });
     const harness = createTestHarness(plugin);
 
-    await expect(
-      harness.invokeEventHandler('student.created'),
-    ).rejects.toThrow("No event handler registered for event 'student.created'");
+    await expect(harness.invokeEventHandler('student.created')).rejects.toThrow(
+      "No event handler registered for event 'student.created'",
+    );
   });
 
   it('should list registered hooks', () => {

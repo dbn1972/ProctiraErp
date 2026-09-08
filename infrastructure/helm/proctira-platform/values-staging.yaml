@@ -12,12 +12,12 @@ global:
 ingress:
   enabled: true
   hosts:
-    api: "api.staging.proctira.io"
-    web: "*.staging.proctira.io"
-    register: "register.staging.proctira.io"
-    public: "staging.proctira.io"
-    admin: "admin.staging.proctira.io"
-    developers: "developers.staging.proctira.io"
+    api: 'api.staging.proctira.io'
+    web: '*.staging.proctira.io'
+    register: 'register.staging.proctira.io'
+    public: 'staging.proctira.io'
+    admin: 'admin.staging.proctira.io'
+    developers: 'developers.staging.proctira.io'
   tls:
     enabled: true
     secretName: proctira-staging-tls

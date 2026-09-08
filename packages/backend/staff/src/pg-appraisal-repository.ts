@@ -49,7 +49,11 @@ function mapAppraisal(row: Record<string, unknown>): AppraisalEntity {
   };
 }
 
-function paginate<T>(data: T[], totalItems: number, pagination: PaginationOptions): PaginatedResult<T> {
+function paginate<T>(
+  data: T[],
+  totalItems: number,
+  pagination: PaginationOptions,
+): PaginatedResult<T> {
   return {
     data,
     meta: {
@@ -226,7 +230,10 @@ export class PgAppraisalRepository implements AppraisalRepository {
         where.push(`status = $${params.length}`);
       }
       const clause = where.join(' AND ');
-      const total = await c.query(`SELECT COUNT(*)::int AS n FROM hr_appraisals WHERE ${clause}`, params);
+      const total = await c.query(
+        `SELECT COUNT(*)::int AS n FROM hr_appraisals WHERE ${clause}`,
+        params,
+      );
       const rows = await c.query(
         `SELECT * FROM hr_appraisals WHERE ${clause}
          ORDER BY appraisal_date DESC, created_at DESC, id

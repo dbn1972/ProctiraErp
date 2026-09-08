@@ -276,9 +276,7 @@ export class InMemoryTransportRepository implements TransportRepository {
     filter: DriverAssignmentFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<DriverAssignmentEntity>> {
-    let items = Array.from(this.driverAssignments.values()).filter(
-      (e) => e.tenantId === tenantId,
-    );
+    let items = Array.from(this.driverAssignments.values()).filter((e) => e.tenantId === tenantId);
 
     if (filter.vehicleId) {
       items = items.filter((e) => e.vehicleId === filter.vehicleId);
@@ -359,9 +357,7 @@ export class InMemoryTransportRepository implements TransportRepository {
     filter: StudentAssignmentFilter,
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StudentRouteAssignmentEntity>> {
-    let items = Array.from(this.studentAssignments.values()).filter(
-      (e) => e.tenantId === tenantId,
-    );
+    let items = Array.from(this.studentAssignments.values()).filter((e) => e.tenantId === tenantId);
 
     if (filter.studentId) {
       items = items.filter((e) => e.studentId === filter.studentId);

@@ -7,12 +7,7 @@
  */
 import { gatewayFetch } from './gateway';
 
-export type TenantStatus =
-  | 'provisioning'
-  | 'active'
-  | 'suspended'
-  | 'decommissioning'
-  | 'archived';
+export type TenantStatus = 'provisioning' | 'active' | 'suspended' | 'decommissioning' | 'archived';
 
 export interface Tenant {
   id: string;
@@ -97,9 +92,7 @@ export async function listTenants(params: ListTenantsParams = {}): Promise<{
   if (params.search) search.set('q', params.search);
 
   const path = `/tenants${search.toString() ? `?${search.toString()}` : ''}`;
-  const response = await gatewayFetch<{ items?: Tenant[]; data?: Tenant[] }>(
-    path,
-  );
+  const response = await gatewayFetch<{ items?: Tenant[]; data?: Tenant[] }>(path);
   if (response.ok && response.data) {
     const items = response.data.items ?? response.data.data ?? [];
     return { tenants: items, source: 'gateway' };
@@ -115,10 +108,7 @@ export async function listTenants(params: ListTenantsParams = {}): Promise<{
     }
     if (params.search) {
       const q = params.search.toLowerCase();
-      return (
-        tenant.name.toLowerCase().includes(q) ||
-        tenant.slug.toLowerCase().includes(q)
-      );
+      return tenant.name.toLowerCase().includes(q) || tenant.slug.toLowerCase().includes(q);
     }
     return true;
   });
@@ -157,9 +147,7 @@ export interface CreateTenantResult {
 }
 
 /** Provision a new tenant via the tenant-service. */
-export async function createTenant(
-  input: CreateTenantInput,
-): Promise<CreateTenantResult> {
+export async function createTenant(input: CreateTenantInput): Promise<CreateTenantResult> {
   const response = await gatewayFetch<Tenant>('/tenants', {
     method: 'POST',
     json: input,
@@ -189,11 +177,7 @@ export async function createTenant(
   };
 }
 
-export type TenantLifecycleAction =
-  | 'suspend'
-  | 'reactivate'
-  | 'decommission'
-  | 'offboard';
+export type TenantLifecycleAction = 'suspend' | 'reactivate' | 'decommission' | 'offboard';
 
 /** Perform a tenant lifecycle action (suspend/reactivate/etc.). */
 export async function tenantAction(
@@ -201,8 +185,7 @@ export async function tenantAction(
   action: TenantLifecycleAction,
   reason: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const path =
-    action === 'offboard' ? `/tenants/${id}` : `/tenants/${id}/${action}`;
+  const path = action === 'offboard' ? `/tenants/${id}` : `/tenants/${id}/${action}`;
   const method = action === 'offboard' ? 'DELETE' : 'POST';
 
   const response = await gatewayFetch<unknown>(path, {

@@ -105,14 +105,16 @@ export function createAuthConfig(overrides?: Partial<AuthConfig>): AuthConfig {
       issuer: overrides?.jwt?.issuer ?? process.env['JWT_ISSUER'] ?? 'proctira-platform',
       audience: overrides?.jwt?.audience ?? process.env['JWT_AUDIENCE'] ?? 'proctira-api',
       accessTokenExpiresIn: clamp(
-        overrides?.jwt?.accessTokenExpiresIn ?? parseIntEnv('JWT_ACCESS_TOKEN_EXPIRES', DEFAULT_ACCESS_TOKEN_EXPIRES),
+        overrides?.jwt?.accessTokenExpiresIn ??
+          parseIntEnv('JWT_ACCESS_TOKEN_EXPIRES', DEFAULT_ACCESS_TOKEN_EXPIRES),
         MIN_ACCESS_TOKEN_EXPIRES,
         MAX_ACCESS_TOKEN_EXPIRES,
       ),
     },
     refreshToken: {
       maxLifetime: Math.min(
-        overrides?.refreshToken?.maxLifetime ?? parseIntEnv('REFRESH_TOKEN_MAX_LIFETIME', DEFAULT_REFRESH_TOKEN_LIFETIME),
+        overrides?.refreshToken?.maxLifetime ??
+          parseIntEnv('REFRESH_TOKEN_MAX_LIFETIME', DEFAULT_REFRESH_TOKEN_LIFETIME),
         MAX_REFRESH_TOKEN_LIFETIME,
       ),
     },
@@ -124,12 +126,15 @@ export function createAuthConfig(overrides?: Partial<AuthConfig>): AuthConfig {
       ),
     },
     password: {
-      saltRounds: overrides?.password?.saltRounds ?? parseIntEnv('BCRYPT_SALT_ROUNDS', DEFAULT_SALT_ROUNDS),
+      saltRounds:
+        overrides?.password?.saltRounds ?? parseIntEnv('BCRYPT_SALT_ROUNDS', DEFAULT_SALT_ROUNDS),
     },
     lockout: {
       maxAttempts: overrides?.lockout?.maxAttempts ?? parseIntEnv('LOCKOUT_MAX_ATTEMPTS', 3),
-      windowSeconds: overrides?.lockout?.windowSeconds ?? parseIntEnv('LOCKOUT_WINDOW_SECONDS', 900),
-      durationSeconds: overrides?.lockout?.durationSeconds ?? parseIntEnv('LOCKOUT_DURATION_SECONDS', 900),
+      windowSeconds:
+        overrides?.lockout?.windowSeconds ?? parseIntEnv('LOCKOUT_WINDOW_SECONDS', 900),
+      durationSeconds:
+        overrides?.lockout?.durationSeconds ?? parseIntEnv('LOCKOUT_DURATION_SECONDS', 900),
     },
   };
 }

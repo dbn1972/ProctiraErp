@@ -4,10 +4,7 @@
  * Validates: Requirement 17.1 — report templates, configuration, and outputs.
  */
 import { gatewayFetch } from './gateway';
-import {
-  scaffoldSourceFromResponse,
-  type ScaffoldDataSource,
-} from './insights-source';
+import { scaffoldSourceFromResponse, type ScaffoldDataSource } from './insights-source';
 
 export type { ScaffoldDataSource };
 

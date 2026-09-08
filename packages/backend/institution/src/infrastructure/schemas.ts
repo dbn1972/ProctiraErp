@@ -32,8 +32,16 @@ const UuidPattern = '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 export const CreateLandSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Land name/identifier' }),
   institutionId: Type.String({ pattern: UuidPattern, description: 'Institution UUID' }),
-  capacity: Type.Integer({ minimum: 1, maximum: 99999, description: 'Numeric capacity (1–99,999)' }),
-  condition: Type.String({ minLength: 1, maxLength: 100, description: 'Condition status from configurable options' }),
+  capacity: Type.Integer({
+    minimum: 1,
+    maximum: 99999,
+    description: 'Numeric capacity (1–99,999)',
+  }),
+  condition: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Condition status from configurable options',
+  }),
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -46,8 +54,16 @@ export const CreateBuildingSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Building name/identifier' }),
   institutionId: Type.String({ pattern: UuidPattern, description: 'Institution UUID' }),
   landId: Type.String({ pattern: UuidPattern, description: 'Parent land UUID' }),
-  capacity: Type.Integer({ minimum: 1, maximum: 99999, description: 'Numeric capacity (1–99,999)' }),
-  condition: Type.String({ minLength: 1, maxLength: 100, description: 'Condition status from configurable options' }),
+  capacity: Type.Integer({
+    minimum: 1,
+    maximum: 99999,
+    description: 'Numeric capacity (1–99,999)',
+  }),
+  condition: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Condition status from configurable options',
+  }),
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -60,8 +76,16 @@ export const CreateFloorSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Floor name/identifier' }),
   institutionId: Type.String({ pattern: UuidPattern, description: 'Institution UUID' }),
   buildingId: Type.String({ pattern: UuidPattern, description: 'Parent building UUID' }),
-  capacity: Type.Integer({ minimum: 1, maximum: 99999, description: 'Numeric capacity (1–99,999)' }),
-  condition: Type.String({ minLength: 1, maxLength: 100, description: 'Condition status from configurable options' }),
+  capacity: Type.Integer({
+    minimum: 1,
+    maximum: 99999,
+    description: 'Numeric capacity (1–99,999)',
+  }),
+  condition: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Condition status from configurable options',
+  }),
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -74,8 +98,16 @@ export const CreateRoomSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Room name/identifier' }),
   institutionId: Type.String({ pattern: UuidPattern, description: 'Institution UUID' }),
   floorId: Type.String({ pattern: UuidPattern, description: 'Parent floor UUID' }),
-  capacity: Type.Integer({ minimum: 1, maximum: 99999, description: 'Numeric capacity (1–99,999)' }),
-  condition: Type.String({ minLength: 1, maxLength: 100, description: 'Condition status from configurable options' }),
+  capacity: Type.Integer({
+    minimum: 1,
+    maximum: 99999,
+    description: 'Numeric capacity (1–99,999)',
+  }),
+  condition: Type.String({
+    minLength: 1,
+    maxLength: 100,
+    description: 'Condition status from configurable options',
+  }),
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -86,9 +118,15 @@ export type CreateRoomInput = Static<typeof CreateRoomSchema>;
  * All fields are optional — only provided fields are updated.
  */
 export const UpdateInfrastructureSchema = Type.Object({
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Name/identifier' })),
-  capacity: Type.Optional(Type.Integer({ minimum: 1, maximum: 99999, description: 'Numeric capacity (1–99,999)' })),
-  condition: Type.Optional(Type.String({ minLength: 1, maxLength: 100, description: 'Condition status' })),
+  name: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 255, description: 'Name/identifier' }),
+  ),
+  capacity: Type.Optional(
+    Type.Integer({ minimum: 1, maximum: 99999, description: 'Numeric capacity (1–99,999)' }),
+  ),
+  condition: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 100, description: 'Condition status' }),
+  ),
   description: Type.Optional(Type.String({ maxLength: 500, description: 'Optional description' })),
 });
 
@@ -126,10 +164,22 @@ export type ParentScopeParams = Static<typeof ParentScopeParamsSchema>;
  * Schema for infrastructure list query parameters.
  */
 export const InfrastructureListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
-  sortBy: Type.Optional(Type.String({ enum: ['name', 'capacity', 'createdAt'], default: 'name', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
+  sortBy: Type.Optional(
+    Type.String({
+      enum: ['name', 'capacity', 'createdAt'],
+      default: 'name',
+      description: 'Sort field',
+    }),
+  ),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
+  ),
 });
 
 export type InfrastructureListQuery = Static<typeof InfrastructureListQuerySchema>;
@@ -140,9 +190,14 @@ export type InfrastructureListQuery = Static<typeof InfrastructureListQuerySchem
 export const InfrastructureResponseSchema = Type.Object({
   id: Type.String({ description: 'Infrastructure item UUID' }),
   name: Type.String({ description: 'Name/identifier' }),
-  type: Type.String({ enum: ['LAND', 'BUILDING', 'FLOOR', 'ROOM'], description: 'Infrastructure type' }),
+  type: Type.String({
+    enum: ['LAND', 'BUILDING', 'FLOOR', 'ROOM'],
+    description: 'Infrastructure type',
+  }),
   institutionId: Type.String({ description: 'Institution UUID' }),
-  parentId: Type.Union([Type.String(), Type.Null()], { description: 'Parent item UUID (null for land)' }),
+  parentId: Type.Union([Type.String(), Type.Null()], {
+    description: 'Parent item UUID (null for land)',
+  }),
   capacity: Type.Integer({ description: 'Numeric capacity' }),
   condition: Type.String({ description: 'Condition status' }),
   description: Type.Union([Type.String(), Type.Null()], { description: 'Optional description' }),
@@ -192,34 +247,42 @@ export type CreateConditionOptionInput = Static<typeof CreateConditionOptionSche
  * Schema for the full infrastructure hierarchy response (tree view).
  */
 export const InfrastructureHierarchyResponseSchema = Type.Object({
-  lands: Type.Array(Type.Object({
-    id: Type.String(),
-    name: Type.String(),
-    capacity: Type.Integer(),
-    condition: Type.String(),
-    description: Type.Union([Type.String(), Type.Null()]),
-    buildings: Type.Array(Type.Object({
+  lands: Type.Array(
+    Type.Object({
       id: Type.String(),
       name: Type.String(),
       capacity: Type.Integer(),
       condition: Type.String(),
       description: Type.Union([Type.String(), Type.Null()]),
-      floors: Type.Array(Type.Object({
-        id: Type.String(),
-        name: Type.String(),
-        capacity: Type.Integer(),
-        condition: Type.String(),
-        description: Type.Union([Type.String(), Type.Null()]),
-        rooms: Type.Array(Type.Object({
+      buildings: Type.Array(
+        Type.Object({
           id: Type.String(),
           name: Type.String(),
           capacity: Type.Integer(),
           condition: Type.String(),
           description: Type.Union([Type.String(), Type.Null()]),
-        })),
-      })),
-    })),
-  })),
+          floors: Type.Array(
+            Type.Object({
+              id: Type.String(),
+              name: Type.String(),
+              capacity: Type.Integer(),
+              condition: Type.String(),
+              description: Type.Union([Type.String(), Type.Null()]),
+              rooms: Type.Array(
+                Type.Object({
+                  id: Type.String(),
+                  name: Type.String(),
+                  capacity: Type.Integer(),
+                  condition: Type.String(),
+                  description: Type.Union([Type.String(), Type.Null()]),
+                }),
+              ),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
 });
 
 export type InfrastructureHierarchyResponse = Static<typeof InfrastructureHierarchyResponseSchema>;

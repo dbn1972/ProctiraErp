@@ -8,8 +8,7 @@ import { defaultLocale, isValidLocale } from './config';
  */
 export default getRequestConfig(async ({ requestLocale }) => {
   const requested = await requestLocale;
-  const resolvedLocale =
-    requested && isValidLocale(requested) ? requested : defaultLocale;
+  const resolvedLocale = requested && isValidLocale(requested) ? requested : defaultLocale;
 
   let messages: IntlMessages;
   try {

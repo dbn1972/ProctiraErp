@@ -165,14 +165,10 @@ export default function BoardComparisonDashboard() {
   // Multi-select up to 4 boards. We initialise from `DEFAULT_BOARDS`
   // intersected with the data so the UI stays usable even if the
   // mock/API changes.
-  const [selectedBoardIds, setSelectedBoardIds] = useState<ReadonlyArray<string>>(
-    DEFAULT_BOARDS,
-  );
+  const [selectedBoardIds, setSelectedBoardIds] = useState<ReadonlyArray<string>>(DEFAULT_BOARDS);
   const [selectedMetricIds, setSelectedMetricIds] =
     useState<ReadonlyArray<BoardComparisonMetricId>>(DEFAULT_METRICS);
-  const [trendMetricId, setTrendMetricId] = useState<BoardComparisonMetricId>(
-    'passRate',
-  );
+  const [trendMetricId, setTrendMetricId] = useState<BoardComparisonMetricId>('passRate');
 
   const toggleBoard = (boardId: string) => {
     setSelectedBoardIds((prev) => {
@@ -188,9 +184,7 @@ export default function BoardComparisonDashboard() {
 
   const toggleMetric = (metricId: BoardComparisonMetricId) => {
     setSelectedMetricIds((prev) =>
-      prev.includes(metricId)
-        ? prev.filter((id) => id !== metricId)
-        : [...prev, metricId],
+      prev.includes(metricId) ? prev.filter((id) => id !== metricId) : [...prev, metricId],
     );
   };
 
@@ -237,8 +231,7 @@ export default function BoardComparisonDashboard() {
     [selectedBoards],
   );
 
-  const trendMetricLabel =
-    allMetrics.find((m) => m.id === trendMetricId)?.label ?? 'Value';
+  const trendMetricLabel = allMetrics.find((m) => m.id === trendMetricId)?.label ?? 'Value';
 
   // Filter the detail rows to the active selection so the table
   // matches the radar / trend visualisation. When the selection drops
@@ -246,9 +239,7 @@ export default function BoardComparisonDashboard() {
   const detailRows = useMemo(() => {
     if (!data) return [];
     return data.detail.filter(
-      (row) =>
-        selectedBoardIds.includes(row.boardId) &&
-        selectedMetricIds.includes(row.metricId),
+      (row) => selectedBoardIds.includes(row.boardId) && selectedMetricIds.includes(row.metricId),
     );
   }, [data, selectedBoardIds, selectedMetricIds]);
 
@@ -259,9 +250,8 @@ export default function BoardComparisonDashboard() {
           Board Performance Comparison
         </h1>
         <p className="text-sm text-[hsl(var(--muted-foreground))]">
-          Compare up to {MAX_SELECTED_BOARDS} education boards across configurable
-          metrics. Select boards and metrics, then review the radar, trend
-          lines, and detailed breakdown below.
+          Compare up to {MAX_SELECTED_BOARDS} education boards across configurable metrics. Select
+          boards and metrics, then review the radar, trend lines, and detailed breakdown below.
         </p>
       </header>
 
@@ -277,10 +267,7 @@ export default function BoardComparisonDashboard() {
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[hsl(var(--foreground))]">
               <span>Boards</span>
-              <Badge
-                variant="secondary"
-                data-testid="board-comparison-selection-count"
-              >
+              <Badge variant="secondary" data-testid="board-comparison-selection-count">
                 {selectedBoardIds.length}/{MAX_SELECTED_BOARDS}
               </Badge>
             </div>
@@ -297,8 +284,7 @@ export default function BoardComparisonDashboard() {
               >
                 {allBoards.map((board) => {
                   const checked = selectedBoardIds.includes(board.id);
-                  const disabled =
-                    !checked && selectedBoardIds.length >= MAX_SELECTED_BOARDS;
+                  const disabled = !checked && selectedBoardIds.length >= MAX_SELECTED_BOARDS;
                   return (
                     <Label
                       key={board.id}
@@ -322,9 +308,7 @@ export default function BoardComparisonDashboard() {
             )}
           </div>
           <div>
-            <p className="mb-2 text-sm font-medium text-[hsl(var(--foreground))]">
-              Metrics
-            </p>
+            <p className="mb-2 text-sm font-medium text-[hsl(var(--foreground))]">Metrics</p>
             {isLoading ? (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
                 {Array.from({ length: 6 }).map((_, i) => (
@@ -363,9 +347,7 @@ export default function BoardComparisonDashboard() {
             </Label>
             <Select
               value={trendMetricId}
-              onValueChange={(v) =>
-                setTrendMetricId(v as BoardComparisonMetricId)
-              }
+              onValueChange={(v) => setTrendMetricId(v as BoardComparisonMetricId)}
             >
               <SelectTrigger
                 className="w-[180px]"
@@ -397,10 +379,7 @@ export default function BoardComparisonDashboard() {
           data-testid="board-comparison-kpi-grid"
         >
           {selectedBoards.map((board) => (
-            <Card
-              key={board.id}
-              data-testid={`board-comparison-board-card-${board.id}`}
-            >
+            <Card key={board.id} data-testid={`board-comparison-board-card-${board.id}`}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">{board.name}</CardTitle>
                 <CardDescription>Selected for comparison</CardDescription>

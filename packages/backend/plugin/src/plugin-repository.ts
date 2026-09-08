@@ -79,7 +79,14 @@ export interface PluginAuditEntry {
   pluginId: string;
   tenantId: string;
   installId: string | null;
-  action: 'register' | 'install' | 'enable' | 'disable' | 'uninstall' | 'permission_consent' | 'permission_revoke';
+  action:
+    | 'register'
+    | 'install'
+    | 'enable'
+    | 'disable'
+    | 'uninstall'
+    | 'permission_consent'
+    | 'permission_revoke';
   actor: string;
   details: Record<string, unknown>;
   timestamp: Date;
@@ -102,22 +109,50 @@ export interface PluginRepository {
   createPlugin(entity: Omit<PluginEntity, 'createdAt' | 'updatedAt'>): Promise<PluginEntity>;
   findPluginById(id: string): Promise<PluginEntity | null>;
   findPluginByName(name: string): Promise<PluginEntity | null>;
-  listPlugins(filter: PluginFilter, page: number, pageSize: number): Promise<{ data: PluginEntity[]; total: number }>;
-  updatePlugin(id: string, updates: Partial<Pick<PluginEntity, 'status' | 'version' | 'description' | 'category'>>): Promise<PluginEntity>;
+  listPlugins(
+    filter: PluginFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: PluginEntity[]; total: number }>;
+  updatePlugin(
+    id: string,
+    updates: Partial<Pick<PluginEntity, 'status' | 'version' | 'description' | 'category'>>,
+  ): Promise<PluginEntity>;
 
   // Manifest operations
   createManifest(entity: Omit<PluginManifestEntity, 'createdAt'>): Promise<PluginManifestEntity>;
-  findManifestByPluginAndVersion(pluginId: string, version: string): Promise<PluginManifestEntity | null>;
+  findManifestByPluginAndVersion(
+    pluginId: string,
+    version: string,
+  ): Promise<PluginManifestEntity | null>;
 
   // Install operations
-  createInstall(entity: Omit<PluginInstallEntity, 'installedAt' | 'enabledAt' | 'disabledAt' | 'uninstalledAt' | 'updatedAt'>): Promise<PluginInstallEntity>;
+  createInstall(
+    entity: Omit<
+      PluginInstallEntity,
+      'installedAt' | 'enabledAt' | 'disabledAt' | 'uninstalledAt' | 'updatedAt'
+    >,
+  ): Promise<PluginInstallEntity>;
   findInstallById(id: string): Promise<PluginInstallEntity | null>;
-  findInstallByPluginAndTenant(pluginId: string, tenantId: string): Promise<PluginInstallEntity | null>;
+  findInstallByPluginAndTenant(
+    pluginId: string,
+    tenantId: string,
+  ): Promise<PluginInstallEntity | null>;
   listInstallsByTenant(tenantId: string): Promise<PluginInstallEntity[]>;
-  updateInstall(id: string, updates: Partial<Pick<PluginInstallEntity, 'status' | 'configuration' | 'enabledAt' | 'disabledAt' | 'uninstalledAt'>>): Promise<PluginInstallEntity>;
+  updateInstall(
+    id: string,
+    updates: Partial<
+      Pick<
+        PluginInstallEntity,
+        'status' | 'configuration' | 'enabledAt' | 'disabledAt' | 'uninstalledAt'
+      >
+    >,
+  ): Promise<PluginInstallEntity>;
 
   // Permission operations
-  createPermissions(entities: Omit<PluginPermissionEntity, 'revokedAt' | 'revokedBy'>[]): Promise<PluginPermissionEntity[]>;
+  createPermissions(
+    entities: Omit<PluginPermissionEntity, 'revokedAt' | 'revokedBy'>[],
+  ): Promise<PluginPermissionEntity[]>;
   findPermissionsByInstall(installId: string): Promise<PluginPermissionEntity[]>;
   revokePermission(id: string, revokedBy: string): Promise<PluginPermissionEntity>;
   revokeAllPermissionsByInstall(installId: string, revokedBy: string): Promise<void>;

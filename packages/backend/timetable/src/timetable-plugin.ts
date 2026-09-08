@@ -17,10 +17,7 @@ declare module 'fastify' {
 }
 
 export const timetablePlugin = fp(
-  async function timetablePluginImpl(
-    fastify: FastifyInstance,
-    options: TimetablePluginOptions,
-  ) {
+  async function timetablePluginImpl(fastify: FastifyInstance, options: TimetablePluginOptions) {
     const service = new TimetableService(options.repository);
     fastify.decorate('timetableService', service);
     await registerTimetableRoutes(fastify, {

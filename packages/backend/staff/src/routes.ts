@@ -157,11 +157,7 @@ export async function registerStaffRoutes(
       }
 
       try {
-        const staff = await staffService.update(
-          tenantId,
-          paramsResult.data.id,
-          bodyResult.data,
-        );
+        const staff = await staffService.update(tenantId, paramsResult.data.id, bodyResult.data);
         return reply.status(200).send(formatStaffResponse(staff));
       } catch (error: unknown) {
         if (error instanceof AppError) {

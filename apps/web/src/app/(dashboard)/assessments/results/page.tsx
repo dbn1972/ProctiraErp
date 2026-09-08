@@ -16,16 +16,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
-import {
-  getAssessmentItems,
-  getStudentResults,
-  listGradingSchemes,
-} from '@/lib/api/assessments';
-import {
-  listAcademicPeriods,
-  listSubjects,
-  type SubjectSummary,
-} from '@/lib/institutions/api';
+import { getAssessmentItems, getStudentResults, listGradingSchemes } from '@/lib/api/assessments';
+import { listAcademicPeriods, listSubjects, type SubjectSummary } from '@/lib/institutions/api';
 import type { AcademicPeriod } from '@/lib/institutions/types';
 
 import { ResultsEntryGrid } from '../_components/results-entry-grid';
@@ -36,10 +28,7 @@ interface PageProps {
   searchParams?: Record<string, string | string[] | undefined>;
 }
 
-function readStringParam(
-  params: PageProps['searchParams'],
-  key: string,
-): string {
+function readStringParam(params: PageProps['searchParams'], key: string): string {
   if (!params) return '';
   const value = params[key];
   if (typeof value === 'string') return value;
@@ -51,23 +40,21 @@ export default async function AssessmentResultsPage({ searchParams }: PageProps)
   const subjectId = readStringParam(searchParams, 'subjectId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');
 
-  const [schemesResponse, subjects, academicPeriods, items, results] =
-    await Promise.all([
-      listGradingSchemes({ pageSize: 100 }),
-      listSubjects().catch(() => [] as SubjectSummary[]),
-      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
-      subjectId && academicPeriodId
-        ? getAssessmentItems(subjectId, academicPeriodId)
-        : Promise.resolve(null),
-      subjectId && academicPeriodId
-        ? getStudentResults(subjectId, academicPeriodId)
-        : Promise.resolve([]),
-    ]);
+  const [schemesResponse, subjects, academicPeriods, items, results] = await Promise.all([
+    listGradingSchemes({ pageSize: 100 }),
+    listSubjects().catch(() => [] as SubjectSummary[]),
+    listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
+    subjectId && academicPeriodId
+      ? getAssessmentItems(subjectId, academicPeriodId)
+      : Promise.resolve(null),
+    subjectId && academicPeriodId
+      ? getStudentResults(subjectId, academicPeriodId)
+      : Promise.resolve([]),
+  ]);
 
-  const schemeForSubject =
-    items?.gradingSchemeId
-      ? schemesResponse.data.find((s) => s.id === items.gradingSchemeId) ?? null
-      : null;
+  const schemeForSubject = items?.gradingSchemeId
+    ? (schemesResponse.data.find((s) => s.id === items.gradingSchemeId) ?? null)
+    : null;
 
   return (
     <section aria-labelledby="results-heading" className="space-y-6">
@@ -79,15 +66,12 @@ export default async function AssessmentResultsPage({ searchParams }: PageProps)
       </Button>
 
       <div>
-        <h1
-          id="results-heading"
-          className="text-3xl font-extrabold tracking-tight text-foreground"
-        >
+        <h1 id="results-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
           Result entry
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Bulk entry via data grid; supports Excel import (up to 5,000 rows).
-          Scores are validated against the grading scheme range.
+          Bulk entry via data grid; supports Excel import (up to 5,000 rows). Scores are validated
+          against the grading scheme range.
         </p>
       </div>
 
@@ -95,8 +79,8 @@ export default async function AssessmentResultsPage({ searchParams }: PageProps)
         <CardHeader>
           <CardTitle className="text-base">Entry grid</CardTitle>
           <CardDescription>
-            Pick a subject and academic period to load assessment items and
-            previously recorded results for editing.
+            Pick a subject and academic period to load assessment items and previously recorded
+            results for editing.
           </CardDescription>
         </CardHeader>
         <CardContent>

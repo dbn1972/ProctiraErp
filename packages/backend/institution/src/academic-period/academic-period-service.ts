@@ -7,7 +7,11 @@
 import { NotFoundError, ConflictError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PrismaClient, AcademicPeriod } from '@proctira/database';
 
-import type { CreateAcademicPeriodDto, UpdateAcademicPeriodDto, AcademicPeriodStatusType } from './academic-period-schemas.js';
+import type {
+  CreateAcademicPeriodDto,
+  UpdateAcademicPeriodDto,
+  AcademicPeriodStatusType,
+} from './academic-period-schemas.js';
 
 export interface AcademicPeriodServiceDeps {
   prisma: PrismaClient;
@@ -58,7 +62,11 @@ export class AcademicPeriodService {
   /**
    * Update an existing academic period.
    */
-  async update(tenantId: string, id: string, dto: UpdateAcademicPeriodDto): Promise<AcademicPeriod> {
+  async update(
+    tenantId: string,
+    id: string,
+    dto: UpdateAcademicPeriodDto,
+  ): Promise<AcademicPeriod> {
     const period = await this.prisma.academicPeriod.findFirst({
       where: { id, tenantId, deletedAt: null },
     });
@@ -174,7 +182,7 @@ export class AcademicPeriodService {
     if (period.status !== 'active') {
       throw new BusinessRuleError(
         `The referenced academic period '${period.name}' is not currently active. ` +
-        `Current status: ${period.status}. Only active periods allow enrollment, attendance, and assessment operations.`,
+          `Current status: ${period.status}. Only active periods allow enrollment, attendance, and assessment operations.`,
       );
     }
 
@@ -190,7 +198,10 @@ export class AcademicPeriodService {
    * - inactive → archived
    * - archived → (none, terminal state)
    */
-  private validateStatusTransition(current: AcademicPeriodStatusType, target: AcademicPeriodStatusType): void {
+  private validateStatusTransition(
+    current: AcademicPeriodStatusType,
+    target: AcademicPeriodStatusType,
+  ): void {
     if (current === target) return;
 
     const allowedTransitions: Record<AcademicPeriodStatusType, AcademicPeriodStatusType[]> = {
@@ -203,7 +214,7 @@ export class AcademicPeriodService {
     if (!allowed || !allowed.includes(target)) {
       throw new BusinessRuleError(
         `Cannot transition academic period from '${current}' to '${target}'. ` +
-        `Allowed transitions from '${current}': ${allowed?.join(', ') || 'none'}`,
+          `Allowed transitions from '${current}': ${allowed?.join(', ') || 'none'}`,
       );
     }
   }

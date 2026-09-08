@@ -123,95 +123,110 @@ export default function IndicatorBrowser({
   }, [debouncedSearch, categoryFilter]);
 
   // Expand an indicator to show its units and subgroups
-  const toggleExpand = useCallback(async (indicator: Indicator) => {
-    setExpandedMap((prev) => {
-      const next = new Map(prev);
-      if (next.has(indicator.id)) {
-        next.delete(indicator.id);
-      } else {
-        next.set(indicator.id, { indicator, units: [], subgroups: [], loading: true });
-      }
-      return next;
-    });
+  const toggleExpand = useCallback(
+    async (indicator: Indicator) => {
+      setExpandedMap((prev) => {
+        const next = new Map(prev);
+        if (next.has(indicator.id)) {
+          next.delete(indicator.id);
+        } else {
+          next.set(indicator.id, { indicator, units: [], subgroups: [], loading: true });
+        }
+        return next;
+      });
 
-    // Load units and subgroups if expanding
-    if (!expandedMap.has(indicator.id)) {
-      try {
-        const [units, subgroups] = await Promise.all([
-          fetchUnits(indicator.id),
-          fetchSubgroups(indicator.id),
-        ]);
-        setExpandedMap((prev) => {
-          const next = new Map(prev);
-          const entry = next.get(indicator.id);
-          if (entry) {
-            next.set(indicator.id, { ...entry, units, subgroups, loading: false });
-          }
-          return next;
-        });
-      } catch (err) {
-        console.error('Failed to load indicator details:', err);
-        setExpandedMap((prev) => {
-          const next = new Map(prev);
-          const entry = next.get(indicator.id);
-          if (entry) {
-            next.set(indicator.id, { ...entry, loading: false });
-          }
-          return next;
-        });
+      // Load units and subgroups if expanding
+      if (!expandedMap.has(indicator.id)) {
+        try {
+          const [units, subgroups] = await Promise.all([
+            fetchUnits(indicator.id),
+            fetchSubgroups(indicator.id),
+          ]);
+          setExpandedMap((prev) => {
+            const next = new Map(prev);
+            const entry = next.get(indicator.id);
+            if (entry) {
+              next.set(indicator.id, { ...entry, units, subgroups, loading: false });
+            }
+            return next;
+          });
+        } catch (err) {
+          console.error('Failed to load indicator details:', err);
+          setExpandedMap((prev) => {
+            const next = new Map(prev);
+            const entry = next.get(indicator.id);
+            if (entry) {
+              next.set(indicator.id, { ...entry, loading: false });
+            }
+            return next;
+          });
+        }
       }
-    }
-  }, [expandedMap]);
+    },
+    [expandedMap],
+  );
 
   // Toggle indicator selection
-  const toggleIndicatorSelection = useCallback((indicator: Indicator) => {
-    setSelections((prev) => {
-      const exists = prev.find((s) => s.indicatorId === indicator.id);
-      let next: IndicatorSelection[];
-      if (exists) {
-        next = prev.filter((s) => s.indicatorId !== indicator.id);
-      } else {
-        next = [...prev, {
-          indicatorId: indicator.id,
-          indicatorName: indicator.name,
-          unitIds: [],
-          subgroupIds: [],
-        }];
-      }
-      onSelectionChange?.(next);
-      return next;
-    });
-  }, [onSelectionChange]);
+  const toggleIndicatorSelection = useCallback(
+    (indicator: Indicator) => {
+      setSelections((prev) => {
+        const exists = prev.find((s) => s.indicatorId === indicator.id);
+        let next: IndicatorSelection[];
+        if (exists) {
+          next = prev.filter((s) => s.indicatorId !== indicator.id);
+        } else {
+          next = [
+            ...prev,
+            {
+              indicatorId: indicator.id,
+              indicatorName: indicator.name,
+              unitIds: [],
+              subgroupIds: [],
+            },
+          ];
+        }
+        onSelectionChange?.(next);
+        return next;
+      });
+    },
+    [onSelectionChange],
+  );
 
   // Toggle unit selection within an indicator
-  const toggleUnitSelection = useCallback((indicatorId: string, unitId: string) => {
-    setSelections((prev) => {
-      const next = prev.map((s) => {
-        if (s.indicatorId !== indicatorId) return s;
-        const unitIds = s.unitIds.includes(unitId)
-          ? s.unitIds.filter((id) => id !== unitId)
-          : [...s.unitIds, unitId];
-        return { ...s, unitIds };
+  const toggleUnitSelection = useCallback(
+    (indicatorId: string, unitId: string) => {
+      setSelections((prev) => {
+        const next = prev.map((s) => {
+          if (s.indicatorId !== indicatorId) return s;
+          const unitIds = s.unitIds.includes(unitId)
+            ? s.unitIds.filter((id) => id !== unitId)
+            : [...s.unitIds, unitId];
+          return { ...s, unitIds };
+        });
+        onSelectionChange?.(next);
+        return next;
       });
-      onSelectionChange?.(next);
-      return next;
-    });
-  }, [onSelectionChange]);
+    },
+    [onSelectionChange],
+  );
 
   // Toggle subgroup selection within an indicator
-  const toggleSubgroupSelection = useCallback((indicatorId: string, subgroupId: string) => {
-    setSelections((prev) => {
-      const next = prev.map((s) => {
-        if (s.indicatorId !== indicatorId) return s;
-        const subgroupIds = s.subgroupIds.includes(subgroupId)
-          ? s.subgroupIds.filter((id) => id !== subgroupId)
-          : [...s.subgroupIds, subgroupId];
-        return { ...s, subgroupIds };
+  const toggleSubgroupSelection = useCallback(
+    (indicatorId: string, subgroupId: string) => {
+      setSelections((prev) => {
+        const next = prev.map((s) => {
+          if (s.indicatorId !== indicatorId) return s;
+          const subgroupIds = s.subgroupIds.includes(subgroupId)
+            ? s.subgroupIds.filter((id) => id !== subgroupId)
+            : [...s.subgroupIds, subgroupId];
+          return { ...s, subgroupIds };
+        });
+        onSelectionChange?.(next);
+        return next;
       });
-      onSelectionChange?.(next);
-      return next;
-    });
-  }, [onSelectionChange]);
+    },
+    [onSelectionChange],
+  );
 
   const selectedIndicatorIds = useMemo(
     () => new Set(selections.map((s) => s.indicatorId)),
@@ -257,7 +272,12 @@ export default function IndicatorBrowser({
                   {sel.indicatorName}
                   <button
                     className="ml-1 text-xs hover:text-destructive"
-                    onClick={() => toggleIndicatorSelection({ id: sel.indicatorId, name: sel.indicatorName } as Indicator)}
+                    onClick={() =>
+                      toggleIndicatorSelection({
+                        id: sel.indicatorId,
+                        name: sel.indicatorName,
+                      } as Indicator)
+                    }
                     aria-label={`Remove ${sel.indicatorName}`}
                   >
                     ×

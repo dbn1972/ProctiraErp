@@ -31,24 +31,14 @@ import { Badge, Button, Card, CardContent } from '@proctira/ui/components';
 import { MarketingLayout } from '@/components/layout/MarketingLayout';
 import { useLanguage } from '@/providers/LanguageProvider';
 
-const FEATURE_ICONS = [
-  GraduationCap,
-  BarChart3,
-  Layers,
-  ShieldCheck,
-  WifiOff,
-  Plug,
-] as const;
+const FEATURE_ICONS = [GraduationCap, BarChart3, Layers, ShieldCheck, WifiOff, Plug] as const;
 
 export default function LandingPage() {
   const { t } = useLanguage();
 
   return (
     <MarketingLayout pageTitle={t('marketing.pages.landing.documentTitle')}>
-      <main
-        data-testid="marketing-landing-page"
-        className="flex flex-1 flex-col"
-      >
+      <main data-testid="marketing-landing-page" className="flex flex-1 flex-col">
         {/* Hero */}
         <section className="border-b border-border bg-[hsl(var(--secondary))]">
           <div className="mx-auto flex w-full max-w-6xl flex-col items-start gap-6 px-6 py-20 lg:px-8 lg:py-28">
@@ -68,15 +58,8 @@ export default function LandingPage() {
                   <ArrowRight className="ms-2 h-4 w-4" aria-hidden="true" />
                 </Link>
               </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                data-testid="landing-secondary-cta"
-              >
-                <Link href="/features">
-                  {t('marketing.pages.landing.secondaryCta')}
-                </Link>
+              <Button asChild size="lg" variant="outline" data-testid="landing-secondary-cta">
+                <Link href="/features">{t('marketing.pages.landing.secondaryCta')}</Link>
               </Button>
             </div>
             <p className="pt-6 text-sm text-muted-foreground">
@@ -133,9 +116,7 @@ export default function LandingPage() {
                 <Link href="/demo">{t('marketing.pages.landing.ctaPrimary')}</Link>
               </Button>
               <Button asChild size="lg" variant="outline">
-                <Link href="/contact">
-                  {t('marketing.pages.landing.ctaSecondary')}
-                </Link>
+                <Link href="/contact">{t('marketing.pages.landing.ctaSecondary')}</Link>
               </Button>
             </div>
           </div>

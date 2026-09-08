@@ -82,10 +82,16 @@ export interface InstitutionLookup {
  */
 export interface EnrollmentRepository {
   /** Create a new enrollment */
-  createEnrollment(data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>): Promise<EnrollmentEntity>;
+  createEnrollment(
+    data: Omit<EnrollmentEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<EnrollmentEntity>;
 
   /** Update an existing enrollment */
-  updateEnrollment(id: string, tenantId: string, data: Partial<EnrollmentEntity>): Promise<EnrollmentEntity | null>;
+  updateEnrollment(
+    id: string,
+    tenantId: string,
+    data: Partial<EnrollmentEntity>,
+  ): Promise<EnrollmentEntity | null>;
 
   /** Find an enrollment by ID within a tenant */
   findEnrollmentById(id: string, tenantId: string): Promise<EnrollmentEntity | null>;
@@ -98,7 +104,9 @@ export interface EnrollmentRepository {
   ): Promise<PaginatedResult<EnrollmentEntity>>;
 
   /** Create a history entry for an enrollment status change */
-  createHistoryEntry(data: Omit<EnrollmentHistoryEntity, 'createdAt'>): Promise<EnrollmentHistoryEntity>;
+  createHistoryEntry(
+    data: Omit<EnrollmentHistoryEntity, 'createdAt'>,
+  ): Promise<EnrollmentHistoryEntity>;
 
   /** Get enrollment history for a student */
   getEnrollmentHistory(tenantId: string, studentId: string): Promise<EnrollmentHistoryEntity[]>;
@@ -107,7 +115,9 @@ export interface EnrollmentRepository {
   getHistoryByEnrollmentId(enrollmentId: string): Promise<EnrollmentHistoryEntity[]>;
 
   /** Create a transfer record */
-  createTransferRecord(data: Omit<TransferRecordEntity, 'createdAt'>): Promise<TransferRecordEntity>;
+  createTransferRecord(
+    data: Omit<TransferRecordEntity, 'createdAt'>,
+  ): Promise<TransferRecordEntity>;
 
   /** Get transfer records for a student */
   getTransferRecords(tenantId: string, studentId: string): Promise<TransferRecordEntity[]>;

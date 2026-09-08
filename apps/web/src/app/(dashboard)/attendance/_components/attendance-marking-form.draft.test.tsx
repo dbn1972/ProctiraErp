@@ -28,13 +28,7 @@
  * pulling in the Next runtime.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  cleanup,
-} from '@testing-library/react';
+import { act, fireEvent, render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 
 // ─── Module mocks ────────────────────────────────────────────────────────────
@@ -78,13 +72,8 @@ vi.mock('@proctira/ui/components', () => {
       {children}
     </button>
   );
-  const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-    <input {...props} />
-  );
-  const Label = ({
-    children,
-    ...rest
-  }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
+  const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />;
+  const Label = ({ children, ...rest }: React.LabelHTMLAttributes<HTMLLabelElement>) => (
     <label {...rest}>{children}</label>
   );
 
@@ -102,13 +91,11 @@ vi.mock('@proctira/ui/components', () => {
     onValueChange?: (value: string) => void;
     children: React.ReactNode;
   }) {
-    const items = React.Children.toArray(children).filter(
-      (child): child is React.ReactElement => {
-        if (!React.isValidElement(child)) return false;
-        // Keep only <SelectContent> (and anything nested under it).
-        return (child.type as { displayName?: string }).displayName === 'SelectContent';
-      },
-    );
+    const items = React.Children.toArray(children).filter((child): child is React.ReactElement => {
+      if (!React.isValidElement(child)) return false;
+      // Keep only <SelectContent> (and anything nested under it).
+      return (child.type as { displayName?: string }).displayName === 'SelectContent';
+    });
     return (
       <select
         data-testid="ui-select"
@@ -136,9 +123,7 @@ vi.mock('@proctira/ui/components', () => {
     </option>
   );
   const SelectTrigger = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-  const SelectValue = ({ placeholder }: { placeholder?: string }) => (
-    <span>{placeholder}</span>
-  );
+  const SelectValue = ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>;
 
   // Plain semantic table primitives are sufficient for jsdom.
   const Table = ({ children, ...rest }: React.TableHTMLAttributes<HTMLTableElement>) => (

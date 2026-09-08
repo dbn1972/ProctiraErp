@@ -173,7 +173,11 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const program = await scholarshipService.updateProgram(tenantId, paramsResult.data.id, bodyResult.data);
+        const program = await scholarshipService.updateProgram(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send({
           ...program,
           createdAt: program.createdAt.toISOString(),
@@ -367,7 +371,15 @@ export async function registerScholarshipRoutes(
   fastify.get(
     `${prefix}/applications`,
     async function listApplicationsHandler(
-      request: FastifyRequest<{ Querystring: ScholarshipListQuery & { programId?: string; applicantId?: string; institutionId?: string; areaId?: string; gender?: string } }>,
+      request: FastifyRequest<{
+        Querystring: ScholarshipListQuery & {
+          programId?: string;
+          applicantId?: string;
+          institutionId?: string;
+          areaId?: string;
+          gender?: string;
+        };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);
@@ -440,7 +452,10 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const application = await scholarshipService.getApplicationById(tenantId, paramsResult.data.id);
+        const application = await scholarshipService.getApplicationById(
+          tenantId,
+          paramsResult.data.id,
+        );
         return reply.status(200).send({
           ...application,
           submittedAt: application.submittedAt.toISOString(),
@@ -486,7 +501,10 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const application = await scholarshipService.approveApplication(tenantId, paramsResult.data.id);
+        const application = await scholarshipService.approveApplication(
+          tenantId,
+          paramsResult.data.id,
+        );
         return reply.status(200).send({
           ...application,
           submittedAt: application.submittedAt.toISOString(),
@@ -532,7 +550,10 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const application = await scholarshipService.rejectApplication(tenantId, paramsResult.data.id);
+        const application = await scholarshipService.rejectApplication(
+          tenantId,
+          paramsResult.data.id,
+        );
         return reply.status(200).send({
           ...application,
           submittedAt: application.submittedAt.toISOString(),
@@ -634,7 +655,11 @@ export async function registerScholarshipRoutes(
       }
 
       try {
-        const disbursement = await scholarshipService.updateDisbursement(tenantId, paramsResult.data.id, bodyResult.data);
+        const disbursement = await scholarshipService.updateDisbursement(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send({
           ...disbursement,
           createdAt: disbursement.createdAt.toISOString(),
@@ -655,7 +680,9 @@ export async function registerScholarshipRoutes(
   fastify.get(
     `${prefix}/disbursements`,
     async function listDisbursementsHandler(
-      request: FastifyRequest<{ Querystring: ScholarshipListQuery & { applicationId?: string; paymentStatus?: string } }>,
+      request: FastifyRequest<{
+        Querystring: ScholarshipListQuery & { applicationId?: string; paymentStatus?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);

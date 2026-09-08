@@ -73,9 +73,14 @@ export interface AppraisalFilter {
  * Repository interface for appraisal template data access.
  */
 export interface AppraisalTemplateRepository {
-  create(data: Omit<AppraisalTemplateEntity, 'createdAt' | 'updatedAt'>): Promise<AppraisalTemplateEntity>;
+  create(
+    data: Omit<AppraisalTemplateEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AppraisalTemplateEntity>;
   findById(id: string, tenantId: string): Promise<AppraisalTemplateEntity | null>;
-  list(tenantId: string, pagination: PaginationOptions): Promise<PaginatedResult<AppraisalTemplateEntity>>;
+  list(
+    tenantId: string,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<AppraisalTemplateEntity>>;
 }
 
 /**
@@ -84,6 +89,14 @@ export interface AppraisalTemplateRepository {
 export interface AppraisalRepository {
   create(data: Omit<AppraisalEntity, 'createdAt' | 'updatedAt'>): Promise<AppraisalEntity>;
   findById(id: string, tenantId: string): Promise<AppraisalEntity | null>;
-  update(id: string, tenantId: string, data: Partial<AppraisalEntity>): Promise<AppraisalEntity | null>;
-  list(tenantId: string, filter: AppraisalFilter, pagination: PaginationOptions): Promise<PaginatedResult<AppraisalEntity>>;
+  update(
+    id: string,
+    tenantId: string,
+    data: Partial<AppraisalEntity>,
+  ): Promise<AppraisalEntity | null>;
+  list(
+    tenantId: string,
+    filter: AppraisalFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<AppraisalEntity>>;
 }

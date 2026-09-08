@@ -45,13 +45,7 @@ export function NewTenantForm() {
         state={state}
       />
       <PlanField state={state} />
-      <Field
-        name="region"
-        label="Hosting region"
-        required
-        defaultValue="us-east-1"
-        state={state}
-      />
+      <Field name="region" label="Hosting region" required defaultValue="us-east-1" state={state} />
 
       <div className="sm:col-span-2 flex justify-end pt-2">
         <SubmitButton />
@@ -92,9 +86,7 @@ function Field({
         defaultValue={defaultValue}
         aria-invalid={Boolean(error)}
       />
-      {hint && !error && (
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      )}
+      {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );

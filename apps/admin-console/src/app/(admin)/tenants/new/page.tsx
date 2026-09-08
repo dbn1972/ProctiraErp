@@ -5,13 +5,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { StubDataBanner } from '@/components/stub-data-banner';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth/server';
 import { listTenants } from '@/lib/api/tenants';
 
@@ -53,8 +47,8 @@ export default async function NewTenantPage() {
             <CardHeader>
               <CardTitle>Tenant details</CardTitle>
               <CardDescription>
-                Slug must be unique and is used in subdomains, queue prefixes,
-                and audit identifiers.
+                Slug must be unique and is used in subdomains, queue prefixes, and audit
+                identifiers.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -71,10 +65,7 @@ export default async function NewTenantPage() {
             <CardContent>
               <ul className="space-y-3">
                 {PROVISIONED_ITEMS.map((item) => (
-                  <li
-                    key={item}
-                    className="flex items-start gap-2 text-sm text-muted-foreground"
-                  >
+                  <li key={item} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <Check
                       className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--success))]"
                       aria-hidden="true"
@@ -90,8 +81,8 @@ export default async function NewTenantPage() {
             <Info className="h-4 w-4" />
             <AlertTitle>Provisioning is reversible for 72 hours</AlertTitle>
             <AlertDescription>
-              A new tenant can be torn down without trace within 72 hours. After
-              that, deletion requires a data-retention review.
+              A new tenant can be torn down without trace within 72 hours. After that, deletion
+              requires a data-retention review.
             </AlertDescription>
           </Alert>
         </div>

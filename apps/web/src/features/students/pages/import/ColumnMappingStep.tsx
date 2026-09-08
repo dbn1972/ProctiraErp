@@ -33,10 +33,7 @@ export function ColumnMappingStep({
   onBack,
   fileName,
 }: ColumnMappingStepProps) {
-  const requiredFields = useMemo(
-    () => targetFields.filter((f) => f.required),
-    [targetFields],
-  );
+  const requiredFields = useMemo(() => targetFields.filter((f) => f.required), [targetFields]);
 
   const mappedTargets = useMemo(
     () => mappings.filter((m) => m.valid).map((m) => m.targetField),
@@ -59,9 +56,8 @@ export function ColumnMappingStep({
       <div className="space-y-2">
         <h3 className="text-lg font-medium">Map Columns</h3>
         <p className="text-sm text-muted-foreground">
-          Match the columns from{' '}
-          {fileName && <span className="font-medium">{fileName}</span>} to the
-          corresponding student fields. Required fields are marked with *.
+          Match the columns from {fileName && <span className="font-medium">{fileName}</span>} to
+          the corresponding student fields. Required fields are marked with *.
         </p>
       </div>
 
@@ -103,18 +99,13 @@ export function ColumnMappingStep({
                   {mapping.inferredType ?? 'text'}
                 </td>
                 <td className="px-4 py-3">
-                  <label
-                    htmlFor={`mapping-select-${mapping.sourceColumn}`}
-                    className="sr-only"
-                  >
+                  <label htmlFor={`mapping-select-${mapping.sourceColumn}`} className="sr-only">
                     Map &quot;{mapping.sourceColumn}&quot; to field
                   </label>
                   <select
                     id={`mapping-select-${mapping.sourceColumn}`}
                     value={mapping.targetField}
-                    onChange={(e) =>
-                      onMappingChange(mapping.sourceColumn, e.target.value)
-                    }
+                    onChange={(e) => onMappingChange(mapping.sourceColumn, e.target.value)}
                     className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={`Map "${mapping.sourceColumn}" to target field`}
                   >
@@ -124,8 +115,7 @@ export function ColumnMappingStep({
                         key={field.name}
                         value={field.name}
                         disabled={
-                          mappedTargets.includes(field.name) &&
-                          mapping.targetField !== field.name
+                          mappedTargets.includes(field.name) && mapping.targetField !== field.name
                         }
                       >
                         {field.label}

@@ -93,28 +93,59 @@ export interface DeveloperPortalRepository {
   createAccount(account: DeveloperAccountEntity): Promise<DeveloperAccountEntity>;
   getAccountById(id: string): Promise<DeveloperAccountEntity | null>;
   getAccountByEmail(email: string): Promise<DeveloperAccountEntity | null>;
-  updateAccount(id: string, updates: Partial<Pick<DeveloperAccountEntity, 'name' | 'organization' | 'website' | 'status'>>): Promise<DeveloperAccountEntity | null>;
+  updateAccount(
+    id: string,
+    updates: Partial<Pick<DeveloperAccountEntity, 'name' | 'organization' | 'website' | 'status'>>,
+  ): Promise<DeveloperAccountEntity | null>;
 
   // API Keys
   createApiKey(key: ApiKeyEntity): Promise<ApiKeyEntity>;
   getApiKeyById(id: string): Promise<ApiKeyEntity | null>;
   getApiKeyByHash(keyHash: string): Promise<ApiKeyEntity | null>;
-  listApiKeys(filter: ApiKeyFilter, page: number, pageSize: number): Promise<{ data: ApiKeyEntity[]; total: number }>;
-  updateApiKeyStatus(id: string, status: 'active' | 'revoked' | 'expired'): Promise<ApiKeyEntity | null>;
+  listApiKeys(
+    filter: ApiKeyFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: ApiKeyEntity[]; total: number }>;
+  updateApiKeyStatus(
+    id: string,
+    status: 'active' | 'revoked' | 'expired',
+  ): Promise<ApiKeyEntity | null>;
   updateApiKeyLastUsed(id: string, lastUsedAt: Date): Promise<void>;
 
   // Webhooks
   createWebhook(webhook: WebhookEntity): Promise<WebhookEntity>;
   getWebhookById(id: string): Promise<WebhookEntity | null>;
-  listWebhooks(filter: WebhookFilter, page: number, pageSize: number): Promise<{ data: WebhookEntity[]; total: number }>;
-  updateWebhook(id: string, updates: Partial<Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>>): Promise<WebhookEntity | null>;
+  listWebhooks(
+    filter: WebhookFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: WebhookEntity[]; total: number }>;
+  updateWebhook(
+    id: string,
+    updates: Partial<
+      Pick<WebhookEntity, 'url' | 'events' | 'secretHash' | 'description' | 'active'>
+    >,
+  ): Promise<WebhookEntity | null>;
   deleteWebhook(id: string): Promise<boolean>;
 
   // Webhook Deliveries
   createDelivery(delivery: WebhookDeliveryEntity): Promise<WebhookDeliveryEntity>;
   getDeliveryById(id: string): Promise<WebhookDeliveryEntity | null>;
-  listDeliveries(filter: WebhookDeliveryFilter, page: number, pageSize: number): Promise<{ data: WebhookDeliveryEntity[]; total: number }>;
-  updateDelivery(id: string, updates: Partial<Pick<WebhookDeliveryEntity, 'status' | 'httpStatus' | 'attempts' | 'lastAttemptAt' | 'nextRetryAt'>>): Promise<WebhookDeliveryEntity | null>;
+  listDeliveries(
+    filter: WebhookDeliveryFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: WebhookDeliveryEntity[]; total: number }>;
+  updateDelivery(
+    id: string,
+    updates: Partial<
+      Pick<
+        WebhookDeliveryEntity,
+        'status' | 'httpStatus' | 'attempts' | 'lastAttemptAt' | 'nextRetryAt'
+      >
+    >,
+  ): Promise<WebhookDeliveryEntity | null>;
 
   // Sandboxes
   createSandbox(sandbox: SandboxEntity): Promise<SandboxEntity>;
@@ -122,7 +153,6 @@ export interface DeveloperPortalRepository {
   listSandboxes(accountId: string): Promise<SandboxEntity[]>;
   updateSandboxStatus(id: string, status: SandboxEntity['status']): Promise<SandboxEntity | null>;
 }
-
 
 // ─── Plugin Submission Entity Types ───────────────────────────────────────────
 
@@ -255,31 +285,60 @@ export interface DeveloperPortalExtendedRepository extends DeveloperPortalReposi
   // Plugin Submissions
   createSubmission(submission: PluginSubmissionEntity): Promise<PluginSubmissionEntity>;
   getSubmissionById(id: string): Promise<PluginSubmissionEntity | null>;
-  listSubmissions(filter: PluginSubmissionFilter, page: number, pageSize: number): Promise<{ data: PluginSubmissionEntity[]; total: number }>;
-  updateSubmissionStatus(id: string, status: PluginSubmissionEntity['status'], reviewNotes?: string | null, reviewedBy?: string | null): Promise<PluginSubmissionEntity | null>;
+  listSubmissions(
+    filter: PluginSubmissionFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: PluginSubmissionEntity[]; total: number }>;
+  updateSubmissionStatus(
+    id: string,
+    status: PluginSubmissionEntity['status'],
+    reviewNotes?: string | null,
+    reviewedBy?: string | null,
+  ): Promise<PluginSubmissionEntity | null>;
 
   // Marketplace Listings
   createListing(listing: MarketplaceListingEntity): Promise<MarketplaceListingEntity>;
   getListingByName(name: string): Promise<MarketplaceListingEntity | null>;
-  searchListings(filter: MarketplaceFilter, page: number, pageSize: number): Promise<{ data: MarketplaceListingEntity[]; total: number }>;
-  updateListingStats(name: string, updates: Partial<Pick<MarketplaceListingEntity, 'installs' | 'averageRating' | 'ratingCount'>>): Promise<MarketplaceListingEntity | null>;
+  searchListings(
+    filter: MarketplaceFilter,
+    page: number,
+    pageSize: number,
+  ): Promise<{ data: MarketplaceListingEntity[]; total: number }>;
+  updateListingStats(
+    name: string,
+    updates: Partial<Pick<MarketplaceListingEntity, 'installs' | 'averageRating' | 'ratingCount'>>,
+  ): Promise<MarketplaceListingEntity | null>;
   deleteListing(name: string): Promise<boolean>;
 
   // Plugin Ratings
   createRating(rating: PluginRatingEntity): Promise<PluginRatingEntity>;
-  getRatingByAccountAndPlugin(accountId: string, pluginName: string): Promise<PluginRatingEntity | null>;
-  updateRating(id: string, rating: number, review: string | null): Promise<PluginRatingEntity | null>;
+  getRatingByAccountAndPlugin(
+    accountId: string,
+    pluginName: string,
+  ): Promise<PluginRatingEntity | null>;
+  updateRating(
+    id: string,
+    rating: number,
+    review: string | null,
+  ): Promise<PluginRatingEntity | null>;
   getAverageRating(pluginName: string): Promise<{ average: number; count: number }>;
 
   // Documentation Pages
   createDocPage(page: DocPageEntity): Promise<DocPageEntity>;
   getDocPageBySlug(slug: string): Promise<DocPageEntity | null>;
   listDocPages(filter: DocPageFilter): Promise<DocPageEntity[]>;
-  updateDocPage(id: string, updates: Partial<Pick<DocPageEntity, 'title' | 'content' | 'category' | 'order' | 'published'>>): Promise<DocPageEntity | null>;
+  updateDocPage(
+    id: string,
+    updates: Partial<Pick<DocPageEntity, 'title' | 'content' | 'category' | 'order' | 'published'>>,
+  ): Promise<DocPageEntity | null>;
   deleteDocPage(id: string): Promise<boolean>;
 
   // Analytics
   recordAnalyticsEvent(event: AnalyticsEventEntity): Promise<AnalyticsEventEntity>;
   getPluginAnalyticsSummary(pluginName: string): Promise<PluginAnalyticsSummary>;
-  getAnalyticsTimeSeries(filter: AnalyticsFilter, granularity: 'day' | 'week' | 'month'): Promise<AnalyticsTimeSeries[]>;
+  getAnalyticsTimeSeries(
+    filter: AnalyticsFilter,
+    granularity: 'day' | 'week' | 'month',
+  ): Promise<AnalyticsTimeSeries[]>;
 }

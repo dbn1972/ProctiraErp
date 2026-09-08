@@ -13,14 +13,7 @@
  *   • SSR safety: no crash when localStorage throws or DOM is missing
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, render, renderHook } from '@testing-library/react';
 import React from 'react';
 
@@ -34,11 +27,7 @@ import {
   LANGUAGE_STORAGE_KEY_SUFFIX,
   type TranslationMap,
 } from './LanguageProvider';
-import {
-  BrandConfigProvider,
-  DEFAULT_BRAND,
-  type Brand,
-} from './BrandConfigProvider';
+import { BrandConfigProvider, DEFAULT_BRAND, type Brand } from './BrandConfigProvider';
 
 // Stub the runtime dynamic import so tests are deterministic. We also
 // override it per-suite to simulate missing/partial catalogs.
@@ -119,11 +108,7 @@ function consume(opts: ConsumeOptions = {}) {
       </LanguageProvider>
     );
     if (opts.brand) {
-      return (
-        <BrandConfigProvider initialBrand={opts.brand}>
-          {provider}
-        </BrandConfigProvider>
-      );
+      return <BrandConfigProvider initialBrand={opts.brand}>{provider}</BrandConfigProvider>;
     }
     return provider;
   };
@@ -148,9 +133,7 @@ afterEach(() => {
 describe('LanguageProvider — defaults & contract', () => {
   it('useLanguage throws outside of <LanguageProvider>', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    expect(() => renderHook(() => useLanguage())).toThrow(
-      /within a <LanguageProvider>/,
-    );
+    expect(() => renderHook(() => useLanguage())).toThrow(/within a <LanguageProvider>/);
     spy.mockRestore();
   });
 
@@ -320,9 +303,7 @@ describe('LanguageProvider — t() fallback chain (Requirement 18 AC 9)', () => 
         en: { dashboard: { welcome: 'Welcome back, {name}' } },
       },
     });
-    expect(result.current.t('dashboard.welcome', { name: 'Asha' })).toBe(
-      'Welcome back, Asha',
-    );
+    expect(result.current.t('dashboard.welcome', { name: 'Asha' })).toBe('Welcome back, Asha');
   });
 
   it('returns the raw template when a placeholder lacks a corresponding param', () => {
@@ -376,11 +357,9 @@ describe('LanguageProvider — brand-aware storage key', () => {
 
 describe('LanguageProvider — SSR safety', () => {
   it('renders without crashing when localStorage throws (private mode simulation)', () => {
-    const setItemSpy = vi
-      .spyOn(Storage.prototype, 'setItem')
-      .mockImplementation(() => {
-        throw new Error('QuotaExceededError');
-      });
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError');
+    });
 
     const { result } = consume();
     expect(() => act(() => result.current.setLocale('hi'))).not.toThrow();
@@ -396,9 +375,7 @@ describe('LanguageProvider — SSR safety', () => {
     expect(typeof mod.getDirection).toBe('function');
     expect(mod.FALLBACK_LANGUAGE_STORAGE_KEY).toBe('proctira-language');
     expect(mod.LANGUAGE_STORAGE_KEY_SUFFIX).toBe('-language');
-    expect(mod.SUPPORTED_LOCALES).toEqual([
-      'en', 'hi', 'ta', 'te', 'mr', 'bn', 'gu', 'kn',
-    ]);
+    expect(mod.SUPPORTED_LOCALES).toEqual(['en', 'hi', 'ta', 'te', 'mr', 'bn', 'gu', 'kn']);
     expect(mod.DEFAULT_LOCALE).toBe('en');
   });
 

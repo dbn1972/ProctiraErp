@@ -202,10 +202,7 @@ export async function registerReportCardRoutes(
    */
   fastify.get(
     `${prefix}/templates`,
-    async function listTemplatesHandler(
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) {
+    async function listTemplatesHandler(request: FastifyRequest, reply: FastifyReply) {
       const tenantId = getTenantId(request);
       if (!tenantId) {
         return reply.status(400).send({
@@ -270,7 +267,10 @@ export async function registerReportCardRoutes(
   fastify.put(
     `${prefix}/templates/:id`,
     async function updateTemplateHandler(
-      request: FastifyRequest<{ Params: ReportCardTemplateParams; Body: UpdateReportCardTemplateInput }>,
+      request: FastifyRequest<{
+        Params: ReportCardTemplateParams;
+        Body: UpdateReportCardTemplateInput;
+      }>,
       reply: FastifyReply,
     ) {
       const paramsResult = validate(ReportCardTemplateParamsSchema, request.params);
@@ -517,7 +517,10 @@ export async function registerReportCardRoutes(
       }
 
       try {
-        const bulkResult = await reportCardService.queueBulkReportCardGeneration(tenantId, result.data);
+        const bulkResult = await reportCardService.queueBulkReportCardGeneration(
+          tenantId,
+          result.data,
+        );
         return reply.status(202).send({
           totalStudents: bulkResult.totalStudents,
           jobsCreated: bulkResult.jobsCreated,
@@ -644,7 +647,10 @@ export async function registerReportCardRoutes(
       }
 
       try {
-        const artifact = await reportCardService.getReportCardPdf(tenantId, paramsResult.data.jobId);
+        const artifact = await reportCardService.getReportCardPdf(
+          tenantId,
+          paramsResult.data.jobId,
+        );
         return reply
           .status(200)
           .header('Content-Type', artifact.contentType)

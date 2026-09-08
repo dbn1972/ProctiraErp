@@ -14,12 +14,19 @@ class MockHttpClient implements HttpClient {
   public postCalls: Array<{ url: string; body: Record<string, string> }> = [];
   public getCalls: Array<{ url: string; headers?: Record<string, string> }> = [];
 
-  async post(url: string, body: Record<string, string>, _headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }> {
+  async post(
+    url: string,
+    body: Record<string, string>,
+    _headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }> {
     this.postCalls.push({ url, body });
     return this.postResponses.shift() ?? { data: {}, status: 500 };
   }
 
-  async get(url: string, headers?: Record<string, string>): Promise<{ data: Record<string, unknown>; status: number }> {
+  async get(
+    url: string,
+    headers?: Record<string, string>,
+  ): Promise<{ data: Record<string, unknown>; status: number }> {
     this.getCalls.push({ url, headers });
     return this.getResponses.shift() ?? { data: {}, status: 500 };
   }
@@ -86,9 +93,7 @@ describe('OIDCProvider', () => {
     it('should throw on invalid discovery document', async () => {
       httpClient.getResponses.push({ data: { issuer: 'test' }, status: 200 });
 
-      await expect(provider.getDiscoveryDocument()).rejects.toThrow(
-        'missing required endpoints',
-      );
+      await expect(provider.getDiscoveryDocument()).rejects.toThrow('missing required endpoints');
     });
   });
 
@@ -179,9 +184,9 @@ describe('OIDCProvider', () => {
     });
 
     it('should throw on missing code', async () => {
-      await expect(
-        provider.handleCallback({ state: 'some-state' }, 'tenant-1'),
-      ).rejects.toThrow('Authorization code is missing');
+      await expect(provider.handleCallback({ state: 'some-state' }, 'tenant-1')).rejects.toThrow(
+        'Authorization code is missing',
+      );
     });
 
     it('should throw on invalid state', async () => {
@@ -197,10 +202,7 @@ describe('OIDCProvider', () => {
       const initResult = await provider.initiateAuth('tenant-1');
 
       await expect(
-        provider.handleCallback(
-          { code: 'code', state: initResult.state },
-          'tenant-2',
-        ),
+        provider.handleCallback({ code: 'code', state: initResult.state }, 'tenant-2'),
       ).rejects.toThrow('Tenant mismatch');
     });
 
@@ -211,10 +213,7 @@ describe('OIDCProvider', () => {
       httpClient.postResponses.push({ data: { error: 'invalid_grant' }, status: 400 });
 
       await expect(
-        provider.handleCallback(
-          { code: 'bad-code', state: initResult.state },
-          'tenant-1',
-        ),
+        provider.handleCallback({ code: 'bad-code', state: initResult.state }, 'tenant-1'),
       ).rejects.toThrow('token exchange failed');
     });
   });

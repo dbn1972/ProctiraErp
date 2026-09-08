@@ -4,14 +4,14 @@
 
 The API Gateway is the single ingress for all platform traffic. It terminates TLS, enforces authentication and per-tenant rate limits, applies CORS, and routes versioned URLs (/api/v1/...) to the appropriate backend service.
 
-| Field          | Value                                            |
-| -------------- | ------------------------------------------------ |
-| Service slug   | `api-gateway`                                         |
-| Default port   | `3000`                                         |
-| Owner team     | Platform Engineering                                     |
-| Slack channel  | #proctira-platform                                  |
-| On-call group  | `api-gateway-oncall`                                  |
-| Source         | `packages/backend/../apps/api-gateway` (or `apps/api-gateway` if applicable) |
+| Field         | Value                                                                        |
+| ------------- | ---------------------------------------------------------------------------- |
+| Service slug  | `api-gateway`                                                                |
+| Default port  | `3000`                                                                       |
+| Owner team    | Platform Engineering                                                         |
+| Slack channel | #proctira-platform                                                           |
+| On-call group | `api-gateway-oncall`                                                         |
+| Source        | `packages/backend/../apps/api-gateway` (or `apps/api-gateway` if applicable) |
 
 ## Dependencies
 
@@ -27,37 +27,40 @@ their dashboards before declaring `api-gateway` itself the root cause.
 
 ## Service Level Objectives
 
-| SLI            | SLO                       | Window  | Alert rule                  |
-| -------------- | ------------------------- | ------- | --------------------------- |
+| SLI            | SLO                        | Window  | Alert rule                            |
+| -------------- | -------------------------- | ------- | ------------------------------------- |
 | Availability   | 99.9% successful (non-5xx) | 30d     | `ServiceErrorRateHigh`, `ServiceDown` |
-| Latency (P95)  | < 500 ms                   | 5m      | `ServiceP95LatencyHigh`     |
-| Latency (P99)  | < 2 s                      | 5m      | `ServiceP99LatencyHigh`     |
-| Error budget   | burn rate < 14.4x          | 1h / 5m | `ErrorBudgetBurnFast`       |
-| CPU saturation | < 85% of one core          | 5m      | `ProcessCPUHigh`            |
-| Memory         | < 90% of heap              | 5m      | `ProcessMemoryHigh`         |
+| Latency (P95)  | < 500 ms                   | 5m      | `ServiceP95LatencyHigh`               |
+| Latency (P99)  | < 2 s                      | 5m      | `ServiceP99LatencyHigh`               |
+| Error budget   | burn rate < 14.4x          | 1h / 5m | `ErrorBudgetBurnFast`                 |
+| CPU saturation | < 85% of one core          | 5m      | `ProcessCPUHigh`                      |
+| Memory         | < 90% of heap              | 5m      | `ProcessMemoryHigh`                   |
 
 ## Common Failure Modes
 
 ### 1. Elevated 5xx error rate
+
 - **Symptom**: `ServiceErrorRateHigh` / `ServiceErrorRateCritical` firing.
 - **Likely cause**: downstream dependency outage, recent deploy, or DB
   connection exhaustion.
 - **Remediation**:
-  1. Check the *Service Overview* Grafana dashboard for the spike onset.
+  1. Check the _Service Overview_ Grafana dashboard for the spike onset.
   2. Correlate with recent deploys (`git log --since=1h`).
   3. Inspect logs in Loki / pino with `service="api-gateway"`.
   4. If a recent deploy is implicated, follow **Rollback** below.
 
 ### 2. Latency regression
+
 - **Symptom**: `ServiceP95LatencyHigh` firing while error rate is normal.
 - **Likely cause**: slow dependency (DB, queue), saturated event loop,
   or noisy neighbour tenant.
 - **Remediation**:
-  1. Use the *Tenant Overview* dashboard to identify a hot tenant.
-  2. Check the *Dependencies* dashboard for DB / queue latency.
+  1. Use the _Tenant Overview_ dashboard to identify a hot tenant.
+  2. Check the _Dependencies_ dashboard for DB / queue latency.
   3. Consider scaling out additional replicas while you investigate.
 
 ### 3. Service down (scrape failing)
+
 - **Symptom**: `ServiceDown` firing; `up{service="api-gateway"}` is 0.
 - **Likely cause**: process crashed, network partition, or container OOM.
 - **Remediation**:
@@ -68,6 +71,7 @@ their dashboards before declaring `api-gateway` itself the root cause.
      when feasible.
 
 ### 4. Memory saturation / OOM
+
 - **Symptom**: `ProcessMemoryHigh` then `ServiceDown`.
 - **Likely cause**: leak after a recent change, oversized payloads, or
   unbounded cache growth.
@@ -77,6 +81,7 @@ their dashboards before declaring `api-gateway` itself the root cause.
   3. Roll back if a recent deploy is implicated.
 
 ### 5. CPU / event-loop saturation
+
 - **Symptom**: `ProcessCPUHigh` or `EventLoopLagHigh`.
 - **Likely cause**: hot-loop in code, sync I/O, large synchronous JSON
   parse / serialize.
@@ -98,13 +103,13 @@ their dashboards before declaring `api-gateway` itself the root cause.
 
 ## Escalation
 
-| Step | Action                                                   | Time-to-page |
-| ---- | -------------------------------------------------------- | ------------ |
-| 1    | Primary on-call (`api-gateway-oncall` PagerDuty)              | Immediately  |
-| 2    | Secondary on-call                                        | +15 min      |
-| 3    | Team lead, Platform Engineering                                  | +30 min      |
-| 4    | Engineering manager + Incident Commander                 | +60 min      |
-| 5    | CTO bridge (P1 incidents only)                           | +90 min      |
+| Step | Action                                           | Time-to-page |
+| ---- | ------------------------------------------------ | ------------ |
+| 1    | Primary on-call (`api-gateway-oncall` PagerDuty) | Immediately  |
+| 2    | Secondary on-call                                | +15 min      |
+| 3    | Team lead, Platform Engineering                  | +30 min      |
+| 4    | Engineering manager + Incident Commander         | +60 min      |
+| 5    | CTO bridge (P1 incidents only)                   | +90 min      |
 
 Coordination happens in #proctira-platform. Use `/incident declare`
 in Slack to spin up a dedicated incident channel for P1/P2 events.

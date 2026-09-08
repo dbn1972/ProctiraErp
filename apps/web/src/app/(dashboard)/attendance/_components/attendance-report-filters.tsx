@@ -35,24 +35,19 @@ interface AttendanceReportFiltersProps {
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
 
-export function AttendanceReportFilters({
-  institutions,
-}: AttendanceReportFiltersProps) {
+export function AttendanceReportFilters({ institutions }: AttendanceReportFiltersProps) {
   const today = new Date().toISOString().slice(0, 10);
-  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-  const [scope, setScope] = useState<'student' | 'class' | 'institution'>(
-    'institution',
-  );
+  const [scope, setScope] = useState<'student' | 'class' | 'institution'>('institution');
   const [institutionId, setInstitutionId] = useState('');
   const [classId, setClassId] = useState('');
   const [studentId, setStudentId] = useState('');
   const [startDate, setStartDate] = useState(monthAgo);
   const [endDate, setEndDate] = useState(today);
-  const [serverState, setServerState] =
-    useState<ActionState<AttendancePercentageResult> | null>(null);
+  const [serverState, setServerState] = useState<ActionState<AttendancePercentageResult> | null>(
+    null,
+  );
   const [isPending, setIsPending] = useState(false);
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -82,9 +77,7 @@ export function AttendanceReportFilters({
             <Label htmlFor="scope">Scope</Label>
             <Select
               value={scope}
-              onValueChange={(value) =>
-                setScope(value as 'student' | 'class' | 'institution')
-              }
+              onValueChange={(value) => setScope(value as 'student' | 'class' | 'institution')}
             >
               <SelectTrigger id="scope">
                 <SelectValue />
@@ -193,13 +186,12 @@ function ResultPanel({ result }: { result: AttendancePercentageResult }) {
   const fmt = (value: number) => `${value.toFixed(2)}%`;
   const pct = result.attendancePercentage;
   const tone =
-    pct >= 90 ? 'text-emerald-600 dark:text-emerald-400' :
-    pct >= 75 ? 'text-amber-600 dark:text-amber-400'     :
-                'text-red-600 dark:text-red-400';
-  const barTone =
-    pct >= 90 ? 'bg-emerald-500' :
-    pct >= 75 ? 'bg-amber-500'   :
-                'bg-red-500';
+    pct >= 90
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : pct >= 75
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-red-600 dark:text-red-400';
+  const barTone = pct >= 90 ? 'bg-emerald-500' : pct >= 75 ? 'bg-amber-500' : 'bg-red-500';
 
   return (
     <div className="space-y-4" role="status" aria-live="polite">
@@ -229,7 +221,11 @@ function ResultPanel({ result }: { result: AttendancePercentageResult }) {
       {/* KPI breakdown */}
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Stat label="Total records" value={result.totalRecords} />
-        <Stat label="Present" value={result.presentCount} accent="text-emerald-600 dark:text-emerald-400" />
+        <Stat
+          label="Present"
+          value={result.presentCount}
+          accent="text-emerald-600 dark:text-emerald-400"
+        />
         <Stat label="Absent" value={result.absentCount} accent="text-red-600 dark:text-red-400" />
         <Stat label="Late" value={result.lateCount} accent="text-amber-600 dark:text-amber-400" />
         <Stat label="Excused" value={result.excusedCount} accent="text-sky-600 dark:text-sky-400" />

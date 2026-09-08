@@ -189,7 +189,10 @@ export interface GradebookRepository {
   listGpaSnapshots(tenantId: string, studentId: string): Promise<GpaSnapshotEntity[]>;
   getGpaSnapshot(tenantId: string, id: string): Promise<GpaSnapshotEntity | null>;
 
-  listTranscripts(tenantId: string, filter?: ListTranscriptsFilter): Promise<TranscriptIssuanceEntity[]>;
+  listTranscripts(
+    tenantId: string,
+    filter?: ListTranscriptsFilter,
+  ): Promise<TranscriptIssuanceEntity[]>;
   getTranscript(tenantId: string, id: string): Promise<TranscriptIssuanceEntity | null>;
   getLatestTranscriptVersion(tenantId: string, studentId: string): Promise<number>;
   createTranscript(row: TranscriptIssuanceEntity): Promise<TranscriptIssuanceEntity>;

@@ -101,7 +101,8 @@ function cronToHuman(cron: string | null): string {
   const [minute, hour, dayOfMonth, , dayOfWeek] = parts;
 
   if (minute === '0' && hour === '*') return 'Every hour';
-  if (minute === '0' && hour === '0' && dayOfMonth === '*' && dayOfWeek === '*') return 'Daily at midnight';
+  if (minute === '0' && hour === '0' && dayOfMonth === '*' && dayOfWeek === '*')
+    return 'Daily at midnight';
   if (minute === '0' && hour === '0' && dayOfWeek === '1') return 'Weekly on Monday';
   if (minute === '0' && hour !== '*' && dayOfMonth === '*') return `Daily at ${hour}:00`;
 
@@ -280,12 +281,15 @@ export default function PipelineList() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-muted-foreground">{formatDate(pipeline.lastRunAt)}</span>
+                      <span className="text-muted-foreground">
+                        {formatDate(pipeline.lastRunAt)}
+                      </span>
                       {pipeline.lastRunStatus && (
                         <span
                           className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRunStatusBadgeClass(pipeline.lastRunStatus)}`}
                         >
-                          {pipeline.lastRunStatus.charAt(0).toUpperCase() + pipeline.lastRunStatus.slice(1)}
+                          {pipeline.lastRunStatus.charAt(0).toUpperCase() +
+                            pipeline.lastRunStatus.slice(1)}
                         </span>
                       )}
                     </div>

@@ -12,11 +12,7 @@ import {
   CardTitle,
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import {
-  listApplications,
-  listInterviewSlots,
-  listWaitlist,
-} from '@/lib/api/admissions';
+import { listApplications, listInterviewSlots, listWaitlist } from '@/lib/api/admissions';
 import { StatusForm } from './_components/status-form';
 import { NewInterviewSlotForm } from './_components/new-interview-slot-form';
 import { BookInterviewForm } from './_components/book-interview-form';
@@ -69,7 +65,11 @@ export default async function AdmissionsPage() {
           ) : (
             <ul className="divide-y divide-border" role="list">
               {applications.map((app) => (
-                <li key={app.id} className="py-3 first:pt-0 last:pb-0" data-testid="application-row">
+                <li
+                  key={app.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="application-row"
+                >
                   <p className="text-sm font-medium text-foreground">
                     {app.firstName} {app.lastName} · {app.trackingNumber}
                   </p>

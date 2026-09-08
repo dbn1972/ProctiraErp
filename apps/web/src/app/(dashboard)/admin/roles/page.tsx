@@ -6,11 +6,7 @@
 import Link from 'next/link';
 import { LayoutGrid, Plus, ShieldCheck } from 'lucide-react';
 
-import {
-  Button,
-  Card,
-  CardContent,
-} from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 import { listRoles } from '@/lib/api/admin.server';
 import { cn } from '@/lib/utils';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
@@ -24,15 +20,12 @@ export default async function AdminRolesPage() {
     <section aria-labelledby="roles-heading" className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1
-            id="roles-heading"
-            className="text-3xl font-extrabold tracking-tight text-foreground"
-          >
+          <h1 id="roles-heading" className="text-3xl font-extrabold tracking-tight text-foreground">
             Roles
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {roles.length.toLocaleString()} roles defined · bundle permissions, then
-            assign them to users.
+            {roles.length.toLocaleString()} roles defined · bundle permissions, then assign them to
+            users.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -55,7 +48,6 @@ export default async function AdminRolesPage() {
         detail="Nested admin UI scaffold. Lists stay empty when tenant admin APIs are offline."
       />
 
-
       {roles.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
@@ -72,9 +64,7 @@ export default async function AdminRolesPage() {
                     <ShieldCheck className="h-5 w-5" aria-hidden="true" />
                   </span>
                   <div className="min-w-0">
-                    <h2 className="truncate text-lg font-bold tracking-tight">
-                      {role.name}
-                    </h2>
+                    <h2 className="truncate text-lg font-bold tracking-tight">{role.name}</h2>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {role.isSystem ? 'System role · cannot be deleted' : 'Custom role'}
                     </p>
@@ -97,12 +87,7 @@ export default async function AdminRolesPage() {
                   <span className="text-xs font-semibold text-muted-foreground">
                     {role.permissionCount.toLocaleString()} permissions
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="ms-auto"
-                    disabled={role.isSystem}
-                  >
+                  <Button variant="ghost" size="sm" className="ms-auto" disabled={role.isSystem}>
                     Edit
                   </Button>
                 </div>
@@ -117,8 +102,7 @@ export default async function AdminRolesPage() {
               </span>
               <h2 className="text-base font-bold tracking-tight">Create a custom role</h2>
               <p className="max-w-[30ch] text-sm text-muted-foreground">
-                Start from a blank slate or duplicate an existing role and adjust its
-                permissions.
+                Start from a blank slate or duplicate an existing role and adjust its permissions.
               </p>
               <Button variant="outline" size="sm">
                 New role

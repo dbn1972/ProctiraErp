@@ -12,10 +12,7 @@
 import { withTenantTransaction } from '@proctira/database';
 import type { PrismaClient, TenantTransactionClient } from '@proctira/database';
 
-import type {
-  AssessmentResultEntity,
-  AssessmentResultRepository,
-} from './result-repository.js';
+import type { AssessmentResultEntity, AssessmentResultRepository } from './result-repository.js';
 
 interface AssessmentResultRow {
   id: string;
@@ -77,9 +74,7 @@ export class PrismaAssessmentResultRepository implements AssessmentResultReposit
   async upsert(
     data: Omit<AssessmentResultEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<AssessmentResultEntity> {
-    return withTenantTransaction(this.prisma, data.tenantId, async (tx) =>
-      upsertInTx(tx, data),
-    );
+    return withTenantTransaction(this.prisma, data.tenantId, async (tx) => upsertInTx(tx, data));
   }
 
   async bulkUpsert(

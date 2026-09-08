@@ -15,21 +15,8 @@
  *     and the browser shape glyphs in the correct script.
  */
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  vi,
-} from 'vitest';
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 
 import {
@@ -37,10 +24,7 @@ import {
   LANGUAGE_SELECTOR_LOCALES,
   LOCALE_NATIVE_NAMES,
 } from './LanguageSelector';
-import {
-  LanguageProvider,
-  type TranslationMap,
-} from '@/providers/LanguageProvider';
+import { LanguageProvider, type TranslationMap } from '@/providers/LanguageProvider';
 
 // Stub dynamic imports the provider triggers when ensureCatalog runs.
 vi.mock('@/messages/en.json', () => ({
@@ -100,23 +84,18 @@ beforeEach(() => {
   // jsdom does not implement. Stub them so the menu mounts without
   // crashing during the tests.
   if (!('ResizeObserver' in globalThis)) {
-    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      } as unknown as typeof ResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
   }
   // hasPointerCapture / setPointerCapture / releasePointerCapture are
   // referenced by Radix internals when delegating focus.
-  Element.prototype.hasPointerCapture =
-    Element.prototype.hasPointerCapture ?? (() => false);
-  Element.prototype.setPointerCapture =
-    Element.prototype.setPointerCapture ?? (() => {});
-  Element.prototype.releasePointerCapture =
-    Element.prototype.releasePointerCapture ?? (() => {});
-  Element.prototype.scrollIntoView =
-    Element.prototype.scrollIntoView ?? (() => {});
+  Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture ?? (() => false);
+  Element.prototype.setPointerCapture = Element.prototype.setPointerCapture ?? (() => {});
+  Element.prototype.releasePointerCapture = Element.prototype.releasePointerCapture ?? (() => {});
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
 });
 
 afterEach(() => {
@@ -241,9 +220,7 @@ describe('<LanguageSelector> — selection (Requirement 18 AC 7)', () => {
 
     // Initially English.
     expect(
-      screen
-        .getByRole('button', { name: 'Select language' })
-        .getAttribute('data-current-locale'),
+      screen.getByRole('button', { name: 'Select language' }).getAttribute('data-current-locale'),
     ).toBe('en');
 
     openMenu();
@@ -266,9 +243,7 @@ describe('<LanguageSelector> — selection (Requirement 18 AC 7)', () => {
     // the DOM because Radix re-renders the trigger element when the menu
     // closes (the `data-state` attribute flips closed → open → closed).
     expect(
-      screen
-        .getByRole('button', { name: 'Select language' })
-        .getAttribute('data-current-locale'),
+      screen.getByRole('button', { name: 'Select language' }).getAttribute('data-current-locale'),
     ).toBe('hi');
   });
 

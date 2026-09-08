@@ -107,9 +107,7 @@ export class VaultSecretAdapter implements SecretManager {
       }
 
       if (response.status !== 200) {
-        throw new SecretAccessError(
-          `Vault returned status ${response.status} for secret '${key}'`
-        );
+        throw new SecretAccessError(`Vault returned status ${response.status} for secret '${key}'`);
       }
 
       const body = response.data as VaultKvReadResponse;
@@ -136,10 +134,9 @@ export class VaultSecretAdapter implements SecretManager {
       };
     } catch (error: unknown) {
       if (error instanceof SecretAccessError) throw error;
-      throw new SecretAccessError(
-        `Failed to retrieve secret '${key}' from Vault`,
-        { cause: error }
-      );
+      throw new SecretAccessError(`Failed to retrieve secret '${key}' from Vault`, {
+        cause: error,
+      });
     }
   }
 
@@ -162,7 +159,7 @@ export class VaultSecretAdapter implements SecretManager {
 
       if (response.status !== 200 && response.status !== 204) {
         throw new SecretAccessError(
-          `Vault returned status ${response.status} when setting secret '${key}'`
+          `Vault returned status ${response.status} when setting secret '${key}'`,
         );
       }
 
@@ -175,10 +172,7 @@ export class VaultSecretAdapter implements SecretManager {
       };
     } catch (error: unknown) {
       if (error instanceof SecretAccessError) throw error;
-      throw new SecretAccessError(
-        `Failed to set secret '${key}' in Vault`,
-        { cause: error }
-      );
+      throw new SecretAccessError(`Failed to set secret '${key}' in Vault`, { cause: error });
     }
   }
 
@@ -194,7 +188,7 @@ export class VaultSecretAdapter implements SecretManager {
 
     if (!options?.newValue) {
       throw new SecretAccessError(
-        `Cannot rotate secret '${key}' without a new value (Vault adapter does not auto-generate secrets)`
+        `Cannot rotate secret '${key}' without a new value (Vault adapter does not auto-generate secrets)`,
       );
     }
 

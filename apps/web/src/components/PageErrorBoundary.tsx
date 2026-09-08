@@ -25,10 +25,7 @@ interface PageErrorBoundaryState {
   error: Error | null;
 }
 
-export class PageErrorBoundary extends Component<
-  PageErrorBoundaryProps,
-  PageErrorBoundaryState
-> {
+export class PageErrorBoundary extends Component<PageErrorBoundaryProps, PageErrorBoundaryState> {
   constructor(props: PageErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -80,8 +77,8 @@ export class PageErrorBoundary extends Component<
           </div>
           <h2 className="text-lg font-semibold">Something went wrong</h2>
           <p className="max-w-md text-sm text-muted-foreground">
-            An unexpected error occurred while rendering this page. The rest of
-            the application is still functional.
+            An unexpected error occurred while rendering this page. The rest of the application is
+            still functional.
           </p>
           {this.state.error && (
             <details className="max-w-md text-left text-xs text-muted-foreground">

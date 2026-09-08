@@ -37,12 +37,12 @@ export async function ensureDefaultTenant(
   client: PoolClient,
   targetSchema: string,
   tenantName: string,
-  tenantSlug: string
+  tenantSlug: string,
 ): Promise<string> {
   // Check if default tenant already exists
   const existing = await client.query(
     `SELECT id FROM "${targetSchema}"."tenants" WHERE slug = $1`,
-    [tenantSlug]
+    [tenantSlug],
   );
 
   if (existing.rows.length > 0) {
@@ -54,7 +54,13 @@ export async function ensureDefaultTenant(
   await client.query(
     `INSERT INTO "${targetSchema}"."tenants" (id, name, slug, config, status, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-    [tenantId, tenantName, tenantSlug, JSON.stringify({ migrated: true, migratedAt: new Date().toISOString() }), 'active']
+    [
+      tenantId,
+      tenantName,
+      tenantSlug,
+      JSON.stringify({ migrated: true, migratedAt: new Date().toISOString() }),
+      'active',
+    ],
   );
 
   console.log(`[tenant] Created default tenant: ${tenantName} (${tenantId})`);
@@ -68,14 +74,14 @@ async function assignTenantToTable(
   client: PoolClient,
   targetSchema: string,
   table: string,
-  tenantId: string
+  tenantId: string,
 ): Promise<number> {
   // Only update rows that don't already have a tenant_id
   const result = await client.query(
     `UPDATE "${targetSchema}"."${table}"
      SET tenant_id = $1
      WHERE tenant_id IS NULL OR tenant_id = ''`,
-    [tenantId]
+    [tenantId],
   );
 
   return result.rowCount ?? 0;
@@ -86,14 +92,14 @@ async function assignTenantToTable(
  */
 async function verifyTenantAssignment(
   client: PoolClient,
-  targetSchema: string
+  targetSchema: string,
 ): Promise<{ table: string; orphanedCount: number }[]> {
   const orphans: { table: string; orphanedCount: number }[] = [];
 
   for (const table of TENANT_SCOPED_TABLES) {
     const result = await client.query(
       `SELECT COUNT(*) as count FROM "${targetSchema}"."${table}"
-       WHERE tenant_id IS NULL OR tenant_id = ''`
+       WHERE tenant_id IS NULL OR tenant_id = ''`,
     );
     const count = parseInt(result.rows[0].count, 10);
     if (count > 0) {
@@ -134,7 +140,7 @@ export async function assignTenant(config: MigrationConfig): Promise<MigrationSt
       client,
       config.pg.schema,
       config.defaultTenantName,
-      config.defaultTenantSlug
+      config.defaultTenantSlug,
     );
     console.log(`[tenant] Default tenant ID: ${tenantId}`);
 
@@ -174,7 +180,7 @@ export async function assignTenant(config: MigrationConfig): Promise<MigrationSt
       `INSERT INTO migration_uuid_map (legacy_table, legacy_id, new_uuid)
        VALUES ('_default_tenant', 0, $1::uuid)
        ON CONFLICT (legacy_table, legacy_id) DO UPDATE SET new_uuid = $1::uuid`,
-      [tenantId]
+      [tenantId],
     );
 
     await client.query('COMMIT');

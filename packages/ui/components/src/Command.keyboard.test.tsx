@@ -45,17 +45,14 @@ import {
 
 beforeAll(() => {
   if (!('ResizeObserver' in globalThis)) {
-    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver =
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      } as unknown as typeof ResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
   }
-  Element.prototype.hasPointerCapture =
-    Element.prototype.hasPointerCapture ?? (() => false);
-  Element.prototype.scrollIntoView =
-    Element.prototype.scrollIntoView ?? (() => {});
+  Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture ?? (() => false);
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {});
 });
 
 interface RenderOptions {
