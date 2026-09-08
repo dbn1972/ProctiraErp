@@ -9,7 +9,7 @@ import { DocumentTitle } from '@/components/DocumentTitle';
 export default function HelpPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 py-8" data-testid="help-page">
-      <DocumentTitle title="Help" />
+      <DocumentTitle pageTitle="Help" />
       <h1 className="text-2xl font-semibold text-foreground">Help</h1>
       <p className="text-muted-foreground">
         Operator runbooks and module guides live in the docs tree. For day-to-day
