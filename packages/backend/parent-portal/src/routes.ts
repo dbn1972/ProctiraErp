@@ -42,11 +42,10 @@ function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
+/** Actor from verified JWT only (G-102 — never trust x-user-id headers). */
 function getActorId(request: FastifyRequest): string {
   const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
-  const headerUserId = request.headers['x-user-id'];
-  const fromHeader = Array.isArray(headerUserId) ? headerUserId[0] : headerUserId;
-  return user?.sub ?? fromHeader ?? 'anonymous';
+  return user?.sub ?? 'anonymous';
 }
 
 function formatLink(entity: {

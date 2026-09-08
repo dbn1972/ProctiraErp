@@ -53,3 +53,7 @@ export type {
   TenantTransactionClient,
   TenantTransactionOptions,
 } from './tenant-transaction';
+
+// Export node-pg tenant binder for raw-SQL RLS (db/sql/015_rls_policies.sql)
+export { withPgTenant } from './pg-tenant';
+export type { PgQueryable, PgPoolWithConnect, PgClient } from './pg-tenant';

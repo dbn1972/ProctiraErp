@@ -40,3 +40,36 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/seeds/002_multi_board_schools_500.
 `tools/scripts/setup-live-db-and-onboard.sh` runs `apply-sql.sh` for all numbered domain SQL, then applies the multi-board onboard seed.
 
 Module-local demo seeds that ship next to schema (`006b`, `007b`, …) **are** included in the numbered `db/sql/` apply and run after their schema file.
+
+## Row-Level Security (G-103) — `015_rls_policies.sql`
+
+`db/sql/015_rls_policies.sql` enables RLS + a `tenant_isolation` policy on every
+domain table with a `tenant_id` column under health, timetable, gradebook,
+notifications, transport, communication, hostel, library, parent, fees, HR leave,
+and admissions.
+
+Policies compare:
+
+```sql
+tenant_id::text = NULLIF(current_setting('app.tenant_id', true), '')
+```
+
+**Application requirement:** raw `node-pg` repositories must bind the tenant
+inside a transaction before querying:
+
+```ts
+import { withPgTenant } from '@proctira/database';
+
+await withPgTenant(pool, tenantId, async (client) => {
+  return client.query('SELECT * FROM staff_leave_requests WHERE …');
+});
+```
+
+`withPgTenant` runs `BEGIN`, `set_config('app.tenant_id', …, true)`, and also
+sets `app.current_tenant_id` for alignment with Prisma RLS.
+`withTenantTransaction` (Prisma) now sets both variables as well.
+
+Reference wiring: `packages/backend/staff/src/pg-leave-repository.ts`.
+Other `pg-*-repository` modules must adopt the same pattern when touching
+RLS-protected tables. See also `tools/tenant-isolation-tests` (raw-sql-rls unit).
+

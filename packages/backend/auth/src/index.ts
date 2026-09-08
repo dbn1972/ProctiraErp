@@ -16,6 +16,10 @@
 export { authPlugin } from './auth-plugin.js';
 export type { AuthPluginOptions } from './auth-plugin.js';
 
+// JWT-only actor extraction (G-102 — never trust x-user-id / x-actor headers)
+export { getActor } from './get-actor.js';
+export type { Actor, ActorRequest } from './get-actor.js';
+
 // RBAC Plugin
 export { rbacPlugin } from './rbac-plugin.js';
 export type { RbacPluginOptions } from './rbac-plugin.js';
