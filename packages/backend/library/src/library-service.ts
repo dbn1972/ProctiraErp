@@ -1,14 +1,20 @@
 /**
- * Library service — catalog and circulation.
+ * Library service — catalog, circulation, and fines → fees ledger (G-603).
  */
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import type { FeesLedgerPort } from './fees-ledger-port.js';
 import type { LibraryRepository } from './library-repository.js';
-import type { CheckoutInput, CreateLibraryItemInput } from './schemas.js';
+import type { AssessFineInput, CheckoutInput, CreateLibraryItemInput } from './schemas.js';
+
+const DEFAULT_FINE_CENTS_PER_DAY = 500; // ₹5.00 / day
 
 export class LibraryService {
-  constructor(private readonly repository: LibraryRepository) {}
+  constructor(
+    private readonly repository: LibraryRepository,
+    private readonly feesLedger?: FeesLedgerPort | null,
+  ) {}
 
   async createItem(tenantId: string, input: CreateLibraryItemInput) {
     const copies = input.copies ?? 1;
@@ -131,6 +137,57 @@ export class LibraryService {
       overdueCount,
       openLoans,
       checkedAt: new Date(),
+    };
+  }
+
+  /**
+   * Assess an overdue fine and post it to the fees ledger (G-603).
+   * Requires feesLedger port (wired by gateway) and a studentId on the loan.
+   */
+  async assessFine(tenantId: string, actorId: string, input: AssessFineInput) {
+    if (!this.feesLedger) {
+      throw new BusinessRuleError('Fees ledger is not configured; cannot post library fines');
+    }
+
+    const loan = await this.repository.findLoanById(input.loanId, tenantId);
+    if (!loan) {
+      throw new NotFoundError(`Loan with id '${input.loanId}' not found`);
+    }
+    if (!loan.studentId) {
+      throw new BusinessRuleError('Fine requires a studentId on the loan');
+    }
+
+    const now = Date.now();
+    const overdueMs = Math.max(0, now - loan.dueAt.getTime());
+    const overdueDays = Math.max(1, Math.ceil(overdueMs / (24 * 60 * 60 * 1000)));
+    const amountCents =
+      input.amountCents ?? overdueDays * (input.centsPerDay ?? DEFAULT_FINE_CENTS_PER_DAY);
+
+    if (amountCents <= 0) {
+      throw new BusinessRuleError('Fine amountCents must be positive');
+    }
+
+    const item = await this.repository.findItemById(loan.itemId, tenantId);
+    const title = input.title ?? `Library fine — ${item?.title ?? loan.itemId}`;
+    const description =
+      input.description ??
+      `Overdue loan ${loan.id} (${overdueDays} day(s) past due ${loan.dueAt.toISOString()})`;
+
+    const invoice = await this.feesLedger.postFineInvoice(tenantId, actorId, {
+      studentId: loan.studentId,
+      title,
+      description,
+      amountCents,
+      currency: input.currency ?? 'INR',
+      loanId: loan.id,
+    });
+
+    return {
+      loanId: loan.id,
+      studentId: loan.studentId,
+      overdueDays,
+      amountCents,
+      invoice,
     };
   }
 }

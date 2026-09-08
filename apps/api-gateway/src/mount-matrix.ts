@@ -28,6 +28,13 @@ export interface MountMatrixEntry {
    * `domain-plugins.ts`. Gateway-only mounts (auth) omit this.
    */
   registrarName?: string;
+  /**
+   * G-605 — formally parked (not productized for gateway composition).
+   * Packages exist under packages/backend/* but stay unmounted by decision.
+   */
+  parked?: boolean;
+  /** Human-readable park rationale when `parked: true`. */
+  parkedReason?: string;
 }
 
 /**
@@ -41,6 +48,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'auth',
   'billing',
   'communication',
+  'developer-portal',
   'examination',
   'fees',
   'gradebook',
@@ -68,7 +76,6 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
   'custom-field',
   'dashboards',
   'data-warehouse',
-  'developer-portal',
   'etl',
   'install',
   'plugin',
@@ -77,6 +84,19 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
   'survey',
   'theme',
   'workflow',
+] as const;
+
+/**
+ * G-605 — formally PARKED packages (subset of EXPECTED_UNMOUNTED).
+ * Decision: packages exist but are not composed onto the gateway until
+ * product UI + durable persistence are ready; theme prefix conflicts with
+ * platform-admin stub; dashboards needs AreaHierarchyResolver product wiring.
+ */
+export const EXPECTED_PARKED: readonly string[] = [
+  'custom-field',
+  'dashboards',
+  'survey',
+  'theme',
 ] as const;
 
 /**
@@ -201,7 +221,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/transport'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (006_transport_schema.sql) when DATABASE_URL set.',
+    notes:
+      'Raw pg (006) when DATABASE_URL; GPS + attendance-on-bus sandbox stubs (G-602). Live telematics residual.',
     registrarName: 'transport',
   },
   {
@@ -210,7 +231,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/communication'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (007_communication_schema.sql) when DATABASE_URL set.',
+    notes:
+      'Raw pg (007) when DATABASE_URL; sandbox delivery adapter + send audit (G-604). Live Twilio/SES residual.',
     registrarName: 'communication',
   },
   {
@@ -228,7 +250,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/library'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (009_library_schema.sql) when DATABASE_URL set.',
+    notes: 'Raw pg (009) when DATABASE_URL; fines → fees ledger via shared FeesService (G-603).',
     registrarName: 'library',
   },
   {
@@ -247,7 +269,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'feesPlugin (G-201); raw pg 010+011 when DATABASE_URL set; else in-memory. Sandbox PSP only (G-202 waived).',
+      'feesPlugin (G-201); raw pg 010+011 when DATABASE_URL set; else shared in-memory. Sandbox PSP only (G-202 waived).',
     registrarName: 'fees',
   },
   {
@@ -258,6 +280,16 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     rbacWired: false,
     notes: 'Raw pg (014_admissions_crm_schema.sql) when DATABASE_URL set; else in-memory (G-205).',
     registrarName: 'registration',
+  },
+  {
+    package: 'developer-portal',
+    mounted: true,
+    prefixes: ['/developer'],
+    persistence: 'in-memory',
+    rbacWired: true,
+    notes:
+      'G-607: mounted with in-memory API keys/docs; AuthZ via rbacPlugin; gateway rate-limit applies. Live IdP key mint residual.',
+    registrarName: 'developer',
   },
 
   // —— Mounted outside DOMAIN_REGISTRARS ——
@@ -345,7 +377,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/custom-fields'],
     persistence: 'n/a',
     rbacWired: false,
-    notes: 'Unmounted (G-605).',
+    parked: true,
+    parkedReason:
+      'G-605 PARKED — package exists (in-memory only); no redesign UI/E2E or durable schema. Mount when product path is funded.',
+    notes: 'Formally PARKED (G-605).',
   },
   {
     package: 'dashboards',
@@ -353,7 +388,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/dashboards'],
     persistence: 'n/a',
     rbacWired: false,
-    notes: 'Unmounted (G-605).',
+    parked: true,
+    parkedReason:
+      'G-605 PARKED — needs AreaHierarchyResolver product wiring; insights UI covers reporting for now.',
+    notes: 'Formally PARKED (G-605).',
   },
   {
     package: 'data-warehouse',
@@ -362,14 +400,6 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'n/a',
     rbacWired: false,
     notes: 'Unmounted; insights UI owns `/data-warehouse` (G-209).',
-  },
-  {
-    package: 'developer-portal',
-    mounted: false,
-    prefixes: ['/developer'],
-    persistence: 'n/a',
-    rbacWired: false,
-    notes: 'Unmounted; Other Portals use honesty-demo paths.',
   },
   {
     package: 'etl',
@@ -417,7 +447,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/surveys'],
     persistence: 'n/a',
     rbacWired: false,
-    notes: 'Unmounted (G-605).',
+    parked: true,
+    parkedReason:
+      'G-605 PARKED — multi-repo plugin ready but no gateway product surface/E2E; park until survey UX ships.',
+    notes: 'Formally PARKED (G-605).',
   },
   {
     package: 'theme',
@@ -425,7 +458,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/themes'],
     persistence: 'n/a',
     rbacWired: false,
-    notes: 'Unmounted; `/themes` served by platform-admin UI stub (G-605).',
+    parked: true,
+    parkedReason:
+      'G-605 PARKED — `/themes` owned by platform-admin UI stub; mounting themePlugin would conflict.',
+    notes: 'Formally PARKED (G-605); platform-admin owns `/themes`.',
   },
   {
     package: 'workflow',

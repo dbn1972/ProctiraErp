@@ -1,21 +1,52 @@
 /**
  * Communication service — campaigns and dual-confirm emergency blasts.
+ * G-604: sandbox delivery adapter + optional audit sink on send/dispatch.
  */
 import { ConflictError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
 import { estimateAudience } from './audience.js';
 import type { CommunicationRepository } from './communication-repository.js';
+import {
+  createSandboxDeliveryAdapter,
+  type CommunicationDeliveryAdapter,
+  type DeliveryResult,
+} from './delivery-adapter.js';
 import { fetchLiveAudienceCounts } from './live-audience.js';
 import type { CreateCampaignInput, CreateEmergencyBlastInput } from './schemas.js';
 
+export interface CommunicationAuditEvent {
+  action: 'campaign.send' | 'emergency.dispatch';
+  tenantId: string;
+  resourceId: string;
+  delivery: DeliveryResult;
+  at: Date;
+}
+
+export type CommunicationAuditSink = (event: CommunicationAuditEvent) => void | Promise<void>;
+
 export class CommunicationService {
-  constructor(private readonly repository: CommunicationRepository) {}
+  private readonly deliveryAdapter: CommunicationDeliveryAdapter;
+  private readonly auditSink: CommunicationAuditSink | null;
+  /** In-process audit trail for unit tests / honesty when gateway audit is separate. */
+  readonly localAuditLog: CommunicationAuditEvent[] = [];
+
+  constructor(
+    private readonly repository: CommunicationRepository,
+    options: {
+      deliveryAdapter?: CommunicationDeliveryAdapter;
+      auditSink?: CommunicationAuditSink | null;
+    } = {},
+  ) {
+    this.deliveryAdapter = options.deliveryAdapter ?? createSandboxDeliveryAdapter();
+    this.auditSink = options.auditSink ?? null;
+  }
 
   async previewAudience(tenantId: string, audienceJson: Record<string, unknown> = {}) {
     const live = await fetchLiveAudienceCounts(tenantId, audienceJson);
     return estimateAudience(audienceJson, live);
   }
+
   async createCampaign(tenantId: string, input: CreateCampaignInput) {
     return this.repository.createCampaign({
       id: uuidv4(),
@@ -44,8 +75,7 @@ export class CommunicationService {
   }
 
   /**
-   * Sandbox send: transitions draft/scheduled → sent without calling live providers.
-   * Returns honesty metadata for UI banners until Twilio/FCM/SMTP secrets exist.
+   * Sandbox send via delivery adapter — transitions draft/scheduled → sent.
    */
   async sendCampaign(tenantId: string, id: string) {
     const campaign = await this.getCampaign(tenantId, id);
@@ -59,18 +89,33 @@ export class CommunicationService {
       throw new ConflictError(`Cannot send campaign in status '${campaign.status}'`);
     }
 
+    const estimatedRecipients = estimateAudience(campaign.audienceJson).estimatedRecipients;
+    const delivery = await this.deliveryAdapter.deliver({
+      tenantId,
+      channels: campaign.channels,
+      body: campaign.body,
+      subject: campaign.name,
+      estimatedRecipients,
+    });
+
     const updated = await this.repository.updateCampaign(id, tenantId, {
       status: 'sent',
       sentAt: new Date(),
     });
 
+    await this.recordAudit({
+      action: 'campaign.send',
+      tenantId,
+      resourceId: id,
+      delivery,
+      at: new Date(),
+    });
+
     return {
       campaign: updated!,
       delivery: {
-        mode: 'sandbox' as const,
-        honestyNote:
-          'Sandbox send — status marked sent without calling SMS/email/push providers. Wire adapter credentials for production delivery.',
-        estimatedRecipients: estimateAudience(campaign.audienceJson).estimatedRecipients,
+        ...delivery,
+        estimatedRecipients,
       },
     };
   }
@@ -125,7 +170,7 @@ export class CommunicationService {
   }
 
   /**
-   * Sandbox dispatch for a fully confirmed emergency blast.
+   * Sandbox dispatch for a fully confirmed emergency blast via delivery adapter.
    */
   async dispatchEmergencyBlast(tenantId: string, id: string) {
     const blast = await this.repository.findEmergencyBlastById(id, tenantId);
@@ -139,17 +184,34 @@ export class CommunicationService {
       throw new ConflictError('Emergency blast must be dual-confirmed before dispatch');
     }
 
+    const delivery = await this.deliveryAdapter.deliver({
+      tenantId,
+      channels: blast.channels,
+      reason: blast.reason,
+    });
+
     const updated = await this.repository.updateEmergencyBlast(id, tenantId, {
       status: 'sent',
     });
 
+    await this.recordAudit({
+      action: 'emergency.dispatch',
+      tenantId,
+      resourceId: id,
+      delivery,
+      at: new Date(),
+    });
+
     return {
       blast: updated!,
-      delivery: {
-        mode: 'sandbox' as const,
-        honestyNote:
-          'Sandbox emergency dispatch — status marked sent without calling SMS/push providers. Dual-confirm audit trail retained.',
-      },
+      delivery,
     };
+  }
+
+  private async recordAudit(event: CommunicationAuditEvent) {
+    this.localAuditLog.push(event);
+    if (this.auditSink) {
+      await this.auditSink(event);
+    }
   }
 }

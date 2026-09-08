@@ -41,3 +41,15 @@ export const PatronParamsSchema = Type.Object({
 });
 
 export type PatronParams = Static<typeof PatronParamsSchema>;
+
+/** G-603 — assess overdue fine and post to fees ledger. */
+export const AssessFineSchema = Type.Object({
+  loanId: Type.String({ pattern: UUID_PATTERN }),
+  amountCents: Type.Optional(Type.Number({ minimum: 1 })),
+  centsPerDay: Type.Optional(Type.Number({ minimum: 1 })),
+  title: Type.Optional(Type.String({ minLength: 1, maxLength: 255 })),
+  description: Type.Optional(Type.String({ maxLength: 2000 })),
+  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+});
+
+export type AssessFineInput = Static<typeof AssessFineSchema>;

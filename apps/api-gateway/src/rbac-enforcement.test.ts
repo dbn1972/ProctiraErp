@@ -7,11 +7,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
-import {
-  actionForMethod,
-  createGatewayRbacRegistry,
-  resourceForApiPath,
-} from './rbac-registry.js';
+import { actionForMethod, createGatewayRbacRegistry, resourceForApiPath } from './rbac-registry.js';
 
 delete process.env['DATABASE_URL'];
 
@@ -343,6 +339,30 @@ describe('G-301 campus module RBAC deny matrix', () => {
       deniedRole: 'parent',
       allowedRole: 'admin',
     },
+    {
+      id: 'communication-send',
+      method: 'POST',
+      url: '/api/v1/communication/campaigns/c1000000-0000-4000-8000-000000000001/send',
+      payload: {},
+      deniedRole: 'teacher',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'communication-emergency',
+      method: 'POST',
+      url: '/api/v1/communication/emergency',
+      payload: { reason: 'Drill', channels: ['sms'] },
+      deniedRole: 'parent',
+      allowedRole: 'admin',
+    },
+    {
+      id: 'developer',
+      method: 'POST',
+      url: '/api/v1/developer/accounts',
+      payload: { email: 'dev@example.com', name: 'Dev Account' },
+      deniedRole: 'teacher',
+      allowedRole: 'admin',
+    },
   ];
 
   function bearer(roleId: string) {
@@ -411,6 +431,8 @@ describe('G-301 campus module RBAC deny matrix', () => {
     expect(resourceForApiPath('/api/v1/hostel/leaves')).toBe('hostel');
     expect(resourceForApiPath('/api/v1/transport/vehicles')).toBe('transport');
     expect(resourceForApiPath('/api/v1/library/circulation/checkout')).toBe('library');
+    expect(resourceForApiPath('/api/v1/communication/campaigns/x/send')).toBe('communication');
+    expect(resourceForApiPath('/api/v1/developer/accounts')).toBe('developer');
   });
 });
 

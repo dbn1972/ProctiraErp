@@ -26,14 +26,24 @@ export const CreateTransportRouteSchema = Type.Object({
   startLocation: Type.String({ minLength: 1, maxLength: 500, description: 'Starting location' }),
   endLocation: Type.String({ minLength: 1, maxLength: 500, description: 'Ending location' }),
   distanceKm: Type.Optional(Type.Number({ minimum: 0, description: 'Distance in kilometers' })),
-  estimatedDurationMinutes: Type.Optional(Type.Number({ minimum: 1, maximum: 1440, description: 'Estimated duration in minutes' })),
+  estimatedDurationMinutes: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 1440, description: 'Estimated duration in minutes' }),
+  ),
   operatingDays: Type.Array(
-    Type.String({ enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] }),
+    Type.String({
+      enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+    }),
     { minItems: 1, maxItems: 7, description: 'Days the route operates' },
   ),
-  departureTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Departure time (HH:MM)' })),
-  returnTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Return time (HH:MM)' })),
-  institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Associated institution UUID' })),
+  departureTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Departure time (HH:MM)' }),
+  ),
+  returnTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Return time (HH:MM)' }),
+  ),
+  institutionId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Associated institution UUID' }),
+  ),
 });
 
 export type CreateTransportRouteInput = Static<typeof CreateTransportRouteSchema>;
@@ -44,18 +54,36 @@ export type CreateTransportRouteInput = Static<typeof CreateTransportRouteSchema
 export const UpdateTransportRouteSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Route name' })),
   description: Type.Optional(Type.String({ maxLength: 1000, description: 'Route description' })),
-  status: Type.Optional(Type.String({ enum: ['active', 'inactive', 'suspended'], description: 'Route status' })),
-  startLocation: Type.Optional(Type.String({ minLength: 1, maxLength: 500, description: 'Starting location' })),
-  endLocation: Type.Optional(Type.String({ minLength: 1, maxLength: 500, description: 'Ending location' })),
+  status: Type.Optional(
+    Type.String({ enum: ['active', 'inactive', 'suspended'], description: 'Route status' }),
+  ),
+  startLocation: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 500, description: 'Starting location' }),
+  ),
+  endLocation: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 500, description: 'Ending location' }),
+  ),
   distanceKm: Type.Optional(Type.Number({ minimum: 0, description: 'Distance in kilometers' })),
-  estimatedDurationMinutes: Type.Optional(Type.Number({ minimum: 1, maximum: 1440, description: 'Estimated duration in minutes' })),
-  operatingDays: Type.Optional(Type.Array(
-    Type.String({ enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] }),
-    { minItems: 1, maxItems: 7, description: 'Days the route operates' },
-  )),
-  departureTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Departure time (HH:MM)' })),
-  returnTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Return time (HH:MM)' })),
-  institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Associated institution UUID' })),
+  estimatedDurationMinutes: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 1440, description: 'Estimated duration in minutes' }),
+  ),
+  operatingDays: Type.Optional(
+    Type.Array(
+      Type.String({
+        enum: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'],
+      }),
+      { minItems: 1, maxItems: 7, description: 'Days the route operates' },
+    ),
+  ),
+  departureTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Departure time (HH:MM)' }),
+  ),
+  returnTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Return time (HH:MM)' }),
+  ),
+  institutionId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Associated institution UUID' }),
+  ),
 });
 
 export type UpdateTransportRouteInput = Static<typeof UpdateTransportRouteSchema>;
@@ -70,9 +98,17 @@ export const CreateRouteStopSchema = Type.Object({
   name: Type.String({ minLength: 1, maxLength: 255, description: 'Stop name' }),
   latitude: Type.Optional(Type.Number({ minimum: -90, maximum: 90, description: 'Latitude' })),
   longitude: Type.Optional(Type.Number({ minimum: -180, maximum: 180, description: 'Longitude' })),
-  stopOrder: Type.Number({ minimum: 1, maximum: 999, description: 'Order of the stop in the route' }),
-  pickupTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Pickup time (HH:MM)' })),
-  dropoffTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Dropoff time (HH:MM)' })),
+  stopOrder: Type.Number({
+    minimum: 1,
+    maximum: 999,
+    description: 'Order of the stop in the route',
+  }),
+  pickupTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Pickup time (HH:MM)' }),
+  ),
+  dropoffTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Dropoff time (HH:MM)' }),
+  ),
 });
 
 export type CreateRouteStopInput = Static<typeof CreateRouteStopSchema>;
@@ -84,9 +120,15 @@ export const UpdateRouteStopSchema = Type.Object({
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 255, description: 'Stop name' })),
   latitude: Type.Optional(Type.Number({ minimum: -90, maximum: 90, description: 'Latitude' })),
   longitude: Type.Optional(Type.Number({ minimum: -180, maximum: 180, description: 'Longitude' })),
-  stopOrder: Type.Optional(Type.Number({ minimum: 1, maximum: 999, description: 'Order of the stop' })),
-  pickupTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Pickup time (HH:MM)' })),
-  dropoffTime: Type.Optional(Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Dropoff time (HH:MM)' })),
+  stopOrder: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 999, description: 'Order of the stop' }),
+  ),
+  pickupTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Pickup time (HH:MM)' }),
+  ),
+  dropoffTime: Type.Optional(
+    Type.String({ pattern: '^\\d{2}:\\d{2}$', description: 'Dropoff time (HH:MM)' }),
+  ),
 });
 
 export type UpdateRouteStopInput = Static<typeof UpdateRouteStopSchema>;
@@ -97,13 +139,29 @@ export type UpdateRouteStopInput = Static<typeof UpdateRouteStopSchema>;
  * Schema for creating a vehicle record.
  */
 export const CreateVehicleSchema = Type.Object({
-  registrationNumber: Type.String({ minLength: 1, maxLength: 50, description: 'Vehicle registration number' }),
+  registrationNumber: Type.String({
+    minLength: 1,
+    maxLength: 50,
+    description: 'Vehicle registration number',
+  }),
   make: Type.Optional(Type.String({ maxLength: 100, description: 'Vehicle make/manufacturer' })),
   model: Type.Optional(Type.String({ maxLength: 100, description: 'Vehicle model' })),
-  year: Type.Optional(Type.Number({ minimum: 1900, maximum: 2100, description: 'Manufacturing year' })),
+  year: Type.Optional(
+    Type.Number({ minimum: 1900, maximum: 2100, description: 'Manufacturing year' }),
+  ),
   capacity: Type.Number({ minimum: 1, maximum: 200, description: 'Passenger capacity' }),
-  insuranceExpiry: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Insurance expiry date (YYYY-MM-DD)' })),
-  lastServiceDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Last service date (YYYY-MM-DD)' })),
+  insuranceExpiry: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Insurance expiry date (YYYY-MM-DD)',
+    }),
+  ),
+  lastServiceDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Last service date (YYYY-MM-DD)',
+    }),
+  ),
 });
 
 export type CreateVehicleInput = Static<typeof CreateVehicleSchema>;
@@ -112,14 +170,35 @@ export type CreateVehicleInput = Static<typeof CreateVehicleSchema>;
  * Schema for updating a vehicle record.
  */
 export const UpdateVehicleSchema = Type.Object({
-  registrationNumber: Type.Optional(Type.String({ minLength: 1, maxLength: 50, description: 'Vehicle registration number' })),
+  registrationNumber: Type.Optional(
+    Type.String({ minLength: 1, maxLength: 50, description: 'Vehicle registration number' }),
+  ),
   make: Type.Optional(Type.String({ maxLength: 100, description: 'Vehicle make/manufacturer' })),
   model: Type.Optional(Type.String({ maxLength: 100, description: 'Vehicle model' })),
-  year: Type.Optional(Type.Number({ minimum: 1900, maximum: 2100, description: 'Manufacturing year' })),
-  capacity: Type.Optional(Type.Number({ minimum: 1, maximum: 200, description: 'Passenger capacity' })),
-  status: Type.Optional(Type.String({ enum: ['active', 'inactive', 'maintenance', 'retired'], description: 'Vehicle status' })),
-  insuranceExpiry: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Insurance expiry date (YYYY-MM-DD)' })),
-  lastServiceDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Last service date (YYYY-MM-DD)' })),
+  year: Type.Optional(
+    Type.Number({ minimum: 1900, maximum: 2100, description: 'Manufacturing year' }),
+  ),
+  capacity: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 200, description: 'Passenger capacity' }),
+  ),
+  status: Type.Optional(
+    Type.String({
+      enum: ['active', 'inactive', 'maintenance', 'retired'],
+      description: 'Vehicle status',
+    }),
+  ),
+  insuranceExpiry: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Insurance expiry date (YYYY-MM-DD)',
+    }),
+  ),
+  lastServiceDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Last service date (YYYY-MM-DD)',
+    }),
+  ),
 });
 
 export type UpdateVehicleInput = Static<typeof UpdateVehicleSchema>;
@@ -132,9 +211,19 @@ export type UpdateVehicleInput = Static<typeof UpdateVehicleSchema>;
 export const CreateDriverAssignmentSchema = Type.Object({
   vehicleId: Type.String({ pattern: UUID_PATTERN, description: 'Vehicle UUID' }),
   driverId: Type.String({ pattern: UUID_PATTERN, description: 'Driver (staff) UUID' }),
-  routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Transport route UUID' })),
-  startDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Assignment start date (YYYY-MM-DD)' }),
-  endDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Assignment end date (YYYY-MM-DD)' })),
+  routeId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Transport route UUID' }),
+  ),
+  startDate: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Assignment start date (YYYY-MM-DD)',
+  }),
+  endDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Assignment end date (YYYY-MM-DD)',
+    }),
+  ),
 });
 
 export type CreateDriverAssignmentInput = Static<typeof CreateDriverAssignmentSchema>;
@@ -143,8 +232,15 @@ export type CreateDriverAssignmentInput = Static<typeof CreateDriverAssignmentSc
  * Schema for updating a driver assignment.
  */
 export const UpdateDriverAssignmentSchema = Type.Object({
-  routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Transport route UUID' })),
-  endDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Assignment end date (YYYY-MM-DD)' })),
+  routeId: Type.Optional(
+    Type.String({ pattern: UUID_PATTERN, description: 'Transport route UUID' }),
+  ),
+  endDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Assignment end date (YYYY-MM-DD)',
+    }),
+  ),
   isActive: Type.Optional(Type.Boolean({ description: 'Whether the assignment is active' })),
 });
 
@@ -159,8 +255,16 @@ export const CreateStudentAssignmentSchema = Type.Object({
   studentId: Type.String({ pattern: UUID_PATTERN, description: 'Student UUID' }),
   routeId: Type.String({ pattern: UUID_PATTERN, description: 'Transport route UUID' }),
   stopId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Route stop UUID' })),
-  startDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Assignment start date (YYYY-MM-DD)' }),
-  endDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Assignment end date (YYYY-MM-DD)' })),
+  startDate: Type.String({
+    pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+    description: 'Assignment start date (YYYY-MM-DD)',
+  }),
+  endDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Assignment end date (YYYY-MM-DD)',
+    }),
+  ),
 });
 
 export type CreateStudentAssignmentInput = Static<typeof CreateStudentAssignmentSchema>;
@@ -170,7 +274,12 @@ export type CreateStudentAssignmentInput = Static<typeof CreateStudentAssignment
  */
 export const UpdateStudentAssignmentSchema = Type.Object({
   stopId: Type.Optional(Type.String({ pattern: UUID_PATTERN, description: 'Route stop UUID' })),
-  endDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$', description: 'Assignment end date (YYYY-MM-DD)' })),
+  endDate: Type.Optional(
+    Type.String({
+      pattern: '^\\d{4}-\\d{2}-\\d{2}$',
+      description: 'Assignment end date (YYYY-MM-DD)',
+    }),
+  ),
   isActive: Type.Optional(Type.Boolean({ description: 'Whether the assignment is active' })),
 });
 
@@ -206,12 +315,18 @@ export type RouteParams = Static<typeof RouteParamsSchema>;
  * Schema for list query parameters.
  */
 export const TransportListQuerySchema = Type.Object({
-  page: Type.Optional(Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' })),
-  pageSize: Type.Optional(Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' })),
+  page: Type.Optional(
+    Type.Number({ minimum: 1, default: 1, description: 'Page number (1-based)' }),
+  ),
+  pageSize: Type.Optional(
+    Type.Number({ minimum: 1, maximum: 100, default: 20, description: 'Items per page' }),
+  ),
   status: Type.Optional(Type.String({ description: 'Filter by status' })),
   search: Type.Optional(Type.String({ description: 'Search by name' })),
   sortBy: Type.Optional(Type.String({ default: 'createdAt', description: 'Sort field' })),
-  sortOrder: Type.Optional(Type.String({ enum: ['asc', 'desc'], default: 'desc', description: 'Sort direction' })),
+  sortOrder: Type.Optional(
+    Type.String({ enum: ['asc', 'desc'], default: 'desc', description: 'Sort direction' }),
+  ),
 });
 
 export type TransportListQuery = Static<typeof TransportListQuerySchema>;
@@ -300,3 +415,31 @@ export const StudentAssignmentResponseSchema = Type.Object({
 });
 
 export type StudentAssignmentResponse = Static<typeof StudentAssignmentResponseSchema>;
+
+// ─── GPS / attendance-on-bus stub schemas (G-602) ────────────────────────────
+
+export const RecordGpsPingSchema = Type.Object({
+  latitude: Type.Number({ minimum: -90, maximum: 90 }),
+  longitude: Type.Number({ minimum: -180, maximum: 180 }),
+  recordedAt: Type.Optional(Type.String()),
+  speedKph: Type.Optional(Type.Number({ minimum: 0 })),
+  headingDeg: Type.Optional(Type.Number({ minimum: 0, maximum: 360 })),
+});
+
+export type RecordGpsPingInput = Static<typeof RecordGpsPingSchema>;
+
+export const VehicleParamsSchema = Type.Object({
+  vehicleId: Type.String({ pattern: UUID_PATTERN }),
+});
+
+export type VehicleParams = Static<typeof VehicleParamsSchema>;
+
+export const RecordBusAttendanceSchema = Type.Object({
+  vehicleId: Type.String({ pattern: UUID_PATTERN }),
+  studentId: Type.String({ minLength: 1, maxLength: 128 }),
+  eventType: Type.String({ enum: ['board', 'alight'] }),
+  routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  recordedAt: Type.Optional(Type.String()),
+});
+
+export type RecordBusAttendanceInput = Static<typeof RecordBusAttendanceSchema>;

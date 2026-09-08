@@ -65,6 +65,12 @@ import {
   type TransportParams,
   type RouteParams,
   type TransportListQuery,
+  RecordGpsPingSchema,
+  VehicleParamsSchema,
+  RecordBusAttendanceSchema,
+  type RecordGpsPingInput,
+  type VehicleParams,
+  type RecordBusAttendanceInput,
 } from './schemas.js';
 
 /**
@@ -177,7 +183,11 @@ export async function registerTransportRoutes(
       }
 
       try {
-        const route = await transportService.updateRoute(tenantId, paramsResult.data.id, bodyResult.data);
+        const route = await transportService.updateRoute(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send({
           ...route,
           createdAt: route.createdAt.toISOString(),
@@ -402,7 +412,11 @@ export async function registerTransportRoutes(
       }
 
       try {
-        const stop = await transportService.updateStop(tenantId, paramsResult.data.id, bodyResult.data);
+        const stop = await transportService.updateStop(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send({
           ...stop,
           createdAt: stop.createdAt.toISOString(),
@@ -588,7 +602,11 @@ export async function registerTransportRoutes(
       }
 
       try {
-        const vehicle = await transportService.updateVehicle(tenantId, paramsResult.data.id, bodyResult.data);
+        const vehicle = await transportService.updateVehicle(
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
+        );
         return reply.status(200).send({
           ...vehicle,
           createdAt: vehicle.createdAt.toISOString(),
@@ -814,7 +832,9 @@ export async function registerTransportRoutes(
 
       try {
         const assignment = await transportService.updateDriverAssignment(
-          tenantId, paramsResult.data.id, bodyResult.data,
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
         );
         return reply.status(200).send({
           ...assignment,
@@ -836,7 +856,14 @@ export async function registerTransportRoutes(
   fastify.get(
     `${prefix}/driver-assignments`,
     async function listDriverAssignmentsHandler(
-      request: FastifyRequest<{ Querystring: TransportListQuery & { vehicleId?: string; driverId?: string; routeId?: string; isActive?: string } }>,
+      request: FastifyRequest<{
+        Querystring: TransportListQuery & {
+          vehicleId?: string;
+          driverId?: string;
+          routeId?: string;
+          isActive?: string;
+        };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);
@@ -854,7 +881,8 @@ export async function registerTransportRoutes(
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
-      const isActive = query.isActive === 'true' ? true : query.isActive === 'false' ? false : undefined;
+      const isActive =
+        query.isActive === 'true' ? true : query.isActive === 'false' ? false : undefined;
 
       const result = await transportService.listDriverAssignments(
         tenantId,
@@ -959,7 +987,9 @@ export async function registerTransportRoutes(
 
       try {
         const assignment = await transportService.updateStudentAssignment(
-          tenantId, paramsResult.data.id, bodyResult.data,
+          tenantId,
+          paramsResult.data.id,
+          bodyResult.data,
         );
         return reply.status(200).send({
           ...assignment,
@@ -981,7 +1011,14 @@ export async function registerTransportRoutes(
   fastify.get(
     `${prefix}/student-assignments`,
     async function listStudentAssignmentsHandler(
-      request: FastifyRequest<{ Querystring: TransportListQuery & { studentId?: string; routeId?: string; stopId?: string; isActive?: string } }>,
+      request: FastifyRequest<{
+        Querystring: TransportListQuery & {
+          studentId?: string;
+          routeId?: string;
+          stopId?: string;
+          isActive?: string;
+        };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = getTenantId(request);
@@ -999,7 +1036,8 @@ export async function registerTransportRoutes(
       const sortBy = query.sortBy ?? 'createdAt';
       const sortOrder = (query.sortOrder ?? 'desc') as 'asc' | 'desc';
 
-      const isActive = query.isActive === 'true' ? true : query.isActive === 'false' ? false : undefined;
+      const isActive =
+        query.isActive === 'true' ? true : query.isActive === 'false' ? false : undefined;
 
       const result = await transportService.listStudentAssignments(
         tenantId,
@@ -1014,6 +1052,183 @@ export async function registerTransportRoutes(
           updatedAt: a.updatedAt.toISOString(),
         })),
         meta: result.meta,
+      });
+    },
+  );
+
+  // ─── GPS / attendance-on-bus stubs (G-602) ───────────────────────────────
+
+  /**
+   * POST /transport/vehicles/:vehicleId/gps — record sandbox GPS ping
+   */
+  fastify.post(
+    `${prefix}/vehicles/:vehicleId/gps`,
+    async function recordGpsHandler(
+      request: FastifyRequest<{ Params: VehicleParams; Body: RecordGpsPingInput }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(VehicleParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid vehicle ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const bodyResult = validate(RecordGpsPingSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const result = await transportService.recordGpsPing(
+          tenantId,
+          paramsResult.data.vehicleId,
+          bodyResult.data,
+        );
+        return reply.status(201).send({
+          ...result,
+          recordedAt: result.recordedAt.toISOString(),
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /transport/vehicles/:vehicleId/gps — list sandbox GPS pings
+   */
+  fastify.get(
+    `${prefix}/vehicles/:vehicleId/gps`,
+    async function listGpsHandler(
+      request: FastifyRequest<{ Params: VehicleParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(VehicleParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid vehicle ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const result = await transportService.listGpsPings(tenantId, paramsResult.data.vehicleId);
+        return reply.status(200).send({
+          data: result.data.map((p) => ({
+            ...p,
+            recordedAt: p.recordedAt.toISOString(),
+          })),
+          mode: result.mode,
+          honestyNote: result.honestyNote,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /transport/attendance-on-bus — sandbox board/alight event
+   */
+  fastify.post(
+    `${prefix}/attendance-on-bus`,
+    async function recordBusAttendanceHandler(
+      request: FastifyRequest<{ Body: RecordBusAttendanceInput }>,
+      reply: FastifyReply,
+    ) {
+      const bodyResult = validate(RecordBusAttendanceSchema, request.body);
+      if (!bodyResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: bodyResult.errors,
+        });
+      }
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      try {
+        const result = await transportService.recordBusAttendance(tenantId, bodyResult.data);
+        return reply.status(201).send({
+          ...result,
+          recordedAt: result.recordedAt.toISOString(),
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /transport/attendance-on-bus — list sandbox boarding events
+   */
+  fastify.get(
+    `${prefix}/attendance-on-bus`,
+    async function listBusAttendanceHandler(
+      request: FastifyRequest<{
+        Querystring: { vehicleId?: string; studentId?: string; routeId?: string };
+      }>,
+      reply: FastifyReply,
+    ) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      const result = await transportService.listBusAttendance(tenantId, {
+        vehicleId: request.query.vehicleId,
+        studentId: request.query.studentId,
+        routeId: request.query.routeId,
+      });
+      return reply.status(200).send({
+        data: result.data.map((e) => ({
+          ...e,
+          recordedAt: e.recordedAt.toISOString(),
+        })),
+        mode: result.mode,
+        honestyNote: result.honestyNote,
       });
     },
   );

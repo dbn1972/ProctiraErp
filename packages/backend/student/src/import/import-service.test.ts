@@ -99,7 +99,13 @@ describe('ImportService', () => {
 
       const rows: ImportStudentRow[] = [
         { rowNumber: 2, firstName: 'New', lastName: 'Student', dateOfBirth: '2007-06-01' },
-        { rowNumber: 3, firstName: 'Dup', lastName: 'Student', dateOfBirth: '2005-03-15', nationalId: 'NID-001' },
+        {
+          rowNumber: 3,
+          firstName: 'Dup',
+          lastName: 'Student',
+          dateOfBirth: '2005-03-15',
+          nationalId: 'NID-001',
+        },
       ];
 
       const result = await service.processRows(TENANT_ID, rows, { duplicateResolution: 'skip' });
@@ -243,6 +249,33 @@ describe('ImportService', () => {
       expect(allStudents[0]!.firstName).toBe('Alice');
       expect(allStudents[0]!.lastName).toBe('Smith');
       expect(allStudents[0]!.nationalId).toBe('NID-TRIM');
+    });
+
+    it('G-307 dry-run validates and reports row errors without writing', async () => {
+      const rows: ImportStudentRow[] = [
+        { rowNumber: 2, firstName: 'Alice', lastName: 'Smith', dateOfBirth: '2005-01-15' },
+        { rowNumber: 3, firstName: '', lastName: 'Broken', dateOfBirth: 'bad-date' },
+      ];
+
+      const result = await service.processRows(TENANT_ID, rows, {
+        duplicateResolution: 'skip',
+        dryRun: true,
+      });
+
+      expect(result.dryRun).toBe(true);
+      expect(result.successCount).toBe(0);
+      expect(result.errorCount).toBeGreaterThanOrEqual(1);
+      expect(result.errors.some((e) => e.rowNumber === 3)).toBe(true);
+      expect(repository.getAll()).toHaveLength(0);
+    });
+
+    it('G-307 commit path marks transactional on success', async () => {
+      const rows: ImportStudentRow[] = [
+        { rowNumber: 2, firstName: 'Alice', lastName: 'Smith', dateOfBirth: '2005-01-15' },
+      ];
+      const result = await service.processRows(TENANT_ID, rows, { duplicateResolution: 'skip' });
+      expect(result.transactional).toBe(true);
+      expect(result.successCount).toBe(1);
     });
   });
 

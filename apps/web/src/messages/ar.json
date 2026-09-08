@@ -33,7 +33,11 @@
     "dataWarehouse": "مستودع البيانات",
     "reports": "التقارير",
     "admin": "الإدارة",
-    "fees": "الرسوم"
+    "fees": "الرسوم",
+    "transport": "Transport",
+    "library": "Library",
+    "communication": "Communication",
+    "hostel": "Hostel"
   },
   "auth": {
     "login": "تسجيل الدخول",
@@ -577,5 +581,41 @@
         "loginBgRequired": "خلفية تسجيل الدخول مطلوبة."
       }
     }
+  },
+  "transport": {
+    "title": "Transport",
+    "routes": "Routes",
+    "vehicles": "Vehicles",
+    "assignments": "Assignments",
+    "gpsStub": "GPS tracking (sandbox)",
+    "attendanceOnBus": "Attendance on bus (sandbox)"
+  },
+  "library": {
+    "title": "Library",
+    "catalog": "Catalog",
+    "circulation": "Circulation",
+    "overdues": "Overdues",
+    "fines": "Fines",
+    "assessFine": "Assess fine"
+  },
+  "communication": {
+    "title": "Communication",
+    "campaigns": "Campaigns",
+    "emergency": "Emergency blasts",
+    "send": "Send",
+    "sandboxDelivery": "Sandbox delivery — providers not live"
+  },
+  "hostel": {
+    "title": "Hostel",
+    "blocks": "Blocks",
+    "rooms": "Rooms",
+    "assignments": "Assignments",
+    "leaves": "Leave requests"
+  },
+  "fees": {
+    "title": "Fees",
+    "invoices": "Invoices",
+    "payments": "Payments",
+    "receipts": "Receipts"
   }
 }

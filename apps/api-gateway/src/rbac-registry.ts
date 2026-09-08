@@ -19,6 +19,7 @@ const CAMPUS_MANAGE_RESOURCES = [
   'communication',
   'notification',
   'registration',
+  'developer',
 ] as const;
 
 const CAMPUS_MANAGE: Permission[] = CAMPUS_MANAGE_RESOURCES.map((resource) => ({
@@ -50,6 +51,7 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   'parent-portal': 'parent',
   registrations: 'registration',
   fees: 'fees',
+  developer: 'developer',
   // Platform-admin console
   tenants: 'platform',
   plans: 'platform',
@@ -123,7 +125,9 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
   const admin = roles.find((r) => r.roleId === 'admin');
   if (admin) {
     for (const perm of CAMPUS_MANAGE) {
-      if (!admin.permissions.some((p) => p.resource === perm.resource && p.action === perm.action)) {
+      if (
+        !admin.permissions.some((p) => p.resource === perm.resource && p.action === perm.action)
+      ) {
         admin.permissions.push(perm);
       }
     }

@@ -30,13 +30,14 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `backend/scholarship`         | Yes      | `/scholarships`                                                                                   | Raw pg `016` (else in-memory + demo seed)                  | No          | G-204.                                                                                           |
 | `backend/health`              | Yes      | `/health`                                                                                         | Mixed (pg counselling/PHI/special-needs when DATABASE_URL) | No          | Also mounts `healthUiPlugin` (G-203).                                                            |
 | `backend/notification`        | Yes      | `/notifications`                                                                                  | Mixed (PG deliveries when DATABASE_URL; prefs/devices pg)  | No          | G-207; providers sandbox/WAIVED.                                                                 |
-| `backend/transport`           | Yes      | `/transport`                                                                                      | Raw pg `006` (else in-memory)                              | No          |                                                                                                  |
-| `backend/communication`       | Yes      | `/communication`                                                                                  | Raw pg `007` (else in-memory)                              | No          |                                                                                                  |
+| `backend/transport`           | Yes      | `/transport`                                                                                      | Raw pg `006` (else in-memory)                              | No          | G-602 GPS + attendance-on-bus sandbox stubs. Live telematics residual.                           |
+| `backend/communication`       | Yes      | `/communication`                                                                                  | Raw pg `007` (else in-memory)                              | No          | G-604 sandbox delivery adapter + send audit. Live Twilio/SES residual.                           |
 | `backend/hostel`              | Yes      | `/hostel`                                                                                         | Raw pg `008` (else in-memory)                              | No          |                                                                                                  |
-| `backend/library`             | Yes      | `/library`                                                                                        | Raw pg `009` (else in-memory)                              | No          |                                                                                                  |
+| `backend/library`             | Yes      | `/library`                                                                                        | Raw pg `009` (else in-memory)                              | No          | G-603 fines → fees ledger via shared FeesService.                                                |
 | `backend/parent-portal`       | Yes      | `/parent-portal`                                                                                  | Raw pg `010` (else in-memory)                              | No          |                                                                                                  |
-| `backend/fees`                | Yes      | `/fees`                                                                                           | Raw pg `010`/`011` (else in-memory)                        | No          | G-201; sandbox PSP only (G-202 waived).                                                          |
+| `backend/fees`                | Yes      | `/fees`                                                                                           | Raw pg `010`/`011` (else shared in-memory)                 | No          | G-201; sandbox PSP only (G-202 waived).                                                          |
 | `backend/registration`        | Yes      | `/registrations`                                                                                  | Raw pg `014` (else in-memory)                              | No          | G-205.                                                                                           |
+| `backend/developer-portal`    | Yes      | `/developer`                                                                                      | In-memory                                                  | Yes         | G-607 AuthZ + API keys/docs; gateway rate-limit; live IdP mint residual.                         |
 | `backend/auth`                | Yes      | `/auth`                                                                                           | In-memory identity/session stores                          | Yes         | Mounted in `app.ts` (not `DOMAIN_REGISTRARS`).                                                   |
 | `backend/audit`               | Yes      | `/audit-logs`                                                                                     | In-memory                                                  | Yes         | Mounted in `app.ts` (G-105); mutating onResponse trail.                                          |
 | `backend/billing`             | Yes      | `/billing`                                                                                        | In-memory                                                  | No          | Mounted in `app.ts` (G-106).                                                                     |
@@ -45,23 +46,22 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `(gateway) platform-admin-ui` | Yes      | `/tenants`, `/plugins`, `/break-glass`, `/plans`, `/themes`, `/platform`, `/audit`                | UI seed / stubs                                            | Yes         | Registrar `platform-admin` (G-104).                                                              |
 | `(gateway) workflow-ui`       | Yes      | `/workflows`                                                                                      | Postgres when `DATABASE_URL` (else UI seed)                | No          | Registrar `workflow`. Approvals persist (G-208). Real `backend/workflow` engine still unmounted. |
 
-## Unmounted
+## Unmounted / PARKED (G-605)
 
-| Package                    | Mounted? | Prefix(es)           | Persistence | RBAC wired? | Notes                                                                                    |
-| -------------------------- | -------- | -------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------- |
-| `backend/admin-dashboard`  | No       | `/admin/scalability` | n/a         | No          | Plugin not registered.                                                                   |
-| `backend/custom-field`     | No       | `/custom-fields`     | n/a         | No          | G-605.                                                                                   |
-| `backend/dashboards`       | No       | `/dashboards`        | n/a         | No          | G-605.                                                                                   |
-| `backend/data-warehouse`   | No       | `/warehouses`        | n/a         | No          | Insights UI owns `/data-warehouse` (G-209).                                              |
-| `backend/developer-portal` | No       | `/developer`         | n/a         | No          | Other Portals honesty-demo.                                                              |
-| `backend/etl`              | No       | `/pipelines`         | n/a         | No          | Full ETL package unmounted; insights UI PG aggregates cover report/import smoke (G-209). |
-| `backend/install`          | No       | `/install`           | n/a         | No          | Portal/demo scoped.                                                                      |
-| `backend/plugin`           | No       | `/plugins`           | n/a         | No          | `/plugins` owned by platform-admin UI stub.                                              |
-| `backend/policy`           | No       | `/policies`          | n/a         | No          | Residual beyond G-106 suspend gate.                                                      |
-| `backend/report`           | No       | `/reports`           | n/a         | No          | Insights UI owns `/reports` (G-209).                                                     |
-| `backend/survey`           | No       | `/surveys`           | n/a         | No          | G-605.                                                                                   |
-| `backend/theme`            | No       | `/themes`            | n/a         | No          | G-605; UI stub owns `/themes`.                                                           |
-| `backend/workflow`         | No       | `/workflows`         | n/a         | No          | Real plugin unmounted; `workflow-ui` PG/seed store is live (G-208).                      |
+| Package                   | Mounted? | Prefix(es)           | Persistence | RBAC wired? | Notes                                                                                    |
+| ------------------------- | -------- | -------------------- | ----------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `backend/admin-dashboard` | No       | `/admin/scalability` | n/a         | No          | Plugin not registered.                                                                   |
+| `backend/custom-field`    | No       | `/custom-fields`     | n/a         | No          | **PARKED (G-605)** — in-memory only; no redesign UI/E2E.                                 |
+| `backend/dashboards`      | No       | `/dashboards`        | n/a         | No          | **PARKED (G-605)** — needs AreaHierarchyResolver product wiring.                         |
+| `backend/data-warehouse`  | No       | `/warehouses`        | n/a         | No          | Insights UI owns `/data-warehouse` (G-209).                                              |
+| `backend/etl`             | No       | `/pipelines`         | n/a         | No          | Full ETL package unmounted; insights UI PG aggregates cover report/import smoke (G-209). |
+| `backend/install`         | No       | `/install`           | n/a         | No          | Portal/demo scoped.                                                                      |
+| `backend/plugin`          | No       | `/plugins`           | n/a         | No          | `/plugins` owned by platform-admin UI stub.                                              |
+| `backend/policy`          | No       | `/policies`          | n/a         | No          | Residual beyond G-106 suspend gate.                                                      |
+| `backend/report`          | No       | `/reports`           | n/a         | No          | Insights UI owns `/reports` (G-209).                                                     |
+| `backend/survey`          | No       | `/surveys`           | n/a         | No          | **PARKED (G-605)** — plugin ready; no gateway product surface/E2E.                       |
+| `backend/theme`           | No       | `/themes`            | n/a         | No          | **PARKED (G-605)** — `/themes` owned by platform-admin UI stub (prefix conflict).        |
+| `backend/workflow`        | No       | `/workflows`         | n/a         | No          | Real plugin unmounted; `workflow-ui` PG/seed store is live (G-208).                      |
 
 ## Registrar ↔ package map
 
@@ -88,6 +88,7 @@ Table columns: | Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | N
 | `parent-portal`          | `backend/parent-portal`                          |
 | `fees`                   | `backend/fees`                                   |
 | `registration`           | `backend/registration`                           |
+| `developer`              | `backend/developer-portal`                       |
 
 ## Maintenance
 

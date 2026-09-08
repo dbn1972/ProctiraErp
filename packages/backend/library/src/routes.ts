@@ -7,11 +7,13 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { LibraryService } from './library-service.js';
 import {
+  AssessFineSchema,
   CheckoutSchema,
   CreateLibraryItemSchema,
   PatronParamsSchema,
   RenewSchema,
   ReturnSchema,
+  type AssessFineInput,
   type CheckoutInput,
   type CreateLibraryItemInput,
   type PatronParams,
@@ -309,6 +311,55 @@ export async function registerLibraryRoutes(
         openLoans: clearance.openLoans.map(formatLoan),
         checkedAt: clearance.checkedAt.toISOString(),
       });
+    },
+  );
+
+  /**
+   * POST /library/fines/assess — compute overdue fine and post to fees ledger (G-603).
+   */
+  fastify.post(
+    `${prefix}/fines/assess`,
+    async function assessFineHandler(
+      request: FastifyRequest<{ Body: AssessFineInput }>,
+      reply: FastifyReply,
+    ) {
+      const result = validate(AssessFineSchema, request.body);
+      if (!result.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+          errors: result.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      const actorId =
+        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'library-system';
+
+      try {
+        const assessed = await libraryService.assessFine(tenantId, actorId, result.data);
+        return reply.status(201).send({
+          loanId: assessed.loanId,
+          studentId: assessed.studentId,
+          overdueDays: assessed.overdueDays,
+          amountCents: assessed.amountCents,
+          invoice: assessed.invoice,
+        });
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
     },
   );
 }

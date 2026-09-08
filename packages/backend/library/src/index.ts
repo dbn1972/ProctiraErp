@@ -29,6 +29,7 @@ export {
   ReturnSchema,
   RenewSchema,
   PatronParamsSchema,
+  AssessFineSchema,
 } from './schemas.js';
 export type {
   CreateLibraryItemInput,
@@ -36,7 +37,15 @@ export type {
   ReturnInput,
   RenewInput,
   PatronParams,
+  AssessFineInput,
 } from './schemas.js';
+
+export type {
+  FeesLedgerPort,
+  LibraryFineInvoiceInput,
+  LibraryFineInvoiceResult,
+} from './fees-ledger-port.js';
+export { InMemoryFeesLedgerPort } from './fees-ledger-port.js';
 
 export { registerLibraryRoutes } from './routes.js';
 export type { LibraryRoutesOptions } from './routes.js';

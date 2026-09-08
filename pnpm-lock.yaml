@@ -176,6 +176,9 @@ importers:
       '@proctira/backend-communication':
         specifier: workspace:*
         version: link:../../packages/backend/communication
+      '@proctira/backend-developer-portal':
+        specifier: workspace:*
+        version: link:../../packages/backend/developer-portal
       '@proctira/backend-examination':
         specifier: workspace:*
         version: link:../../packages/backend/examination

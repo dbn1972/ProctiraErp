@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   EXPECTED_MOUNTED,
+  EXPECTED_PARKED,
   EXPECTED_UNMOUNTED,
   MATRIX_BACKEND_PACKAGES,
   MATRIX_REGISTRAR_NAMES,
@@ -92,6 +93,18 @@ describe('G-003 gateway mount matrix', () => {
     }
   });
 
+  it('G-605: EXPECTED_PARKED packages are unmounted with parkedReason', () => {
+    expect(EXPECTED_PARKED.length).toBeGreaterThanOrEqual(4);
+    for (const pkg of EXPECTED_PARKED) {
+      const row = MOUNT_MATRIX.find((entry) => entry.package === pkg);
+      expect(row, `PARKED package missing from matrix: ${pkg}`).toBeDefined();
+      expect(row!.mounted).toBe(false);
+      expect(row!.parked, `${pkg} should have parked: true`).toBe(true);
+      expect(row!.parkedReason, `${pkg} needs parkedReason`).toMatch(/G-605|PARKED/i);
+      expect(EXPECTED_UNMOUNTED).toContain(pkg);
+    }
+  });
+
   it('keeps EXPECTED_MOUNTED and EXPECTED_UNMOUNTED disjoint and complete vs matrix packages', () => {
     const unmounted = new Set(EXPECTED_UNMOUNTED);
     const overlap = EXPECTED_MOUNTED.filter((pkg) => unmounted.has(pkg));
@@ -123,7 +136,9 @@ describe('G-003 gateway mount matrix', () => {
   it('keeps GATEWAY_MOUNT_MATRIX.md present and referencing key packages', () => {
     const doc = readFileSync(MATRIX_DOC, 'utf8');
     expect(doc).toContain('Gateway mount matrix (G-003)');
-    expect(doc).toContain('| Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | Notes |');
+    expect(doc).toContain(
+      '| Package | Mounted? | Prefix(es) | Persistence | RBAC wired? | Notes |',
+    );
     for (const pkg of ['student', 'auth', 'workflow', 'billing', 'audit']) {
       expect(doc, `Doc should mention ${pkg}`).toContain(`backend/${pkg}`);
     }

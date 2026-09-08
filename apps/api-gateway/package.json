@@ -26,6 +26,7 @@
     "@proctira/backend-auth": "workspace:*",
     "@proctira/backend-billing": "workspace:*",
     "@proctira/backend-communication": "workspace:*",
+    "@proctira/backend-developer-portal": "workspace:*",
     "@proctira/backend-examination": "workspace:*",
     "@proctira/backend-fees": "workspace:*",
     "@proctira/backend-gradebook": "workspace:*",

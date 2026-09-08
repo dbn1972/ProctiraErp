@@ -50,6 +50,7 @@ import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-
 import {
   communicationPlugin,
   createCommunicationRepository,
+  createSandboxDeliveryAdapter,
 } from '@proctira/backend-communication';
 import {
   createDocumentRepository,
@@ -63,7 +64,11 @@ import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
-import { createFeesRepository, feesPlugin } from '@proctira/backend-fees';
+import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
+import {
+  developerPortalPlugin,
+  InMemoryDeveloperPortalRepository,
+} from '@proctira/backend-developer-portal';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import { createRegistrationRepository, registrationPlugin } from '@proctira/backend-registration';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
@@ -304,9 +309,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/communication'],
     register: async (scope) => {
       // Pg when DATABASE_URL (db/sql/007_communication_schema.sql); else in-memory.
+      // G-604: sandbox delivery adapter + local audit trail on send/dispatch.
       const repository = createCommunicationRepository();
       await scope.register(communicationPlugin, {
         repository,
+        deliveryAdapter: createSandboxDeliveryAdapter(),
         prefix: '/communication',
       });
     },
@@ -324,13 +331,49 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     },
   },
   {
+    name: 'fees',
+    proxyPrefixes: ['/fees'],
+    register: async (scope) => {
+      // Pg when DATABASE_URL (db/sql/010 + 011_fees_finance_schema.sql); else in-memory.
+      // Sandbox PaymentAdapter only — live PSP waived (G-202).
+      // Registered before library so fines can share createFeesRepository().
+      const repository = createFeesRepository();
+      await scope.register(feesPlugin, {
+        repository,
+        prefix: '/fees',
+      });
+    },
+  },
+  {
     name: 'library',
     proxyPrefixes: ['/library'],
     register: async (scope) => {
       // Pg when DATABASE_URL (db/sql/009_library_schema.sql); else in-memory.
+      // G-603: fines post to fees ledger via shared createFeesRepository().
       const repository = createLibraryRepository();
+      const feesService = new FeesService(createFeesRepository());
       await scope.register(libraryPlugin, {
         repository,
+        feesLedger: {
+          postFineInvoice: async (tenantId, actorId, input) => {
+            const invoice = await feesService.createInvoice(tenantId, actorId, {
+              studentId: input.studentId,
+              title: input.title,
+              description: input.description,
+              amountCents: input.amountCents,
+              currency: input.currency,
+              dueAt: input.dueAt,
+            });
+            return {
+              id: invoice.id,
+              studentId: invoice.studentId,
+              title: invoice.title,
+              amountCents: invoice.amountCents,
+              currency: invoice.currency,
+              status: invoice.status,
+            };
+          },
+        },
         prefix: '/library',
       });
     },
@@ -348,19 +391,6 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     },
   },
   {
-    name: 'fees',
-    proxyPrefixes: ['/fees'],
-    register: async (scope) => {
-      // Pg when DATABASE_URL (db/sql/010 + 011_fees_finance_schema.sql); else in-memory.
-      // Sandbox PaymentAdapter only — live PSP waived (G-202).
-      const repository = createFeesRepository();
-      await scope.register(feesPlugin, {
-        repository,
-        prefix: '/fees',
-      });
-    },
-  },
-  {
     name: 'registration',
     proxyPrefixes: ['/registrations'],
     register: async (scope) => {
@@ -370,6 +400,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(registrationPlugin, {
         repository,
         prefix: '/registrations',
+      });
+    },
+  },
+  {
+    name: 'developer',
+    proxyPrefixes: ['/developer'],
+    register: async (scope) => {
+      // G-607: AuthZ via gateway RBAC; in-memory API keys/docs; rate limits via
+      // global gateway rate-limit plugin. Live IdP key mint residual.
+      await scope.register(developerPortalPlugin, {
+        repository: new InMemoryDeveloperPortalRepository(),
+        prefix: '/developer',
       });
     },
   },

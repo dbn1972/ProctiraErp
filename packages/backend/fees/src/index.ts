@@ -9,11 +9,7 @@ export { feesPlugin } from './fees-plugin.js';
 export type { FeesPluginOptions } from './fees-plugin.js';
 
 export { FeesService } from './fees-service.js';
-export type {
-  CreateFeePlanInput,
-  CreateInvoiceInput,
-  RecordPaymentInput,
-} from './fees-service.js';
+export type { CreateFeePlanInput, CreateInvoiceInput, RecordPaymentInput } from './fees-service.js';
 
 export type {
   FeePlanEntity,
@@ -30,7 +26,11 @@ export type {
 
 export { InMemoryFeesRepository } from './in-memory-repository.js';
 
-export { createFeesRepository, isPgFeesEnabled } from './create-fees-repository.js';
+export {
+  createFeesRepository,
+  isPgFeesEnabled,
+  resetSharedFeesRepositoryForTests,
+} from './create-fees-repository.js';
 export {
   PgFeesRepository,
   createPgFeesRepository,

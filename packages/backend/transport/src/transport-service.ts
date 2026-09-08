@@ -9,12 +9,7 @@
  * - Manage vehicle records and driver assignments
  * - Assign students to transport routes
  */
-import {
-  ConflictError,
-  NotFoundError,
-  BusinessRuleError,
-  ValidationError,
-} from '@proctira/common';
+import { ConflictError, NotFoundError, BusinessRuleError, ValidationError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -41,13 +36,27 @@ import type {
   UpdateDriverAssignmentInput,
   CreateStudentAssignmentInput,
   UpdateStudentAssignmentInput,
+  RecordGpsPingInput,
+  RecordBusAttendanceInput,
 } from './schemas.js';
+import {
+  BUS_ATTENDANCE_STUB_HONESTY_NOTE,
+  GPS_STUB_HONESTY_NOTE,
+  GpsAttendanceStubStore,
+} from './gps-attendance-stub.js';
 
 /**
  * Service handling transport business logic.
  */
 export class TransportService {
-  constructor(private readonly repository: TransportRepository) {}
+  private readonly gpsAttendance: GpsAttendanceStubStore;
+
+  constructor(
+    private readonly repository: TransportRepository,
+    gpsAttendance?: GpsAttendanceStubStore,
+  ) {
+    this.gpsAttendance = gpsAttendance ?? new GpsAttendanceStubStore();
+  }
 
   // ─── Route Operations ────────────────────────────────────────────────────
 
@@ -95,11 +104,13 @@ export class TransportService {
     const updateData: Partial<TransportRouteEntity> = {};
     if (input.name !== undefined) updateData.name = input.name;
     if (input.description !== undefined) updateData.description = input.description;
-    if (input.status !== undefined) updateData.status = input.status as TransportRouteEntity['status'];
+    if (input.status !== undefined)
+      updateData.status = input.status as TransportRouteEntity['status'];
     if (input.startLocation !== undefined) updateData.startLocation = input.startLocation;
     if (input.endLocation !== undefined) updateData.endLocation = input.endLocation;
     if (input.distanceKm !== undefined) updateData.distanceKm = input.distanceKm;
-    if (input.estimatedDurationMinutes !== undefined) updateData.estimatedDurationMinutes = input.estimatedDurationMinutes;
+    if (input.estimatedDurationMinutes !== undefined)
+      updateData.estimatedDurationMinutes = input.estimatedDurationMinutes;
     if (input.operatingDays !== undefined) updateData.operatingDays = input.operatingDays;
     if (input.departureTime !== undefined) updateData.departureTime = input.departureTime;
     if (input.returnTime !== undefined) updateData.returnTime = input.returnTime;
@@ -171,10 +182,7 @@ export class TransportService {
    *
    * @throws NotFoundError if route not found
    */
-  async createStop(
-    tenantId: string,
-    input: CreateRouteStopInput,
-  ): Promise<RouteStopEntity> {
+  async createStop(tenantId: string, input: CreateRouteStopInput): Promise<RouteStopEntity> {
     // Validate route exists
     const route = await this.repository.findRouteById(input.routeId, tenantId);
     if (!route) {
@@ -263,12 +271,12 @@ export class TransportService {
    *
    * @throws ConflictError if registration number already exists
    */
-  async createVehicle(
-    tenantId: string,
-    input: CreateVehicleInput,
-  ): Promise<VehicleEntity> {
+  async createVehicle(tenantId: string, input: CreateVehicleInput): Promise<VehicleEntity> {
     // Check for duplicate registration number
-    const existing = await this.repository.findVehicleByRegistration(input.registrationNumber, tenantId);
+    const existing = await this.repository.findVehicleByRegistration(
+      input.registrationNumber,
+      tenantId,
+    );
     if (existing) {
       throw new ConflictError(
         `Vehicle with registration number '${input.registrationNumber}' already exists`,
@@ -309,7 +317,10 @@ export class TransportService {
 
     // Check for duplicate registration number if being changed
     if (input.registrationNumber && input.registrationNumber !== existing.registrationNumber) {
-      const duplicate = await this.repository.findVehicleByRegistration(input.registrationNumber, tenantId);
+      const duplicate = await this.repository.findVehicleByRegistration(
+        input.registrationNumber,
+        tenantId,
+      );
       if (duplicate) {
         throw new ConflictError(
           `Vehicle with registration number '${input.registrationNumber}' already exists`,
@@ -318,7 +329,8 @@ export class TransportService {
     }
 
     const updateData: Partial<VehicleEntity> = {};
-    if (input.registrationNumber !== undefined) updateData.registrationNumber = input.registrationNumber;
+    if (input.registrationNumber !== undefined)
+      updateData.registrationNumber = input.registrationNumber;
     if (input.make !== undefined) updateData.make = input.make;
     if (input.model !== undefined) updateData.model = input.model;
     if (input.year !== undefined) updateData.year = input.year;
@@ -413,7 +425,10 @@ export class TransportService {
     }
 
     // Check for existing active assignment on this vehicle
-    const existingAssignment = await this.repository.findActiveDriverAssignment(input.vehicleId, tenantId);
+    const existingAssignment = await this.repository.findActiveDriverAssignment(
+      input.vehicleId,
+      tenantId,
+    );
     if (existingAssignment) {
       throw new BusinessRuleError(
         'Vehicle already has an active driver assignment. End the current assignment first.',
@@ -517,7 +532,10 @@ export class TransportService {
     }
 
     // Check for existing active assignment for this student
-    const existingAssignment = await this.repository.findActiveStudentAssignment(input.studentId, tenantId);
+    const existingAssignment = await this.repository.findActiveStudentAssignment(
+      input.studentId,
+      tenantId,
+    );
     if (existingAssignment) {
       throw new BusinessRuleError(
         'Student already has an active transport route assignment. End the current assignment first.',
@@ -586,5 +604,72 @@ export class TransportService {
     pagination: PaginationOptions,
   ): Promise<PaginatedResult<StudentRouteAssignmentEntity>> {
     return this.repository.listStudentAssignments(tenantId, filter, pagination);
+  }
+
+  // ─── GPS / attendance-on-bus stubs (G-602) ─────────────────────────────────
+
+  /**
+   * Accept a GPS ping for a vehicle (sandbox telematics).
+   * @throws NotFoundError if vehicle missing in tenant
+   */
+  async recordGpsPing(tenantId: string, vehicleId: string, input: RecordGpsPingInput) {
+    await this.getVehicleById(tenantId, vehicleId);
+    const ping = this.gpsAttendance.recordGpsPing({
+      tenantId,
+      vehicleId,
+      latitude: input.latitude,
+      longitude: input.longitude,
+      recordedAt: input.recordedAt ? new Date(input.recordedAt) : undefined,
+      speedKph: input.speedKph,
+      headingDeg: input.headingDeg,
+    });
+    return {
+      ...ping,
+      mode: 'sandbox' as const,
+      honestyNote: GPS_STUB_HONESTY_NOTE,
+    };
+  }
+
+  async listGpsPings(tenantId: string, vehicleId: string) {
+    await this.getVehicleById(tenantId, vehicleId);
+    return {
+      data: this.gpsAttendance.listGpsPings(tenantId, vehicleId),
+      mode: 'sandbox' as const,
+      honestyNote: GPS_STUB_HONESTY_NOTE,
+    };
+  }
+
+  /**
+   * Record a student board/alight event on a bus (sandbox scanner).
+   */
+  async recordBusAttendance(tenantId: string, input: RecordBusAttendanceInput) {
+    await this.getVehicleById(tenantId, input.vehicleId);
+    if (input.routeId) {
+      await this.getRouteById(tenantId, input.routeId);
+    }
+    const event = this.gpsAttendance.recordBusAttendance({
+      tenantId,
+      vehicleId: input.vehicleId,
+      routeId: input.routeId,
+      studentId: input.studentId,
+      eventType: input.eventType,
+      recordedAt: input.recordedAt ? new Date(input.recordedAt) : undefined,
+    });
+    return {
+      ...event,
+      mode: 'sandbox' as const,
+      honestyNote: BUS_ATTENDANCE_STUB_HONESTY_NOTE,
+    };
+  }
+
+  async listBusAttendance(
+    tenantId: string,
+    filter: { vehicleId?: string; studentId?: string; routeId?: string } = {},
+  ) {
+    return {
+      data: this.gpsAttendance.listBusAttendance(tenantId, filter),
+      mode: 'sandbox' as const,
+      honestyNote: BUS_ATTENDANCE_STUB_HONESTY_NOTE,
+    };
   }
 }

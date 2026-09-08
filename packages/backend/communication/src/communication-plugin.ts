@@ -2,11 +2,14 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { CommunicationRepository } from './communication-repository.js';
-import { CommunicationService } from './communication-service.js';
+import { CommunicationService, type CommunicationAuditSink } from './communication-service.js';
+import type { CommunicationDeliveryAdapter } from './delivery-adapter.js';
 import { registerCommunicationRoutes } from './routes.js';
 
 export interface CommunicationPluginOptions {
   repository: CommunicationRepository;
+  deliveryAdapter?: CommunicationDeliveryAdapter;
+  auditSink?: CommunicationAuditSink | null;
   prefix?: string;
 }
 
@@ -21,8 +24,11 @@ export const communicationPlugin = fp(
     fastify: FastifyInstance,
     options: CommunicationPluginOptions,
   ) {
-    const { repository, prefix = '/communication' } = options;
-    const communicationService = new CommunicationService(repository);
+    const { repository, deliveryAdapter, auditSink = null, prefix = '/communication' } = options;
+    const communicationService = new CommunicationService(repository, {
+      deliveryAdapter,
+      auditSink,
+    });
     fastify.decorate('communicationService', communicationService);
     await registerCommunicationRoutes(fastify, { communicationService, prefix });
   },

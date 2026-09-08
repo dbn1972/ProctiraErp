@@ -83,6 +83,11 @@ export interface ImportOptions {
   duplicateResolution: DuplicateResolution;
   /** Whether to queue for background processing (auto-determined for large files) */
   async?: boolean;
+  /**
+   * G-307 dry-run: validate + detect duplicates but do not write students.
+   * When true, successCount stays 0 and dryRun is echoed on the result.
+   */
+  dryRun?: boolean;
 }
 
 /**
@@ -101,6 +106,10 @@ export interface ImportResult {
   errors: ImportRowError[];
   /** Detected duplicates */
   duplicates: DuplicateMatch[];
+  /** Echoed when options.dryRun was true (G-307). */
+  dryRun?: boolean;
+  /** True when commit used all-or-nothing batch semantics (G-307). */
+  transactional?: boolean;
 }
 
 /**
@@ -165,10 +174,17 @@ export interface StudentRepository {
   ): Promise<StudentRecord[]>;
 
   /** Create a new student record */
-  create(tenantId: string, data: Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>): Promise<StudentRecord>;
+  create(
+    tenantId: string,
+    data: Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>,
+  ): Promise<StudentRecord>;
 
   /** Update an existing student record */
-  update(tenantId: string, id: string, data: Partial<Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>>): Promise<StudentRecord>;
+  update(
+    tenantId: string,
+    id: string,
+    data: Partial<Omit<StudentRecord, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<StudentRecord>;
 
   /** Check if a national ID already exists in the tenant */
   nationalIdExists(tenantId: string, nationalId: string): Promise<boolean>;
@@ -179,7 +195,12 @@ export interface StudentRepository {
  */
 export interface ImportQueue {
   /** Enqueue an import job for background processing */
-  enqueue(tenantId: string, jobId: string, fileBuffer: Buffer, options: ImportOptions): Promise<void>;
+  enqueue(
+    tenantId: string,
+    jobId: string,
+    fileBuffer: Buffer,
+    options: ImportOptions,
+  ): Promise<void>;
 
   /** Get the progress of an import job */
   getProgress(jobId: string): Promise<ImportProgress | null>;
