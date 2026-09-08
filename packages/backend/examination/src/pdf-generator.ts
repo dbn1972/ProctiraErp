@@ -1,13 +1,16 @@
 /**
  * PDF Generator
  *
- * Generates PDF documents for examination admit cards, seating plans,
- * and result certificates. Uses a simple buffer-based approach that
- * can be backed by PDFKit or any other PDF library.
+ * Generates real PDF documents for examination admit cards, seating plans,
+ * and result certificates via the dependency-free `@proctira/pdf-lite`
+ * writer (G-716). `PdfGenerator` remains an interface so a richer renderer
+ * can be swapped in without touching the document service.
  *
  * Requirements:
  * - 10.6: Generate examination documents as PDF files
  */
+import { PdfDocument, PdfFlow } from '@proctira/pdf-lite';
+
 import type {
   DocumentCandidate,
   SeatingAssignment,
@@ -56,11 +59,18 @@ export interface PdfGenerator {
 }
 
 /**
- * Simple PDF generator implementation that creates structured text-based PDFs.
- * In production, this would use PDFKit or a similar library for proper formatting.
- * For now, it generates a structured buffer representing the PDF content.
+ * PDF generator backed by `@proctira/pdf-lite`. One page per admit card /
+ * certificate, one page per examination centre for seating plans.
  */
 export class SimplePdfGenerator implements PdfGenerator {
+  private newFlow(examination: ExaminationInfo, title: string): PdfFlow {
+    const doc = new PdfDocument({ title: `${title} - ${examination.name}`, author: 'ProctiraERP Examinations' });
+    return new PdfFlow(doc, {
+      header: `${examination.name} (${examination.code})`,
+      footer: `${title} - Page {page} of {pages}`,
+    });
+  }
+
   /**
    * Generate admit cards for a batch of candidates.
    * Each admit card contains: candidate name, roll number, center, subjects, schedule.
@@ -69,37 +79,35 @@ export class SimplePdfGenerator implements PdfGenerator {
     examination: ExaminationInfo,
     candidates: DocumentCandidate[],
   ): Promise<Buffer> {
-    const pages: string[] = [];
-
-    for (const candidate of candidates) {
-      const page = [
-        '--- ADMIT CARD ---',
-        `Examination: ${examination.name} (${examination.code})`,
-        `Date: ${examination.startDate} to ${examination.endDate}`,
-        '',
-        `Candidate Name: ${candidate.studentName}`,
-        `Roll Number: ${candidate.rollNumber}`,
-        `Center: ${candidate.centerName}`,
-        `Subjects: ${candidate.subjectNames.join(', ')}`,
-        '',
-        'Schedule:',
-        ...examination.sessions
+    const flow = this.newFlow(examination, 'Admit Card');
+    candidates.forEach((candidate, index) => {
+      if (index > 0) flow.newPage();
+      flow.heading('ADMIT CARD', 18);
+      flow.keyValue('Examination', `${examination.name} (${examination.code})`);
+      flow.keyValue('Dates', `${examination.startDate} to ${examination.endDate}`);
+      flow.spacer(4);
+      flow.keyValue('Candidate Name', candidate.studentName);
+      flow.keyValue('Roll Number', candidate.rollNumber);
+      flow.keyValue('Center', candidate.centerName);
+      flow.keyValue('Subjects', candidate.subjectNames.join(', '));
+      flow.horizontalRule();
+      flow.subheading('Schedule');
+      flow.table(
+        [
+          { header: 'Subject', weight: 2 },
+          { header: 'Date', weight: 1 },
+          { header: 'Time', weight: 1 },
+        ],
+        examination.sessions
           .filter((s) => candidate.subjectNames.includes(s.subjectName))
-          .map((s) => `  ${s.subjectName}: ${s.date} ${s.startTime}-${s.endTime}`),
-        '',
-        'Instructions:',
-        '  1. Arrive 30 minutes before the examination starts.',
-        '  2. Bring this admit card and a valid photo ID.',
-        '  3. Electronic devices are not permitted in the examination hall.',
-        '',
-        '--- END ---',
-        '\f', // page break
-      ].join('\n');
-
-      pages.push(page);
-    }
-
-    return Buffer.from(pages.join(''), 'utf-8');
+          .map((s) => [s.subjectName, s.date, `${s.startTime}-${s.endTime}`]),
+      );
+      flow.subheading('Instructions');
+      flow.paragraph('1. Arrive 30 minutes before the examination starts.');
+      flow.paragraph('2. Bring this admit card and a valid photo ID.');
+      flow.paragraph('3. Electronic devices are not permitted in the examination hall.');
+    });
+    return flow.finish();
   }
 
   /**
@@ -110,54 +118,41 @@ export class SimplePdfGenerator implements PdfGenerator {
     examination: ExaminationInfo,
     assignments: SeatingAssignment[],
   ): Promise<Buffer> {
-    // Group assignments by center and room
     const byCenter = new Map<string, Map<string, SeatingAssignment[]>>();
-
     for (const assignment of assignments) {
-      if (!byCenter.has(assignment.centerName)) {
-        byCenter.set(assignment.centerName, new Map());
-      }
+      if (!byCenter.has(assignment.centerName)) byCenter.set(assignment.centerName, new Map());
       const rooms = byCenter.get(assignment.centerName)!;
-      if (!rooms.has(assignment.roomNumber)) {
-        rooms.set(assignment.roomNumber, []);
-      }
+      if (!rooms.has(assignment.roomNumber)) rooms.set(assignment.roomNumber, []);
       rooms.get(assignment.roomNumber)!.push(assignment);
     }
 
-    const pages: string[] = [];
-
+    const flow = this.newFlow(examination, 'Seating Plan');
+    let first = true;
     for (const [centerName, rooms] of byCenter) {
-      const page = [
-        '--- SEATING PLAN ---',
-        `Examination: ${examination.name} (${examination.code})`,
-        `Center: ${centerName}`,
-        `Date: ${examination.startDate} to ${examination.endDate}`,
-        '',
-      ];
-
+      if (!first) flow.newPage();
+      first = false;
+      flow.heading('SEATING PLAN', 18);
+      flow.keyValue('Examination', `${examination.name} (${examination.code})`);
+      flow.keyValue('Center', centerName);
+      flow.keyValue('Dates', `${examination.startDate} to ${examination.endDate}`);
       for (const [roomNumber, roomAssignments] of rooms) {
-        page.push(`Room: ${roomNumber}`);
-        page.push('-'.repeat(60));
-        page.push('Seat No. | Roll Number | Candidate Name | Subjects');
-        page.push('-'.repeat(60));
-
-        for (const assignment of roomAssignments.sort((a, b) => a.seatNumber.localeCompare(b.seatNumber))) {
-          page.push(
-            `${assignment.seatNumber.padEnd(9)}| ${assignment.rollNumber.padEnd(12)}| ${assignment.studentName.padEnd(15)}| ${assignment.subjectNames.join(', ')}`,
-          );
-        }
-
-        page.push('-'.repeat(60));
-        page.push(`Total Candidates: ${roomAssignments.length}`);
-        page.push('');
+        flow.subheading(`Room ${roomNumber}`);
+        flow.table(
+          [
+            { header: 'Seat No.', weight: 1 },
+            { header: 'Roll Number', weight: 1.4 },
+            { header: 'Candidate Name', weight: 2.2 },
+            { header: 'Subjects', weight: 2.4 },
+          ],
+          roomAssignments
+            .slice()
+            .sort((a, b) => a.seatNumber.localeCompare(b.seatNumber))
+            .map((a) => [a.seatNumber, a.rollNumber, a.studentName, a.subjectNames.join(', ')]),
+        );
+        flow.paragraph(`Total Candidates: ${roomAssignments.length}`, { size: 9 });
       }
-
-      page.push('--- END ---');
-      page.push('\f');
-      pages.push(page.join('\n'));
     }
-
-    return Buffer.from(pages.join(''), 'utf-8');
+    return flow.finish();
   }
 
   /**
@@ -168,42 +163,30 @@ export class SimplePdfGenerator implements PdfGenerator {
     examination: ExaminationInfo,
     results: CandidateResultData[],
   ): Promise<Buffer> {
-    const pages: string[] = [];
-
-    for (const result of results) {
-      const page = [
-        '--- RESULT CERTIFICATE ---',
-        `Examination: ${examination.name} (${examination.code})`,
-        '',
-        `Candidate Name: ${result.studentName}`,
-        `Roll Number: ${result.rollNumber}`,
-        '',
-        'Subject Results:',
-        '-'.repeat(50),
-        'Subject | Score | Grade | Status',
-        '-'.repeat(50),
-      ];
-
-      for (const subject of result.subjects) {
-        const status = subject.passed ? 'PASS' : 'FAIL';
-        page.push(
-          `${subject.name.padEnd(8)}| ${String(subject.score).padEnd(6)}| ${subject.grade.padEnd(6)}| ${status}`,
-        );
-      }
-
-      page.push('-'.repeat(50));
-      page.push('');
-      page.push(`Total Score: ${result.totalScore} / ${result.maxPossibleScore}`);
-      page.push(`Overall Grade: ${result.overallGrade}`);
-      page.push(`Overall Result: ${result.overallPassed ? 'PASSED' : 'FAILED'}`);
-      page.push('');
-      page.push('This is a computer-generated certificate.');
-      page.push('--- END ---');
-      page.push('\f');
-
-      pages.push(page.join('\n'));
-    }
-
-    return Buffer.from(pages.join(''), 'utf-8');
+    const flow = this.newFlow(examination, 'Result Certificate');
+    results.forEach((result, index) => {
+      if (index > 0) flow.newPage();
+      flow.heading('RESULT CERTIFICATE', 18);
+      flow.keyValue('Examination', `${examination.name} (${examination.code})`);
+      flow.keyValue('Candidate Name', result.studentName);
+      flow.keyValue('Roll Number', result.rollNumber);
+      flow.horizontalRule();
+      flow.subheading('Subject Results');
+      flow.table(
+        [
+          { header: 'Subject', weight: 2.5 },
+          { header: 'Score', weight: 1, align: 'right' },
+          { header: 'Grade', weight: 1 },
+          { header: 'Status', weight: 1 },
+        ],
+        result.subjects.map((s) => [s.name, String(s.score), s.grade, s.passed ? 'PASS' : 'FAIL']),
+      );
+      flow.keyValue('Total Score', `${result.totalScore} / ${result.maxPossibleScore}`);
+      flow.keyValue('Overall Grade', result.overallGrade);
+      flow.keyValue('Overall Result', result.overallPassed ? 'PASSED' : 'FAILED');
+      flow.spacer(8);
+      flow.paragraph('This is a computer-generated certificate.', { size: 8, grey: 0.4 });
+    });
+    return flow.finish();
   }
 }

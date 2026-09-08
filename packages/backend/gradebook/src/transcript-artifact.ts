@@ -1,9 +1,15 @@
 /**
- * Transcript / report-card PDF-lite HTML artifacts (not crypto-sealed).
- * Mirrors board-export pdf-lite pattern.
+ * Official transcript artifacts.
+ *
+ * Each issue writes three files under `SIS_TRANSCRIPT_DIR/<tenant>/<student>/v<n>/`:
+ *  - `transcript.pdf`            real PDF (G-716, via `@proctira/pdf-lite`)
+ *  - `transcript.pdf-lite.html`  printable HTML kept for backwards compatibility
+ *  - `transcript.json`           machine-readable payload + checksum
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+import { PdfDocument, PdfFlow } from '@proctira/pdf-lite';
 
 export function transcriptArtifactRoot(): string {
   return process.env.SIS_TRANSCRIPT_DIR ?? '/opt/cursor/artifacts/sis-transcripts';
@@ -38,6 +44,61 @@ export function buildTranscriptPdfLiteHtml(input: {
   ].join('');
 }
 
+export interface TranscriptArtifactInput {
+  studentId: string;
+  version: number;
+  issuedAt: string;
+  weightedGpa: number | null;
+  unweightedGpa: number | null;
+  creditsEarned: number | null;
+  checksumSha256: string;
+  institutionName?: string | null;
+  studentName?: string | null;
+  signature?: string | null;
+}
+
+/** Renders the official transcript as real PDF bytes. */
+export function buildTranscriptPdf(input: TranscriptArtifactInput): Buffer {
+  const institution = input.institutionName?.trim() || 'ProctiraERP';
+  const doc = new PdfDocument({
+    title: `Official transcript v${input.version} - ${input.studentName ?? input.studentId}`,
+    author: institution,
+    creationDate: new Date(input.issuedAt),
+  });
+  const flow = new PdfFlow(doc, {
+    header: institution,
+    footer: `SHA-256 ${input.checksumSha256} - Page {page} of {pages}`,
+  });
+  flow.heading('Official Transcript', 18);
+  flow.paragraph(`Version ${input.version} issued ${input.issuedAt}`, { size: 9, grey: 0.35 });
+  flow.spacer(6);
+  flow.keyValue('Student', input.studentName?.trim() || input.studentId);
+  if (input.studentName) flow.keyValue('Student ID', input.studentId);
+  flow.horizontalRule();
+  flow.subheading('Academic standing');
+  flow.table(
+    [
+      { header: 'Measure', weight: 2 },
+      { header: 'Value', weight: 1, align: 'right' },
+    ],
+    [
+      ['Weighted GPA', input.weightedGpa === null ? '-' : input.weightedGpa.toFixed(2)],
+      ['Unweighted GPA', input.unweightedGpa === null ? '-' : input.unweightedGpa.toFixed(2)],
+      ['Credits earned', input.creditsEarned === null ? '-' : String(input.creditsEarned)],
+    ],
+  );
+  flow.horizontalRule();
+  flow.subheading('Integrity');
+  flow.keyValue('Checksum (SHA-256)', input.checksumSha256);
+  if (input.signature) flow.keyValue('Signature (HMAC-SHA256)', input.signature);
+  flow.paragraph(
+    'This transcript is immutable once issued; later corrections are published as a new version. ' +
+      'Verify the checksum against the issuing institution\'s records.',
+    { size: 8, grey: 0.4 },
+  );
+  return flow.finish();
+}
+
 export function writeTranscriptPdfLite(input: {
   tenantId: string;
   studentId: string;
@@ -47,7 +108,10 @@ export function writeTranscriptPdfLite(input: {
   unweightedGpa: number | null;
   creditsEarned: number | null;
   checksumSha256: string;
-}): { artifactDir: string; pdfLitePath: string; jsonPath: string } {
+  institutionName?: string | null;
+  studentName?: string | null;
+  signature?: string | null;
+}): { artifactDir: string; pdfPath: string; pdfLitePath: string; jsonPath: string } {
   const artifactDir = join(
     transcriptArtifactRoot(),
     input.tenantId,
@@ -55,8 +119,10 @@ export function writeTranscriptPdfLite(input: {
     `v${input.version}`,
   );
   mkdirSync(artifactDir, { recursive: true });
+  const pdfPath = join(artifactDir, 'transcript.pdf');
   const pdfLitePath = join(artifactDir, 'transcript.pdf-lite.html');
   const jsonPath = join(artifactDir, 'transcript.json');
+  writeFileSync(pdfPath, buildTranscriptPdf(input));
   const html = buildTranscriptPdfLiteHtml(input);
   writeFileSync(pdfLitePath, html, 'utf8');
   writeFileSync(
@@ -76,5 +142,5 @@ export function writeTranscriptPdfLite(input: {
     ),
     'utf8',
   );
-  return { artifactDir, pdfLitePath, jsonPath };
+  return { artifactDir, pdfPath, pdfLitePath, jsonPath };
 }

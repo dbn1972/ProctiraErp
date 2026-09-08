@@ -142,7 +142,21 @@ export type { ResultRoutesOptions } from './result-routes.js';
 
 // Report Card Service
 export { ReportCardService } from './report-card-service.js';
-export type { TaskQueuePublisher, PdfGenerator, ReportCardData } from './report-card-service.js';
+export type {
+  TaskQueuePublisher,
+  PdfGenerator,
+  ReportCardData,
+  ReportCardServiceOptions,
+  ReportCardPdfArtifact,
+} from './report-card-service.js';
+export { ReportCardPdfGenerator, templateHeading } from './report-card-pdf-generator.js';
+export {
+  InMemoryReportCardArtifactStore,
+  FilesystemReportCardArtifactStore,
+  createReportCardArtifactStore,
+  defaultReportCardArtifactDir,
+} from './report-card-artifact-store.js';
+export type { ReportCardArtifactStore } from './report-card-artifact-store.js';
 
 // Report Card Repository interfaces
 export type {

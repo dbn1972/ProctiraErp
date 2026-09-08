@@ -23,7 +23,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { ReportCardService } from './report-card-service.js';
 import {
   CreateReportCardTemplateSchema,
   UpdateReportCardTemplateSchema,
@@ -42,6 +41,7 @@ import {
   type BulkGenerateReportCardInput,
   type ReportCardJobParams,
 } from './report-card-schemas.js';
+import type { ReportCardService } from './report-card-service.js';
 
 /**
  * Options for registering report card routes.
@@ -564,6 +564,93 @@ export async function registerReportCardRoutes(
       try {
         const job = await reportCardService.getJobStatus(tenantId, paramsResult.data.jobId);
         return reply.status(200).send(formatJobResponse(job));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * POST /report-cards/jobs/:jobId/process
+   * Process a queued job now (worker / operator entry point). Produces the PDF.
+   */
+  fastify.post(
+    `${prefix}/jobs/:jobId/process`,
+    async function processJobHandler(
+      request: FastifyRequest<{ Params: ReportCardJobParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ReportCardJobParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid job ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const job = await reportCardService.processReportCardJob(tenantId, paramsResult.data.jobId);
+        return reply.status(200).send(formatJobResponse(job));
+      } catch (error: unknown) {
+        if (error instanceof AppError) {
+          return reply.status(error.statusCode).send(error.toJSON());
+        }
+        throw error;
+      }
+    },
+  );
+
+  /**
+   * GET /report-cards/jobs/:jobId/download
+   * Stream the generated PDF (G-716). 409 while the job is not completed.
+   */
+  fastify.get(
+    `${prefix}/jobs/:jobId/download`,
+    async function downloadReportCardHandler(
+      request: FastifyRequest<{ Params: ReportCardJobParams }>,
+      reply: FastifyReply,
+    ) {
+      const paramsResult = validate(ReportCardJobParamsSchema, request.params);
+      if (!paramsResult.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid job ID',
+          statusCode: 400,
+          errors: paramsResult.errors,
+        });
+      }
+
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+
+      try {
+        const artifact = await reportCardService.getReportCardPdf(tenantId, paramsResult.data.jobId);
+        return reply
+          .status(200)
+          .header('Content-Type', artifact.contentType)
+          .header('Content-Disposition', `attachment; filename="${artifact.filename}"`)
+          .header('Content-Length', String(artifact.bytes.length))
+          .send(artifact.bytes);
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());

@@ -72,6 +72,19 @@ export class InMemoryAssessmentResultRepository implements AssessmentResultRepos
     );
   }
 
+  async findByStudentPeriod(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<AssessmentResultEntity[]> {
+    return this.results.filter(
+      (r) =>
+        r.tenantId === tenantId &&
+        r.studentId === studentId &&
+        r.academicPeriodId === academicPeriodId,
+    );
+  }
+
   async findBySubjectPeriod(
     tenantId: string,
     subjectId: string,

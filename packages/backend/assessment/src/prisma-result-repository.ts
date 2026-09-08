@@ -111,6 +111,20 @@ export class PrismaAssessmentResultRepository implements AssessmentResultReposit
     });
   }
 
+  async findByStudentPeriod(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<AssessmentResultEntity[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.assessmentResult.findMany({
+        where: { tenantId, studentId, academicPeriodId },
+        orderBy: [{ subjectId: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      })) as AssessmentResultRow[];
+      return rows.map(toEntity);
+    });
+  }
+
   async findBySubjectPeriod(
     tenantId: string,
     subjectId: string,

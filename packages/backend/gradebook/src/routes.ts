@@ -11,13 +11,13 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
+import { isGradeWorkflowAction } from './grade-workflow.js';
 import { assertGradebookAccess, type GradebookAction } from './gradebook-access.js';
 import {
   isGradebookSchemaMissingError,
   isGradeLockedError,
   isTranscriptImmutableError,
 } from './gradebook-errors.js';
-import { isGradeWorkflowAction } from './grade-workflow.js';
 import type { GradebookService } from './gradebook-service.js';
 import {
   ComputeGpaSchema,
@@ -355,6 +355,25 @@ export async function registerGradebookRoutes(
         });
       }
       return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/transcripts/:id/download`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const { id } = request.params as { id: string };
+      const query = request.query as { format?: string };
+      const raw = (query.format ?? 'pdf').toLowerCase();
+      const format = raw === 'html' || raw === 'json' ? raw : 'pdf';
+      const file = await service.downloadTranscript(tenantId, id, format);
+      return reply
+        .header('Content-Type', file.contentType)
+        .header('Content-Disposition', `attachment; filename="${file.filename}"`)
+        .header('X-Checksum-SHA256', file.checksumSha256)
+        .send(file.body);
     } catch (error) {
       return sendDomainError(reply, error);
     }

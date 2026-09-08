@@ -1,7 +1,8 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { inspectPdf } from '@proctira/pdf-lite';
 import { describe, expect, it } from 'vitest';
 
 import { assertGradebookAccess, hasGradebookAccess } from './gradebook-access.js';
@@ -86,8 +87,20 @@ describe('GradebookService', () => {
     expect(t1.version).toBe(1);
     expect(t1.status).toBe('ISSUED');
     expect(t1.checksumSha256).toHaveLength(64);
-    expect(t1.artifactUri).toContain('transcript.pdf-lite.html');
+    expect(t1.artifactUri).toMatch(/transcript\.pdf$/);
+    expect(t1.metadata.artifactKind).toBe('pdf');
     expect(t1.metadata.pdfLitePath).toBeTruthy();
+    const pdfBytes = readFileSync(t1.artifactUri!);
+    expect(pdfBytes.subarray(0, 8).toString('latin1')).toBe('%PDF-1.4');
+    const pdfInfo = inspectPdf(pdfBytes);
+    expect(pdfInfo.pageCount).toBe(1);
+    expect(pdfInfo.startXrefValid).toBe(true);
+    expect(pdfInfo.literalStrings).toContain('Official Transcript');
+    expect(pdfInfo.literalStrings).toContain(t1.checksumSha256);
+    const download = await service.downloadTranscript(TENANT, t1.id);
+    expect(download.contentType).toBe('application/pdf');
+    expect(download.body.equals(pdfBytes)).toBe(true);
+    expect(download.filename).toBe(`transcript-${STUDENT}-v1.pdf`);
 
     const t2 = await service.issueTranscript(TENANT, { studentId: STUDENT });
     expect(t2.version).toBe(2);

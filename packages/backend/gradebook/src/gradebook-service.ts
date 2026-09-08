@@ -9,12 +9,12 @@ import {
   validateBoardExportCompleteness,
 } from './board-export-validation.js';
 import { getBoardPack, listBoardPacks, type BoardPackCode } from './board-pack-registry.js';
+import { computeGpaSnapshot, type CourseGradeInput, type GpaPolicy } from './gpa-engine.js';
 import {
   readGradeWorkflowStatus,
   transitionGradeWorkflow,
   type GradeWorkflowAction,
 } from './grade-workflow.js';
-import { computeGpaSnapshot, type CourseGradeInput, type GpaPolicy } from './gpa-engine.js';
 import { GradeLockedError } from './gradebook-errors.js';
 import type {
   CreditRuleEntity,
@@ -41,7 +41,7 @@ import {
   verifyBoardExportDownloadToken,
   type BoardExportSignedDownload,
 } from './signed-download.js';
-import { writeTranscriptPdfLite } from './transcript-artifact.js';
+import { transcriptArtifactRoot, writeTranscriptPdfLite } from './transcript-artifact.js';
 
 export interface GradebookAuditEntry {
   id: string;
@@ -115,6 +115,44 @@ export class GradebookService {
 
   getTranscript(tenantId: string, id: string) {
     return this.repo.getTranscript(tenantId, id);
+  }
+
+  /**
+   * Returns the issued transcript artifact (G-716). `pdf` is the default and
+   * the canonical artifact; `html` and `json` remain for compatibility.
+   */
+  async downloadTranscript(
+    tenantId: string,
+    id: string,
+    format: 'pdf' | 'html' | 'json' = 'pdf',
+  ): Promise<{ filename: string; contentType: string; body: Buffer; checksumSha256: string }> {
+    const row = await this.repo.getTranscript(tenantId, id);
+    if (!row) throw new NotFoundError(`Transcript ${id} not found`);
+    const meta = row.metadata ?? {};
+    const pick = (key: string): string | null => (typeof meta[key] === 'string' ? (meta[key]) : null);
+    const target =
+      format === 'html'
+        ? { path: pick('pdfLitePath'), ext: 'html', contentType: 'text/html; charset=utf-8' }
+        : format === 'json'
+          ? { path: pick('jsonPath'), ext: 'json', contentType: 'application/json; charset=utf-8' }
+          : { path: pick('pdfPath') ?? row.artifactUri, ext: 'pdf', contentType: 'application/pdf' };
+    if (!target.path) throw new NotFoundError(`Transcript ${format} artifact missing`);
+    const root = transcriptArtifactRoot();
+    if (!target.path.startsWith(root) && !target.path.startsWith('/tmp/')) {
+      throw new BusinessRuleError('Artifact path rejected');
+    }
+    let body: Buffer;
+    try {
+      body = readFileSync(target.path);
+    } catch {
+      throw new NotFoundError(`Transcript ${format} artifact missing on disk`);
+    }
+    return {
+      filename: `transcript-${row.studentId}-v${row.version}.${target.ext}`,
+      contentType: target.contentType,
+      body,
+      checksumSha256: row.checksumSha256 ?? '',
+    };
   }
 
   listBoardPackRegistry() {
@@ -495,8 +533,9 @@ export class GradebookService {
       unweightedGpa: snapshot?.unweightedGpa ?? null,
       creditsEarned: snapshot?.creditsEarned ?? null,
       checksumSha256: checksum,
+      signature,
     });
-    const artifactUri = artifacts.pdfLitePath;
+    const artifactUri = artifacts.pdfPath;
 
     const row = await this.repo.createTranscript({
       id: randomUUID(),
@@ -511,9 +550,10 @@ export class GradebookService {
       metadata: {
         ...payload,
         immutable: true,
+        pdfPath: artifacts.pdfPath,
         pdfLitePath: artifacts.pdfLitePath,
         jsonPath: artifacts.jsonPath,
-        artifactKind: 'pdf-lite-html',
+        artifactKind: 'pdf',
         signatureAlg: 'HMAC-SHA256',
         signature,
         signedAt: now,

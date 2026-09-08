@@ -20,6 +20,7 @@
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
     "@proctira/logging": "workspace:*",
+    "@proctira/pdf-lite": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@prisma/client": "^5.22.0",
     "@sinclair/typebox": "^0.32.0",

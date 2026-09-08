@@ -77,10 +77,12 @@ export {
   type BoardExportSignedDownload,
 } from './signed-download.js';
 export {
+  buildTranscriptPdf,
   buildTranscriptPdfLiteHtml,
   writeTranscriptPdfLite,
   transcriptArtifactRoot,
 } from './transcript-artifact.js';
+export type { TranscriptArtifactInput } from './transcript-artifact.js';
 export { gradebookPlugin } from './gradebook-plugin.js';
 export type { GradebookPluginOptions } from './gradebook-plugin.js';
 export { registerGradebookRoutes } from './routes.js';

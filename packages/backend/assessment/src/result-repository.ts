@@ -65,6 +65,13 @@ export interface AssessmentResultRepository {
     academicPeriodId: string,
   ): Promise<AssessmentResultEntity[]>;
 
+  /** Find all results for a student across every subject in a period */
+  findByStudentPeriod(
+    tenantId: string,
+    studentId: string,
+    academicPeriodId: string,
+  ): Promise<AssessmentResultEntity[]>;
+
   /** Find all results for a subject+period (all students) */
   findBySubjectPeriod(
     tenantId: string,
