@@ -207,6 +207,7 @@ export type { TrainingRoutesOptions } from './training-routes.js';
 
 export { StaffLeaveService } from './leave-service.js';
 export type {
+  StaffLeaveBalanceEntity,
   StaffLeaveEntity,
   StaffLeaveRepository,
   StaffLeaveStatus,
@@ -225,6 +226,7 @@ export type {
 } from './leave-schemas.js';
 export { registerStaffLeaveRoutes } from './leave-routes.js';
 export type { StaffLeaveRoutesOptions } from './leave-routes.js';
+export { inclusiveLeaveDays } from './leave-service.js';
 export {
   createStaffLeaveRepository,
   ensureStaffLeaveSchema,

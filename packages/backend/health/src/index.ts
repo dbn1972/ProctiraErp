@@ -43,7 +43,7 @@ export type {
 // In-memory repository (for testing)
 export { InMemoryHealthRepository } from './in-memory-repository.js';
 
-// Factory — Postgres counselling overlay when DATABASE_URL is set (no Prisma)
+// Factory — Postgres counselling / PHI / special-needs overlay when DATABASE_URL is set
 export { createHealthRepository, HybridHealthRepository } from './create-health-repository.js';
 export {
   createPgCounsellingStore,
@@ -52,6 +52,18 @@ export {
   PgCounsellingStore,
 } from './pg-counselling-store.js';
 export { createPgPhiStore, ensurePhiSchema, isPgPhiEnabled, PgPhiStore } from './pg-phi-store.js';
+export {
+  createPgSpecialNeedsStore,
+  ensureSpecialNeedsSchema,
+  isPgSpecialNeedsEnabled,
+  PgSpecialNeedsStore,
+} from './pg-special-needs-store.js';
+export type { PhiAccessLogInput } from './pg-special-needs-store.js';
+export {
+  decryptPhi,
+  encryptPhi,
+  isPhiEncryptionEnabled,
+} from './phi-crypto.js';
 
 // Routes
 export { registerHealthRoutes } from './routes.js';

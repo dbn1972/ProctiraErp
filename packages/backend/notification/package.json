@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@proctira/common": "workspace:*",
+    "@proctira/database": "workspace:*",
     "@proctira/events": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",

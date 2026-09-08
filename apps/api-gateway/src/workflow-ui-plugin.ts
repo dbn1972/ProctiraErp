@@ -3,12 +3,17 @@
  *
  * Mounts under `/api/v1` so App Router pages can list/create definitions and
  * act on pending approvals with tenant + RBAC gates.
+ *
+ * Persistence (G-208): when DATABASE_URL is set, uses Postgres-backed
+ * workflow-ui store so approvals/definitions/instances survive restart.
+ * Otherwise falls back to in-memory UI seed.
  */
 import { randomUUID } from 'node:crypto';
 
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { createWorkflowUiStore, type WorkflowUiStore } from './workflow-ui-pg-store.js';
 import {
   createWorkflowUiSeed,
   type UiWorkflowDefinition,
@@ -96,10 +101,6 @@ function assertWorkflowAccess(
   return tenantId;
 }
 
-function forTenant<T extends { tenantId: string }>(items: T[], tenantId: string): T[] {
-  return items.filter((item) => item.tenantId === tenantId);
-}
-
 function stripTenant<T extends { tenantId: string }>(item: T): Omit<T, 'tenantId'> {
   const { tenantId: _tenantId, ...rest } = item;
   return rest;
@@ -128,6 +129,10 @@ function parseSteps(raw: unknown): UiWorkflowStep[] | null {
 
 export interface WorkflowUiPluginOptions {
   seed?: WorkflowUiSeed;
+  /** Optional store override (tests). */
+  store?: WorkflowUiStore;
+  /** Force in-memory seed store even when DATABASE_URL is set (unit tests). */
+  forceMemory?: boolean;
 }
 
 export const workflowUiPlugin = fp(
@@ -135,15 +140,19 @@ export const workflowUiPlugin = fp(
     fastify: FastifyInstance,
     options: WorkflowUiPluginOptions = {},
   ) {
-    // Satisfy require-await while keeping Fastify's async plugin contract.
     await Promise.resolve();
-    const seed = options.seed ?? createWorkflowUiSeed();
+    const store =
+      options.store ??
+      createWorkflowUiStore(options.seed ?? createWorkflowUiSeed(), {
+        forceMemory: options.forceMemory,
+      });
 
     fastify.get('/workflows/definitions', async (request, reply) => {
       const tenantId = assertWorkflowAccess(request, reply);
       if (!tenantId) return;
+      const definitions = await store.listDefinitions(tenantId);
       return reply.send({
-        data: forTenant(seed.definitions, tenantId).map(stripTenant),
+        data: definitions.map(stripTenant),
       });
     });
 
@@ -152,9 +161,7 @@ export const workflowUiPlugin = fp(
       async (request, reply) => {
         const tenantId = assertWorkflowAccess(request, reply);
         if (!tenantId) return;
-        const definition = forTenant(seed.definitions, tenantId).find(
-          (d) => d.id === request.params.id,
-        );
+        const definition = await store.getDefinition(tenantId, request.params.id);
         if (!definition) {
           return deny(reply, 'NOT_FOUND', 'Workflow definition not found', 404);
         }
@@ -190,27 +197,29 @@ export const workflowUiPlugin = fp(
         active: true,
         updatedAt: new Date().toISOString(),
       };
-      seed.definitions.unshift(definition);
-      return reply.status(201).send(stripTenant(definition));
+      const created = await store.createDefinition(definition);
+      return reply.status(201).send(stripTenant(created));
     });
 
     fastify.get('/workflows/instances', async (request, reply) => {
       const tenantId = assertWorkflowAccess(request, reply);
       if (!tenantId) return;
+      const instances = await store.listInstances(tenantId);
       return reply.send({
-        data: forTenant(seed.instances, tenantId).map(stripTenant),
+        data: instances.map(stripTenant),
       });
     });
 
     fastify.get('/workflows/approvals/pending', async (request, reply) => {
       const tenantId = assertWorkflowAccess(request, reply);
       if (!tenantId) return;
+      const approvals = await store.listPendingApprovals(tenantId);
       return reply.send({
-        data: forTenant(seed.approvals, tenantId).map(stripTenant),
+        data: approvals.map(stripTenant),
       });
     });
 
-    function decideApproval(
+    async function decideApproval(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: {
         status: (code: number) => { send: (body: unknown) => unknown };
@@ -220,31 +229,12 @@ export const workflowUiPlugin = fp(
       const tenantId = assertWorkflowAccess(request, reply);
       if (!tenantId) return;
 
-      const approvalIndex = seed.approvals.findIndex(
-        (a) => a.id === request.params.id && a.tenantId === tenantId,
-      );
-      if (approvalIndex === -1) {
+      const result = await store.decideApproval(tenantId, request.params.id, decision);
+      if (!result) {
         return deny(reply, 'NOT_FOUND', 'Pending approval not found', 404);
       }
 
-      const [approval] = seed.approvals.splice(approvalIndex, 1);
-      if (!approval) {
-        return deny(reply, 'NOT_FOUND', 'Pending approval not found', 404);
-      }
-
-      const instance = seed.instances.find(
-        (i) => i.id === approval.instanceId && i.tenantId === tenantId,
-      );
-      if (instance) {
-        instance.status = decision;
-        instance.currentStep = decision === 'APPROVED' ? 'Completed' : 'Rejected';
-      }
-
-      return reply.status(200).send({
-        id: approval.id,
-        instanceId: approval.instanceId,
-        status: decision,
-      });
+      return reply.status(200).send(result);
     }
 
     fastify.post<{ Params: { id: string } }>(

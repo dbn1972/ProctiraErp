@@ -1,10 +1,20 @@
 /**
  * In-memory staff leave repository.
  */
-import type { StaffLeaveEntity, StaffLeaveRepository } from './leave-repository.js';
+import type {
+  StaffLeaveBalanceEntity,
+  StaffLeaveEntity,
+  StaffLeaveRepository,
+  StaffLeaveType,
+} from './leave-repository.js';
 
 export class InMemoryStaffLeaveRepository implements StaffLeaveRepository {
   private leaves: StaffLeaveEntity[] = [];
+  private balances = new Map<string, StaffLeaveBalanceEntity>();
+
+  private balanceKey(tenantId: string, staffId: string, leaveType: StaffLeaveType): string {
+    return `${tenantId}:${staffId}:${leaveType}`;
+  }
 
   async createLeave(
     data: Omit<StaffLeaveEntity, 'createdAt' | 'updatedAt'>,
@@ -39,5 +49,44 @@ export class InMemoryStaffLeaveRepository implements StaffLeaveRepository {
     };
     this.leaves[index] = updated;
     return updated;
+  }
+
+  async getBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+  ): Promise<StaffLeaveBalanceEntity | null> {
+    return this.balances.get(this.balanceKey(tenantId, staffId, leaveType)) ?? null;
+  }
+
+  async setBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    balanceDays: number,
+  ): Promise<StaffLeaveBalanceEntity> {
+    if (balanceDays < 0) {
+      throw new Error('balanceDays must be >= 0');
+    }
+    const entity: StaffLeaveBalanceEntity = {
+      tenantId,
+      staffId,
+      leaveType,
+      balanceDays,
+      updatedAt: new Date(),
+    };
+    this.balances.set(this.balanceKey(tenantId, staffId, leaveType), entity);
+    return { ...entity };
+  }
+
+  async adjustBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    deltaDays: number,
+  ): Promise<StaffLeaveBalanceEntity> {
+    const current = await this.getBalance(tenantId, staffId, leaveType);
+    const next = (current?.balanceDays ?? 0) + deltaDays;
+    return this.setBalance(tenantId, staffId, leaveType, next);
   }
 }

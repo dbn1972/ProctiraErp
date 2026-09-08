@@ -227,6 +227,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../packages/shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../packages/shared/database
       '@proctira/logging':
         specifier: workspace:*
         version: link:../../packages/shared/logging
@@ -254,10 +257,16 @@ importers:
       ioredis:
         specifier: ^5.4.0
         version: 5.11.0
+      pg:
+        specifier: ^8.21.0
+        version: 8.21.0
     devDependencies:
       '@types/node':
         specifier: ^20.12.0
         version: 20.19.41
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
       fast-check:
         specifier: ^3.17.0
         version: 3.23.2
@@ -1685,6 +1694,9 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/events':
         specifier: workspace:*
         version: link:../../shared/events

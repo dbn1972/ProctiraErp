@@ -1,9 +1,8 @@
 /**
  * Health repository factory.
  *
- * Prefer Postgres-backed counselling + profile/screening PHI when DATABASE_URL
- * is set (raw `pg`, no Prisma). Special-needs entities stay in-memory until
- * their SQL schemas land.
+ * Prefer Postgres-backed counselling + profile/screening PHI + special-needs
+ * when DATABASE_URL is set (raw `pg`, no Prisma).
  */
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
@@ -24,6 +23,11 @@ import {
   type PgCounsellingStore,
 } from './pg-counselling-store.js';
 import { createPgPhiStore, isPgPhiEnabled, type PgPhiStore } from './pg-phi-store.js';
+import {
+  createPgSpecialNeedsStore,
+  type PgSpecialNeedsStore,
+  type PhiAccessLogInput,
+} from './pg-special-needs-store.js';
 
 function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult<T> {
   const totalItems = items.length;
@@ -42,8 +46,8 @@ function paginate<T>(items: T[], pagination: PaginationOptions): PaginatedResult
 }
 
 /**
- * Overlay that persists counselling + profile/screening PHI through Postgres
- * when available; special-needs stays on the in-memory maps.
+ * Overlay that persists counselling + profile/screening PHI + special-needs
+ * through Postgres when available.
  */
 export class HybridHealthRepository implements HealthRepository {
   readonly createAssessment: HealthRepository['createAssessment'];
@@ -65,29 +69,59 @@ export class HybridHealthRepository implements HealthRepository {
     private readonly memory: InMemoryHealthRepository,
     private readonly counselling: PgCounsellingStore | null,
     private readonly phi: PgPhiStore | null,
+    private readonly specialNeeds: PgSpecialNeedsStore | null = null,
   ) {
-    this.createAssessment = this.memory.createAssessment.bind(this.memory);
-    this.findAssessmentById = this.memory.findAssessmentById.bind(this.memory);
-    this.listAssessmentsByStudent = this.memory.listAssessmentsByStudent.bind(this.memory);
-    this.createDiagnosis = this.memory.createDiagnosis.bind(this.memory);
-    this.findDiagnosisById = this.memory.findDiagnosisById.bind(this.memory);
-    this.listDiagnosesByStudent = this.memory.listDiagnosesByStudent.bind(this.memory);
-    this.createReferral = this.memory.createReferral.bind(this.memory);
-    this.updateReferral = this.memory.updateReferral.bind(this.memory);
-    this.findReferralById = this.memory.findReferralById.bind(this.memory);
-    this.listReferralsByStudent = this.memory.listReferralsByStudent.bind(this.memory);
-    this.createAccommodationPlan = this.memory.createAccommodationPlan.bind(this.memory);
-    this.updateAccommodationPlan = this.memory.updateAccommodationPlan.bind(this.memory);
-    this.findAccommodationPlanById = this.memory.findAccommodationPlanById.bind(this.memory);
-    this.listAccommodationPlansByStudent = this.memory.listAccommodationPlansByStudent.bind(
-      this.memory,
+    const sn = this.specialNeeds;
+    this.createAssessment = (sn?.createAssessment ?? this.memory.createAssessment).bind(
+      sn ?? this.memory,
     );
+    this.findAssessmentById = (sn?.findAssessmentById ?? this.memory.findAssessmentById).bind(
+      sn ?? this.memory,
+    );
+    this.listAssessmentsByStudent = (
+      sn?.listAssessmentsByStudent ?? this.memory.listAssessmentsByStudent
+    ).bind(sn ?? this.memory);
+    this.createDiagnosis = (sn?.createDiagnosis ?? this.memory.createDiagnosis).bind(
+      sn ?? this.memory,
+    );
+    this.findDiagnosisById = (sn?.findDiagnosisById ?? this.memory.findDiagnosisById).bind(
+      sn ?? this.memory,
+    );
+    this.listDiagnosesByStudent = (
+      sn?.listDiagnosesByStudent ?? this.memory.listDiagnosesByStudent
+    ).bind(sn ?? this.memory);
+    this.createReferral = (sn?.createReferral ?? this.memory.createReferral).bind(sn ?? this.memory);
+    this.updateReferral = (sn?.updateReferral ?? this.memory.updateReferral).bind(sn ?? this.memory);
+    this.findReferralById = (sn?.findReferralById ?? this.memory.findReferralById).bind(
+      sn ?? this.memory,
+    );
+    this.listReferralsByStudent = (
+      sn?.listReferralsByStudent ?? this.memory.listReferralsByStudent
+    ).bind(sn ?? this.memory);
+    this.createAccommodationPlan = (
+      sn?.createAccommodationPlan ?? this.memory.createAccommodationPlan
+    ).bind(sn ?? this.memory);
+    this.updateAccommodationPlan = (
+      sn?.updateAccommodationPlan ?? this.memory.updateAccommodationPlan
+    ).bind(sn ?? this.memory);
+    this.findAccommodationPlanById = (
+      sn?.findAccommodationPlanById ?? this.memory.findAccommodationPlanById
+    ).bind(sn ?? this.memory);
+    this.listAccommodationPlansByStudent = (
+      sn?.listAccommodationPlansByStudent ?? this.memory.listAccommodationPlansByStudent
+    ).bind(sn ?? this.memory);
   }
 
   get persistence(): 'postgres-phi' | 'postgres-counselling' | 'memory' {
-    if (this.phi && this.counselling) return 'postgres-phi';
+    if (this.specialNeeds && this.phi && this.counselling) return 'postgres-phi';
     if (this.counselling) return 'postgres-counselling';
     return 'memory';
+  }
+
+  async logPhiAccess(input: PhiAccessLogInput): Promise<void> {
+    if (this.specialNeeds) {
+      await this.specialNeeds.logPhiAccess(input);
+    }
   }
 
   // ─── Profile PHI ──────────────────────────────────────────────────────────
@@ -367,7 +401,8 @@ export function createHealthRepository(): HybridHealthRepository {
   const enabled = isPgCounsellingEnabled() || isPgPhiEnabled();
   const counselling = enabled ? createPgCounsellingStore() : null;
   const phi = enabled ? createPgPhiStore() : null;
-  return new HybridHealthRepository(memory, counselling, phi);
+  const specialNeeds = enabled ? createPgSpecialNeedsStore() : null;
+  return new HybridHealthRepository(memory, counselling, phi, specialNeeds);
 }
 
-export type { PgCounsellingStore, PgPhiStore };
+export type { PgCounsellingStore, PgPhiStore, PgSpecialNeedsStore };

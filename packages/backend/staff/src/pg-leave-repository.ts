@@ -10,6 +10,7 @@ import pg from 'pg';
 
 import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import type {
+  StaffLeaveBalanceEntity,
   StaffLeaveEntity,
   StaffLeaveRepository,
   StaffLeaveStatus,
@@ -42,22 +43,30 @@ export function getSharedStaffLeavePool(): pg.Pool | null {
   return sharedPool;
 }
 
-function schemaSqlPath(): string {
+function schemaSqlPaths(): string[] {
   const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, '../../../../db/sql/013_hr_leave_schema.sql'),
-    join(process.cwd(), 'db/sql/013_hr_leave_schema.sql'),
-    join(process.cwd(), '../../db/sql/013_hr_leave_schema.sql'),
+  const names = ['013_hr_leave_schema.sql', '018_hr_leave_balances_schema.sql'];
+  const roots = [
+    join(here, '../../../../db/sql'),
+    join(process.cwd(), 'db/sql'),
+    join(process.cwd(), '../../db/sql'),
   ];
-  for (const path of candidates) {
-    try {
-      readFileSync(path, 'utf8');
-      return path;
-    } catch {
-      // try next
+  const resolved: string[] = [];
+  for (const name of names) {
+    let found: string | null = null;
+    for (const root of roots) {
+      const path = join(root, name);
+      try {
+        readFileSync(path, 'utf8');
+        found = path;
+        break;
+      } catch {
+        // try next
+      }
     }
+    if (found) resolved.push(found);
   }
-  return candidates[0]!;
+  return resolved;
 }
 
 export async function ensureStaffLeaveSchema(
@@ -66,8 +75,10 @@ export async function ensureStaffLeaveSchema(
   if (!pool) throw new Error('DATABASE_URL is required for staff leave schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
+      for (const path of schemaSqlPaths()) {
+        const sql = readFileSync(path, 'utf8');
+        await pool.query(sql);
+      }
     })();
   }
   await schemaReady;
@@ -91,6 +102,16 @@ function mapLeave(row: Record<string, unknown>): StaffLeaveEntity {
     decidedBy: row.decided_by == null ? null : String(row.decided_by),
     decidedAt: row.decided_at == null ? null : new Date(String(row.decided_at)),
     createdAt: row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at)),
+    updatedAt: row.updated_at instanceof Date ? row.updated_at : new Date(String(row.updated_at)),
+  };
+}
+
+function mapBalance(row: Record<string, unknown>): StaffLeaveBalanceEntity {
+  return {
+    tenantId: String(row.tenant_id),
+    staffId: String(row.staff_id),
+    leaveType: String(row.leave_type) as StaffLeaveType,
+    balanceDays: Number(row.balance_days),
     updatedAt: row.updated_at instanceof Date ? row.updated_at : new Date(String(row.updated_at)),
   };
 }
@@ -181,6 +202,82 @@ export class PgStaffLeaveRepository implements StaffLeaveRepository {
       );
       if (!result.rows[0]) return null;
       return mapLeave(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async getBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+  ): Promise<StaffLeaveBalanceEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM staff_leave_balances
+         WHERE tenant_id = $1 AND staff_id = $2 AND leave_type = $3
+         LIMIT 1`,
+        [tenantId, staffId, leaveType],
+      );
+      if (!result.rows[0]) return null;
+      return mapBalance(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async setBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    balanceDays: number,
+  ): Promise<StaffLeaveBalanceEntity> {
+    if (balanceDays < 0) {
+      throw new Error('balanceDays must be >= 0');
+    }
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO staff_leave_balances (tenant_id, staff_id, leave_type, balance_days, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (tenant_id, staff_id, leave_type) DO UPDATE SET
+           balance_days = EXCLUDED.balance_days,
+           updated_at = now()
+         RETURNING *`,
+        [tenantId, staffId, leaveType, balanceDays],
+      );
+      return mapBalance(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async adjustBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    deltaDays: number,
+  ): Promise<StaffLeaveBalanceEntity> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const existing = await client.query(
+        `SELECT * FROM staff_leave_balances
+         WHERE tenant_id = $1 AND staff_id = $2 AND leave_type = $3
+         LIMIT 1`,
+        [tenantId, staffId, leaveType],
+      );
+      const current = existing.rows[0]
+        ? Number((existing.rows[0] as { balance_days: unknown }).balance_days)
+        : 0;
+      const next = current + deltaDays;
+      if (next < 0) {
+        throw new Error('balanceDays must be >= 0');
+      }
+      const result = await client.query(
+        `INSERT INTO staff_leave_balances (tenant_id, staff_id, leave_type, balance_days, updated_at)
+         VALUES ($1, $2, $3, $4, now())
+         ON CONFLICT (tenant_id, staff_id, leave_type) DO UPDATE SET
+           balance_days = EXCLUDED.balance_days,
+           updated_at = now()
+         RETURNING *`,
+        [tenantId, staffId, leaveType, next],
+      );
+      return mapBalance(result.rows[0] as Record<string, unknown>);
     });
   }
 }

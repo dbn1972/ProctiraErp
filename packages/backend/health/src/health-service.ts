@@ -30,6 +30,11 @@ import type {
   CounsellingSessionEntity,
   ScreeningProgramEntity,
 } from './health-repository.js';
+import type { PhiAccessLogInput } from './pg-special-needs-store.js';
+
+type PhiAccessCapableRepository = HealthRepository & {
+  logPhiAccess?: (input: PhiAccessLogInput) => Promise<void>;
+};
 
 import type {
   CreateMeasurementInput,
@@ -94,6 +99,22 @@ export function hasHealthAccess(context: HealthAccessContext, studentId: string)
 export class HealthService {
   constructor(private readonly repository: HealthRepository) {}
 
+  /**
+   * PHI read audit — metadata only (never payloads). No-ops when the
+   * repository does not expose logPhiAccess (plain in-memory).
+   */
+  private async auditPhiRead(
+    accessContext: HealthAccessContext,
+    input: Omit<PhiAccessLogInput, 'actorUserId'>,
+  ): Promise<void> {
+    const repo = this.repository as PhiAccessCapableRepository;
+    if (typeof repo.logPhiAccess !== 'function') return;
+    await repo.logPhiAccess({
+      ...input,
+      actorUserId: accessContext.userId,
+    });
+  }
+
   // ─── Measurements ───────────────────────────────────────────────────────
 
   async createMeasurement(
@@ -148,6 +169,12 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, entity.studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId: entity.studentId,
+      resourceType: 'measurement',
+      resourceId: entity.id,
+    });
     return entity;
   }
 
@@ -160,7 +187,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listMeasurementsByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listMeasurementsByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'measurement',
+      resourceId: null,
+    });
+    return result;
   }
 
   async deleteMeasurement(
@@ -225,7 +259,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listAllergiesByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listAllergiesByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'allergy',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Conditions ─────────────────────────────────────────────────────────
@@ -278,7 +319,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listConditionsByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listConditionsByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'condition',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Vaccinations ───────────────────────────────────────────────────────
@@ -331,7 +379,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listVaccinationsByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listVaccinationsByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'vaccination',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Insurance ──────────────────────────────────────────────────────────
@@ -383,7 +438,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listInsuranceByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listInsuranceByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'insurance',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Special Needs Assessments ──────────────────────────────────────────
@@ -419,7 +481,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listAssessmentsByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listAssessmentsByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'special_needs_assessment',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Diagnoses ──────────────────────────────────────────────────────────
@@ -456,7 +525,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listDiagnosesByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listDiagnosesByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'diagnosis',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Referrals ──────────────────────────────────────────────────────────
@@ -510,7 +586,14 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listReferralsByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listReferralsByStudent(tenantId, studentId, pagination);
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'referral',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Accommodation Plans ────────────────────────────────────────────────
@@ -564,7 +647,18 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listAccommodationPlansByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listAccommodationPlansByStudent(
+      tenantId,
+      studentId,
+      pagination,
+    );
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'accommodation_plan',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Counselling Sessions ───────────────────────────────────────────────
@@ -628,7 +722,18 @@ export class HealthService {
     if (!hasHealthAccess(accessContext, studentId)) {
       throw new BusinessRuleError('Access denied: not authorized to access this student\'s health records');
     }
-    return this.repository.listCounsellingSessionsByStudent(tenantId, studentId, pagination);
+    const result = await this.repository.listCounsellingSessionsByStudent(
+      tenantId,
+      studentId,
+      pagination,
+    );
+    await this.auditPhiRead(accessContext, {
+      tenantId,
+      studentId,
+      resourceType: 'counselling_session',
+      resourceId: null,
+    });
+    return result;
   }
 
   // ─── Screening Programs ─────────────────────────────────────────────────

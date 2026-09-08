@@ -333,10 +333,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'workflow-ui',
     mounted: true,
     prefixes: ['/workflows'],
-    persistence: 'ui-seed',
+    persistence: 'postgres-when-DATABASE_URL',
     rbacWired: false,
     notes:
-      'workflowUiPlugin seed lists; real `@proctira/backend-workflow` unmounted (G-208). Registrar name `workflow`.',
+      'workflowUiPlugin with PG store when DATABASE_URL set (G-208 approvals persist). Real `@proctira/backend-workflow` engine still unmounted; registrar name `workflow`.',
     registrarName: 'workflow',
   },
 
@@ -444,7 +444,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'n/a',
     rbacWired: false,
     notes:
-      'Real workflowPlugin unmounted; gateway serves workflow-ui seed under registrar `workflow` (G-208).',
+      'Real workflowPlugin unmounted; gateway serves workflow-ui (PG when DATABASE_URL) under registrar `workflow` (G-208).',
   },
 ] as const;
 

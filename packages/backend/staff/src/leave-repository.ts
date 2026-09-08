@@ -19,6 +19,14 @@ export interface StaffLeaveEntity {
   updatedAt: Date;
 }
 
+export interface StaffLeaveBalanceEntity {
+  tenantId: string;
+  staffId: string;
+  leaveType: StaffLeaveType;
+  balanceDays: number;
+  updatedAt: Date;
+}
+
 export interface StaffLeaveRepository {
   createLeave(data: Omit<StaffLeaveEntity, 'createdAt' | 'updatedAt'>): Promise<StaffLeaveEntity>;
   listLeaves(tenantId: string): Promise<StaffLeaveEntity[]>;
@@ -28,4 +36,23 @@ export interface StaffLeaveRepository {
     tenantId: string,
     data: Partial<Pick<StaffLeaveEntity, 'status' | 'decidedBy' | 'decidedAt'>>,
   ): Promise<StaffLeaveEntity | null>;
+
+  /** Leave balance (schema 018) — missing row treated as 0 by callers. */
+  getBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+  ): Promise<StaffLeaveBalanceEntity | null>;
+  setBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    balanceDays: number,
+  ): Promise<StaffLeaveBalanceEntity>;
+  adjustBalance(
+    tenantId: string,
+    staffId: string,
+    leaveType: StaffLeaveType,
+    deltaDays: number,
+  ): Promise<StaffLeaveBalanceEntity>;
 }
