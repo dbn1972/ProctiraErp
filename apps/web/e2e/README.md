@@ -44,8 +44,10 @@ unauthenticated redirects to `/login`. Verify the suite parses with
 
 **CI (G-401):** `.github/workflows/e2e-backend-ready.yml` (nightly +
 `workflow_dispatch`) runs Postgres/Redis → Prisma migrate → `apply-sql.sh` →
-`tools/scripts/run-e2e-backend-ready.sh` (api-gateway + a small HS256 write
-smoke). Seeded-password / IdP login journeys are still residual.
+`tools/scripts/run-e2e-backend-ready.sh` (api-gateway + HS256 health write
+smoke + `17c` health/scholarships a11y). Authenticated `a11y-axe` uses
+`setupGatewayTenantSession` (G-402) when `E2E_BACKEND_READY=1`. Seeded-password
+/ IdP login journeys remain residual.
 
 ```bash
 # From the repo root

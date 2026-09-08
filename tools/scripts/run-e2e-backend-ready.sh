@@ -21,7 +21,7 @@
 #
 # Optional:
 #   E2E_SPECS        Space-separated spec paths relative to apps/web
-#                    (default: e2e/17b-health-counselling-write-smoke.spec.ts)
+#                    (default: health write smoke + health/scholarships a11y smoke)
 #   E2E_REQUIRE_LIVE If 1, exit non-zero when gateway health fails
 #   E2E_SKIP_STACK   If 1 (or --skip-stack), print skip summary and exit 0
 set -euo pipefail
@@ -60,7 +60,7 @@ export NEXT_PUBLIC_GATEWAY_URL="${NEXT_PUBLIC_GATEWAY_URL:-$GATEWAY_URL}"
 export GATEWAY_URL="${GATEWAY_URL}"
 export CI="${CI:-}"
 
-SPECS="${E2E_SPECS:-e2e/17b-health-counselling-write-smoke.spec.ts}"
+SPECS="${E2E_SPECS:-e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts}"
 
 print_skip_summary() {
   local reason="$1"
@@ -79,7 +79,9 @@ What this job / script always expects before a live pass:
 
 What still needs seeds / secrets for FULL write journeys:
   - Seeded tenant admins (admin@tenant-a.test) for loginAsTenantAdmin specs
-    (10-scholarships, 11-health, a11y authenticated suite, etc.)
+    (10-scholarships, 11-health full journeys, etc.)
+  - Full authenticated axe matrix (a11y-axe.spec.ts) is HS256-unblocked (G-402)
+    but the default harness runs the smaller 17c health/scholarships a11y smoke
   - Live IdP / Keycloak credentials are NOT required for HS256 cookie smokes
 
 Workflow: .github/workflows/e2e-backend-ready.yml

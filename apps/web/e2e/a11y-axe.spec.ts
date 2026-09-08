@@ -11,12 +11,12 @@
  *      regressions are caught even on a vanilla `pnpm test:e2e`.
  *
  *   2. Surfaces that require an authenticated session (dashboard,
- *      students list, registration wizard step 1, mobile shell home).
- *      They are gated on `E2E_BACKEND_READY=1`, matching every other
- *      authenticated spec in this directory. When the gate is unset
- *      Playwright still parses the suite (verifying the helper
- *      compiles), so `pnpm playwright test --list` keeps working in
- *      CI without a live API.
+ *      students list, registration wizard step 1, mobile shell home,
+ *      Health, Scholarships, …). They are gated on `E2E_BACKEND_READY=1`
+ *      (G-401 / G-402). Live scans mint HS256 cookies via
+ *      `setupGatewayTenantSession` so they do **not** need seeded
+ *      password login / IdP secrets — matching the backend-ready harness.
+ *      When the gate is unset Playwright still parses the suite.
  *
  * Each surface uses {@link runAxe} from `./helpers/axe`, which fails
  * the test on any violation and pretty-prints the offending rule(s) +
@@ -29,7 +29,7 @@
 
 import { expect, test } from '@playwright/test';
 
-import { loginAsTenantAdmin } from './fixtures/auth';
+import { setupGatewayTenantSession } from './fixtures/fake-session';
 import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
@@ -105,24 +105,24 @@ test.describe('a11y — public surfaces (no backend required)', () => {
 test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
   test.skip(
     !BACKEND_READY,
-    'E2E_BACKEND_READY is not set; skipping live-backend a11y scans. See e2e/README.md.',
+    'E2E_BACKEND_READY is not set; skipping live-backend a11y scans. See e2e/README.md / G-401 harness.',
   );
 
   test('signed-in dashboard landing is WCAG 2.1 AA clean', async ({ page }) => {
-    await loginAsTenantAdmin(page);
+    await setupGatewayTenantSession(page);
     await expect(page.getByRole('main')).toBeVisible();
     await runAxe(page, { checkpointLabel: 'dashboard /' });
   });
 
   test('students list is WCAG 2.1 AA clean', async ({ page }) => {
-    await loginAsTenantAdmin(page);
+    await setupGatewayTenantSession(page);
     await page.goto('/students');
     await expect(page.getByRole('heading', { name: /students/i })).toBeVisible();
     await runAxe(page, { checkpointLabel: '/students' });
   });
 
-  // G-402: keep Health + Scholarships on the authenticated axe matrix so the
-  // G-401 backend-ready job (E2E_BACKEND_READY=1) covers those module routes.
+  // G-402: Health + Scholarships (and nested) on the authenticated axe matrix.
+  // HS256 session via setupGatewayTenantSession — no seeded password login.
   for (const path of [
     '/reports',
     '/data-warehouse',
@@ -159,7 +159,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/scholarships/disbursements',
   ] as const) {
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
-      await loginAsTenantAdmin(page);
+      await setupGatewayTenantSession(page);
       await page.goto(path);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await runAxe(page, { checkpointLabel: path });
@@ -167,7 +167,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
   }
 
   test('institutions list is WCAG 2.1 AA clean', async ({ page }) => {
-    await loginAsTenantAdmin(page);
+    await setupGatewayTenantSession(page);
     await page.goto('/institutions');
     await expect(page.getByRole('heading', { name: /institutions/i })).toBeVisible();
     await runAxe(page, { checkpointLabel: '/institutions' });
@@ -198,7 +198,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     });
     const page = await context.newPage();
     try {
-      await loginAsTenantAdmin(page);
+      await setupGatewayTenantSession(page);
       await expect(page.getByRole('main')).toBeVisible();
       await runAxe(page, { checkpointLabel: 'mobile shell /' });
     } finally {
