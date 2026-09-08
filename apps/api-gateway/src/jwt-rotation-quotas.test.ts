@@ -6,10 +6,7 @@ import type { FastifyInstance } from 'fastify';
 
 import { buildApp } from './app.js';
 import type { GatewayConfig } from './config.js';
-import {
-  clearTenantPlanTiersForTests,
-  setTenantPlanTierForTests,
-} from './tenant-plan-quotas.js';
+import { clearTenantPlanTiersForTests, setTenantPlanTierForTests } from './tenant-plan-quotas.js';
 
 const CURRENT_SECRET = 'rotation-current-secret';
 const PREVIOUS_SECRET = 'rotation-previous-secret';
