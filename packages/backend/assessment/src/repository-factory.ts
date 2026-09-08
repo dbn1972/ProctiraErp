@@ -23,11 +23,23 @@ import {
 } from './in-memory-repository.js';
 import { InMemoryAssessmentResultRepository } from './in-memory-result-repository.js';
 import {
+  InMemoryInstitutionBrandingRepository,
+  InMemoryReportCardJobRepository,
+  InMemoryReportCardTemplateRepository,
+  InMemoryTeacherCommentRepository,
+} from './in-memory-report-card-repository.js';
+import {
   PrismaGradingSchemeRepository,
   PrismaAssessmentItemRepository,
   PrismaOutcomeRepository,
 } from './prisma-repository.js';
 import { PrismaAssessmentResultRepository } from './prisma-result-repository.js';
+import type {
+  InstitutionBrandingRepository,
+  ReportCardJobRepository,
+  ReportCardTemplateRepository,
+  TeacherCommentRepository,
+} from './report-card-repository.js';
 
 export interface AssessmentRepositoryConfig {
   /** PostgreSQL connection string. Defaults to `process.env.DATABASE_URL`. */
@@ -36,9 +48,7 @@ export interface AssessmentRepositoryConfig {
   prismaClient?: PrismaClient;
 }
 
-function resolvePrismaClient(
-  config: AssessmentRepositoryConfig,
-): PrismaClient | null {
+function resolvePrismaClient(config: AssessmentRepositoryConfig): PrismaClient | null {
   if (config.prismaClient) return config.prismaClient;
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
   if (!databaseUrl) return null;
@@ -75,4 +85,28 @@ export function createAssessmentResultRepository(
   const prisma = resolvePrismaClient(config);
   if (!prisma) return new InMemoryAssessmentResultRepository();
   return new PrismaAssessmentResultRepository(prisma);
+}
+
+/**
+ * Report-card repositories (G-210).
+ *
+ * No Prisma models exist yet for templates/comments/branding/jobs, so these
+ * always return in-memory implementations. Routes are enabled so the
+ * assessment `/report-cards` surface is live; durable HTML report cards also
+ * ship via gradebook `/gradebook/report-cards` (raw pg).
+ */
+export function createReportCardTemplateRepository(): ReportCardTemplateRepository {
+  return new InMemoryReportCardTemplateRepository();
+}
+
+export function createTeacherCommentRepository(): TeacherCommentRepository {
+  return new InMemoryTeacherCommentRepository();
+}
+
+export function createInstitutionBrandingRepository(): InstitutionBrandingRepository {
+  return new InMemoryInstitutionBrandingRepository();
+}
+
+export function createReportCardJobRepository(): ReportCardJobRepository {
+  return new InMemoryReportCardJobRepository();
 }

@@ -28,9 +28,10 @@
  *    else in-memory.
  *  - gradebook (entries / GPA / report cards / transcripts / board exports):
  *    raw SQL + `pg` when DATABASE_URL is set (003 + 004 indexes); else in-memory.
- *  - insights / platform-admin: in-process UI aggregates with write endpoints.
- *  - assessment report-card repositories are not wired yet; report-card routes
- *    stay disabled (WS3 uses /gradebook/report-cards; WS4 uses /gradebook/board-exports).
+ *  - insights / platform-admin: UI aggregates; PG-backed when DATABASE_URL
+ *    (020_insights_ui_schema.sql). Full report/data-warehouse packages unmounted.
+ *  - assessment report-card repos wired (in-memory; no Prisma models yet).
+ *    Durable HTML report cards also via gradebook `/gradebook/report-cards`.
  *
  * Adding/upgrading a domain is a single entry in DOMAIN_REGISTRARS.
  */
@@ -39,7 +40,11 @@ import {
   createAssessmentItemRepository,
   createAssessmentResultRepository,
   createGradingSchemeRepository,
+  createInstitutionBrandingRepository,
   createOutcomeRepository,
+  createReportCardJobRepository,
+  createReportCardTemplateRepository,
+  createTeacherCommentRepository,
 } from '@proctira/backend-assessment';
 import { attendancePlugin, createAttendanceRepository } from '@proctira/backend-attendance';
 import {
@@ -161,13 +166,17 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/assessments'],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
-      // Report-card repositories are intentionally not wired (no Prisma
-      // implementation yet) — report-card routes stay disabled.
+      // G-210: wire in-memory report-card repos so `/report-cards` routes enable.
+      // Durable board HTML report cards also live at `/gradebook/report-cards`.
       await scope.register(assessmentPlugin, {
         gradingSchemeRepository: createGradingSchemeRepository(),
         assessmentItemRepository: createAssessmentItemRepository(),
         outcomeRepository: createOutcomeRepository(),
         resultRepository: createAssessmentResultRepository(),
+        reportCardTemplateRepository: createReportCardTemplateRepository(),
+        teacherCommentRepository: createTeacherCommentRepository(),
+        institutionBrandingRepository: createInstitutionBrandingRepository(),
+        reportCardJobRepository: createReportCardJobRepository(),
       });
     },
   },
@@ -231,8 +240,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/reports', '/data-warehouse'],
     register: async (scope) => {
       // Redesign Insights UI aggregates (templates / runs / DW indicators /
-      // import jobs / map features) with in-process write endpoints so App
-      // Router banners can hide when the gateway responds.
+      // import jobs / map features). PG-backed when DATABASE_URL (G-209);
+      // App Router banners hide when the gateway responds.
       await scope.register(insightsUiPlugin);
     },
   },

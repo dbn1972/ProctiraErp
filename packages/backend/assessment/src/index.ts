@@ -21,7 +21,11 @@ export { assessmentPlugin } from './assessment-plugin.js';
 export type { AssessmentPluginOptions } from './assessment-plugin.js';
 
 // Service
-export { AssessmentService, MAX_ITEMS_PER_SUBJECT_PERIOD, REQUIRED_WEIGHT_TOTAL } from './assessment-service.js';
+export {
+  AssessmentService,
+  MAX_ITEMS_PER_SUBJECT_PERIOD,
+  REQUIRED_WEIGHT_TOTAL,
+} from './assessment-service.js';
 export { ResultService } from './result-service.js';
 
 // Repository interfaces
@@ -62,6 +66,10 @@ export {
   createAssessmentItemRepository,
   createOutcomeRepository,
   createAssessmentResultRepository,
+  createReportCardTemplateRepository,
+  createTeacherCommentRepository,
+  createInstitutionBrandingRepository,
+  createReportCardJobRepository,
 } from './repository-factory.js';
 export type { AssessmentRepositoryConfig } from './repository-factory.js';
 

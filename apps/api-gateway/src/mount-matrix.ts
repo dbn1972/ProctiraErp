@@ -10,13 +10,7 @@
  * gated; see also G-105 audit trail and G-106 suspend gate in `app.ts`.
  */
 
-export type PersistenceKind =
-  | 'prisma+rls'
-  | 'raw-pg'
-  | 'mixed'
-  | 'in-memory'
-  | 'ui-seed'
-  | 'n/a';
+export type PersistenceKind = 'prisma+rls' | 'raw-pg' | 'mixed' | 'in-memory' | 'ui-seed' | 'n/a';
 
 export interface MountMatrixEntry {
   /** `packages/backend/<dir>` name, or a gateway-only id (e.g. `insights-ui`). */
@@ -145,11 +139,12 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
       '/assessment-items',
       '/outcomes',
       '/results',
+      '/report-cards',
     ],
     persistence: 'prisma+rls',
     rbacWired: false,
     notes:
-      'Proxy prefix `/assessments`; native routes under grading-schemes/items/outcomes/results. Report-card repos unwired (routes disabled).',
+      'Proxy prefix `/assessments`; native routes include `/report-cards` (G-210 in-memory templates/jobs). Durable HTML also via gradebook `/gradebook/report-cards`.',
     registrarName: 'assessment',
   },
   {
@@ -176,7 +171,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/scholarships'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (016_scholarships_schema.sql) when DATABASE_URL set; else in-memory + demo seed (G-204).',
+    notes:
+      'Raw pg (016_scholarships_schema.sql) when DATABASE_URL set; else in-memory + demo seed (G-204).',
     registrarName: 'scholarship',
   },
   {
@@ -250,7 +246,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/fees'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'feesPlugin (G-201); raw pg 010+011 when DATABASE_URL set; else in-memory. Sandbox PSP only (G-202 waived).',
+    notes:
+      'feesPlugin (G-201); raw pg 010+011 when DATABASE_URL set; else in-memory. Sandbox PSP only (G-202 waived).',
     registrarName: 'fees',
   },
   {
@@ -306,24 +303,16 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'insights-ui',
     mounted: true,
     prefixes: ['/reports', '/data-warehouse'],
-    persistence: 'ui-seed',
+    persistence: 'mixed',
     rbacWired: false,
     notes:
-      'insightsUiPlugin aggregates; real `report` / `data-warehouse` packages unmounted (G-209).',
+      'insightsUiPlugin with PG store when DATABASE_URL set (020; G-209). Real `report` / `data-warehouse` packages still unmounted.',
     registrarName: 'insights',
   },
   {
     package: 'platform-admin-ui',
     mounted: true,
-    prefixes: [
-      '/tenants',
-      '/plugins',
-      '/break-glass',
-      '/plans',
-      '/themes',
-      '/platform',
-      '/audit',
-    ],
+    prefixes: ['/tenants', '/plugins', '/break-glass', '/plans', '/themes', '/platform', '/audit'],
     persistence: 'ui-seed',
     rbacWired: true,
     notes:
@@ -455,6 +444,6 @@ export const MATRIX_REGISTRAR_NAMES: readonly string[] = MOUNT_MATRIX.filter(
 ).map((row) => row.registrarName!);
 
 /** Backend package dirs that appear as matrix rows (excluding *-ui gateway ids). */
-export const MATRIX_BACKEND_PACKAGES: readonly string[] = MOUNT_MATRIX.map((row) => row.package).filter(
-  (pkg) => !pkg.endsWith('-ui'),
-);
+export const MATRIX_BACKEND_PACKAGES: readonly string[] = MOUNT_MATRIX.map(
+  (row) => row.package,
+).filter((pkg) => !pkg.endsWith('-ui'));
