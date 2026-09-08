@@ -1,242 +1,195 @@
-# ProctiraERP — Enterprise product gap audit (Fable 5.1)
+# ProctiraERP — Master Enterprise Gap Report (single source of truth)
 
-**Date:** 2026-09-08  
-**Method:** Parallel Fable 5.1 explore agents + project enterprise skills map  
-**Skills applied:** `enterprise-module-production-ready`, `enterprise-security-tenancy`, `enterprise-product-ia`, `enterprise-ux-designer`, `enterprise-accessibility`, `enterprise-data-sql-certification`, `enterprise-release-ops`, `enterprise-mobile-flutter`, `enterprise-module-development`  
-**Honesty rule:** Live IdP / Twilio / PSP / LMS / Statuspage remain **dated external waivers** until secrets + evidence exist. Do not claim 10/10 on waived pillars.
-
----
-
-## 1. Executive verdict
-
-ProctiraERP has a **strong blueprint and partial implementation**: SIS timetable/gradebook depth, peer-gap closure queue #1–#10 closed on `main`, optional Keycloak path in flight (PR #38), and a solid skill/checklist culture.
-
-It is **not yet an enterprise-complete product**. The dominant failure mode is **controls and persistence not composed into the running gateway**:
-
-| Pillar | Score (0–10) | One-line gap |
-|--------|-------------:|--------------|
-| Security & tenancy | **3.5** | Campus/health/fees APIs largely **without gateway RBAC**; forgeable actors; RLS incomplete |
-| Functionality / data plane | **4.5** | Dual stack (Prisma vs raw SQL 002–014); many domains **in-memory** or unmounted |
-| UX / a11y / multidevice | **5.0** | Authenticated axe/dark/touch/RTL often **skipped in CI**; MobileShell dead routes |
-| Platform / ops / release | **4.0** | Admin console stub; `rbacPlugin`/audit/tenant lifecycle **unmounted**; deploy gaps |
-| E2E / evidence | **4.0** | Playwright gated on `E2E_BACKEND_READY`; not a CI merge gate for live writes |
-| **Overall enterprise readiness** | **~4 / 10** | Shipable as demo/staging only until Wave 1 security + schema apply |
-
-**Peer-gap queue #1–#10 = closed** does **not** equal full product enterprise readiness. It closed a prioritized peer-delta list; this audit covers the **whole product surface**.
+**Date:** 2026-09-08 · **Auditor:** Fable 5.1 (parallel explores + repo verification) · **Base:** `main` @ `39e899f`  
+**Purpose:** The one report Cursor Auto-mode agents work from, **gap by gap, in order**, until ProctiraERP is a world-class enterprise school ERP.  
+**Skills that govern every task:** `.cursor/skills/enterprise-module-production-ready/SKILL.md` and the related skills it lists (security-tenancy, data-sql-certification, product-ia, ux-designer, accessibility, mobile-flutter, release-ops, module-development).
 
 ---
 
-## 2. Cross-cutting findings (whole product)
+## 0. How agents must use this report
 
-### 2.1 Security (critical)
-
-1. **No gateway RBAC wired for campus modules** — Health, fees, leave, admissions, hostel, transport, library, comms, notifications, scholarships, parent portal plugins register routes without the same permission coupling as core SIS student/staff paths.
-2. **Forgeable actor identity** — Request headers / body fields used as actor where JWT subject should be authoritative.
-3. **Platform-admin UI without authZ** — Stub console can appear operable without real admin RBAC.
-4. **Optional Keycloak** — Local HS JWT remains default; live IdP E2E still waived until secrets.
-5. **PHI / money paths** — Health and fees lack vault/PSP-grade controls in the live compose path; treat as high risk until hardened.
-6. **RLS** — Many tables lack tenant RLS; raw SQL 002–014 not applied by default tooling.
-
-### 2.2 Functionality / architecture
-
-1. **Dual schema** — Prisma models vs raw SQL (`db/sql/001` + `002–014`) diverge; apply path unclear for agents and CI.
-2. **Unmounted routes** — Substantial backend packages exist but are not registered on the api-gateway used in local/CI.
-3. **In-memory domains** — Scholarships, parts of admissions CRM, identity invite/OTP (until Keycloak+store), and similar stores reset on restart.
-4. **SIS depth uneven** — Timetable/gradebook stronger; board exports, master schedule hardening, and RBAC on remaining SIS APIs incomplete.
-
-### 2.3 UX / accessibility / mobile
-
-1. Authenticated **axe / dark / touch / RTL** specs skip without backend-ready env → CI green without proving a11y.
-2. **MobileShell** routes to broken or empty destinations.
-3. **i18n** parity incomplete; flat nav IA for large modules.
-4. Flutter a11y / device-farm evidence thin vs web.
-
-### 2.4 Release / ops
-
-1. Helm/deploy and observability SLO packs incomplete vs enterprise release skill.
-2. Bundle/Lighthouse/integration gates exist but do not compensate for skipped E2E write paths.
-3. Multi-board live DB certification procedure exists in skill; not yet a standing green proof for all modules.
+1. Pick the **lowest-numbered OPEN gap** whose `Depends on` are all `DONE`.
+2. Work on a slim branch `cursor/<gap-id-lowercase>-56c3` from `origin/main`. One gap = one PR.
+3. Meet the **Acceptance** exactly; attach evidence paths (tests, artifacts, audit md).
+4. Update the **Status** column here (`OPEN → IN PROGRESS → DONE (PR #n)`) in the same PR.
+5. Never claim a pillar that needs external secrets (IdP, PSP, Twilio, LMS, Statuspage) — mark **WAIVED (dated)**.
+6. Do not open mega-PRs. PR #38 (optional Keycloak) is the reference size.
 
 ---
 
-## 3. Module heat map
+## 1. Verdict
 
-| Area | Security | Function | UX/E2E | Priority |
-|------|:--------:|:--------:|:------:|----------|
-| Platform admin / RBAC / audit | ●○○ | ●○○ | ●○○ | **P0** |
-| Health / PHI | ●○○ | ●●○ | ●●○ | **P0** |
-| Fees / finance | ●○○ | ●●○ | ●●○ | **P0** |
-| SIS core (students/staff/enroll) | ●●○ | ●●● | ●●○ | **P0** |
-| Timetable / gradebook | ●●○ | ●●● | ●●○ | **P1** |
-| Admissions / CRM | ●○○ | ●●○ | ●●○ | **P1** |
-| Scholarships | ●○○ | ●○○ | ●●○ | **P1** |
-| Leave / HR | ●○○ | ●●○ | ●●○ | **P1** |
-| Hostel / transport / library | ●○○ | ●●○ | ●●○ | **P2** |
-| Comms / notifications | ●○○ | ●●○ | ●●○ | **P2** |
-| Parent / student portal | ●○○ | ●●○ | ●●○ | **P1** |
-| Public website / registration | ●●○ | ●●○ | ●●○ | **P2** |
-| Mobile Flutter | ●○○ | ●●○ | ●○○ | **P2** |
-| Insights / workflows | ●○○ | ●●○ | ●●○ | **P2** |
+| Pillar                     |     Score /10 | Headline gap                                                                                                                                                                                                                |
+| -------------------------- | ------------: | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Security & tenancy         |       **3.5** | RBAC plugin exists but is **never mounted**; actors readable from `x-user-id` headers; raw-SQL tables have **zero RLS**                                                                                                     |
+| Data / persistence         |       **4.0** | CI applies **Prisma only**; `db/sql/001–014` never applied in CI → those modules silently run **in-memory** in tests; scholarships, admissions, special-needs, notifications, workflows, insights, platform-admin in-memory |
+| Functionality              |       **5.0** | Fees module = SQL file only, no gateway plugin; report cards disabled; HR leave / admissions not persisted                                                                                                                  |
+| UX / a11y / multidevice    |       **5.0** | Authenticated axe / dark / touch / RTL specs **skip** when routes/backend not ready; no visual-diff                                                                                                                         |
+| Platform / admin / release |       **4.0** | Platform-admin UI plugin (457 lines) has **no role check**; audit/tenant-lifecycle/billing plugins unmounted; Helm chart still named `openemis-platform`                                                                    |
+| E2E evidence               |       **4.0** | `E2E_BACKEND_READY` absent from all workflows → write journeys never run in CI                                                                                                                                              |
+| **Overall**                | **~4.2 / 10** | Solid architecture and skills culture; **controls and persistence are not composed into the running gateway**                                                                                                               |
 
-Legend: ●●● stronger relative to peers · ●○○ weak.
+Peer-gap queue #1–#10 (closed) fixed peer deltas. This report covers the **whole product**.
 
 ---
 
-## 4. Explicit external waivers (do not Autocomplete)
+## 2. Gap register (work top to bottom)
 
-| Waiver | Evidence required later |
-|--------|-------------------------|
-| Live Keycloak / IdP E2E | Secrets + recorded login journey |
-| Twilio SMS / voice | Account + delivery receipt |
-| Payment PSP (fees) | Sandbox charge + webhook |
-| LMS / LTI sandbox | Tool launch proof |
-| Statuspage / pager | Incident page + alert |
-| Device-farm Flutter PNGs | Farm run artifacts |
+Legend — **Sev:** S0 blocker · S1 critical · S2 major · S3 minor. **Status:** OPEN unless noted.
 
-Agents may implement **code paths and mocks**, but must mark these pillars **waived** in module audits until live evidence exists.
+### Wave 0 — Foundations (unblock everything)
 
----
+| ID        | Sev | Gap (what is wrong)                                                                                                                                                                                                                                                                                                                                                  | Evidence                                                      | Fix                                                                                                                                                                      | Acceptance                                                                              | Depends on | Status              |
+| --------- | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | ---------- | ------------------- |
+| **G-001** | S0  | Optional Keycloak slim PR not merged; identity/invite/OTP stores in-memory                                                                                                                                                                                                                                                                                           | PR #38 CI 13/13 green, still draft                            | Merge PR #38; follow-up: persist identity/invite/OTP                                                                                                                     | `main` has env-gated Keycloak; docs list env vars                                       | —          | OPEN (PR #38 ready) |
+| **G-002** | S0  | **Two schema systems**: Prisma migrations (student/institution/staff/attendance/exam/assessment) vs raw SQL `db/sql/001–014` (health, timetable, gradebook, notifications, transport, comms, hostel, library, parent, fees, HR, admissions). CI runs `prisma:migrate:deploy` only (`ci.yml:502`), so raw-SQL modules fall back to in-memory during integration tests | `domain-plugins.ts` header; `ci.yml` 495–512; `db/sql/`       | Add `tools/scripts/apply-sql.sh` (idempotent, ordered 001→014 + seeds) and call it in CI after Prisma; document canonical order in `db/README.md`                        | Integration job applies both; a test proves `pg` repos are used when `DATABASE_URL` set | —          | OPEN                |
+| **G-003** | S0  | No **mount matrix**: which package routes are live on the gateway is only visible by reading `domain-plugins.ts`. Fees, billing, audit, policy, tenant-lifecycle, custom-field, survey, dashboards, ETL, report, workflow (real), plugin, theme are **not** mounted                                                                                                  | `domain-plugins.ts` DOMAIN_REGISTRARS vs `packages/backend/*` | Publish `docs/audits/GATEWAY_MOUNT_MATRIX.md` (package → prefix → persistence → RBAC → E2E) and a unit test that fails when a package exports a plugin not in the matrix | Matrix committed; test green                                                            | —          | OPEN                |
 
-## 5. Auto-mode Cursor subagent task queue
+### Wave 1 — Security spine (S0)
 
-Use **one PR / one concern** per agent where possible. Each task lists: **ID**, **goal**, **skill**, **acceptance**, **depends on**.
+| ID        | Sev | Gap                                                                                                                                                                | Evidence                                                               | Fix                                                                                                                          | Acceptance                                                                                   | Depends on                                    | Status               |
+| --------- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------- | -------------------- | ---- |
+| **G-101** | S0  | `rbacPlugin` (`packages/backend/auth/src/rbac-plugin.ts`) is **not registered** anywhere in `apps/api-gateway` → every domain route relies only on "has valid JWT" | grep `rbacPlugin` in `apps/api-gateway/src` = 0 hits; `app.ts` 239–350 | Register `rbacPlugin` after `tenantPlugin`; define permission map per prefix; default-deny for mutating verbs                | Every `POST/PUT/PATCH/DELETE` under `/api/v1/*` requires a permission; deny tests per module | G-003                                         | OPEN                 |
+| **G-102** | S0  | **Forgeable actor**: parent-portal and HR leave read `request.headers['x-user-id']`; timetable/gradebook/registration read actor-ish headers                       | `parent-portal/src/routes.ts:47`, `staff/src/leave-routes.ts:29`       | Actor = JWT `sub`/claims only; strip client `x-user-id`/`x-actor` at gateway; shared `getActor(request)` helper              | Property test: header override never changes actor; all routes use helper                    | G-101                                         | OPEN                 |
+| **G-103** | S0  | **Zero RLS** on raw-SQL tables (`db/sql/001–014`): `ENABLE ROW LEVEL SECURITY` count in `db/` = 0; RLS exists only in Prisma migrations                            | grep result                                                            | Add `db/sql/015_rls_policies.sql` (tenant_id policy on every table + `SET app.tenant_id`), wire in pg repos via `withTenant` | Tenant-isolation release gate extended to raw-SQL domains and green                          | G-002                                         | OPEN                 |
+| **G-104** | S0  | Platform-admin UI plugin (`platform-admin-ui-plugin.ts`, 457 lines) serves `/tenants`, `/plans`, `/break-glass`, `/audit`, `/platform` with **no role check**      | grep `requireRole                                                      | roles` = 0                                                                                                                   | Require `platform_admin` role via G-101; break-glass needs dual-control + audit              | Non-admin → 403; audit row per admin mutation | G-101                | OPEN |
+| **G-105** | S1  | Audit package exists but no audit middleware mounted; admin & PHI/money mutations unaudited                                                                        | `packages/backend/audit` not in `domain-plugins.ts`                    | Mount audit plugin; emit on every mutating route (actor, tenant, resource, before/after hash)                                | Audit rows queryable; test per module                                                        | G-101                                         | OPEN                 |
+| **G-106** | S1  | Tenant lifecycle / policy / billing-entitlement plugins unmounted → no plan limits, no suspend/offboard                                                            | `packages/backend/{tenant,policy,billing}` unmounted                   | Mount tenant lifecycle + entitlement middleware; wire plan checks                                                            | Suspended tenant → 403; entitlement test                                                     | G-101, G-003                                  | OPEN                 |
+| **G-107** | S1  | Live IdP login not proven; HS-JWT default                                                                                                                          | PR #38 scope                                                           | After G-001: staging Keycloak realm + recorded login E2E                                                                     | Evidence recording or **WAIVED (dated)**                                                     | G-001                                         | WAIVED until secrets |
 
-### Wave 0 — Prerequisites (serial)
+### Wave 2 — Persistence, money, PHI (S0/S1)
 
-| ID | Task | Skill | Acceptance | Depends |
-|----|------|-------|------------|---------|
-| **W0-01** | Merge or land optional Keycloak slim (PR #38) when tip CI green; document env gates | release-ops | `KEYCLOAK_*` optional; HS JWT default documented; CI green | — |
-| **W0-02** | Single **schema apply story**: document + script which of Prisma vs `db/sql/001–014` is canonical for local/CI/cert | data-sql | `setup-live-db` (or successor) applies one coherent set; README one path | — |
-| **W0-03** | Inventory **unmounted** gateway plugins vs packages; publish mount matrix | module-dev | Markdown matrix: package → mounted? → owner | W0-02 |
+| ID        | Sev | Gap                                                                                                                           | Evidence                         | Fix                                                                                                             | Acceptance                                                | Depends on          | Status                 |
+| --------- | --- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ------------------- | ---------------------- |
+| **G-201** | S0  | **Fees/finance has no gateway module**: `011_fees_finance_schema.sql` exists but no `feesPlugin`; only parent-portal reads it | grep `fees` in gateway = 0       | Build `packages/backend/fees` (invoices, ledger, receipts, concessions, dunning) on raw pg + RLS; mount `/fees` | Double-entry invariant tests; RBAC; restart-safe          | G-002, G-101, G-103 | OPEN                   |
+| **G-202** | S0  | Payment gateway (PSP) integration absent                                                                                      | —                                | Adapter interface + sandbox stub + webhook idempotency                                                          | Sandbox charge proof or **WAIVED (dated)**                | G-201               | WAIVED until PSP keys  |
+| **G-203** | S0  | Health **special-needs in-memory**; PHI read access unaudited; no field-level encryption policy                               | `domain-plugins.ts` 208–223      | Persist special-needs (SQL 012 ext.); PHI access log; encrypt sensitive columns (pgcrypto or app-level)         | No plaintext PHI in logs; audit on read; tenant deny test | G-103, G-105        | OPEN                   |
+| **G-204** | S1  | Scholarships **in-memory + demo seed**                                                                                        | `InMemoryScholarshipRepository`  | `db/sql/016_scholarships_schema.sql` + pg repo (programs, applications, disbursements)                          | CRUD survives restart; RLS; E2E `10-scholarships` live    | G-002, G-103        | OPEN                   |
+| **G-205** | S1  | Admissions CRM **in-memory**; SQL 014 unused; OCR waived                                                                      | `InMemoryRegistrationRepository` | pg repo on 014; pipeline stages; document upload stub                                                           | Persisted pipeline; RBAC; E2E                             | G-002, G-103        | OPEN                   |
+| **G-206** | S1  | HR leave: persisted only when `DATABASE_URL`; approval actor forgeable; no payroll hooks                                      | `staff/src/leave-routes.ts`      | After G-102: approver from JWT; balances; audit                                                                 | Approve/deny matrix tests                                 | G-102               | OPEN                   |
+| **G-207** | S1  | Notifications delivery records in-memory; no provider (email/SMS/push) adapters live                                          | `createNotificationStack`        | Persist deliveries; adapter interface; Twilio/SES stubs                                                         | Restart-safe; provider proof or **WAIVED**                | G-002               | OPEN / provider WAIVED |
+| **G-208** | S1  | Workflow engine served by **UI seed plugin**, real `@proctira/backend-workflow` unmounted                                     | `workflowUiPlugin` comment       | Mount real workflow package with adapter matching UI shapes                                                     | Approvals persist; E2E `12-workflows` live                | G-002               | OPEN                   |
+| **G-209** | S2  | Insights/platform-admin aggregates in-process, not from warehouse                                                             | `insightsUiPlugin`               | Wire `data-warehouse`/`report` packages; scheduled ETL job                                                      | Reports from DB; job runs in CI smoke                     | G-002               | OPEN                   |
+| **G-210** | S2  | Assessment report-card repositories not wired; routes disabled                                                                | `domain-plugins.ts` 159–161      | Prisma or pg repo; enable routes or formally redirect to gradebook                                              | Report card generated E2E                                 | G-002               | OPEN                   |
 
-### Wave 1 — Security composition (P0, parallel after W0)
+### Wave 3 — SIS depth & portals (S1)
 
-| ID | Task | Skill | Acceptance | Depends |
-|----|------|-------|------------|---------|
-| **CAMP-00** | Wire **gateway RBAC** for all campus plugins (health, fees, leave, admissions, hostel, transport, library, comms, notifications, scholarships, parent) | security-tenancy | Every mutating route has permission check; deny tests | W0-03 |
-| **PA-01** | Mount `rbacPlugin` + audit middleware on api-gateway | security-tenancy | Audit events on admin mutations; unit + integration | W0-03 |
-| **PA-02** | Platform-admin UI: real authZ gate (no stub-operable without role) | security-tenancy + product-ia | Unauthenticated → login; non-admin → 403 UI | PA-01 |
-| **SIS-RBAC** | Finish RBAC on remaining SIS APIs (not only students smoke) | security-tenancy | `09-route-permission` extended; cross-tenant deny | W0-03 |
-| **ACTOR-01** | Eliminate forgeable actors: JWT `sub` only; strip client actor headers | security-tenancy | Property/unit tests prove header override fails | CAMP-00 |
-| **RLS-01** | Add/enable tenant RLS for tables in active SQL set; migrate tooling | data-sql + security | Tenant isolation tests pass on live Postgres | W0-02 |
+| ID        | Sev | Gap                                                                                  | Evidence                     | Fix                                                                 | Acceptance                           | Depends on   | Status               |
+| --------- | --- | ------------------------------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------- | ------------------------------------ | ------------ | -------------------- |
+| **G-301** | S1  | Route-permission coupling test covers core SIS only (`09-route-permission-coupling`) | e2e list                     | Extend to timetable, gradebook, health, fees, scholarships, portals | Spec asserts 403 per role per module | G-101        | OPEN                 |
+| **G-302** | S1  | UUIDs shown as primary labels in timetable/gradebook/master-schedule UIs             | UX explore                   | Human labels (code + name), search-select components                | No raw UUID visible on list/detail   | —            | OPEN                 |
+| **G-303** | S1  | Gradebook publish/lock/moderation workflow & transcript signing incomplete           | DEV_SIS_GRADEBOOK audit      | Publish states, lock after moderation, signed PDF                   | State machine tests; export job      | G-101        | OPEN                 |
+| **G-304** | S1  | Master schedule conflict resolution & bulk ops thin                                  | DEV_SIS_MASTER_SCHEDULE      | Conflict engine surfaced in UI; bulk assign                         | Property tests on conflicts          | G-302        | OPEN                 |
+| **G-305** | S1  | Board exports: async job, download, retention, tenant check                          | DEV_SIS_BOARD_EXPORTS        | Job queue + signed URL + audit                                      | E2E download; deny cross-tenant      | G-105        | OPEN                 |
+| **G-306** | S1  | Parent/student portals: consent, messaging, fees against live API; actor from header | `22-parent-portal-smoke`     | After G-102/G-201: live journeys                                    | Authenticated E2E evidence           | G-102, G-201 | OPEN                 |
+| **G-307** | S2  | Bulk import (`05-bulk-import`) validation/rollback semantics                         | e2e                          | Dry-run, row errors, transactional commit                           | Property tests                       | G-002        | OPEN                 |
+| **G-308** | S2  | LMS / LTI integration only planned                                                   | `docs/plans/LMS_LTI_EPIC.md` | LTI 1.3 tool launch stub                                            | Launch proof or **WAIVED**           | —            | WAIVED until sandbox |
 
-### Wave 2 — Persistence & money/PHI (P0/P1)
+### Wave 4 — UX, accessibility, mobile, E2E CI (S1/S2)
 
-| ID | Task | Skill | Acceptance | Depends |
-|----|------|-------|------------|---------|
-| **HLT-01** | Health PHI vault path: encrypt/store policy + access audit | security-tenancy | No plaintext PHI in logs; audit on read | CAMP-00, RLS-01 |
-| **HLT-02** | Health screenings E2E (backend-ready) + tenant deny | production-ready | Evidence pack under artifacts + audit md | HLT-01 |
-| **FEE-01** | Fees ledger persistence (not memory); idempotent payments stub | module-dev + data-sql | Restart-safe balances; dual-entry invariants | CAMP-00, W0-02 |
-| **FEE-02** | Fees RBAC + parent fee visibility rules | security-tenancy | Role matrix tests | FEE-01, ACTOR-01 |
-| **SCH-01** | Scholarships: replace in-memory with SQL; applications + disbursements | module-dev | CRUD survives restart; tenant scoped | W0-02, CAMP-00 |
-| **ADM-01** | Admissions CRM: persist pipeline; remove memory store | module-dev | Seed + list/detail write path | W0-02, CAMP-00 |
-| **HRL-01** | Leave: persistence + manager approve path with RBAC | module-dev | Approve/deny audit trail | CAMP-00 |
+| ID        | Sev | Gap                                                                                                 | Evidence                                                                             | Fix                                                                                          | Acceptance                                 | Depends on | Status             |
+| --------- | --- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- | ------------------------------------------ | ---------- | ------------------ |
+| **G-401** | S1  | `E2E_BACKEND_READY` appears in **no** workflow → write-path E2E never runs in CI                    | grep `.github` = 0                                                                   | Add `e2e-backend-ready` job: Postgres + Redis + gateway + web, seeded admin, run write specs | Job in CI (required or nightly with badge) | G-002      | OPEN               |
+| **G-402** | S1  | Authenticated axe / dark / touch / RTL specs `test.skip` when routes not enabled or backend missing | `a11y-axe.spec.ts:75,88,106,180`; `dark-mode-parity:118,186`; `touch-target:258,332` | Run in G-401 job with all module routes enabled; fail on critical violations                 | 0 critical axe across module route list    | G-401      | OPEN               |
+| **G-403** | S1  | No visual-regression CI (skill notes "No visual-diff CI")                                           | skill map                                                                            | Playwright `toHaveScreenshot` baseline for desktop/tablet/mobile top screens                 | Diff job green; baselines committed        | G-401      | OPEN               |
+| **G-404** | S2  | MobileShell routes to missing/empty destinations                                                    | UX explore                                                                           | Route audit; hide/404-guard; capture PNGs                                                    | All shell links resolve                    | —          | OPEN               |
+| **G-405** | S2  | i18n parity: hardcoded strings in redesign modules; RTL only spec-level                             | `apps/web/src/i18n`                                                                  | Extraction lint rule; fill locales for top modules                                           | Lint gate; RTL spec passes for modules     | —          | OPEN               |
+| **G-406** | S2  | Flat IA for large modules; no command-palette deep links for campus modules                         | product-ia skill                                                                     | Nav grouping per IA skill; breadcrumbs; palette entries                                      | UX review checklist filled                 | —          | OPEN               |
+| **G-407** | S2  | Flutter app: a11y semantics, offline, and device-farm evidence thin                                 | mobile explore                                                                       | Semantics pass; golden tests; farm run                                                       | Checklist + PNGs or **WAIVED** farm        | —          | OPEN / farm WAIVED |
+| **G-408** | S2  | Multi-board 3×2×500 live certification not a standing proof                                         | skill §Live DB                                                                       | Add to G-401 job or nightly                                                                  | `verify-counts.txt` artifact refreshed     | G-002      | OPEN               |
 
-### Wave 3 — SIS depth & portals (P1)
+### Wave 5 — Platform, release, operations (S1/S2)
 
-| ID | Task | Skill | Acceptance | Depends |
-|----|------|-------|------------|---------|
-| **SIS-01** | Mount missing SIS routes declared in packages | module-dev | Mount matrix green for SIS | W0-03 |
-| **SIS-TT** | Timetable conflict/UX UUID cleanup (human labels) | ux-designer + module-dev | No raw UUID primary labels in UI | SIS-01 |
-| **SIS-GB** | Gradebook harden: permissions, publish, export | module-dev + security | Teacher vs admin matrix; export job | SIS-RBAC |
-| **SIS-MS** | Master schedule harden vs peer plan | module-dev | Conflicts surfaced; audit | SIS-01 |
-| **SIS-BE** | Board exports production path | module-dev + release | Job + download + tenant check | SIS-GB |
-| **PAR-01** | Parent portal: messaging, consent, fees against live API | production-ready | Authenticated journey evidence | FEE-02, CAMP-00 |
-| **STU-01** | Student portal parity for grades/attendance read | production-ready | Role-scoped read E2E | SIS-GB |
+| ID        | Sev | Gap                                                                                                                | Evidence                     | Fix                                                                             | Acceptance                                    | Depends on | Status |
+| --------- | --- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------- | ---------- | ------ |
+| **G-501** | S1  | Helm chart is `infrastructure/helm/openemis-platform`; deploy.yml assumes per-service charts `proctira-${SERVICE}` | `deploy.yml:270`; Chart.yaml | Rename/restructure charts per app; values per env; secrets via external-secrets | `helm template` in CI; staging deploy dry-run | —          | OPEN   |
+| **G-502** | S1  | Observability: Prometheus/Grafana/alerts in `infra/observability` but no SLOs per module, no runbooks link         | dir listing                  | SLO doc + alert rules per critical journey; runbooks                            | Alerts fire in compose test                   | —          | OPEN   |
+| **G-503** | S1  | Backup/restore, DR, data-retention (PHI/minor data) policies absent                                                | —                            | Documented + scripted pg backup/restore; retention jobs                         | Restore drill evidence                        | G-002      | OPEN   |
+| **G-504** | S2  | Secrets management: env files; no rotation story for JWT secret / DB creds                                         | `config.ts`                  | Document rotation; support dual JWT keys (kid)                                  | Rotation test                                 | G-001      | OPEN   |
+| **G-505** | S2  | Rate-limit & idempotency exist, but no per-tenant quotas / abuse detection                                         | `plugins/rate-limit.ts`      | Tenant-scoped limits from plan (G-106)                                          | Test 429 per tenant                           | G-106      | OPEN   |
+| **G-506** | S2  | Statuspage / incident comms / pager absent                                                                         | —                            | Integration stub                                                                | **WAIVED (dated)**                            | —          | WAIVED |
+| **G-507** | S2  | Install wizard / onboarding of new tenant end-to-end not certified                                                 | `apps/install-wizard`        | E2E: create tenant → admin → school → first student                             | Recording                                     | G-106      | OPEN   |
+| **G-508** | S3  | Supply-chain: no SBOM / dependency audit gate / image signing                                                      | workflows                    | `pnpm audit` gate, SBOM, cosign                                                 | CI job green                                  | —          | OPEN   |
 
-### Wave 4 — UX / a11y / mobile / E2E CI (P1/P2)
+### Wave 6 — Long-tail campus modules (after G-101/G-103)
 
-| ID | Task | Skill | Acceptance | Depends |
-|----|------|-------|------------|---------|
-| **UXA-01** | Ungate or split CI: authenticated axe suite with seed user | accessibility | CI job runs axe on module route list; 0 critical | Wave 1 |
-| **UXA-02** | Dark / touch / RTL same as UXA-01 for Health, Fees, SIS, Scholarships | accessibility + ux | Specs not skipped in that job | UXA-01 |
-| **UXA-03** | Fix MobileShell dead routes; capture mobile PNGs | ux + mobile | Shell nav → real screens; artifacts | — |
-| **UXA-04** | i18n parity pass for nav + top modules | product-ia | No hardcoded EN-only critical strings | — |
-| **MOB-01** | Flutter a11y semantics + golden/smoke | mobile-flutter | Semantics audit checklist filled | UXA-03 |
-| **E2E-01** | Document `E2E_BACKEND_READY` CI optional job; seed recipe | production-ready + release | Nightly or manual workflow green | W0-02 |
-| **CERT-01** | Multi-board 3×2×500 live onboard proof; refresh audit md | data-sql | Counts verified; artifacts | W0-02 |
-
-### Wave 5 — Remaining campus & ops (P2)
-
-| ID | Task | Skill | Acceptance | Depends |
-|----|------|-------|------------|---------|
-| **HOS-01** | Hostel occupancy: RBAC + SQL + E2E smoke | production-ready | Evidence pack | CAMP-00 |
-| **TRN-01** | Transport routes/fleet same | production-ready | Evidence pack | CAMP-00 |
-| **LIB-01** | Library circulation same | production-ready | Evidence pack | CAMP-00 |
-| **COM-01** | Campaigns/emergency: RBAC + provider stub + audit | security + module-dev | No send without role; audit | CAMP-00 |
-| **NTF-01** | Notifications inbox/prefs persistence | module-dev | Prefs survive restart | CAMP-00 |
-| **PA-OPS** | Helm/observability/SLO pack close vs release skill | release-ops | Checklist evidence | PA-01 |
-| **INS-01** | Insights/workflows enterprise E2E pack | production-ready | Module audit md | CAMP-00 |
-| **WEB-01** | Public website + registration portal enterprise packs | production-ready | Separate audits | — |
-
----
-
-## 6. Suggested Auto-mode agent packing
-
-Spawn **parallel** agents only within a wave and only on **non-overlapping paths**.
-
-| Pack | Agents (parallel) | Branch prefix suggestion |
-|------|-------------------|--------------------------|
-| **A — Security spine** | CAMP-00, PA-01, SIS-RBAC, ACTOR-01 | `cursor/camp-rbac-56c3`, `cursor/platform-rbac-56c3`, … |
-| **B — Data plane** | W0-02 owner then RLS-01, FEE-01, SCH-01, ADM-01 | `cursor/*-persist-56c3` |
-| **C — PHI/money harden** | HLT-01→02, FEE-02 | after Pack A+B |
-| **D — SIS UX depth** | SIS-TT, SIS-GB, SIS-MS, SIS-BE | after SIS-01 |
-| **E — Evidence CI** | UXA-01–03, E2E-01, CERT-01 | after Pack A |
-| **F — Long tail campus** | HOS/TRN/LIB/COM/NTF | after CAMP-00 |
-
-**Do not** open mega-PRs mixing Prisma schema rewrites + UI redesign + IdP. Prefer slim PRs like Keycloak optional (#38 pattern).
+| ID        | Sev | Module                                                | Required to close                                      | Depends on   | Status |
+| --------- | --- | ----------------------------------------------------- | ------------------------------------------------------ | ------------ | ------ |
+| **G-601** | S2  | Hostel                                                | RBAC + RLS + live E2E write + audit md                 | G-101, G-103 | OPEN   |
+| **G-602** | S2  | Transport                                             | same + GPS/attendance-on-bus stub                      | G-101, G-103 | OPEN   |
+| **G-603** | S2  | Library                                               | same + fines → fees ledger                             | G-201        | OPEN   |
+| **G-604** | S2  | Communication / emergency                             | RBAC (no send without role) + provider adapter + audit | G-101, G-207 | OPEN   |
+| **G-605** | S2  | Surveys / custom fields / dashboards / theme packages | Mount, RBAC, E2E or formally park                      | G-003        | OPEN   |
+| **G-606** | S2  | Public website + registration portal                  | Enterprise packs (SEO, forms, a11y, spam)              | G-205        | OPEN   |
+| **G-607** | S2  | Developer portal / plugin marketplace                 | AuthZ, API keys, rate limits, docs                     | G-101, G-505 | OPEN   |
 
 ---
 
-## 7. Per-agent prompt template (Auto mode)
+## 3. External waivers (dated 2026-09-08; re-check each release)
+
+| Waiver              | Blocked gap | Needed from owner              |
+| ------------------- | ----------- | ------------------------------ |
+| Live Keycloak realm | G-107       | Staging realm + client secrets |
+| Payment PSP sandbox | G-202       | Sandbox keys                   |
+| Twilio / SES        | G-207       | Account + sender               |
+| LMS/LTI sandbox     | G-308       | Platform registration          |
+| Device farm         | G-407       | Farm account                   |
+| Statuspage / pager  | G-506       | Accounts                       |
+
+Agents implement adapters + mocks and keep the waiver row until evidence exists.
+
+---
+
+## 4. Execution order for Auto-mode agents
+
+```
+Serial:   G-001 → G-002 → G-003
+Parallel: G-101 | G-103 | G-501 | G-404 | G-405 | G-302
+Then:     G-102, G-104, G-105, G-106            (need G-101)
+Then:     G-201, G-203, G-204, G-205, G-206, G-207, G-208   (need G-002/G-103)
+Then:     G-401 → G-402 → G-403 ; G-408 ; G-301 ; G-303–G-307
+Then:     G-502–G-508 ; G-601–G-607
+```
+
+Parallel only on **non-overlapping paths**. Suggested branch names: `cursor/g-101-rbac-mount-56c3`, `cursor/g-002-sql-apply-56c3`, etc.
+
+---
+
+## 5. Agent prompt (copy per gap)
 
 ```text
 You are a Cursor Auto-mode subagent for ProctiraERP.
-Task ID: <ID>
-Read and obey: .cursor/skills/<skill>/SKILL.md and
-docs/audits/ENTERPRISE_FABLE51_PRODUCT_GAP_AUDIT.md § for this ID.
-Branch: cursor/<short>-56c3 from origin/main (or current if continuing).
-Implement ONLY this task. Commit, push, open/update draft PR.
-Acceptance: <paste Acceptance>.
-Honesty: mark external waivers; do not claim live IdP/PSP/Twilio.
-Before claiming done: run relevant unit/lint; attach evidence paths.
+Gap: <G-xxx> from docs/audits/ENTERPRISE_FABLE51_PRODUCT_GAP_AUDIT.md
+Obey: .cursor/skills/enterprise-module-production-ready/SKILL.md and the skill
+named for this gap's pillar. Branch cursor/<g-xxx-short>-56c3 from origin/main.
+Implement ONLY this gap. Meet the Acceptance column exactly. Add/extend tests.
+Run lint + typecheck + affected unit tests. Commit, push, open draft PR.
+Update the Status column of this gap in the same PR (DONE (PR #n)).
+Never claim waived pillars (IdP/PSP/Twilio/LMS/Statuspage/farm) as complete.
 ```
 
 ---
 
-## 8. Definition of “enterprise product complete” (program bar)
+## 6. Definition of "world-class enterprise ERP" (exit bar)
 
-All must be true (waivers only where dated in §4):
+All true, waivers only where dated in §3:
 
-1. **Security:** Gateway RBAC + RLS + non-forgeable actors on every module with data; platform-admin authZ real.
-2. **Function:** No critical domain left in-memory; schema apply single path; unmounted matrix empty for shipped nav.
-3. **UX:** Authenticated axe/dark/touch on shipped modules in CI (or scheduled job with badge).
-4. **E2E:** Critical write journeys with `E2E_BACKEND_READY` evidence packs per `enterprise-module-production-ready`.
-5. **Data cert:** Multi-board onboard counts verified.
-6. **Release:** Tip CI green; deploy/observability checklist for staging.
-7. **Mobile:** Shell routes valid; Flutter semantics minimum bar.
+1. **Security:** RBAC mounted and default-deny; JWT-only actors; RLS on every tenant table (Prisma + raw SQL); platform-admin authZ; audit on all mutations; entitlements enforced.
+2. **Data:** Single documented schema-apply path used by CI, local, and certification; **no critical domain in-memory**; backup/restore drill.
+3. **Function:** Fees, admissions, scholarships, HR leave, workflows, notifications persisted and mounted; report cards, transcripts, board exports E2E.
+4. **UX/a11y:** Authenticated axe/dark/touch/RTL and visual-diff run in CI for all shipped modules; no UUID labels; i18n gate; mobile shell valid.
+5. **E2E:** `E2E_BACKEND_READY` job green on every PR (or nightly with badge); multi-board 3×2×500 certification standing.
+6. **Release/ops:** Helm per app, staging deploy dry-run in CI, SLOs + alerts + runbooks, secret rotation, SBOM.
+7. **Mobile:** Flutter semantics pass; device evidence or dated waiver.
 
-Until then, scoreboard claims must stay below **program production-ready**.
-
----
-
-## 9. Immediate next three Auto agents (start here)
-
-1. **W0-02** — Canonical schema apply story (unblocks almost everything).  
-2. **CAMP-00** — Campus gateway RBAC (largest security delta).  
-3. **PA-01 + PA-02** — Mount RBAC/audit + lock platform-admin UI.
-
-Then: **ACTOR-01**, **RLS-01**, **HLT-01**, **FEE-01**.
+Scoreboards may claim **program production-ready** only when every non-waived gap above is `DONE`.
 
 ---
 
-## 10. Sources
+## 7. Sources
 
-- Fable 5.1 parallel explores (SIS, campus ops, platform, UX/a11y) — 2026-09-08  
-- `.cursor/skills/enterprise-module-production-ready/SKILL.md` (+ related skills)  
-- `docs/plans/PEER_GAP_CLOSURE_QUEUE.md` (closed #1–#10 — necessary but not sufficient)  
-- Prior audits under `docs/audits/DEV_SIS_*`, `SEC_*`, module DEV_* files  
+- Repo verification (2026-09-08): `apps/api-gateway/src/{app,domain-plugins,platform-admin-ui-plugin}.ts`, `.github/workflows/{ci,deploy}.yml`, `db/sql/`, `packages/backend/*`, `apps/web/e2e/*`, `infrastructure/helm/`.
+- Fable 5.1 explores: SIS/Academics, Campus ops, Platform, UX/a11y.
+- `docs/plans/PEER_GAP_CLOSURE_QUEUE.md` (#1–#10 closed), `SIS_WORLD_CLASS_10_GAP_CLOSURE.md`, `ENTERPRISE_SKILLS_MAP.md`, prior `docs/audits/*`.
 
----
-
-*End of report. Update this file when a Wave completes; link PRs beside each task ID.*
+_Update the Status column as gaps close. This file supersedes earlier ad-hoc gap lists._
