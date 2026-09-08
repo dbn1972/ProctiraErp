@@ -25,7 +25,7 @@ Documents which `packages/backend/*` plugins are live on the api-gateway under `
 | `backend/assessment` | Yes | `/assessments`, `/grading-schemes`, `/assessment-items`, `/outcomes`, `/results` | Prisma + RLS (else in-memory) | No | Report-card repos unwired; routes disabled. |
 | `backend/timetable` | Yes | `/timetable` | Raw pg `003` (else in-memory) | No | No Prisma on this path. |
 | `backend/gradebook` | Yes | `/gradebook` | Raw pg `003`/`004` (else in-memory) | No | |
-| `backend/scholarship` | Yes | `/scholarships` | In-memory + demo seed | No | G-204. |
+| `backend/scholarship` | Yes | `/scholarships` | Raw pg `016` (else in-memory + demo seed) | No | G-204. |
 | `backend/health` | Yes | `/health` | Mixed (pg counselling/PHI; special-needs in-memory) | No | Also mounts `healthUiPlugin`. |
 | `backend/notification` | Yes | `/notifications` | Mixed (deliveries in-memory; prefs/devices pg `005`) | No | G-207. |
 | `backend/transport` | Yes | `/transport` | Raw pg `006` (else in-memory) | No | |
@@ -33,7 +33,7 @@ Documents which `packages/backend/*` plugins are live on the api-gateway under `
 | `backend/hostel` | Yes | `/hostel` | Raw pg `008` (else in-memory) | No | |
 | `backend/library` | Yes | `/library` | Raw pg `009` (else in-memory) | No | |
 | `backend/parent-portal` | Yes | `/parent-portal` | Raw pg `010` (else in-memory) | No | |
-| `backend/registration` | Yes | `/registrations` | In-memory | No | SQL `014` unused (G-205). |
+| `backend/registration` | Yes | `/registrations` | Raw pg `014` (else in-memory) | No | G-205. |
 | `backend/auth` | Yes | `/auth` | In-memory identity/session stores | No | Mounted in `app.ts` (not `DOMAIN_REGISTRARS`). `rbacPlugin` exported but unused. |
 | `(gateway) insights-ui` | Yes | `/reports`, `/data-warehouse` | UI seed / in-process aggregates | No | Registrar `insights`. Real `report` / `data-warehouse` packages unmounted (G-209). |
 | `(gateway) platform-admin-ui` | Yes | `/tenants`, `/plugins`, `/break-glass`, `/plans`, `/themes`, `/platform`, `/audit` | UI seed / stubs | No | Registrar `platform-admin` (G-104). |

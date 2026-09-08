@@ -32,9 +32,10 @@ describe('apply-sql.sh', () => {
       .filter((name) => /^[0-9].*\.sql$/.test(name))
       .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)); // JS default is code-unit / C-like
 
-    expect(expected.length).toBeGreaterThanOrEqual(14);
+    expect(expected.length).toBeGreaterThanOrEqual(15);
     expect(expected.some((n) => n.startsWith('001_'))).toBe(true);
     expect(expected.some((n) => n.startsWith('014_'))).toBe(true);
+    expect(expected.some((n) => n.startsWith('016_'))).toBe(true);
 
     // Schema must precede colocated *b* seed for the same number prefix.
     const idx006 = expected.indexOf('006_transport_schema.sql');

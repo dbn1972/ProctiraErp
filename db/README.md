@@ -46,7 +46,8 @@ Module-local demo seeds that ship next to schema (`006b`, `007b`, …) **are** i
 `db/sql/015_rls_policies.sql` enables RLS + a `tenant_isolation` policy on every
 domain table with a `tenant_id` column under health, timetable, gradebook,
 notifications, transport, communication, hostel, library, parent, fees, HR leave,
-and admissions.
+and admissions. Scholarships tables (G-204) are created in `016_scholarships_schema.sql`
+with RLS policies in the same file (applied after 015).
 
 Policies compare:
 

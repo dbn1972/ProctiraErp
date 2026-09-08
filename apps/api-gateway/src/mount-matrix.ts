@@ -173,9 +173,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'scholarship',
     mounted: true,
     prefixes: ['/scholarships'],
-    persistence: 'in-memory',
+    persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'InMemoryScholarshipRepository + demo seed (G-204).',
+    notes: 'Raw pg (016_scholarships_schema.sql) when DATABASE_URL set; else in-memory + demo seed (G-204).',
     registrarName: 'scholarship',
   },
   {
@@ -246,9 +246,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'registration',
     mounted: true,
     prefixes: ['/registrations'],
-    persistence: 'in-memory',
+    persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'InMemoryRegistrationRepository; SQL 014 unused (G-205).',
+    notes: 'Raw pg (014_admissions_crm_schema.sql) when DATABASE_URL set; else in-memory (G-205).',
     registrarName: 'registration',
   },
 

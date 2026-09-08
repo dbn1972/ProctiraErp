@@ -3,6 +3,7 @@
 -- Enables RLS and a tenant_isolation policy on every domain table that carries
 -- tenant_id in db/sql (health, timetable, gradebook, notifications, transport,
 -- communication, hostel, library, parent, fees, hr leave, admissions).
+-- Scholarships (016) declare their own RLS policies in 016_scholarships_schema.sql.
 --
 -- Isolation uses current_setting('app.tenant_id', true). Application code that
 -- talks to these tables via node-pg MUST bind the tenant before queries:
@@ -18,7 +19,7 @@
 -- Missing / empty app.tenant_id yields no visible rows (safe default).
 --
 -- Verification: tools/tenant-isolation-tests (unit note + raw-sql-rls test).
--- Apply via tools/scripts/apply-sql.sh after 001–014.
+-- Apply via tools/scripts/apply-sql.sh after 001–014 (then 015, then 016+).
 
 -- ---------------------------------------------------------------------------
 -- Helper macro pattern (repeated per table):

@@ -18,6 +18,10 @@ export async function seedScholarshipDemoData(repository: ScholarshipRepository)
   const applicantId = '44444444-4444-4444-8444-444444444444';
   const institutionId = '55555555-5555-4555-8555-555555555555';
 
+  // Idempotent for Pg restarts (G-204).
+  const existing = await repository.findProgramById(programId, TENANT_ID);
+  if (existing) return;
+
   const program: Omit<ScholarshipProgramEntity, 'createdAt' | 'updatedAt'> = {
     id: programId,
     tenantId: TENANT_ID,

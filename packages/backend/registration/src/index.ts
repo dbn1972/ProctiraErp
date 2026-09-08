@@ -32,6 +32,17 @@ export type {
 export { InMemoryRegistrationRepository, haversineKm } from './in-memory-repository.js';
 export type { InMemoryInstitution } from './in-memory-repository.js';
 
+// Postgres factory (G-205)
+export {
+  createRegistrationRepository,
+  isPgRegistrationEnabled,
+} from './create-registration-repository.js';
+export {
+  PgRegistrationRepository,
+  getSharedRegistrationPool,
+  ensureRegistrationSchema,
+} from './pg-registration-repository.js';
+
 // Schemas
 export {
   SubmitRegistrationSchema,

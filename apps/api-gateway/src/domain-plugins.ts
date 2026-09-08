@@ -12,13 +12,17 @@
  *    assessment / examination: Prisma-backed (Postgres + RLS) via their
  *    create*Repository factories when DATABASE_URL is set, else in-memory.
  *  - health counselling: raw SQL + `pg` when DATABASE_URL is set (no Prisma);
- *    other health entities + scholarships + workflows seed in-memory.
+ *    other health entities + workflows seed in-memory.
  *  - notifications: in-memory delivery records; prefs/devices use raw SQL +
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
  *  - transport: raw SQL + `pg` when DATABASE_URL is set
  *    (db/sql/006_transport_schema.sql); else in-memory.
  *  - communication / hostel / library / parent-portal: raw SQL + `pg` when DATABASE_URL is set
  *    (db/sql/007–010_*.sql); else in-memory.
+ *  - scholarships: raw SQL + `pg` when DATABASE_URL is set (db/sql/016_scholarships_schema.sql);
+ *    else in-memory (+ demo seed).
+ *  - registration / admissions: raw SQL + `pg` when DATABASE_URL is set
+ *    (db/sql/014_admissions_crm_schema.sql); else in-memory.
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
@@ -55,8 +59,8 @@ import { createInstitutionRepository, institutionPlugin } from '@proctira/backen
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
-import { InMemoryRegistrationRepository, registrationPlugin } from '@proctira/backend-registration';
-import { InMemoryScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
+import { createRegistrationRepository, registrationPlugin } from '@proctira/backend-registration';
+import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
   createStaffRepository,
@@ -194,9 +198,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'scholarship',
     proxyPrefixes: ['/scholarships'],
     register: async (scope) => {
-      // In-memory repository with demo seed until Prisma scholarship schema
-      // is wired through createScholarshipRepository.
-      const repository = new InMemoryScholarshipRepository();
+      // Pg when DATABASE_URL (db/sql/016_scholarships_schema.sql); else in-memory.
+      const repository = createScholarshipRepository();
       await seedScholarshipDemoData(repository);
       await scope.register(scholarshipPlugin, {
         repository,
@@ -338,9 +341,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'registration',
     proxyPrefixes: ['/registrations'],
     register: async (scope) => {
-      // Admissions CRM (waitlist + interviews) on in-memory registration store.
-      // SQL 014 documents PG shape; live apply/OCR waived.
-      const repository = new InMemoryRegistrationRepository();
+      // Pg when DATABASE_URL (db/sql/014_admissions_crm_schema.sql); else in-memory.
+      // Waitlist/interview CRM store remains in-process; OCR waived.
+      const repository = createRegistrationRepository();
       await scope.register(registrationPlugin, {
         repository,
         prefix: '/registrations',
