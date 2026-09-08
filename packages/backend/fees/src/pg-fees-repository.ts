@@ -146,9 +146,13 @@ function mapReceipt(row: Record<string, unknown>): FeeReceiptEntity {
 }
 
 export class PgFeesRepository implements FeesRepository {
-  constructor(private readonly pool: PgPoolLike) {}
+  constructor(
+    private readonly pool: PgPoolLike,
+    private readonly options: { ensureSchema?: boolean } = {},
+  ) {}
 
   async ensureSchema(): Promise<void> {
+    if (this.options.ensureSchema === false) return;
     await ensureFeesSchema(this.pool);
   }
 

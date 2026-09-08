@@ -244,6 +244,15 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     registrarName: 'parent-portal',
   },
   {
+    package: 'fees',
+    mounted: true,
+    prefixes: ['/fees'],
+    persistence: 'raw-pg',
+    rbacWired: false,
+    notes: 'feesPlugin (G-201); raw pg 010+011 when DATABASE_URL set; else in-memory. Sandbox PSP only (G-202 waived).',
+    registrarName: 'fees',
+  },
+  {
     package: 'registration',
     mounted: true,
     prefixes: ['/registrations'],
@@ -371,15 +380,6 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'n/a',
     rbacWired: false,
     notes: 'Unmounted; Other Portals use honesty-demo paths.',
-  },
-  {
-    package: 'fees',
-    mounted: true,
-    prefixes: ['/fees'],
-    persistence: 'raw-pg',
-    rbacWired: false,
-    notes: 'feesPlugin (G-201); raw pg 011 when DATABASE_URL set.',
-    registrarName: 'fees',
   },
   {
     package: 'etl',

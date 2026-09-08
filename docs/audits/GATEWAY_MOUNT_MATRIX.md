@@ -33,6 +33,7 @@ Documents which `packages/backend/*` plugins are live on the api-gateway under `
 | `backend/hostel` | Yes | `/hostel` | Raw pg `008` (else in-memory) | No | |
 | `backend/library` | Yes | `/library` | Raw pg `009` (else in-memory) | No | |
 | `backend/parent-portal` | Yes | `/parent-portal` | Raw pg `010` (else in-memory) | No | |
+| `backend/fees` | Yes | `/fees` | Raw pg `010`/`011` (else in-memory) | No | G-201; sandbox PSP only (G-202 waived). |
 | `backend/registration` | Yes | `/registrations` | Raw pg `014` (else in-memory) | No | G-205. |
 | `backend/auth` | Yes | `/auth` | In-memory identity/session stores | Yes | Mounted in `app.ts` (not `DOMAIN_REGISTRARS`). |
 | `backend/audit` | Yes | `/audit-logs` | In-memory | Yes | Mounted in `app.ts` (G-105); mutating onResponse trail. |
