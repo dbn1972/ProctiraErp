@@ -107,40 +107,55 @@ wal_level = replica
 
 ### 3.4 Automated Backup Script
 
+The shipped backup script is `tools/scripts/pg-backup.sh` (pg_dump custom
+format, `--no-owner`, compression 9). It refuses to run unless the connected
+role can bypass row-level security (see §3.5), fails on suspiciously small
+dumps, and prunes `proctira-*.dump` files older than `BACKUP_RETENTION_DAYS`.
+
 ```bash
-#!/bin/bash
-# /etc/cron.d/proctira-backup
-# 0 2 * * * /opt/proctira/scripts/backup.sh
-
-set -euo pipefail
-
-BACKUP_DIR="/backups/proctira"
-RETENTION_DAYS="${DB_BACKUP_RETENTION_DAYS:-30}"
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-BACKUP_FILE="${BACKUP_DIR}/proctira-${TIMESTAMP}.dump"
-
-mkdir -p "${BACKUP_DIR}"
-
-# Create backup
-pg_dump \
-  --host="${POSTGRES_HOST:-localhost}" \
-  --port="${POSTGRES_PORT:-5432}" \
-  --username="${POSTGRES_USER:-proctira}" \
-  --dbname="${POSTGRES_DB:-proctira}" \
-  --format=custom \
-  --compress=9 \
-  --file="${BACKUP_FILE}"
-
-# Upload to object storage
-if [ -n "${BACKUP_S3_BUCKET:-}" ]; then
-  aws s3 cp "${BACKUP_FILE}" "s3://${BACKUP_S3_BUCKET}/db-backups/"
-fi
-
-# Cleanup old backups
-find "${BACKUP_DIR}" -name "proctira-*.dump" -mtime "+${RETENTION_DAYS}" -delete
-
-echo "Backup completed: ${BACKUP_FILE}"
+DATABASE_URL=postgresql://proctira_backup:...@db:5432/proctira \
+  BACKUP_DIR=/backups BACKUP_RETENTION_DAYS=30 \
+  bash tools/scripts/pg-backup.sh
 ```
+
+**Kubernetes (Helm):** the `proctira-platform` chart schedules it as a
+`CronJob` (`<release>-pg-backup`, default `0 2 * * *` UTC) running the
+`proctira/dr-tools` image (`infrastructure/docker/Dockerfile.dr-tools`) against
+a dedicated PVC (`<release>-backups`, 50 Gi by default). A second CronJob
+(`<release>-phi-retention`, Sundays 03:30, **dry-run** unless
+`dr.phiRetention.apply=true`) runs `tools/scripts/phi-retention-job.mjs`.
+Values live under `dr:` in `values.yaml`; the CI job
+`.github/workflows/helm-template.yml` asserts both CronJobs render.
+
+**Docker Compose / bare metal:** call the same script from cron:
+
+```cron
+# /etc/cron.d/proctira-backup
+0 2 * * * proctira DATABASE_URL=postgresql://proctira_backup:...@localhost:5432/proctira BACKUP_DIR=/backups/proctira BACKUP_RETENTION_DAYS=30 /opt/proctira/tools/scripts/pg-backup.sh >> /var/log/proctira-backup.log 2>&1
+```
+
+Offsite copy (S3 / MinIO sync or PVC snapshots) is configured per §4; the
+CronJob itself only writes to the volume.
+
+### 3.5 Backup role (FORCE RLS)
+
+Every tenant table has `FORCE ROW LEVEL SECURITY` (G-710). A `pg_dump` run as
+the application role therefore either errors with *"query would be affected by
+row-level security policy"* or, with `--enable-row-security`, silently dumps
+**zero rows**. Backups must use a role that bypasses RLS and is used for
+nothing else:
+
+```sql
+CREATE ROLE proctira_backup LOGIN PASSWORD '<strong password>' BYPASSRLS;
+GRANT pg_read_all_data TO proctira_backup;          -- read every table for pg_dump
+-- only if the restore drill should create its scratch database:
+ALTER ROLE proctira_backup CREATEDB;
+```
+
+Store its URL as `BACKUP_DATABASE_URL` (`secrets.backupDatabaseUrl` in Helm;
+the CronJobs read `dr.databaseUrlSecretKey`, default `BACKUP_DATABASE_URL`).
+`pg-backup.sh` exits `2` with an explanatory message when the role cannot
+bypass RLS — the weekly drill asserts this.
 
 ---
 
@@ -326,36 +341,29 @@ kubectl exec -it deploy/api-gateway -n proctira -- \
 
 ### 7.1 Automated Restore Testing
 
-Run restore tests weekly in an isolated environment:
+`.github/workflows/restore-drill.yml` runs every Sunday 04:15 UTC (and on any
+change to the DR scripts, the dr-tools Dockerfile or the Helm DR templates):
+
+1. Postgres 16 service → Prisma migrations → `db/sql` schemas + demo seeds.
+2. `tools/scripts/restore-drill.sh`: `pg_dump` → recreate
+   `proctira_restore_drill` → `pg_restore` → read back tenant / board /
+   institution counts. The job **fails** unless the drill ran in `full-db`
+   mode and the restored counts equal the source counts.
+3. Negative check: a `NOBYPASSRLS` role is refused by `pg-backup.sh` (exit 2,
+   no dump written).
+4. Retention pruning: a 40-day-old dump is removed with
+   `BACKUP_RETENTION_DAYS=30`.
+5. PHI-retention dry-run against the restored copy.
+6. The `proctira/dr-tools` image is built and smoke-run (backup + retention
+   plan) so the CronJob runtime is exercised, not just the runner.
+
+Evidence (`summary.json`, logs, counts) is uploaded as the `restore-drill`
+artifact (90-day retention). Run the same drill by hand:
 
 ```bash
-#!/bin/bash
-# Weekly restore verification
-set -euo pipefail
-
-LATEST_BACKUP=$(ls -t /backups/proctira/proctira-*.dump | head -1)
-
-# Create test database
-createdb --host=localhost --username=proctira proctira_restore_test
-
-# Restore
-pg_restore \
-  --host=localhost \
-  --username=proctira \
-  --dbname=proctira_restore_test \
-  --no-owner \
-  "${LATEST_BACKUP}"
-
-# Verify data integrity
-psql --host=localhost --username=proctira --dbname=proctira_restore_test \
-  -c "SELECT count(*) FROM tenants;" \
-  -c "SELECT count(*) FROM users;" \
-  -c "SELECT count(*) FROM audit_logs ORDER BY created_at DESC LIMIT 1;"
-
-# Cleanup
-dropdb --host=localhost --username=proctira proctira_restore_test
-
-echo "Restore verification passed: ${LATEST_BACKUP}"
+DATABASE_URL=postgresql://proctira_backup:...@db:5432/proctira \
+  ARTIFACT_DIR=/tmp/restore-drill BACKUP_DIR=/tmp/restore-drill/dumps \
+  bash tools/scripts/restore-drill.sh
 ```
 
 ### 7.2 Backup Monitoring Alerts

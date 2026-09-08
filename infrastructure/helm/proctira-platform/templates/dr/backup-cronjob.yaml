@@ -1,0 +1,80 @@
+{{- if and .Values.dr.enabled .Values.dr.backup.enabled }}
+# G-707 — scheduled logical PostgreSQL backup (pg_dump custom format) with
+# on-volume retention pruning. Uses the dr-tools image
+# (infrastructure/docker/Dockerfile.dr-tools) so the exact scripts exercised by
+# the weekly restore drill are what run in production.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "proctira.fullname" . }}-pg-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/component: disaster-recovery
+spec:
+  schedule: {{ .Values.dr.backup.schedule | quote }}
+  {{- with .Values.dr.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: {{ .Values.dr.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.dr.backup.failedJobsHistoryLimit }}
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: {{ .Values.dr.backup.activeDeadlineSeconds }}
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: pg-backup
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: disaster-recovery
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            fsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: pg-backup
+              image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.dr.image "appVersion" .Chart.AppVersion) }}
+              imagePullPolicy: {{ .Values.dr.image.pullPolicy }}
+              command: ["bash", "tools/scripts/pg-backup.sh"]
+              env:
+                - name: BACKUP_DIR
+                  value: /backups
+                - name: BACKUP_RETENTION_DAYS
+                  value: {{ .Values.dr.backup.retentionDays | quote }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "proctira.secretName" . }}
+                      key: {{ .Values.dr.databaseUrlSecretKey }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                {{- toYaml .Values.dr.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: {{ .Values.dr.backup.existingClaim | default (printf "%s-backups" (include "proctira.fullname" .)) }}
+            - name: tmp
+              emptyDir: {}
+{{- end }}

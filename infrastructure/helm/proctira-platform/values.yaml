@@ -957,8 +957,11 @@ config:
 
 # -- Secrets (use external-secrets-operator in production)
 secrets:
-  # -- Database connection string
+  # -- Database connection string (app role; RLS-bound)
   databaseUrl: ""
+  # -- Connection string for the BYPASSRLS backup role (G-707). pg_dump as the
+  # app role fails under FORCE RLS; see docs/BACKUP_RESTORE.md §3.3.
+  backupDatabaseUrl: ""
   # -- Redis connection string
   redisUrl: ""
   # -- Kafka broker addresses
@@ -981,3 +984,59 @@ serviceAccount:
   create: true
   name: ""
   annotations: {}
+
+# -- Disaster recovery (G-707): scheduled backups + PHI retention.
+# Both CronJobs run infrastructure/docker/Dockerfile.dr-tools and write to one
+# PVC; the weekly restore drill (.github/workflows/restore-drill.yml) proves the
+# same scripts restore cleanly. Offsite replication of the PVC (snapshots /
+# object-storage sync) is the platform operator's responsibility — see
+# docs/BACKUP_RESTORE.md §4.
+dr:
+  enabled: true
+  # -- IANA time zone for the cron schedules (Kubernetes >= 1.27)
+  timeZone: "UTC"
+  # -- Key inside the platform Secret holding the Postgres URL the jobs use.
+  # Must reference a role with BYPASSRLS (secrets.backupDatabaseUrl); the app
+  # role's DATABASE_URL cannot take a complete dump under FORCE RLS.
+  databaseUrlSecretKey: BACKUP_DATABASE_URL
+  image:
+    repository: proctira/dr-tools
+    tag: ""  # Defaults to Chart appVersion
+    pullPolicy: IfNotPresent
+  backup:
+    enabled: true
+    # -- Daily at 02:00 (matches the RPO table in docs/BACKUP_RESTORE.md)
+    schedule: "0 2 * * *"
+    # -- Prune dumps older than this many days from the volume
+    retentionDays: 30
+    activeDeadlineSeconds: 3600
+    successfulJobsHistoryLimit: 7
+    failedJobsHistoryLimit: 3
+    # -- Reuse an operator-managed PVC instead of creating one
+    existingClaim: ""
+    storage:
+      size: 50Gi
+      accessMode: ReadWriteOnce
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+  phiRetention:
+    enabled: true
+    # -- Weekly, Sunday 03:30
+    schedule: "30 3 * * 0"
+    # -- false = dry-run (counts only). Flip only after policy sign-off.
+    apply: false
+    phiRetentionDays: 2555
+    minorPhiRetentionDays: 3650
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

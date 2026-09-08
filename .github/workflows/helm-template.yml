@@ -78,3 +78,17 @@ jobs:
           test -s /tmp/proctira-platform.yaml
           grep -q "proctira-platform\|api-gateway\|kind: Deployment" /tmp/proctira-platform.yaml
           echo "OK proctira-platform ($(wc -l < /tmp/proctira-platform.yaml) lines)"
+
+      # G-707 — DR CronJobs must render with the default values: a daily backup,
+      # a weekly PHI-retention run (dry-run), and the PVC they share.
+      - name: Assert DR CronJobs render (G-707)
+        run: |
+          set -euo pipefail
+          f=/tmp/proctira-platform.yaml
+          test "$(grep -c '^kind: CronJob$' "$f")" -ge 2
+          grep -q 'name: proctira-proctira-platform-pg-backup\|name: proctira-pg-backup\|pg-backup$' "$f"
+          grep -q 'phi-retention' "$f"
+          grep -q 'RETENTION_DRY_RUN' "$f"
+          grep -q 'kind: PersistentVolumeClaim' "$f"
+          grep -q 'dr-tools' "$f"
+          echo "OK DR CronJobs: $(grep -c '^kind: CronJob$' "$f")"

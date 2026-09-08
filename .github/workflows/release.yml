@@ -110,7 +110,7 @@ jobs:
 
           # Master list of releasable services. Adding a new service requires
           # adding it here AND providing a Dockerfile in infrastructure/docker/.
-          ALL_SERVICES="api-gateway,web,registration-portal,etl-worker,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
+          ALL_SERVICES="api-gateway,web,registration-portal,etl-worker,dr-tools,institution,student,staff,assessment,attendance,examination,workflow,notification,report"
 
           # Manual override via workflow_dispatch.
           if [ "${FORCE_ALL:-false}" = "true" ]; then
@@ -134,6 +134,7 @@ jobs:
             ["apps/web"]="web"
             ["apps/registration-portal"]="registration-portal"
             ["apps/etl-worker"]="etl-worker"
+            ["tools/scripts"]="dr-tools"
             ["packages/backend/institution"]="institution"
             ["packages/backend/student"]="student"
             ["packages/backend/staff"]="staff"
@@ -263,6 +264,11 @@ jobs:
               ;;
             etl-worker)
               DOCKERFILE="infrastructure/docker/Dockerfile.etl-worker"
+              BUILD_ARGS=""
+              ;;
+            dr-tools)
+              # G-707: image run by the backup / PHI-retention CronJobs.
+              DOCKERFILE="infrastructure/docker/Dockerfile.dr-tools"
               BUILD_ARGS=""
               ;;
             *)

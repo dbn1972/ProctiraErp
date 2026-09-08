@@ -1,0 +1,84 @@
+{{- if and .Values.dr.enabled .Values.dr.phiRetention.enabled }}
+# G-707 — scheduled PHI / minor-data retention job. Dry-run by default: set
+# dr.phiRetention.apply=true only after the retention policy in
+# docs/DATA_RETENTION.md has been signed off. Evidence (summary.json) lands on
+# the backups volume next to the dumps.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "proctira.fullname" . }}-phi-retention
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "proctira.labels" . | nindent 4 }}
+    app.kubernetes.io/component: disaster-recovery
+spec:
+  schedule: {{ .Values.dr.phiRetention.schedule | quote }}
+  {{- with .Values.dr.timeZone }}
+  timeZone: {{ . | quote }}
+  {{- end }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 600
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: phi-retention
+            app.kubernetes.io/instance: {{ .Release.Name }}
+            app.kubernetes.io/component: disaster-recovery
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "proctira.serviceAccountName" . }}
+          {{- with .Values.global.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            fsGroup: 1001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: phi-retention
+              image: {{ include "proctira.image" (dict "global" .Values.global "image" .Values.dr.image "appVersion" .Chart.AppVersion) }}
+              imagePullPolicy: {{ .Values.dr.image.pullPolicy }}
+              command: ["node", "tools/scripts/phi-retention-job.mjs"]
+              env:
+                - name: ARTIFACT_DIR
+                  value: /backups/evidence/phi-retention
+                - name: RETENTION_DRY_RUN
+                  value: {{ ternary "0" "1" .Values.dr.phiRetention.apply | quote }}
+                - name: PHI_RETENTION_DAYS
+                  value: {{ .Values.dr.phiRetention.phiRetentionDays | quote }}
+                - name: MINOR_PHI_RETENTION_DAYS
+                  value: {{ .Values.dr.phiRetention.minorPhiRetentionDays | quote }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "proctira.secretName" . }}
+                      key: {{ .Values.dr.databaseUrlSecretKey }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                {{- toYaml .Values.dr.phiRetention.resources | nindent 16 }}
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: {{ .Values.dr.backup.existingClaim | default (printf "%s-backups" (include "proctira.fullname" .)) }}
+            - name: tmp
+              emptyDir: {}
+{{- end }}
