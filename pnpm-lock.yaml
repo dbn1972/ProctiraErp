@@ -1012,6 +1012,9 @@ importers:
       '@proctira/logging':
         specifier: workspace:*
         version: link:../../shared/logging
+      '@sinclair/typebox':
+        specifier: ^0.32.0
+        version: 0.32.35
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3

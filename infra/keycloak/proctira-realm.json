@@ -1,0 +1,117 @@
+{
+  "realm": "proctira",
+  "enabled": true,
+  "displayName": "ProctiraERP",
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "hi", "ta", "te", "mr", "bn", "gu", "kn", "ar"],
+  "defaultLocale": "en",
+  "roles": {
+    "realm": [
+      { "name": "super-admin", "description": "Platform super administrator" },
+      { "name": "admin", "description": "School / tenant administrator" },
+      { "name": "principal", "description": "Institution principal" },
+      { "name": "teacher", "description": "Teacher" },
+      { "name": "staff", "description": "Non-teaching staff" },
+      { "name": "guardian", "description": "Parent or guardian" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "proctira-gateway",
+      "name": "Proctira API Gateway",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "proctira-gateway-dev-secret",
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3200/api/v1/auth/callback",
+        "http://localhost:3000/api/v1/auth/callback",
+        "http://127.0.0.1:3200/api/v1/auth/callback"
+      ],
+      "webOrigins": [
+        "http://localhost:3201",
+        "http://127.0.0.1:3201",
+        "http://localhost:3001",
+        "+"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "http://127.0.0.1:3201/*##http://localhost:3201/*"
+      },
+      "defaultClientScopes": ["web-origins", "acr", "profile", "roles", "email", "basic"],
+      "optionalClientScopes": ["address", "phone", "offline_access"],
+      "protocolMappers": [
+        {
+          "name": "tenant_slug",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "tenant_slug",
+            "claim.name": "tenant_slug",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "country",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "country",
+            "claim.name": "country",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "india-admin",
+      "email": "admin@proctira.in",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "India",
+      "lastName": "Admin",
+      "attributes": {
+        "tenant_slug": ["india"],
+        "tenant_id": ["5a58f9ff-b6a6-43bd-a014-bb622f763e48"],
+        "country": ["IN"]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "proctira-india-admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["admin"]
+    }
+  ]
+}

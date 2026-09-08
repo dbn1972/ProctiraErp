@@ -77,3 +77,16 @@ export function getAuthServiceUrl(): string {
     'http://localhost:3010'
   );
 }
+
+/**
+ * Resolves the API gateway base URL (Keycloak BFF / ticket redemption).
+ * Falls back to NEXT_PUBLIC_API_URL, then localhost gateway.
+ */
+export function getGatewayUrl(): string {
+  return (
+    process.env.GATEWAY_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.API_GATEWAY_URL ||
+    'http://localhost:3000'
+  );
+}
