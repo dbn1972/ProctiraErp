@@ -502,6 +502,12 @@ jobs:
         env:
           DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
 
+      # G-002: domain SQL (db/sql/001–N) after Prisma so raw-SQL modules use Postgres
+      - name: Apply domain SQL schemas
+        run: bash tools/scripts/apply-sql.sh
+        env:
+          DATABASE_URL: postgresql://proctira:proctira_test@localhost:5432/proctira_test
+
       - name: Run integration tests
         run: pnpm turbo run test:e2e --filter='...[HEAD~1]'
         env:

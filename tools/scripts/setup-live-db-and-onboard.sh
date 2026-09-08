@@ -8,8 +8,8 @@ DB_URL="${DATABASE_URL:-postgresql://proctira:proctira_dev_password@127.0.0.1:54
 ARTIFACT_DIR="${ARTIFACT_DIR:-/opt/cursor/artifacts/multi-board-onboard}"
 mkdir -p "$ARTIFACT_DIR"
 
-echo "==> Applying schema: db/sql/001_core_onboarding_schema.sql"
-psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$ROOT/db/sql/001_core_onboarding_schema.sql" \
+echo "==> Applying domain SQL (db/sql/001–N via apply-sql.sh)"
+DATABASE_URL="$DB_URL" bash "$ROOT/tools/scripts/apply-sql.sh" \
   | tee "$ARTIFACT_DIR/schema-apply.log"
 
 echo "==> Seeding boards/schools/students: db/seeds/002_multi_board_schools_500.sql"
