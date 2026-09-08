@@ -40,7 +40,7 @@ import { TransferForm } from './_components/transfer-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /* ──────────────────────────────────────────────── Transfer checklist ── */
@@ -203,7 +203,8 @@ function ApprovalChain() {
 
 /* ──────────────────────────────────────────────── Page ── */
 
-export default async function StudentTransferPage({ params }: PageProps) {
+export default async function StudentTransferPage(props: PageProps) {
+  const params = await props.params;
   const studentId = params.id;
   const [student, enrollments, institutions, areas] = await Promise.all([
     getStudent(studentId),

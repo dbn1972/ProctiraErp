@@ -552,6 +552,9 @@ jobs:
       - name: Run DoD check unit tests
         run: pnpm run check:dod:test
 
+      - name: Page-wise regression matrix is complete and current (G-804)
+        run: node tools/scripts/page-regression-matrix.mjs --check
+
       - name: Upload DoD JSON report
         if: always()
         uses: actions/upload-artifact@v4

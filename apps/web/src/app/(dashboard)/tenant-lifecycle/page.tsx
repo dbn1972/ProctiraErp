@@ -54,11 +54,10 @@ function formatDate(iso: string | null): string {
   return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(d);
 }
 
-export default async function TenantLifecyclePage({
-  searchParams,
-}: {
-  searchParams?: SearchParams;
+export default async function TenantLifecyclePage(props: {
+  searchParams?: Promise<SearchParams>;
 }) {
+  const searchParams = await props.searchParams;
   const status = readParam(searchParams, 'status');
   const region = readParam(searchParams, 'region');
   const search = readParam(searchParams, 'search');

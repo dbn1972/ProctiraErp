@@ -56,10 +56,11 @@ function initialsOf(name: string): string {
 /* ------------------------------------------------------------------ page */
 
 interface PageProps {
-  params: { studentId: string };
+  params: Promise<{ studentId: string }>;
 }
 
-export default async function HealthRecordPage({ params }: PageProps) {
+export default async function HealthRecordPage(props: PageProps) {
+  const params = await props.params;
   const session = await requireSession(`/health/${params.studentId}`);
 
   if (!canAccessHealthRecords(session.user.roles)) {

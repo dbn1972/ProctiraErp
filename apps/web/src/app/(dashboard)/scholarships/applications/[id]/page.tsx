@@ -32,7 +32,7 @@ import { cn } from '@/lib/utils';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 const STATUS_LABELS: Record<ScholarshipApplication['status'], string> = {
@@ -97,7 +97,8 @@ function formatMoney(amount: number, currency: string): string {
   }
 }
 
-export default async function ScholarshipApplicationPage({ params }: PageProps) {
+export default async function ScholarshipApplicationPage(props: PageProps) {
+  const params = await props.params;
   const application = await getScholarshipApplication(params.id);
   if (!application) notFound();
 

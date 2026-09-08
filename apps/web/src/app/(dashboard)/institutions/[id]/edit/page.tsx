@@ -13,7 +13,7 @@ import { ApiClientError, getInstitution } from '@/lib/institutions/api';
 import { loadInstitutionFormLookups } from '@/lib/institutions/lookups';
 
 interface EditInstitutionPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /**
@@ -23,7 +23,8 @@ interface EditInstitutionPageProps {
  * provide the "which school" context. This page renders only a focused,
  * max-width edit form below that shell.
  */
-export default async function EditInstitutionPage({ params }: EditInstitutionPageProps) {
+export default async function EditInstitutionPage(props: EditInstitutionPageProps) {
+  const params = await props.params;
   const [institution, lookups] = await Promise.all([
     loadInstitutionOrNotFound(params.id),
     loadInstitutionFormLookups(),

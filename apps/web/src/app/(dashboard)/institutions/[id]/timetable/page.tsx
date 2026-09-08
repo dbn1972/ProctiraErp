@@ -19,13 +19,14 @@ import {
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /** Index by ISO weekday 1–7 (unused 0). */
 const DAY_LABELS = ['', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export default async function InstitutionTimetablePage({ params }: PageProps) {
+export default async function InstitutionTimetablePage(props: PageProps) {
+  const params = await props.params;
   const institutionId = params.id;
 
   let academicPeriodId = '';

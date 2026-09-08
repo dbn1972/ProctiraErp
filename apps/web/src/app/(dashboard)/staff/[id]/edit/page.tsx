@@ -22,10 +22,11 @@ import { StaffForm } from '../../_components/staff-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditStaffPage({ params }: PageProps) {
+export default async function EditStaffPage(props: PageProps) {
+  const params = await props.params;
   const staff = await getStaff(params.id);
   if (!staff) {
     notFound();

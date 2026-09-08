@@ -56,7 +56,8 @@ function formatTimestamp(iso: string): string {
   }).format(d);
 }
 
-export default async function AuditLogsPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function AuditLogsPage(props: { searchParams?: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   const entityType = readParam(searchParams, 'entityType');
   const entityId = readParam(searchParams, 'entityId');
   const userId = readParam(searchParams, 'userId');

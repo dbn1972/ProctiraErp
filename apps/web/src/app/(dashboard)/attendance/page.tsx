@@ -27,10 +27,10 @@ import { AttendanceMarkingForm } from './_components/attendance-marking-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readStringParam(params: PageProps['searchParams'], key: string): string {
+function readStringParam(params: Awaited<PageProps['searchParams']>, key: string): string {
   if (!params) return '';
   const value = params[key];
   if (typeof value === 'string') return value;
@@ -38,7 +38,8 @@ function readStringParam(params: PageProps['searchParams'], key: string): string
   return '';
 }
 
-export default async function AttendancePage({ searchParams }: PageProps) {
+export default async function AttendancePage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const institutionId = readStringParam(searchParams, 'institutionId');
   const classId = readStringParam(searchParams, 'classId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');

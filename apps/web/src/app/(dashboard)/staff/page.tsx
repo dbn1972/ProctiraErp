@@ -38,10 +38,10 @@ import { StaffTypeTabs } from './_components/staff-type-tabs';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readStr(params: PageProps['searchParams'], key: string, fallback = ''): string {
+function readStr(params: Awaited<PageProps['searchParams']>, key: string, fallback = ''): string {
   if (!params) return fallback;
   const v = params[key];
   if (typeof v === 'string') return v;
@@ -49,7 +49,7 @@ function readStr(params: PageProps['searchParams'], key: string, fallback = ''):
   return fallback;
 }
 
-function readNum(params: PageProps['searchParams'], key: string, fallback: number): number {
+function readNum(params: Awaited<PageProps['searchParams']>, key: string, fallback: number): number {
   const raw = readStr(params, key);
   const parsed = Number.parseInt(raw, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -272,7 +272,8 @@ function StaffRow({ member }: { member: StaffMember }) {
 
 /* ──────────────────────────────────────────────── Page ── */
 
-export default async function StaffListPage({ searchParams }: PageProps) {
+export default async function StaffListPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const search = readStr(searchParams, 'search');
   const institutionId = readStr(searchParams, 'institutionId');
   const position = readStr(searchParams, 'position');

@@ -21,11 +21,13 @@ import {
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
-  searchParams?: { sectionId?: string };
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ sectionId?: string }>;
 }
 
-export default async function InstitutionGradebookPage({ params, searchParams }: PageProps) {
+export default async function InstitutionGradebookPage(props: PageProps) {
+  const params = await props.params;
+  const searchParams = await props.searchParams;
   const institutionId = params.id;
 
   const [sectionsResult, scalesResult, jobsResult, studentsResult] = await Promise.all([

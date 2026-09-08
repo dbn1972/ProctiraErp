@@ -21,10 +21,11 @@ import { getSection, listPeriods, listRooms, listBellSchedules } from '@/lib/api
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string; sectionId: string };
+  params: Promise<{ id: string; sectionId: string }>;
 }
 
-export default async function SectionRosterPage({ params }: PageProps) {
+export default async function SectionRosterPage(props: PageProps) {
+  const params = await props.params;
   const institutionId = params.id;
   const sectionResult = await getSection(params.sectionId);
 

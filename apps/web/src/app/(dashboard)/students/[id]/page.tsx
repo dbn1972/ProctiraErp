@@ -154,10 +154,11 @@ function buildHeatmap(studentId: string, attendancePct: number | null): HeatSlot
 /* ------------------------------------------------------------------ page */
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function StudentProfilePage({ params }: PageProps) {
+export default async function StudentProfilePage(props: PageProps) {
+  const params = await props.params;
   const [student, enrollments, history, transfers, customFields] = await Promise.all([
     getStudent(params.id),
     getStudentEnrollments(params.id),

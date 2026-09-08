@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { getExamination } from '@/lib/api/examinations';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 function formatDate(d: string | null | undefined): string | null {
@@ -63,7 +63,8 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
   );
 }
 
-export default async function ExaminationOverviewPage({ params }: PageProps) {
+export default async function ExaminationOverviewPage(props: PageProps) {
+  const params = await props.params;
   const exam = await getExamination(params.id);
   if (!exam) notFound();
 

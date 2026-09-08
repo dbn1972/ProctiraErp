@@ -22,10 +22,11 @@ import { GradingSchemeForm } from '../../../_components/grading-scheme-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditGradingSchemePage({ params }: PageProps) {
+export default async function EditGradingSchemePage(props: PageProps) {
+  const params = await props.params;
   const scheme = await getGradingScheme(params.id);
   if (!scheme) {
     notFound();

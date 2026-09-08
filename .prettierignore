@@ -20,3 +20,6 @@ tools/dod-checks/reports/dod-report.json
 **/*.spec.ts-snapshots/**
 *.png
 *.zip
+
+# G-804 generated page-wise regression matrix (tools/scripts/page-regression-matrix.mjs)
+docs/testing/PAGE_REGRESSION_MATRIX.md

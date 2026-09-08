@@ -12,10 +12,11 @@ import { getWorkflowDefinition, type WorkflowDefinition } from '@/lib/api/workfl
 import { cn } from '@/lib/utils';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function WorkflowDefinitionPage({ params }: PageProps) {
+export default async function WorkflowDefinitionPage(props: PageProps) {
+  const params = await props.params;
   const definition = await getWorkflowDefinition(params.id);
   if (!definition) notFound();
 

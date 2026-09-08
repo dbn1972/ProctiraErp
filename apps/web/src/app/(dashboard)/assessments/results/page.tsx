@@ -25,10 +25,10 @@ import { ResultsEntryGrid } from '../_components/results-entry-grid';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readStringParam(params: PageProps['searchParams'], key: string): string {
+function readStringParam(params: Awaited<PageProps['searchParams']>, key: string): string {
   if (!params) return '';
   const value = params[key];
   if (typeof value === 'string') return value;
@@ -36,7 +36,8 @@ function readStringParam(params: PageProps['searchParams'], key: string): string
   return '';
 }
 
-export default async function AssessmentResultsPage({ searchParams }: PageProps) {
+export default async function AssessmentResultsPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const subjectId = readStringParam(searchParams, 'subjectId');
   const academicPeriodId = readStringParam(searchParams, 'academicPeriodId');
 

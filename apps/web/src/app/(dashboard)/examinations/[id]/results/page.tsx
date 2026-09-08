@@ -23,10 +23,11 @@ import {
 import { listExaminationResults } from '@/lib/api/examinations';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function ExaminationResultsPage({ params }: PageProps) {
+export default async function ExaminationResultsPage(props: PageProps) {
+  const params = await props.params;
   const results = await listExaminationResults(params.id);
 
   return (

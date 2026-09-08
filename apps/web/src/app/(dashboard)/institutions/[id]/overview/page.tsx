@@ -32,7 +32,7 @@ import { getInstitution } from '@/lib/institutions/api';
 import { loadAreaOptions, loadTypeOptions } from '@/lib/institutions/lookups';
 
 interface OverviewPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /* ──────────────────────────────── helpers ── */
@@ -230,7 +230,8 @@ function FactRow({ label, children }: { label: string; children: React.ReactNode
 
 /* ──────────────────────────────── Page ── */
 
-export default async function InstitutionOverviewPage({ params }: OverviewPageProps) {
+export default async function InstitutionOverviewPage(props: OverviewPageProps) {
+  const params = await props.params;
   const [institution, areas, types] = await Promise.all([
     getInstitution(params.id),
     loadAreaOptions(),

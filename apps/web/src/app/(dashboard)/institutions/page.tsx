@@ -56,7 +56,7 @@ import type {
 } from '@/lib/institutions/types';
 
 interface InstitutionsPageProps {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -284,7 +284,8 @@ function InstitutionRow({ institution, areaName }: { institution: Institution; a
 
 /* ──────────────────────────────────────── Page ── */
 
-export default async function InstitutionsListPage({ searchParams }: InstitutionsPageProps) {
+export default async function InstitutionsListPage(props: InstitutionsPageProps) {
+  const searchParams = await props.searchParams;
   const search = singleParam(searchParams.search) ?? '';
   const areaId = singleParam(searchParams.areaId) || undefined;
   const status = parseStatus(searchParams.status);

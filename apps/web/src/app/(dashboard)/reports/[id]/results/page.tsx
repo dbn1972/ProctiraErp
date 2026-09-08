@@ -28,10 +28,11 @@ import { cn } from '@/lib/utils';
 import { getReportTemplate, listReportRuns, type ReportRun } from '@/lib/api/reports';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function ReportResultsPage({ params }: PageProps) {
+export default async function ReportResultsPage(props: PageProps) {
+  const params = await props.params;
   const [templateResult, runsResult] = await Promise.all([
     getReportTemplate(params.id),
     listReportRuns(params.id),

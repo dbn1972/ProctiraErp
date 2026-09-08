@@ -35,8 +35,8 @@ import { AssignmentForm } from '../../../_components/assignment-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
-  searchParams?: Record<string, string | string[] | undefined>;
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /* ──────────────────────────────────────── Current workload sidebar card ── */
@@ -156,7 +156,9 @@ function SectionCoverageCard() {
 
 /* ──────────────────────────────────────────────── Page ── */
 
-export default async function NewAssignmentPage({ params, searchParams }: PageProps) {
+export default async function NewAssignmentPage(props: PageProps) {
+  const params = await props.params;
+  const searchParams = await props.searchParams;
   const rawInstitutionId = searchParams?.institutionId;
   const institutionId = typeof rawInstitutionId === 'string' ? rawInstitutionId : '';
 

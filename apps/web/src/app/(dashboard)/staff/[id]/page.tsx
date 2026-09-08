@@ -53,7 +53,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /* ──────────────────────────────────────────── Avatar palette ── */
@@ -662,7 +662,8 @@ function TrainingTab({ certifications }: { certifications: TrainingCertification
 
 /* ──────────────────────────────────────────── Page ── */
 
-export default async function StaffProfilePage({ params }: PageProps) {
+export default async function StaffProfilePage(props: PageProps) {
+  const params = await props.params;
   const staffId = params.id;
   const [staff, assignments, appraisals, certifications] = await Promise.all([
     getStaff(staffId),

@@ -81,11 +81,11 @@ function formatDate(iso: string): string {
 }
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
 function readStringParam(
-  params: PageProps['searchParams'],
+  params: Awaited<PageProps['searchParams']>,
   key: string,
   defaultValue = '',
 ): string {
@@ -96,7 +96,8 @@ function readStringParam(
   return defaultValue;
 }
 
-export default async function ScholarshipApplicationsPage({ searchParams }: PageProps) {
+export default async function ScholarshipApplicationsPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const status = readStringParam(searchParams, 'status', 'ALL');
   const programId = readStringParam(searchParams, 'programId');
 

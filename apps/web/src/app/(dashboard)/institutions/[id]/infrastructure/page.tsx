@@ -22,7 +22,7 @@ import { ApiClientError, getInfrastructureHierarchy } from '@/lib/institutions/a
 import type { InfrastructureHierarchy } from '@/lib/institutions/types';
 
 interface InfrastructurePageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 /* ──────────────────────────────── condition helpers ── */
@@ -121,7 +121,8 @@ function countRepairs(hierarchy: InfrastructureHierarchy): number {
 
 /* ──────────────────────────────── page ── */
 
-export default async function InstitutionInfrastructurePage({ params }: InfrastructurePageProps) {
+export default async function InstitutionInfrastructurePage(props: InfrastructurePageProps) {
+  const params = await props.params;
   const result = await loadHierarchy(params.id);
   const repairs = result.error ? 0 : countRepairs(result.hierarchy as InfrastructureHierarchy);
 

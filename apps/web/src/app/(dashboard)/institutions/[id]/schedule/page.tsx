@@ -15,10 +15,11 @@ import { listRooms, listScheduleConflicts, listSections } from '@/lib/api/timeta
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function InstitutionSchedulePage({ params }: PageProps) {
+export default async function InstitutionSchedulePage(props: PageProps) {
+  const params = await props.params;
   const institutionId = params.id;
 
   let academicPeriodId = '';

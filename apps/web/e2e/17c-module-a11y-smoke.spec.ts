@@ -21,6 +21,8 @@ test.describe('Module a11y smoke — health + scholarships (E2E_BACKEND_READY)',
     '/health/counselling',
     '/scholarships',
     '/scholarships/applications',
+    '/lms',
+    '/lms/pal',
   ] as const) {
     test(`${path} is WCAG 2.1 AA clean`, async ({ page }) => {
       await setupGatewayTenantSession(page);

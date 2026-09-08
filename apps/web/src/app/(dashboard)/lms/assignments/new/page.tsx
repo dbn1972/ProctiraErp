@@ -7,7 +7,8 @@ import { getTranslations } from 'next-intl/server';
 import { ArrowLeft } from 'lucide-react';
 
 import { Button } from '@proctira/ui/components';
-import { listAreas, listInstitutions } from '@/lib/api/institutions';
+import { listGradebookBoards } from '@/lib/api/gradebook';
+import { listInstitutions } from '@/lib/api/institutions';
 import { listSkills } from '@/lib/api/lms';
 
 import { NewAssignmentForm } from '../../_components/new-assignment-form';
@@ -26,16 +27,17 @@ export default async function NewAssignmentPage({
       ? kindParam
       : 'assignment';
 
-  const [t, institutions, areas, skills] = await Promise.all([
+  const [t, institutions, boardsResult, skills] = await Promise.all([
     getTranslations('lms'),
     listInstitutions({ pageSize: 200 }),
-    listAreas(),
+    listGradebookBoards(),
     listSkills(),
   ]);
 
-  const boards = areas
-    .filter((a) => a.parentId === null || a.level === 0)
-    .map((a) => ({ id: a.id, name: a.name }));
+  const boards = (boardsResult.ok ? boardsResult.data : []).map((b) => ({
+    id: b.id,
+    name: b.code ? `${b.code} · ${b.name}` : b.name,
+  }));
 
   return (
     <section aria-labelledby="lms-new-heading" className="space-y-6">

@@ -55,7 +55,8 @@ function formatPrice(minor: number): string {
   }).format(minor / 100);
 }
 
-export default async function BillingPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function BillingPage(props: { searchParams?: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams;
   const tier = readParam(searchParams, 'tier');
   const status = readParam(searchParams, 'status');
   const search = readParam(searchParams, 'search');

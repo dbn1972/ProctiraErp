@@ -24,7 +24,7 @@ import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/inst
 import type { ClassSection, Grade } from '@/lib/institutions/types';
 
 interface GradesPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 interface GradesData {
@@ -60,7 +60,8 @@ function UtilizationBar({ pct }: { pct: number }) {
   );
 }
 
-export default async function InstitutionGradesPage({ params }: GradesPageProps) {
+export default async function InstitutionGradesPage(props: GradesPageProps) {
+  const params = await props.params;
   const data = await loadGrades(params.id);
 
   // Compute real per-grade section count + summed capacity.

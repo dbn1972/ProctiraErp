@@ -23,10 +23,10 @@ import { listGradingSchemes } from '@/lib/api/assessments';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readStr(params: PageProps['searchParams'], key: string, fallback = ''): string {
+function readStr(params: Awaited<PageProps['searchParams']>, key: string, fallback = ''): string {
   if (!params) return fallback;
   const v = params[key];
   if (typeof v === 'string') return v;
@@ -34,7 +34,7 @@ function readStr(params: PageProps['searchParams'], key: string, fallback = ''):
   return fallback;
 }
 
-function readNum(params: PageProps['searchParams'], key: string, fallback: number): number {
+function readNum(params: Awaited<PageProps['searchParams']>, key: string, fallback: number): number {
   const parsed = Number.parseInt(readStr(params, key), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
@@ -49,7 +49,8 @@ function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-export default async function AssessmentsPage({ searchParams }: PageProps) {
+export default async function AssessmentsPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const search = readStr(searchParams, 'search');
   const type = readStr(searchParams, 'type');
   const page = readNum(searchParams, 'page', 1);

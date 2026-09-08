@@ -15,10 +15,11 @@ import type { StudentFormValues } from '@/lib/validation/student-schema';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function EditStudentPage({ params }: PageProps) {
+export default async function EditStudentPage(props: PageProps) {
+  const params = await props.params;
   const [student, customFields] = await Promise.all([
     getStudent(params.id),
     getStudentCustomFields(),

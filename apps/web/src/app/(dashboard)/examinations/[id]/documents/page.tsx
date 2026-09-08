@@ -23,7 +23,7 @@ import {
 import { listExaminationDocuments } from '@/lib/api/examinations';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 const documentLabels: Record<string, string> = {
@@ -32,7 +32,8 @@ const documentLabels: Record<string, string> = {
   CERTIFICATE: 'Certificates',
 };
 
-export default async function ExaminationDocumentsPage({ params }: PageProps) {
+export default async function ExaminationDocumentsPage(props: PageProps) {
+  const params = await props.params;
   const documents = await listExaminationDocuments(params.id);
 
   return (

@@ -26,10 +26,11 @@ import { AppraisalForm } from '../../../_components/appraisal-form';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function NewAppraisalPage({ params }: PageProps) {
+export default async function NewAppraisalPage(props: PageProps) {
+  const params = await props.params;
   const [staff, templates] = await Promise.all([getStaff(params.id), listAppraisalTemplates()]);
 
   // Soft-render when the profile API is unavailable so client validation still works.

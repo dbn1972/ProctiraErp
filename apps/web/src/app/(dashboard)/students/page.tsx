@@ -83,7 +83,7 @@ function readNum(data: Record<string, unknown>, key: string): number | null {
 }
 
 function readStringParam(
-  params: PageProps['searchParams'],
+  params: Awaited<PageProps['searchParams']>,
   key: string,
   defaultValue = '',
 ): string {
@@ -95,7 +95,7 @@ function readStringParam(
 }
 
 function readNumberParam(
-  params: PageProps['searchParams'],
+  params: Awaited<PageProps['searchParams']>,
   key: string,
   defaultValue: number,
 ): number {
@@ -116,10 +116,11 @@ function unique<T extends { id: string }>(items: T[]): T[] {
 /* ------------------------------------------------------------------ page */
 
 interface PageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function StudentListPage({ searchParams }: PageProps) {
+export default async function StudentListPage(props: PageProps) {
+  const searchParams = await props.searchParams;
   const page = readNumberParam(searchParams, 'page', 1);
   const search = readStringParam(searchParams, 'search');
   const institutionId = readStringParam(searchParams, 'institutionId');

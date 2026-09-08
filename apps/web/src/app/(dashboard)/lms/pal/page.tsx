@@ -7,7 +7,8 @@ import { getTranslations } from 'next-intl/server';
 import { ArrowLeft, Brain, Layers, Share2 } from 'lucide-react';
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
-import { listAreas, listInstitutions } from '@/lib/api/institutions';
+import { listGradebookBoards } from '@/lib/api/gradebook';
+import { listInstitutions } from '@/lib/api/institutions';
 import { listSkills } from '@/lib/api/lms';
 import { listStudents } from '@/lib/api/students';
 
@@ -19,7 +20,7 @@ import { PalLookup } from '../_components/pal-lookup';
 export const dynamic = 'force-dynamic';
 
 export default async function SpiralPalPage() {
-  const [t, skills, students, institutions, areas] = await Promise.all([
+  const [t, skills, students, institutions, boardsResult] = await Promise.all([
     getTranslations('lms'),
     listSkills(),
     listStudents({ pageSize: 50, sortBy: 'lastName', sortOrder: 'asc' }).catch(() => ({
@@ -27,14 +28,15 @@ export default async function SpiralPalPage() {
       meta: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
     })),
     listInstitutions({ pageSize: 200 }),
-    listAreas(),
+    listGradebookBoards(),
   ]);
 
   const subjects = new Set(skills.map((s) => s.subject));
   const boardSkills = skills.filter((s) => s.scope === 'board');
-  const boards = areas
-    .filter((a) => a.parentId === null || a.level === 0)
-    .map((a) => ({ id: a.id, name: a.name }));
+  const boards = (boardsResult.ok ? boardsResult.data : []).map((b) => ({
+    id: b.id,
+    name: b.code ? `${b.code} · ${b.name}` : b.name,
+  }));
 
   return (
     <section aria-labelledby="pal-heading" className="space-y-6">

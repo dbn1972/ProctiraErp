@@ -25,7 +25,7 @@ import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/inst
 import type { ClassSection, Grade } from '@/lib/institutions/types';
 
 interface ClassesPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 interface ClassesData {
@@ -39,7 +39,8 @@ function readStr(cd: Record<string, unknown> | null | undefined, key: string): s
   return typeof v === 'string' ? v : '';
 }
 
-export default async function InstitutionClassesPage({ params }: ClassesPageProps) {
+export default async function InstitutionClassesPage(props: ClassesPageProps) {
+  const params = await props.params;
   const data = await loadClasses(params.id);
   const gradeMap = new Map(data.grades.map((grade) => [grade.id, grade]));
 

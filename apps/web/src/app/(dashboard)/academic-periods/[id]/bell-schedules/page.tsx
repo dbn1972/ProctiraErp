@@ -18,10 +18,11 @@ import { listBellSchedules, listPeriods } from '@/lib/api/timetable';
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default async function BellSchedulesPage({ params }: PageProps) {
+export default async function BellSchedulesPage(props: PageProps) {
+  const params = await props.params;
   const academicPeriodId = params.id;
 
   let periodName = academicPeriodId;

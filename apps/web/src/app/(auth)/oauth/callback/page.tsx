@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 interface OAuthCallbackPageProps {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
 /**
