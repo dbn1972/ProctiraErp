@@ -1,0 +1,90 @@
+# =============================================================================
+# Dependabot — ProctiraERP (G-726)
+# =============================================================================
+# Complements the hard advisory gate in supply-chain.yml (G-708): Dependabot
+# opens the upgrade PRs, audit-gate.mjs blocks merges while waivers remain.
+#
+# Grouping keeps PR volume manageable in a 40-package monorepo: patch/minor
+# updates land in one weekly PR per ecosystem; majors stay individual so the
+# framework-debt items tracked under G-735 (Next 15, Fastify 5) get their own
+# review.
+# =============================================================================
+version: 2
+updates:
+  # ---- pnpm workspace (root lockfile covers every app/package) ---------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 10
+    labels: [dependencies, supply-chain]
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+        exclude-patterns:
+          - next
+          - fastify
+          - '@fastify/*'
+          - prisma
+          - '@prisma/*'
+      fastify:
+        patterns: [fastify, '@fastify/*', find-my-way]
+      nextjs:
+        patterns: [next, '@next/*', eslint-config-next]
+      prisma:
+        patterns: [prisma, '@prisma/*']
+    ignore:
+      # Majors for the G-735 framework debt are handled by the tracked upgrade
+      # work, not by unattended Dependabot PRs.
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      - dependency-name: fastify
+        update-types: [version-update:semver-major]
+
+  # ---- GitHub Actions ----------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:30'
+      timezone: Etc/UTC
+    labels: [dependencies, ci]
+    commit-message:
+      prefix: chore(ci)
+    groups:
+      actions:
+        patterns: ['*']
+
+  # ---- Container base images ---------------------------------------------------
+  - package-ecosystem: docker
+    directory: /infrastructure/docker
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:00'
+      timezone: Etc/UTC
+    labels: [dependencies, docker]
+    commit-message:
+      prefix: chore(docker)
+
+  # ---- Flutter / Dart mobile app -------------------------------------------------
+  - package-ecosystem: pub
+    directory: /apps/mobile
+    schedule:
+      interval: weekly
+      day: monday
+      time: '05:30'
+      timezone: Etc/UTC
+    labels: [dependencies, mobile]
+    commit-message:
+      prefix: chore(mobile)
+    groups:
+      pub-minor-and-patch:
+        update-types: [minor, patch]
