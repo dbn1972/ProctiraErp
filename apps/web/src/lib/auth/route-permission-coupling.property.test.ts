@@ -57,6 +57,7 @@ const ALL_PERMISSIONS = [
   'health.read',
   'workflow.read',
   'scholarship.read',
+  'lms.read',
   'survey.read',
   'custom-field.read',
   'audit.read',

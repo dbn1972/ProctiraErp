@@ -2,7 +2,7 @@
  * G-405 / G-721 — i18n campus + redesign key parity check.
  *
  * Ensures campus modules and redesign hubs (fees, hostel, transport, library,
- * health, scholarships) expose critical message keys in every locale under
+ * health, scholarships, lms) expose critical message keys in every locale under
  * apps/web/src/messages. Every locale file must also match the English key
  * set for those namespaces (no missing / extra keys).
  */
@@ -85,7 +85,20 @@ const REQUIRED: Record<string, string[]> = {
     'createProgram',
     'statusOpen',
   ],
-  nav: ['transport', 'library', 'communication', 'hostel', 'fees', 'health', 'scholarships'],
+  lms: [
+    'title',
+    'subtitle',
+    'spiralPal',
+    'newWork',
+    'kindAssignment',
+    'kindHomework',
+    'kindQuiz',
+    'scopeBoard',
+    'scopeSchool',
+    'emptyTitle',
+    'learnerPlan',
+  ],
+  nav: ['transport', 'library', 'communication', 'hostel', 'fees', 'health', 'scholarships', 'lms'],
 };
 
 /** Namespaces owned by G-721 redesign work — full key-set parity required. */
@@ -96,6 +109,7 @@ const REDESIGN_NAMESPACES = [
   'library',
   'health',
   'scholarships',
+  'lms',
 ] as const;
 
 describe('G-405 / G-721 campus + redesign i18n key parity', () => {

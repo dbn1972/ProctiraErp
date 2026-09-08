@@ -16,6 +16,7 @@ export const navItems = [
   { key: 'attendance', href: '/attendance', icon: 'CheckCircleIcon' },
   { key: 'examinations', href: '/examinations', icon: 'DocumentIcon' },
   { key: 'scholarships', href: '/scholarships', icon: 'AcademicCapIcon' },
+  { key: 'lms', href: '/lms', icon: 'BookOpenIcon' },
   { key: 'health', href: '/health', icon: 'HeartIcon' },
   { key: 'parentPortal', href: '/parent', icon: 'UserGroupIcon' },
   { key: 'fees', href: '/fees', icon: 'CurrencyIcon' },
