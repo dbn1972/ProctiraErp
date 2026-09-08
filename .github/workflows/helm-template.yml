@@ -1,0 +1,80 @@
+# =============================================================================
+# G-501 — Helm template dry-run (proctira-service + proctira-platform)
+# =============================================================================
+# Aligns with deploy.yml which installs `./infrastructure/helm/proctira-service`
+# as release `proctira-${SERVICE}` with deployment name `proctira-${SERVICE}`.
+# =============================================================================
+
+name: Helm Template
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'infrastructure/helm/**'
+      - '.github/workflows/deploy.yml'
+      - '.github/workflows/helm-template.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/helm/**'
+      - '.github/workflows/deploy.yml'
+
+concurrency:
+  group: helm-template-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  helm-template:
+    name: helm template dry-run (G-501)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: 'v3.14.0'
+
+      - name: Lint + template proctira-service (deploy.yml shape)
+        run: |
+          set -euo pipefail
+          chart=./infrastructure/helm/proctira-service
+          helm lint "$chart"
+          for SERVICE in api-gateway web student; do
+            echo "::group::template proctira-${SERVICE}"
+            out="$(mktemp)"
+            helm template "proctira-${SERVICE}" "$chart" \
+              --namespace "proctira-staging" \
+              --set image.repository="ghcr.io/proctira/${SERVICE}" \
+              --set image.tag="sha-ci" \
+              --set environment=staging \
+              --set service.name="${SERVICE}" \
+              --values "${chart}/values-staging.yaml" \
+              > "$out"
+            grep -q "name: proctira-${SERVICE}" "$out"
+            grep -q "kind: Deployment" "$out"
+            echo "OK proctira-${SERVICE}"
+            echo "::endgroup::"
+          done
+
+      - name: Lint + template proctira-platform umbrella
+        run: |
+          set -euo pipefail
+          chart=./infrastructure/helm/proctira-platform
+          helm lint "$chart" || true
+          # Umbrella chart may need secrets placeholders; dry-run with --debug
+          # and tolerate missing optional values by setting common stubs.
+          helm template proctira "$chart" \
+            --namespace proctira-staging \
+            --set global.environment=staging \
+            --set secrets.jwtSecret=ci-placeholder \
+            --set secrets.databaseUrl=postgresql://ci:ci@localhost:5432/ci \
+            -f "${chart}/values-staging.yaml" \
+            > /tmp/proctira-platform.yaml
+          test -s /tmp/proctira-platform.yaml
+          grep -q "proctira-platform\|api-gateway\|kind: Deployment" /tmp/proctira-platform.yaml
+          echo "OK proctira-platform ($(wc -l < /tmp/proctira-platform.yaml) lines)"

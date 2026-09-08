@@ -34,7 +34,7 @@ on:
         description: 'Playwright specs relative to apps/web (space-separated)'
         required: false
         type: string
-        default: 'e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts'
+        default: 'e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts e2e/22-parent-portal-smoke.spec.ts'
   schedule:
     # Nightly 04:15 UTC — keeps a standing signal without blocking every PR.
     - cron: '15 4 * * *'
@@ -136,7 +136,7 @@ jobs:
           JWT_SECRET: ${{ env.JWT_SECRET }}
           E2E_GATEWAY_URL: ${{ env.E2E_GATEWAY_URL }}
           NEXT_PUBLIC_GATEWAY_URL: ${{ env.NEXT_PUBLIC_GATEWAY_URL }}
-          E2E_SPECS: ${{ github.event.inputs.specs || 'e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts' }}
+          E2E_SPECS: ${{ github.event.inputs.specs || 'e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts e2e/22-parent-portal-smoke.spec.ts' }}
           E2E_REQUIRE_LIVE: ${{ inputs.require_live == true && '1' || '0' }}
           CI: true
 

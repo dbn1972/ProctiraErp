@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@proctira/backend-auth": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",

@@ -96,6 +96,12 @@ export const EnrollStudentSchema = Type.Object({
 });
 export type EnrollStudentInput = Static<typeof EnrollStudentSchema>;
 
+/** Bulk roster assign (G-304). Dedupes studentIds; partial success returned per row. */
+export const BulkEnrollStudentsSchema = Type.Object({
+  studentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 200 }),
+});
+export type BulkEnrollStudentsInput = Static<typeof BulkEnrollStudentsSchema>;
+
 export const CreateRoomSchema = Type.Object({
   institutionId: Type.String({ minLength: 1 }),
   code: Type.String({ minLength: 1, maxLength: 50 }),

@@ -76,5 +76,6 @@ export {
   CreateSectionSchema,
   UpdateSectionSchema,
   EnrollStudentSchema,
+  BulkEnrollStudentsSchema,
   CreateRoomSchema,
 } from './schemas.js';

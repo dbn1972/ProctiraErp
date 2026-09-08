@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@proctira/ui/components';
 
 import {
+  SectionBulkEnrollForm,
   SectionEnrollForm,
   SectionPublishControls,
   WithdrawStudentButton,
@@ -157,6 +158,11 @@ export default async function SectionRosterPage({ params }: PageProps) {
             </p>
           </div>
           <SectionEnrollForm
+            institutionId={institutionId}
+            sectionId={section.id}
+            studentOptions={studentOptions}
+          />
+          <SectionBulkEnrollForm
             institutionId={institutionId}
             sectionId={section.id}
             studentOptions={studentOptions}

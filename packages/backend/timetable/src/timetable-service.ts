@@ -338,6 +338,114 @@ export class TimetableService {
   }
 
   /**
+   * Bulk roster assign (G-304). Processes each student independently so one
+   * capacity/validation failure does not roll back prior successes.
+   */
+  async bulkEnrollStudents(
+    tenantId: string,
+    sectionId: string,
+    studentIds: string[],
+  ): Promise<{
+    enrolled: SectionEnrollmentEntity[];
+    failed: Array<{ studentId: string; code: string; message: string }>;
+  }> {
+    const unique = [...new Set(studentIds.map((id) => id.trim()).filter(Boolean))];
+    const enrolled: SectionEnrollmentEntity[] = [];
+    const failed: Array<{ studentId: string; code: string; message: string }> = [];
+
+    for (const studentId of unique) {
+      try {
+        const row = await this.enrollStudent(tenantId, sectionId, studentId);
+        enrolled.push(row);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Enroll failed';
+        const code =
+          error instanceof NotFoundError
+            ? 'NOT_FOUND'
+            : error instanceof ValidationError
+              ? 'VALIDATION_ERROR'
+              : 'ENROLL_FAILED';
+        failed.push({ studentId, code, message });
+      }
+    }
+
+    this.recordAudit({
+      tenantId,
+      action: 'section.bulk_enroll',
+      entityType: 'section',
+      entityId: sectionId,
+      actorId: null,
+      details: {
+        requested: unique.length,
+        enrolled: enrolled.length,
+        failed: failed.length,
+      },
+    });
+
+    return { enrolled, failed };
+  }
+
+  /**
+   * Surface the master-schedule conflict engine for an institution grid (G-304).
+   * Returns unique staff/room/class clashes among active meetings.
+   */
+  async listConflicts(
+    tenantId: string,
+    filter: { institutionId: string; academicPeriodId?: string },
+  ): Promise<
+    Array<{
+      reason: string;
+      meetingId?: string;
+      againstMeetingId: string;
+      dayOfWeek: number;
+      periodId: string;
+      staffId?: string;
+      sectionId?: string;
+      roomId?: string | null;
+    }>
+  > {
+    const meetings = await this.repo.listMeetings(tenantId, {
+      institutionId: filter.institutionId,
+      academicPeriodId: filter.academicPeriodId,
+    });
+
+    const seen = new Set<string>();
+    const out: Array<{
+      reason: string;
+      meetingId?: string;
+      againstMeetingId: string;
+      dayOfWeek: number;
+      periodId: string;
+      staffId?: string;
+      sectionId?: string;
+      roomId?: string | null;
+    }> = [];
+
+    for (const candidate of meetings) {
+      const conflicts = detectMeetingClashes(meetings, candidate, candidate.id);
+      for (const c of conflicts) {
+        const peer = c.meetingId ?? '';
+        const pairKey = [candidate.id, peer].sort().join('|');
+        const key = `${c.reason}|${pairKey}|${c.dayOfWeek}|${c.periodId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          reason: c.reason,
+          meetingId: c.meetingId,
+          againstMeetingId: candidate.id,
+          dayOfWeek: c.dayOfWeek,
+          periodId: c.periodId,
+          staffId: c.staffId,
+          sectionId: c.sectionId,
+          roomId: c.roomId,
+        });
+      }
+    }
+
+    return out;
+  }
+
+  /**
    * Publish a draft section. Runs institution-wide room∩time and teacher∩time
    * clash detection including this section's meetings → 409 on conflict.
    */

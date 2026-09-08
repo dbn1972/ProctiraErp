@@ -10,6 +10,7 @@ import {
   createSection,
   createSubstitution,
   enrollStudent,
+  bulkEnrollStudents,
   publishSection,
   unpublishSection,
   withdrawStudent,
@@ -130,6 +131,31 @@ export async function enrollStudentAction(input: {
     const row = await enrollStudent(input.sectionId, input.studentId);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
     return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function bulkEnrollStudentsAction(input: {
+  institutionId: string;
+  sectionId: string;
+  studentIds: string[];
+}): Promise<
+  | {
+      ok: true;
+      enrolled: number;
+      failed: Array<{ studentId: string; message: string }>;
+    }
+  | TimetableActionResult
+> {
+  try {
+    const result = await bulkEnrollStudents(input.sectionId, input.studentIds);
+    revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
+    return {
+      ok: true,
+      enrolled: result.summary.enrolled,
+      failed: result.failed.map((f) => ({ studentId: f.studentId, message: f.message })),
+    };
   } catch (error) {
     return fail(error);
   }

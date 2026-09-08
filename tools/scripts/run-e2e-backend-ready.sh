@@ -60,7 +60,7 @@ export NEXT_PUBLIC_GATEWAY_URL="${NEXT_PUBLIC_GATEWAY_URL:-$GATEWAY_URL}"
 export GATEWAY_URL="${GATEWAY_URL}"
 export CI="${CI:-}"
 
-SPECS="${E2E_SPECS:-e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts}"
+SPECS="${E2E_SPECS:-e2e/17b-health-counselling-write-smoke.spec.ts e2e/17c-module-a11y-smoke.spec.ts e2e/22-parent-portal-smoke.spec.ts}"
 
 print_skip_summary() {
   local reason="$1"

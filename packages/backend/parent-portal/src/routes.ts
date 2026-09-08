@@ -1,6 +1,7 @@
 /**
  * Parent portal routes — child links, messaging, consents, fees.
  */
+import { getActor } from '@proctira/backend-auth';
 import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -42,10 +43,10 @@ function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
 }
 
-/** Actor from verified JWT only (G-102 — never trust x-user-id headers). */
+/** Actor from verified JWT only (G-102 / G-306 — never trust x-user-id headers). */
 function getActorId(request: FastifyRequest): string {
-  const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
-  return user?.sub ?? 'anonymous';
+  const actor = getActor(request);
+  return actor.userId || 'anonymous';
 }
 
 function formatLink(entity: {
@@ -301,7 +302,8 @@ export async function registerParentPortalRoutes(
         });
       }
 
-      const parentUserId = result.data.parentUserId ?? getActorId(request);
+      // G-306: parent identity from JWT only — ignore forgeable body.parentUserId.
+      const parentUserId = getActorId(request);
 
       try {
         const link = await parentPortalService.linkChild(tenantId, parentUserId, result.data);

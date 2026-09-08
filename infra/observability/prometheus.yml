@@ -21,6 +21,7 @@ rule_files:
   - alerts/error_rate.yml
   - alerts/saturation.yml
   - alerts/queue_lag.yml
+  - alerts/critical_journeys.yml
 
 alerting:
   alertmanagers:

@@ -13,7 +13,8 @@ infra/observability/
 │   ├── availability.yml              # 5xx rate, ServiceDown
 │   ├── latency.yml                   # P95 / P99 alerts
 │   ├── error_rate.yml                # Multi-window multi-burn-rate budget
-│   └── saturation.yml                # CPU / memory / event-loop lag
+│   ├── queue_lag.yml                 # Async queue lag
+│   └── critical_journeys.yml         # Journey burn (auth / parent portal)
 ├── alertmanager.yml                  # Routing tree (PagerDuty / Slack / Email)
 ├── grafana/
 │   ├── provisioning/
@@ -36,9 +37,9 @@ docker compose -f infra/observability/docker-compose.observability.yml up -d
 
 Open:
 
-- Prometheus  → http://localhost:9090
+- Prometheus → http://localhost:9090
 - Alertmanager → http://localhost:9093
-- Grafana     → http://localhost:3050  (admin / admin)
+- Grafana → http://localhost:3050 (admin / admin)
 
 The compose stack joins the `proctira` Docker network used by the main
 `docker-compose.yml` so that Prometheus can reach `auth:3001`, `student:3003`,
@@ -74,3 +75,5 @@ Otherwise, the compose stack will refuse to start if any file is invalid.
 
 Per-service runbooks live in `docs/runbooks/`. Each alert rule's
 `runbook_url` annotation points at one of these documents.
+
+Critical journey SLO table: `docs/observability/SLO_CRITICAL_JOURNEYS.md` (G-502).
