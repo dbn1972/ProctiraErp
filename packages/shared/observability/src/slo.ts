@@ -12,7 +12,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 
-import { MetricsRegistry } from './metrics-registry.js';
+import type { MetricsRegistry } from './metrics-registry.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -184,7 +184,7 @@ export function registerServiceSLO(
 
   // Register queue lag gauge if the service has queue-based SLIs.
   if (slo.indicators.queueLag && fastify.hasDecorator('metrics')) {
-    const registry = fastify.metrics as MetricsRegistry;
+    const registry: MetricsRegistry = fastify.metrics;
     registry.gauge({
       name: 'slo_queue_lag_messages',
       help: 'Current consumer lag in messages for SLO tracking',

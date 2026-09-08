@@ -16,13 +16,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "@proctira/cache": "workspace:*",
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
     "@proctira/events": "workspace:*",
     "@proctira/logging": "workspace:*",
+    "@proctira/observability": "workspace:*",
     "@proctira/validation": "workspace:*",
-    "@prisma/client": "^5.22.0",
     "@sinclair/typebox": "^0.32.0",
     "exceljs": "^4.4.0",
     "fastify-plugin": "^4.5.0",

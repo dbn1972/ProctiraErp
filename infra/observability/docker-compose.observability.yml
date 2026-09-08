@@ -1,8 +1,9 @@
 # Docker compose stack for the ProctiraERP observability tier.
 #
 # Brings up Prometheus (with the alert rules bundled in ./alerts),
-# Alertmanager (using ./alertmanager.yml), and Grafana (auto-provisioned
-# with the datasource and dashboards in ./grafana).
+# Alertmanager (config rendered from ./alertmanager.yml.tpl with receiver
+# credentials from the environment — see render-alertmanager.sh), and Grafana
+# (auto-provisioned with the datasource and dashboards in ./grafana).
 #
 # Usage:
 #   docker compose -f infra/observability/docker-compose.observability.yml up -d
@@ -10,7 +11,7 @@
 # The services attach to the `proctira` network expected to be created by
 # the main docker-compose.yml. Override with OBSERVABILITY_NETWORK if you
 # run the stack standalone.
-version: "3.9"
+version: '3.9'
 
 networks:
   default:
@@ -19,6 +20,7 @@ networks:
 
 volumes:
   prometheus_data: {}
+  alertmanager_config: {}
   alertmanager_data: {}
   grafana_data: {}
 
@@ -38,21 +40,47 @@ services:
       - ./alerts:/etc/prometheus/alerts:ro
       - prometheus_data:/prometheus
     ports:
-      - "9090:9090"
+      - '9090:9090'
+
+  # Renders alertmanager.yml from alertmanager.yml.tpl with receiver
+  # credentials taken from the environment (G-725). Runs once, then exits.
+  alertmanager-config:
+    image: alpine:3.20
+    container_name: proctira-alertmanager-config
+    command:
+      [
+        'sh',
+        '-c',
+        'apk add --no-cache gettext >/dev/null && sh /render/render-alertmanager.sh /render/alertmanager.yml.tpl /out/alertmanager.yml',
+      ]
+    environment:
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-ops@localhost}
+      ALERT_SMTP_FROM: ${ALERT_SMTP_FROM:-alertmanager@localhost}
+      ALERT_SMTP_SMARTHOST: ${ALERT_SMTP_SMARTHOST:-localhost:25}
+      PAGERDUTY_INTEGRATION_KEY: ${PAGERDUTY_INTEGRATION_KEY:-}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SLACK_SECURITY_WEBHOOK_URL: ${SLACK_SECURITY_WEBHOOK_URL:-}
+    volumes:
+      - ./alertmanager.yml.tpl:/render/alertmanager.yml.tpl:ro
+      - ./render-alertmanager.sh:/render/render-alertmanager.sh:ro
+      - alertmanager_config:/out
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: proctira-alertmanager
     restart: unless-stopped
+    depends_on:
+      alertmanager-config:
+        condition: service_completed_successfully
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
       - --web.external-url=http://localhost:9093
     volumes:
-      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_config:/etc/alertmanager:ro
       - alertmanager_data:/alertmanager
     ports:
-      - "9093:9093"
+      - '9093:9093'
 
   grafana:
     image: grafana/grafana:11.2.0
@@ -61,13 +89,13 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3050:3000"
+      - '3050:3000'
     depends_on:
       - prometheus

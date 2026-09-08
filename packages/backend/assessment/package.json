@@ -19,6 +19,7 @@
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
     "@proctira/logging": "workspace:*",
+    "@proctira/observability": "workspace:*",
     "@proctira/pdf-lite": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",

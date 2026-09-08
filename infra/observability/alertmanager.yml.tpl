@@ -1,16 +1,29 @@
-# Alertmanager routing and receivers.
+# Alertmanager routing and receivers — TEMPLATE (G-725).
+#
+# Rendered to alertmanager.yml by ./render-alertmanager.sh (envsubst) inside
+# the `alertmanager-config` init container of docker-compose.observability.yml,
+# or by the same script in CI/Kubernetes. Receiver credentials therefore come
+# from the environment / secret manager and never live in git:
+#
+#   ALERT_EMAIL_TO                 default-email receiver (required)
+#   ALERT_SMTP_FROM / ALERT_SMTP_SMARTHOST  SMTP relay (required for email)
+#   PAGERDUTY_INTEGRATION_KEY      severity=critical → PagerDuty (optional*)
+#   SLACK_WEBHOOK_URL              severity=warning  → #proctira-alerts (optional*)
+#   SLACK_SECURITY_WEBHOOK_URL     team=security     → #proctira-security-alerts (optional*)
+#
+# * When a key is unset the renderer substitutes a documented "unconfigured"
+#   sentinel and Alertmanager routes that severity to default-email instead, so
+#   a missing PagerDuty key degrades to email rather than silently dropping
+#   critical pages. Rendered output is validated with `amtool check-config`.
 #
 # Routing tree
 #  - severity=critical          → pagerduty   (24x7 on-call)
 #  - severity=warning           → slack       (#proctira-alerts)
-#  - everything else            → email       (ops@proctira.org)
-#
-# Replace receiver URLs / keys with values from a secret manager before
-# deploying. The placeholders below are intentionally non-functional.
+#  - everything else            → email
 global:
   resolve_timeout: 5m
-  smtp_from: alertmanager@proctira.org
-  smtp_smarthost: smtp.proctira.org:587
+  smtp_from: ${ALERT_SMTP_FROM}
+  smtp_smarthost: ${ALERT_SMTP_SMARTHOST}
   smtp_require_tls: true
 
 route:
@@ -25,20 +38,20 @@ route:
   routes:
     - matchers:
         - severity = "critical"
-      receiver: pagerduty-critical
+      receiver: ${ROUTE_CRITICAL_RECEIVER}
       group_wait: 0s
       repeat_interval: 1h
       continue: true
 
     - matchers:
         - severity = "warning"
-      receiver: slack-warnings
+      receiver: ${ROUTE_WARNING_RECEIVER}
       repeat_interval: 6h
       continue: true
 
     - matchers:
         - team = "security"
-      receiver: slack-security
+      receiver: ${ROUTE_SECURITY_RECEIVER}
       continue: true
 
 inhibit_rules:
@@ -52,12 +65,12 @@ inhibit_rules:
 receivers:
   - name: default-email
     email_configs:
-      - to: ops@proctira.org
+      - to: ${ALERT_EMAIL_TO}
         send_resolved: true
 
   - name: pagerduty-critical
     pagerduty_configs:
-      - service_key: REPLACE_ME_PAGERDUTY_INTEGRATION_KEY
+      - service_key: ${PAGERDUTY_INTEGRATION_KEY}
         send_resolved: true
         description: '{{ .CommonLabels.alertname }} on {{ .CommonLabels.service }}'
         details:
@@ -67,7 +80,7 @@ receivers:
 
   - name: slack-warnings
     slack_configs:
-      - api_url: REPLACE_ME_SLACK_WEBHOOK_URL
+      - api_url: ${SLACK_WEBHOOK_URL}
         channel: '#proctira-alerts'
         send_resolved: true
         title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
@@ -79,7 +92,7 @@ receivers:
 
   - name: slack-security
     slack_configs:
-      - api_url: REPLACE_ME_SLACK_SECURITY_WEBHOOK_URL
+      - api_url: ${SLACK_SECURITY_WEBHOOK_URL}
         channel: '#proctira-security-alerts'
         send_resolved: true
         title: '[SECURITY] {{ .CommonLabels.alertname }}'

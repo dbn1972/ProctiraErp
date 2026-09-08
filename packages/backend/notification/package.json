@@ -19,11 +19,12 @@
     "@proctira/common": "workspace:*",
     "@proctira/database": "workspace:*",
     "@proctira/events": "workspace:*",
+    "@proctira/observability": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
     "fastify-plugin": "^4.5.0",
-    "uuid": "^9.0.0",
-    "pg": "^8.21.0"
+    "pg": "^8.21.0",
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.12.0",

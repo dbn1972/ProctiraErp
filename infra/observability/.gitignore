@@ -1,0 +1,2 @@
+# Rendered by render-alertmanager.sh — receiver credentials come from env.
+alertmanager.yml

@@ -22,6 +22,10 @@ section is renamed to the version + date.
   Next.js app (G-724).
 - Governance: `CODEOWNERS`, Dependabot (npm, GitHub Actions, Docker, pub),
   this changelog, and the database migration & rollback runbook (G-726).
+- Observability: `/metrics` on every standalone backend service
+  (`METRICS_ENABLED`), Prometheus scrapes only real targets, Alertmanager
+  receivers rendered from environment variables with email fallback, and an
+  `observability-config.yml` CI check (`promtool` + `amtool`) (G-725).
 - Scheduled disaster recovery: `pg-backup` and `phi-retention` CronJobs on a
   shared PVC, `dr-tools` image, weekly `restore-drill.yml` with row-parity
   verification (G-707).
