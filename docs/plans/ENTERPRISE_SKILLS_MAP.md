@@ -38,4 +38,5 @@ Templates live under `docs/audits/templates/`.
 
 - `AGENTS.md` — mandatory agent entrypoint
 - `docs/audits/SCREEN_BY_SCREEN_SCOREBOARD.md` — scores
+- `docs/audits/ENTERPRISE_FABLE51_PRODUCT_GAP_AUDIT.md` — whole-product gap audit + Auto-mode subagent task queue (2026-09-08)
 - Program hooks: `.cursor/hooks.json`
