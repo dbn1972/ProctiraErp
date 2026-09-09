@@ -125,6 +125,7 @@ export class AttendanceOpsService {
         throw new NotFoundError(`Attendance record '${row.attendanceId}' not found`);
       }
       await this.attendance.createAuditEntry({
+        id: uuidv4(),
         tenantId,
         attendanceId: row.attendanceId,
         previousStatus: row.fromStatus as AttendanceStatus,
@@ -228,6 +229,7 @@ export class AttendanceOpsService {
         comment: row.reason ?? 'Leave approved',
       });
       await this.attendance.createAuditEntry({
+        id: uuidv4(),
         tenantId,
         attendanceId: existing.id,
         previousStatus: existing.status,
@@ -252,6 +254,7 @@ export class AttendanceOpsService {
       recordedBy: actorId,
     });
     await this.attendance.createAuditEntry({
+      id: uuidv4(),
       tenantId,
       attendanceId: created.id,
       previousStatus: null,
