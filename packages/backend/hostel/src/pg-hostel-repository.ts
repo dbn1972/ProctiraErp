@@ -11,16 +11,34 @@ import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type {
+  GatePassEntity,
+  GatePassRequestedBy,
+  GatePassStatus,
   HostelAssignmentEntity,
+  HostelAttendanceEntity,
+  HostelAttendanceStatus,
   HostelBedEntity,
   HostelBlockEntity,
   HostelEntity,
+  HostelFeeStructureEntity,
   HostelLeaveEntity,
   HostelRepository,
   HostelRoomEntity,
   HostelStatus,
   HostelVisitorEntity,
   LeaveStatus,
+  MessMeal,
+  MessPlanEntity,
+  MessPlanStatus,
+  MessMenuItemEntity,
+  MessSubscriptionEntity,
+  MessSubscriptionStatus,
+  NewGatePass,
+  NewHostelAttendance,
+  NewHostelFeeStructure,
+  NewMessMenuItem,
+  NewMessPlan,
+  NewMessSubscription,
   VisitorStatus,
 } from './hostel-repository.js';
 
@@ -45,12 +63,12 @@ export function getSharedHostelPool(): pg.Pool | null {
   return sharedPool;
 }
 
-function schemaSqlPath(): string {
+function resolveSqlFile(name: string): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, '../../../../db/sql/008_hostel_schema.sql'),
-    join(process.cwd(), 'db/sql/008_hostel_schema.sql'),
-    join(process.cwd(), '../../db/sql/008_hostel_schema.sql'),
+    join(here, `../../../../db/sql/${name}`),
+    join(process.cwd(), `db/sql/${name}`),
+    join(process.cwd(), `../../db/sql/${name}`),
   ];
   for (const path of candidates) {
     try {
@@ -67,8 +85,8 @@ export async function ensureHostelSchema(pool: PgPoolLike = getSharedHostelPool(
   if (!pool) throw new Error('DATABASE_URL is required for hostel schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
+      await pool.query(readFileSync(resolveSqlFile('008_hostel_schema.sql'), 'utf8'));
+      await pool.query(readFileSync(resolveSqlFile('040_hostel_ops_schema.sql'), 'utf8'));
     })();
   }
   await schemaReady;
@@ -176,6 +194,94 @@ function mapBed(row: Record<string, unknown>): HostelBedEntity {
     roomId: String(row.room_id),
     bedLabel: String(row.bed_label),
     isAvailable: Boolean(row.is_available),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapMessPlan(row: Record<string, unknown>): MessPlanEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    hostelId: String(row.hostel_id),
+    name: String(row.name),
+    mealCount: Number(row.meal_count),
+    status: String(row.status) as MessPlanStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapMessMenu(row: Record<string, unknown>): MessMenuItemEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    planId: String(row.plan_id),
+    weekday: Number(row.weekday),
+    meal: String(row.meal) as MessMeal,
+    itemName: String(row.item_name),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapMessSub(row: Record<string, unknown>): MessSubscriptionEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    planId: String(row.plan_id),
+    studentId: String(row.student_id),
+    startDate: dateOnly(row.start_date),
+    endDate: dateOnlyOrNull(row.end_date),
+    status: String(row.status) as MessSubscriptionStatus,
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapGatePass(row: Record<string, unknown>): GatePassEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    hostelId: String(row.hostel_id),
+    studentId: String(row.student_id),
+    requestedBy: String(row.requested_by) as GatePassRequestedBy,
+    requesterUserId: row.requester_user_id == null ? null : String(row.requester_user_id),
+    reason: row.reason == null ? null : String(row.reason),
+    expectedOutAt: toDate(row.expected_out_at),
+    expectedInAt: toDate(row.expected_in_at),
+    status: String(row.status) as GatePassStatus,
+    decidedBy: row.decided_by == null ? null : String(row.decided_by),
+    outAt: row.out_at == null ? null : toDate(row.out_at),
+    inAt: row.in_at == null ? null : toDate(row.in_at),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapFeeStructure(row: Record<string, unknown>): HostelFeeStructureEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    hostelId: String(row.hostel_id),
+    roomType: String(row.room_type),
+    termLabel: String(row.term_label),
+    amountCents: Number(row.amount_cents),
+    currency: String(row.currency),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapAttendance(row: Record<string, unknown>): HostelAttendanceEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    blockId: String(row.block_id),
+    studentId: String(row.student_id),
+    onDate: dateOnly(row.on_date),
+    status: String(row.status) as HostelAttendanceStatus,
+    reason: row.reason == null ? null : String(row.reason),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -513,6 +619,288 @@ export class PgHostelRepository implements HostelRepository {
     );
     if (!result.rows[0]) return null;
     return mapBed(result.rows[0] as Record<string, unknown>);
+  }
+
+  async createMessPlan(data: NewMessPlan): Promise<MessPlanEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO mess_plans (id, tenant_id, hostel_id, name, meal_count, status)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [data.id, data.tenantId, data.hostelId, data.name, data.mealCount, data.status],
+    );
+    return mapMessPlan(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listMessPlans(tenantId: string, hostelId?: string): Promise<MessPlanEntity[]> {
+    await this.ensureSchema();
+    if (hostelId) {
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM mess_plans WHERE tenant_id = $1 AND hostel_id = $2 ORDER BY name`,
+        [tenantId, hostelId],
+      );
+      return result.rows.map((row) => mapMessPlan(row as Record<string, unknown>));
+    }
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM mess_plans WHERE tenant_id = $1 ORDER BY name`,
+      [tenantId],
+    );
+    return result.rows.map((row) => mapMessPlan(row as Record<string, unknown>));
+  }
+
+  async findMessPlanById(id: string, tenantId: string): Promise<MessPlanEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM mess_plans WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapMessPlan(result.rows[0] as Record<string, unknown>);
+  }
+
+  async createMessMenuItem(data: NewMessMenuItem): Promise<MessMenuItemEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO mess_menu_items (id, tenant_id, plan_id, weekday, meal, item_name)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [data.id, data.tenantId, data.planId, data.weekday, data.meal, data.itemName],
+    );
+    return mapMessMenu(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listMessMenuItems(tenantId: string, planId: string): Promise<MessMenuItemEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM mess_menu_items WHERE tenant_id = $1 AND plan_id = $2
+       ORDER BY weekday, meal`,
+      [tenantId, planId],
+    );
+    return result.rows.map((row) => mapMessMenu(row as Record<string, unknown>));
+  }
+
+  async createMessSubscription(data: NewMessSubscription): Promise<MessSubscriptionEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO mess_subscriptions
+         (id, tenant_id, plan_id, student_id, start_date, end_date, status)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.planId,
+        data.studentId,
+        data.startDate,
+        data.endDate,
+        data.status,
+      ],
+    );
+    return mapMessSub(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listMessSubscriptions(
+    tenantId: string,
+    planId?: string,
+  ): Promise<MessSubscriptionEntity[]> {
+    await this.ensureSchema();
+    if (planId) {
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM mess_subscriptions WHERE tenant_id = $1 AND plan_id = $2
+         ORDER BY created_at DESC`,
+        [tenantId, planId],
+      );
+      return result.rows.map((row) => mapMessSub(row as Record<string, unknown>));
+    }
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM mess_subscriptions WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((row) => mapMessSub(row as Record<string, unknown>));
+  }
+
+  async createGatePass(data: NewGatePass): Promise<GatePassEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO gate_passes (
+         id, tenant_id, hostel_id, student_id, requested_by, requester_user_id,
+         reason, expected_out_at, expected_in_at, status, decided_by, out_at, in_at
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.hostelId,
+        data.studentId,
+        data.requestedBy,
+        data.requesterUserId,
+        data.reason,
+        data.expectedOutAt,
+        data.expectedInAt,
+        data.status,
+        data.decidedBy,
+        data.outAt,
+        data.inAt,
+      ],
+    );
+    return mapGatePass(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listGatePasses(tenantId: string, hostelId?: string): Promise<GatePassEntity[]> {
+    await this.ensureSchema();
+    if (hostelId) {
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM gate_passes WHERE tenant_id = $1 AND hostel_id = $2
+         ORDER BY created_at DESC`,
+        [tenantId, hostelId],
+      );
+      return result.rows.map((row) => mapGatePass(row as Record<string, unknown>));
+    }
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM gate_passes WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((row) => mapGatePass(row as Record<string, unknown>));
+  }
+
+  async findGatePassById(id: string, tenantId: string): Promise<GatePassEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM gate_passes WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      [id, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapGatePass(result.rows[0] as Record<string, unknown>);
+  }
+
+  async updateGatePass(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>>,
+  ): Promise<GatePassEntity | null> {
+    await this.ensureSchema();
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+    if (data.status !== undefined) {
+      sets.push(`status = $${i++}`);
+      values.push(data.status);
+    }
+    if (data.decidedBy !== undefined) {
+      sets.push(`decided_by = $${i++}`);
+      values.push(data.decidedBy);
+    }
+    if (data.outAt !== undefined) {
+      sets.push(`out_at = $${i++}`);
+      values.push(data.outAt);
+    }
+    if (data.inAt !== undefined) {
+      sets.push(`in_at = $${i++}`);
+      values.push(data.inAt);
+    }
+    if (sets.length === 0) return this.findGatePassById(id, tenantId);
+    sets.push(`updated_at = now()`);
+    values.push(id, tenantId);
+    const result = await this.query(
+      tenantId,
+      `UPDATE gate_passes SET ${sets.join(', ')}
+       WHERE id = $${i++} AND tenant_id = $${i} RETURNING *`,
+      values,
+    );
+    if (!result.rows[0]) return null;
+    return mapGatePass(result.rows[0] as Record<string, unknown>);
+  }
+
+  async createFeeStructure(data: NewHostelFeeStructure): Promise<HostelFeeStructureEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO hostel_fee_structures
+         (id, tenant_id, hostel_id, room_type, term_label, amount_cents, currency)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.hostelId,
+        data.roomType,
+        data.termLabel,
+        data.amountCents,
+        data.currency,
+      ],
+    );
+    return mapFeeStructure(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listFeeStructures(
+    tenantId: string,
+    hostelId?: string,
+  ): Promise<HostelFeeStructureEntity[]> {
+    await this.ensureSchema();
+    if (hostelId) {
+      const result = await this.query(
+        tenantId,
+        `SELECT * FROM hostel_fee_structures WHERE tenant_id = $1 AND hostel_id = $2
+         ORDER BY room_type, term_label`,
+        [tenantId, hostelId],
+      );
+      return result.rows.map((row) => mapFeeStructure(row as Record<string, unknown>));
+    }
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM hostel_fee_structures WHERE tenant_id = $1 ORDER BY room_type`,
+      [tenantId],
+    );
+    return result.rows.map((row) => mapFeeStructure(row as Record<string, unknown>));
+  }
+
+  async upsertAttendance(data: NewHostelAttendance): Promise<HostelAttendanceEntity> {
+    await this.ensureSchema();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO hostel_attendance
+         (id, tenant_id, block_id, student_id, on_date, status, reason)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       ON CONFLICT (tenant_id, block_id, student_id, on_date) DO UPDATE
+         SET status = EXCLUDED.status,
+             reason = EXCLUDED.reason,
+             updated_at = now()
+       RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.blockId,
+        data.studentId,
+        data.onDate,
+        data.status,
+        data.reason,
+      ],
+    );
+    return mapAttendance(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listAttendance(
+    tenantId: string,
+    blockId: string,
+    onDate: string,
+  ): Promise<HostelAttendanceEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM hostel_attendance
+       WHERE tenant_id = $1 AND block_id = $2 AND on_date = $3
+       ORDER BY student_id`,
+      [tenantId, blockId, onDate],
+    );
+    return result.rows.map((row) => mapAttendance(row as Record<string, unknown>));
   }
 }
 

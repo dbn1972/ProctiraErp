@@ -6,6 +6,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
 import type { HostelService } from './hostel-service.js';
+import { registerHostelOpsRoutes } from './ops-routes.js';
 import {
   CreateAssignmentSchema,
   CreateBedSchema,
@@ -423,8 +424,13 @@ export async function registerHostelRoutes(
       }
 
       try {
-        const assignment = await hostelService.createAssignment(tenantId, result.data);
-        return reply.status(201).send(formatAssignment(assignment));
+        const actorId =
+          (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'hostel-system';
+        const assignment = await hostelService.createAssignment(tenantId, result.data, actorId);
+        return reply.status(201).send({
+          ...formatAssignment(assignment),
+          invoice: assignment.invoice,
+        });
       } catch (error: unknown) {
         if (error instanceof AppError) {
           return reply.status(error.statusCode).send(error.toJSON());
@@ -707,6 +713,8 @@ export async function registerHostelRoutes(
       }
     },
   );
+
+  await registerHostelOpsRoutes(fastify, hostelService, prefix);
 
   fastify.get(
     `${prefix}/:id`,

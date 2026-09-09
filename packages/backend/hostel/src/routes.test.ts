@@ -339,4 +339,62 @@ describe('Hostel Routes', () => {
       expect(filtered.json().data).toHaveLength(2);
     });
   });
+
+  describe('G-921 gate pass + attendance', () => {
+    it('runs request → approve → out → in and upserts attendance', async () => {
+      const hostel = await app.inject({
+        method: 'POST',
+        url: '/hostel',
+        payload: { name: 'Gate Hall', code: 'GH-01' },
+      });
+      const hostelId = hostel.json().id as string;
+      const created = await app.inject({
+        method: 'POST',
+        url: '/hostel/gate-passes',
+        payload: {
+          hostelId,
+          studentId: STUDENT_ID,
+          expectedOutAt: '2026-09-10T08:00:00.000Z',
+          expectedInAt: '2026-09-10T20:00:00.000Z',
+          reason: 'Clinic',
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const id = created.json().id as string;
+
+      const bad = await app.inject({
+        method: 'POST',
+        url: `/hostel/gate-passes/${id}/out`,
+      });
+      expect(bad.statusCode, bad.payload).toBe(409);
+
+      expect(
+        (await app.inject({ method: 'POST', url: `/hostel/gate-passes/${id}/approve` })).statusCode,
+      ).toBe(200);
+      expect(
+        (await app.inject({ method: 'POST', url: `/hostel/gate-passes/${id}/out` })).statusCode,
+      ).toBe(200);
+      const inn = await app.inject({ method: 'POST', url: `/hostel/gate-passes/${id}/in` });
+      expect(inn.statusCode).toBe(200);
+      expect(inn.json().status).toBe('in');
+
+      const block = await app.inject({
+        method: 'POST',
+        url: '/hostel/blocks',
+        payload: { hostelId, name: 'Roll', floor: 1 },
+      });
+      const blockId = block.json().id as string;
+      const put = await app.inject({
+        method: 'PUT',
+        url: '/hostel/attendance',
+        payload: {
+          blockId,
+          studentId: STUDENT_ID,
+          onDate: '2026-09-09',
+          status: 'present',
+        },
+      });
+      expect(put.statusCode).toBe(200);
+    });
+  });
 });
