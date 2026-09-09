@@ -136,6 +136,8 @@ export interface WorkflowUiStore {
     tenantId: string,
     approvalId: string,
     decision: 'APPROVED' | 'REJECTED',
+    /** JWT subject of the approver (engine-backed store records it on the transition). */
+    actorId?: string,
   ): Promise<{ id: string; instanceId: string; status: 'APPROVED' | 'REJECTED' } | null>;
 }
 

@@ -229,7 +229,9 @@ export const workflowUiPlugin = fp(
       const tenantId = assertWorkflowAccess(request, reply);
       if (!tenantId) return;
 
-      const result = await store.decideApproval(tenantId, request.params.id, decision);
+      const actorId =
+        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? 'workflow-ui';
+      const result = await store.decideApproval(tenantId, request.params.id, decision, actorId);
       if (!result) {
         return deny(reply, 'NOT_FOUND', 'Pending approval not found', 404);
       }

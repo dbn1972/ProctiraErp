@@ -389,7 +389,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'mixed',
     rbacWired: false,
     notes:
-      'workflowUiPlugin with PG store when DATABASE_URL set (G-208 approvals persist). Real `@proctira/backend-workflow` engine mounted separately under `/workflow-engine` (G-715); registrar name `workflow`.',
+      'G-924: workflowUiPlugin now served by EngineBackedWorkflowUiStore — the same `@proctira/backend-workflow` repositories as `/workflow-engine` (db/sql/025 when DATABASE_URL, else in-memory), so UI steps/approvals are engine definitions/transitions with audit. The former workflow-ui PG store is retained only for the isolated plugin unit test. Registrar name `workflow`.',
     registrarName: 'workflow',
   },
 

@@ -13,6 +13,7 @@ import type { WorkflowRepository } from './workflow-repository.js';
 export interface WorkflowRepositories {
   repository: WorkflowRepository;
   caseRepository: CaseRepository;
+  persistence: 'postgres' | 'memory';
 }
 
 export function createWorkflowRepositories(databaseUrl?: string): WorkflowRepositories {
@@ -21,11 +22,13 @@ export function createWorkflowRepositories(databaseUrl?: string): WorkflowReposi
     return {
       repository: new PgWorkflowRepository(pool),
       caseRepository: new PgCaseRepository(pool),
+      persistence: 'postgres',
     };
   }
   assertInMemoryFallbackAllowed('workflow-engine');
   return {
     repository: new InMemoryWorkflowRepository(),
     caseRepository: new InMemoryCaseRepository(),
+    persistence: 'memory',
   };
 }

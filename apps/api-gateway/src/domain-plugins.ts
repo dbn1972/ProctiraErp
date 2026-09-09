@@ -90,7 +90,11 @@ import {
 import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
-import { createWorkflowRepositories, workflowPlugin } from '@proctira/backend-workflow';
+import {
+  createWorkflowRepositories,
+  WorkflowService,
+  workflowPlugin,
+} from '@proctira/backend-workflow';
 import type { FastifyInstance } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
@@ -101,8 +105,19 @@ import { insightsUiPlugin } from './insights-ui-plugin.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { tenantAdminPlugin } from './tenant-admin-plugin.js';
+import { EngineBackedWorkflowUiStore } from './workflow-ui-engine-store.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
-import { createWorkflowUiSeed } from './workflow-ui-seed.js';
+/**
+ * G-924: `/workflows` (UI aggregates) and `/workflow-engine` share one set of
+ * repositories so the redesign UI and the engine see the same definitions,
+ * instances and approvals.
+ */
+let workflowRepositoriesCache: ReturnType<typeof createWorkflowRepositories> | null = null;
+function workflowRepositories(): ReturnType<typeof createWorkflowRepositories> {
+  workflowRepositoriesCache ??= createWorkflowRepositories();
+  return workflowRepositoriesCache;
+}
+
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
 interface DomainRegistrar {
   /** Logical name (for logging). */
@@ -322,11 +337,17 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'workflow',
     proxyPrefixes: ['/workflows'],
     register: async (scope) => {
-      // Redesign UI aggregates (definitions / instances / approvals). UI routes
-      // own the `/workflows/*` list shapes expected by App Router pages; the
-      // real engine lives under `/workflow-engine` (registrar below).
+      // Redesign UI aggregates (definitions / instances / approvals) keep the
+      // `/workflows/*` shapes App Router pages expect, but since G-924 they are
+      // served by the real engine (same repositories as `/workflow-engine`), so
+      // there is one workflow store and one audited transition path.
+      const { repository, persistence } = workflowRepositories();
       await scope.register(workflowUiPlugin, {
-        seed: createWorkflowUiSeed(),
+        store: new EngineBackedWorkflowUiStore(
+          repository,
+          new WorkflowService(repository),
+          persistence === 'postgres' ? 'postgres' : 'memory',
+        ),
       });
     },
   },
@@ -336,7 +357,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     register: async (scope) => {
       // G-715: real @proctira/backend-workflow engine (definitions, instances,
       // transitions + audit, cases). Pg on db/sql/025 when DATABASE_URL is set.
-      const { repository, caseRepository } = createWorkflowRepositories();
+      const { repository, caseRepository } = workflowRepositories();
       await scope.register(workflowPlugin, {
         repository,
         caseRepository,
