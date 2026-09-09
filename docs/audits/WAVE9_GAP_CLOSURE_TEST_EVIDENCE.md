@@ -151,7 +151,7 @@ First run under the app-role posture (`1a276a5`) immediately exposed a second su
 
 Rehearsed the new CI recipe locally before pushing: fresh `ci_sim` database owned by non-superuser `proctira` (extensions created by `postgres`) → `prisma migrate deploy` (all 41 migrations) → `apply-sql.sh` (41 files) → `turbo run test --filter='./packages/backend/*' --force --continue`: 51/52 tasks green, the four suites above included (`curriculum` fails only in the worktree for a missing `fastify-plugin` symlink and is green in CI). `actionlint` + bundled shellcheck: clean on both workflows.
 
-Tip CI on `de75315`+ (seed fix included): **pending** at the time of writing — the `ci` pillar flips only when the run on the fixed tip is green (subscription active on the branch).
+Tip CI on `ea55334` (all 25 gaps merged, Redis cache fix `aaec549` included): **every workflow green** — `CI` (Lint, Type Check, Unit, DoD, Tenant Isolation, Build, Bundle, Lighthouse, Integration Tests), `E2E Backend Ready` run `34375671950`: **295 passed / 6 flaky (passed on retry) / 0 failed / 1 skipped** in 29.8 min, plus PR Check, Workflow Lint, Helm Template, Definition of Done, Observability Config, Supply Chain, Restore Drill, Visual Regression. Flaky-then-passed on that run: `21c` campaign create, `35` admin console chain, `47` `/lms/content` + `/lms/analytics` ungated headings (first compile of the route under `next dev`), `a11y-axe` `/hostel/assignments` and `/library`. The `ci` pillar flipped on this run. Commits after `ea55334` (cache-helper scoping, batch-3 captures / a11y streams) re-run the same gates; their result is recorded in §8.7 before merge.
 
 Local gate commands on this tip:
 
@@ -268,10 +268,10 @@ Integration review tightened the helper: the stream's first version revived **ev
 
 ## Done criteria
 
-- [x] All pillars have evidence **or** dated waivers above (CI: open until the tip run is green)
+- [x] All pillars have evidence **or** dated waivers above (CI: green on `ea55334`, §6)
 - [x] Walkthrough artifacts committed (`apps/web/screens/wave9*/`)
-- [ ] Session state set to `complete` via hooks helper — after tip CI
+- [x] Session state set to `complete` via hooks helper (all six pillars true)
 
-**Verdict:** ☐ Not ready · ☑ Ready with waivers (pending green tip CI) · ☐ Enterprise production-ready
+**Verdict:** ☐ Not ready · ☑ Ready with waivers (dated in §7 / §8.4) · ☐ Enterprise production-ready
 
-Pillars flipped in the session state: `functionality`, `e2e`, `ux`, `multidevice`, `security`. `ci` flips when the re-run on the fixed tip reports green.
+Pillars flipped in the session state: `functionality`, `e2e`, `ux`, `multidevice`, `security`, `ci` (tip run `ea55334`, 2026-09-09).
