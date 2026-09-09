@@ -12,17 +12,22 @@ export default async function AdmissionsSeatMatrixPage() {
   );
 
   return (
-    <AdmissionsChrome
-      title="Seat matrix"
-      description="Quota seats per institution, academic period, and grade. Filled counts come from accepted offers."
-      current="/admissions/seat-matrix"
-    >
-      <SeatMatrixPanel
-        institutions={institutions}
-        periods={periods}
-        grades={grades}
-        rows={rows}
-      />
-    </AdmissionsChrome>
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Seat matrix</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Quota seats per institution, academic period, and grade. Filled counts come from accepted
+          offers.
+        </p>
+      </div>
+      <AdmissionsChrome current="/admissions/seat-matrix">
+        <SeatMatrixPanel
+          institutions={institutions}
+          periods={periods}
+          grades={grades}
+          rows={rows}
+        />
+      </AdmissionsChrome>
+    </div>
   );
 }

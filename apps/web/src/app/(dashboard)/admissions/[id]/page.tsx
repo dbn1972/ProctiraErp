@@ -19,12 +19,18 @@ export default async function AdmissionApplicationPage({
 
   const { application } = bundle;
   return (
-    <AdmissionsChrome
-      title={`${application.firstName} ${application.lastName}`}
-      description={`${application.trackingNumber} · ${application.status} · ${application.institutionName}`}
-      current="/admissions"
-    >
-      <OfferPanel bundle={bundle} />
-    </AdmissionsChrome>
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {application.firstName} {application.lastName}
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {application.trackingNumber} · {application.status} · {application.institutionName}
+        </p>
+      </div>
+      <AdmissionsChrome current="/admissions">
+        <OfferPanel bundle={bundle} />
+      </AdmissionsChrome>
+    </div>
   );
 }

@@ -16,12 +16,16 @@ export default async function AdmissionsMeritPage() {
       : null;
 
   return (
-    <AdmissionsChrome
-      title="Merit list"
-      description="Rank placed applications with configurable interview and test weights."
-      current="/admissions/merit"
-    >
-      <MeritPanel institutions={institutions} periods={periods} grades={grades} list={list} />
-    </AdmissionsChrome>
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Merit list</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Rank placed applications with configurable interview and test weights.
+        </p>
+      </div>
+      <AdmissionsChrome current="/admissions/merit">
+        <MeritPanel institutions={institutions} periods={periods} grades={grades} list={list} />
+      </AdmissionsChrome>
+    </div>
   );
 }

@@ -12,17 +12,21 @@ export default async function AdmissionsEnquiriesPage() {
   ]);
 
   return (
-    <AdmissionsChrome
-      title="Enquiries"
-      description="Capture leads, schedule follow-ups, and convert qualified prospects into applications."
-      current="/admissions/enquiries"
-    >
-      <EnquiryPanel
-        institutions={institutions}
-        enquiries={enquiries}
-        periods={periods}
-        grades={grades}
-      />
-    </AdmissionsChrome>
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Enquiries</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Capture leads, schedule follow-ups, and convert qualified prospects into applications.
+        </p>
+      </div>
+      <AdmissionsChrome current="/admissions/enquiries">
+        <EnquiryPanel
+          institutions={institutions}
+          enquiries={enquiries}
+          periods={periods}
+          grades={grades}
+        />
+      </AdmissionsChrome>
+    </div>
   );
 }
