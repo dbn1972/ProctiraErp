@@ -1,11 +1,17 @@
 /**
  * Insights UI plugin — memory path + Postgres restart-safe smoke (G-209).
+ * G-809 board rollup coverage included below.
  */
 import { randomUUID } from 'node:crypto';
 
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import {
+  clearBoardSummariesForTests,
+  seedBoardSummaryForTests,
+  type BoardSummary,
+} from './board-summary.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
 import {
   createInsightsUiStore,
@@ -17,6 +23,7 @@ describe('insightsUiPlugin (memory)', () => {
   const apps: ReturnType<typeof Fastify>[] = [];
 
   afterEach(async () => {
+    clearBoardSummariesForTests();
     while (apps.length) {
       const app = apps.pop();
       if (app) await app.close();
@@ -82,6 +89,75 @@ describe('insightsUiPlugin (memory)', () => {
     });
     const body = list.json() as { data: Array<{ id: string }> };
     expect(body.data.some((j) => j.id === job.id)).toBe(true);
+  });
+
+  describe('GET /reports/board/:boardId/summary (G-809)', () => {
+    it('works unauthenticated / without tenant header in forceMemory mode', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/reports/board/board-unauth/summary',
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as BoardSummary;
+      expect(body.boardId).toBe('board-unauth');
+      expect(body.schools).toBe(0);
+      expect(body.enrolment).toBe(0);
+      expect(body.feesCollectedCents).toBe(0);
+      expect(body.attendancePercent).toBeNull();
+      expect(body.lmsCompletionPercent).toBeNull();
+      expect(body.schoolsBreakdown).toEqual([]);
+      expect(typeof body.generatedAt).toBe('string');
+    });
+
+    it('returns a seeded summary for a boardId', async () => {
+      seedBoardSummaryForTests('board-cbse', {
+        schools: 3,
+        enrolment: 420,
+        attendancePercent: 91.5,
+        feesCollectedCents: 1_250_000,
+        lmsCompletionPercent: 67.25,
+        schoolsBreakdown: [
+          { institutionId: 'inst-1', name: 'North High', enrolment: 200 },
+          { institutionId: 'inst-2', name: 'South High', enrolment: 220 },
+        ],
+      });
+
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/reports/board/board-cbse/summary',
+        headers: { 'x-tenant-id': 'tenant-board' },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as BoardSummary;
+      expect(body.boardId).toBe('board-cbse');
+      expect(body.schools).toBe(3);
+      expect(body.enrolment).toBe(420);
+      expect(body.attendancePercent).toBe(91.5);
+      expect(body.feesCollectedCents).toBe(1_250_000);
+      expect(body.lmsCompletionPercent).toBe(67.25);
+      expect(body.schoolsBreakdown).toHaveLength(2);
+      expect(body.schoolsBreakdown[0]?.name).toBe('North High');
+    });
+
+    it('returns zeros with 200 for an unknown boardId (not 404)', async () => {
+      const app = await buildApp();
+      const res = await app.inject({
+        method: 'GET',
+        url: '/reports/board/board-unknown-xyz/summary',
+        headers: { 'x-tenant-id': 'tenant-board' },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as BoardSummary;
+      expect(body.boardId).toBe('board-unknown-xyz');
+      expect(body.schools).toBe(0);
+      expect(body.enrolment).toBe(0);
+      expect(body.feesCollectedCents).toBe(0);
+      expect(body.attendancePercent).toBeNull();
+      expect(body.lmsCompletionPercent).toBeNull();
+      expect(body.schoolsBreakdown).toEqual([]);
+    });
   });
 });
 
