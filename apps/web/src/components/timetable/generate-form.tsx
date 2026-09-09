@@ -76,7 +76,7 @@ export function TimetableGenerateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Section</span>
         <select
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={sectionId}
           onChange={(e) => setSectionId(e.target.value)}
           required
@@ -91,7 +91,7 @@ export function TimetableGenerateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Teacher</span>
         <select
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={staffId}
           onChange={(e) => setStaffId(e.target.value)}
           required
@@ -106,7 +106,7 @@ export function TimetableGenerateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Subject reference</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={subjectId}
           onChange={(e) => setSubjectId(e.target.value)}
           required
@@ -115,7 +115,7 @@ export function TimetableGenerateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Periods per week</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           type="number"
           min={1}
           max={20}
@@ -124,9 +124,10 @@ export function TimetableGenerateForm(props: {
           required
         />
       </label>
-      <label className="flex items-center gap-2 text-sm sm:col-span-2">
+      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm sm:col-span-2">
         <input
           type="checkbox"
+          className="size-12 shrink-0 rounded border border-input"
           checked={persistMeetings}
           onChange={(e) => setPersistMeetings(e.target.checked)}
         />

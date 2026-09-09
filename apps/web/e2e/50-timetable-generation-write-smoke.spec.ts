@@ -168,7 +168,8 @@ test.describe('Timetable generation — pages render (ungated)', () => {
     await page.goto(`/institutions/${INSTITUTION_A}/timetable/substitutions`, {
       waitUntil: 'domcontentloaded',
     });
-    await expect(page.getByRole('heading', { level: 1, name: /substitutions/i })).toBeVisible();
+    // The institution layout owns the page <h1>; section titles are <h2>.
+    await expect(page.getByRole('heading', { level: 2, name: /substitutions/i })).toBeVisible();
   });
 });
 

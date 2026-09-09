@@ -71,7 +71,7 @@ export function MeetingCreateForm(props: {
         <span className="font-medium">Section</span>
         {props.sectionOptions && props.sectionOptions.length > 0 ? (
           <select
-            className="rounded-md border border-border bg-background px-3 py-2"
+            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
             value={sectionId}
             onChange={(e) => setSectionId(e.target.value)}
             required
@@ -84,7 +84,7 @@ export function MeetingCreateForm(props: {
           </select>
         ) : (
           <input
-            className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
+            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
             value={sectionId}
             onChange={(e) => setSectionId(e.target.value)}
             required
@@ -96,7 +96,7 @@ export function MeetingCreateForm(props: {
         <span className="font-medium">Staff</span>
         {props.staffOptions && props.staffOptions.length > 0 ? (
           <select
-            className="rounded-md border border-border bg-background px-3 py-2"
+            className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
             value={staffId}
             onChange={(e) => setStaffId(e.target.value)}
             required
@@ -120,7 +120,7 @@ export function MeetingCreateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Period</span>
         <select
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={periodId}
           onChange={(e) => setPeriodId(e.target.value)}
           required
@@ -135,7 +135,7 @@ export function MeetingCreateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Room</span>
         <select
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={roomId}
           onChange={(e) => setRoomId(e.target.value)}
         >
@@ -150,7 +150,7 @@ export function MeetingCreateForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Day</span>
         <select
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={dayOfWeek}
           onChange={(e) => setDayOfWeek(e.target.value)}
         >

@@ -48,7 +48,7 @@ export function SubstitutionCreateForm(props: { meetingOptions: { id: string; la
       <label className="flex flex-col gap-1 text-sm lg:col-span-2">
         <span className="font-medium">Meeting slot</span>
         <select
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={sectionMeetingId}
           onChange={(e) => setSectionMeetingId(e.target.value)}
           required
@@ -63,7 +63,7 @@ export function SubstitutionCreateForm(props: { meetingOptions: { id: string; la
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Substitute staff ID</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2 font-mono text-xs"
           value={substituteStaffId}
           onChange={(e) => setSubstituteStaffId(e.target.value)}
           required
@@ -73,7 +73,7 @@ export function SubstitutionCreateForm(props: { meetingOptions: { id: string; la
         <span className="font-medium">Date</span>
         <input
           type="date"
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={substitutionDate}
           onChange={(e) => setSubstitutionDate(e.target.value)}
           required
@@ -82,7 +82,7 @@ export function SubstitutionCreateForm(props: { meetingOptions: { id: string; la
       <label className="flex flex-col gap-1 text-sm sm:col-span-2 lg:col-span-3">
         <span className="font-medium">Reason (optional)</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />

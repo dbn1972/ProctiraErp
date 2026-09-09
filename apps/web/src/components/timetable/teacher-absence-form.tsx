@@ -50,7 +50,7 @@ export function TeacherAbsenceForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Teacher</span>
         <select
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={staffId}
           onChange={(e) => setStaffId(e.target.value)}
           required
@@ -65,7 +65,7 @@ export function TeacherAbsenceForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Absence date</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           type="date"
           value={absenceDate}
           onChange={(e) => setAbsenceDate(e.target.value)}
@@ -75,7 +75,7 @@ export function TeacherAbsenceForm(props: {
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">Reason</span>
         <input
-          className="rounded-md border border-border bg-background px-3 py-2"
+          className="h-11 min-h-11 rounded-md border border-border bg-background px-3 py-2"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
         />
