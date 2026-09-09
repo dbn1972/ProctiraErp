@@ -310,7 +310,9 @@ describe('ImportService', () => {
       // Verify job was enqueued
       const jobs = queue.getEnqueuedJobs();
       expect(jobs.size).toBe(1);
-    });
+      // Building + parsing a 1001-row workbook exceeds the 5s default while CI
+      // runs every backend suite in parallel on a 2-core runner.
+    }, 30_000);
 
     it('should queue when async option is explicitly set', async () => {
       // Create a small valid Excel buffer

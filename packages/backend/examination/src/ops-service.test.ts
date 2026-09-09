@@ -23,7 +23,8 @@ function futureDate(days: number): string {
 function examBody(): CreateExaminationInput {
   return {
     name: 'Board Exam',
-    code: `EX-${Date.now().toString(36).toUpperCase()}`,
+    // Two exams created in the same millisecond must not share a code.
+    code: `EX-${randomUUID().slice(0, 8).toUpperCase()}`,
     academicPeriodId: randomUUID(),
     startDate: futureDate(7),
     endDate: futureDate(9),

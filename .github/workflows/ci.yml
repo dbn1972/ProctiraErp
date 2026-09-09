@@ -434,9 +434,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: proctira
-          POSTGRES_PASSWORD: proctira_test
-          POSTGRES_DB: proctira_test
+          # The bootstrap role is a superuser and therefore bypasses RLS. The
+          # suites connect as `proctira`, a NOSUPERUSER / NOBYPASSRLS owner
+          # provisioned below, so tenant-isolation assertions are real (the
+          # production posture; FORCE RLS applies to owners).
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         options: >-
@@ -476,12 +480,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Enable Postgres uuid-ossp extension
+      - name: Provision non-superuser app role + database (production RLS posture)
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client
-          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test \
-            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
+          export PGPASSWORD=postgres
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 \
+            -c "CREATE ROLE proctira LOGIN PASSWORD 'proctira_test' NOSUPERUSER NOBYPASSRLS NOCREATEROLE;" \
+            -c 'CREATE DATABASE proctira_test OWNER proctira;'
+          psql -h localhost -U postgres -d proctira_test -v ON_ERROR_STOP=1 \
+            -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";' \
+            -c 'CREATE EXTENSION IF NOT EXISTS "pgcrypto";'
+          PGPASSWORD=proctira_test psql -h localhost -U proctira -d proctira_test -Atc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'ERROR: test role bypasses RLS' ELSE 'app role OK: RLS enforced' END FROM pg_roles WHERE rolname = current_user" \
+            | tee -a "$GITHUB_STEP_SUMMARY" | grep -q '^app role OK'
 
       - name: Run database migrations
         run: pnpm --filter @proctira/database run prisma:migrate:deploy
