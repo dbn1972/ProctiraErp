@@ -15,6 +15,8 @@ const GATEWAY_URL =
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
 const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+/** Run-unique room: the room clash check is tenant-wide, so leftover sessions from earlier runs must not collide. */
+const ROOM = `HALL-${Date.now().toString(36).toUpperCase()}`;
 
 function headers(tenantId = TENANT_A, sub = 'e2e-admin') {
   const token = createSignedJwt({
@@ -190,7 +192,7 @@ test.describe('Exam ops — live chain (E2E_BACKEND_READY)', () => {
         date: isoDate(11),
         startTime: '09:00',
         endTime: '11:00',
-        roomId: 'HALL-A',
+        roomId: ROOM,
         centerId: fx.centerId,
       },
       201,
@@ -231,7 +233,7 @@ test.describe('Exam ops — live chain (E2E_BACKEND_READY)', () => {
           date: isoDate(11),
           startTime: '09:30',
           endTime: '10:30',
-          roomId: 'HALL-A',
+          roomId: ROOM,
           centerId: fx.centerId,
         },
       },

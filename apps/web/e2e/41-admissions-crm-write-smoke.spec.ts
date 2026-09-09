@@ -293,7 +293,13 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     await page.getByTestId('seat-grade').selectOption(gradeId);
     await page.getByTestId('seat-count').fill('12');
     await page.getByTestId('save-seat').click();
-    await expect(page.getByTestId('seat-row')).toBeVisible({ timeout: 20_000 });
+    // Earlier runs leave seat rows behind; assert the row saved by this run (12 seats).
+    await expect(
+      page
+        .getByTestId('seat-row')
+        .filter({ has: page.getByRole('cell', { name: '12', exact: true }) })
+        .first(),
+    ).toBeVisible({ timeout: 20_000 });
   });
 
   test('cross-tenant: tenant B cannot read tenant A admissions records', async ({ request }) => {

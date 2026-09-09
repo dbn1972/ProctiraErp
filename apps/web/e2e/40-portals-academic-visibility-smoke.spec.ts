@@ -91,6 +91,7 @@ test.describe('G-904 portals academic visibility — live (E2E_BACKEND_READY)', 
     request,
     page,
   }) => {
+    test.slow();
     const parentSub = `parent-g904-${Date.now()}`;
     const headers = parentPortalJwtHeaders(parentSub, { tenantId: TENANT_A });
 
@@ -146,6 +147,8 @@ test.describe('G-904 portals academic visibility — live (E2E_BACKEND_READY)', 
   });
 
   test('student JWT self-binding on /student-portal/me', async ({ request, page }) => {
+    // Seven sequential page loads; under `next dev` each first visit compiles the route.
+    test.slow();
     const studentSub = STUDENT_ID;
     const headers = studentPortalJwtHeaders(studentSub, TENANT_A);
 

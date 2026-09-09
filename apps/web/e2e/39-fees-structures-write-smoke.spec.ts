@@ -180,7 +180,7 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
       headers: headers(),
       data: { amountCents: 80_001, reason: 'too much' },
     });
-    expect(tooMuch.status()).toBe(400);
+    expect(tooMuch.status(), await tooMuch.text()).toBe(422); // BusinessRuleError: refund exceeds paid
 
     const refund = await request.post(`${GATEWAY_URL}/api/v1/fees/invoices/${invoiceId}/refund`, {
       headers: headers(),
