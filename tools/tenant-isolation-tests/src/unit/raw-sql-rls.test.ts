@@ -538,4 +538,66 @@ describe('Wave 9 attendance ops raw-SQL RLS (042_attendance_ops_schema.sql)', ()
     expect(sql).toMatch(/student_attendance_status_check/);
   });
 });
+describe('Wave 9 staff HR raw-SQL RLS (043_staff_hr_schema.sql)', () => {
+  const sql = loadSql('043_staff_hr_schema.sql');
+  const tables = ['staff_contracts', 'staff_qualifications', 'staff_attendance'] as const;
 
+  it('creates contract / qualification / attendance tables with tenant_id and forces RLS on each', () => {
+    for (const table of tables) {
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`CREATE POLICY tenant_isolation ON ${table}`));
+    }
+  });
+
+  it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
+    const policies =
+      sql.match(/CREATE POLICY tenant_isolation ON staff_[a-z_]+[\s\S]*?;/g) ?? [];
+    expect(policies).toHaveLength(tables.length);
+    for (const policy of policies) {
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+});
+
+describe('Wave 9 communication circulars raw-SQL RLS (044_communication_circulars_schema.sql)', () => {
+  const sql = loadSql('044_communication_circulars_schema.sql');
+  const tables = ['comms_circulars', 'comms_circular_acks', 'comms_delivery_log'] as const;
+
+  it('creates circular / ack / delivery-log tables with tenant_id and forces RLS on each', () => {
+    for (const table of tables) {
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`CREATE POLICY tenant_isolation ON ${table}`));
+    }
+  });
+
+  it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
+    const policies =
+      sql.match(/CREATE POLICY tenant_isolation ON comms_[a-z_]+[\s\S]*?;/g) ?? [];
+    expect(policies).toHaveLength(tables.length);
+    for (const policy of policies) {
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+});

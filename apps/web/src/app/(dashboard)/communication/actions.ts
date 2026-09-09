@@ -4,15 +4,21 @@ import { revalidatePath } from 'next/cache';
 
 import { GatewayError } from '@/lib/api/gateway';
 import {
+  ackCircular,
   confirmEmergencyBlast,
   createCampaign,
+  createCircular,
   createEmergencyBlast,
   dispatchEmergencyBlast,
   previewCampaignAudience,
+  retryDeliveryLog,
   sendCampaign,
+  sendCircular,
   type CreateCampaignInput,
+  type CreateCircularInput,
   type CreateEmergencyBlastInput,
 } from '@/lib/api/communication';
+import { circularFormSchema } from '@/lib/validation/communication-schema';
 
 export interface CommunicationActionState {
   status: 'idle' | 'success' | 'error';
@@ -159,6 +165,104 @@ export async function dispatchEmergencyBlastAction(id: string): Promise<Communic
           : error instanceof Error
             ? error.message
             : 'Failed to dispatch emergency blast',
+    };
+  }
+}
+
+export async function createCircularAction(input: CreateCircularInput): Promise<CommunicationActionState> {
+  const parsed = circularFormSchema.safeParse({
+    title: input.title,
+    body: input.body,
+    audienceType: input.audienceType,
+    requiresAck: input.requiresAck,
+    channels: input.channels,
+  });
+  if (!parsed.success) {
+    return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid circular' };
+  }
+  if (input.requiresAck && (!input.recipientIds || input.recipientIds.length === 0)) {
+    return { status: 'error', message: 'Acknowledgement circulars need at least one recipient id.' };
+  }
+  try {
+    const circular = await createCircular(input);
+    revalidatePath('/communication');
+    revalidatePath('/communication/circulars');
+    return { status: 'success', message: 'Circular drafted.', id: circular.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to create circular',
+    };
+  }
+}
+
+export async function sendCircularAction(id: string): Promise<CommunicationActionState> {
+  try {
+    const circular = await sendCircular(id);
+    revalidatePath('/communication/circulars');
+    revalidatePath(`/communication/circulars/${id}`);
+    revalidatePath('/communication/delivery');
+    return { status: 'success', message: `Circular marked sent (${circular.status}).`, id: circular.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to send circular',
+    };
+  }
+}
+
+export async function ackCircularAction(
+  id: string,
+  recipientId: string,
+): Promise<CommunicationActionState> {
+  if (!recipientId.trim()) {
+    return { status: 'error', message: 'Recipient id is required.' };
+  }
+  try {
+    const circular = await ackCircular(id, recipientId.trim());
+    revalidatePath(`/communication/circulars/${id}`);
+    return {
+      status: 'success',
+      message: `Acknowledged (${Math.round(circular.ackRate * 100)}% ack rate).`,
+      id: circular.id,
+    };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to acknowledge circular',
+    };
+  }
+}
+
+export async function retryDeliveryAction(id: string): Promise<CommunicationActionState> {
+  try {
+    const row = await retryDeliveryLog(id);
+    revalidatePath('/communication/delivery');
+    return { status: 'success', message: `Retried (${row.status}).`, id: row.id };
+  } catch (error) {
+    return {
+      status: 'error',
+      message:
+        error instanceof GatewayError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Failed to retry delivery',
     };
   }
 }

@@ -4,6 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 
+import { InMemoryCircularStore } from './circular-store.js';
 import { communicationPlugin } from './communication-plugin.js';
 import { InMemoryCommunicationRepository } from './in-memory-repository.js';
 
@@ -23,6 +24,7 @@ describe('Communication Routes', () => {
 
     await app.register(communicationPlugin, {
       repository: new InMemoryCommunicationRepository(),
+      circularStore: new InMemoryCircularStore(),
     });
     await app.ready();
   });
@@ -49,6 +51,7 @@ describe('Communication Routes', () => {
       const noTenantApp = Fastify({ logger: false });
       await noTenantApp.register(communicationPlugin, {
         repository: new InMemoryCommunicationRepository(),
+        circularStore: new InMemoryCircularStore(),
       });
       await noTenantApp.ready();
 

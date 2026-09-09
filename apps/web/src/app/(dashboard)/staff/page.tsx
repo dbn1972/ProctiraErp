@@ -316,10 +316,22 @@ export default async function StaffListPage(props: PageProps) {
             Staff
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {totalAll.toLocaleString()} staff · records, teaching assignments, appraisals, and leave
+            {totalAll.toLocaleString()} staff · records, assignments, leave, contracts, attendance, payroll
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/attendance">Attendance</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/contracts">Contracts</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/import">Bulk import</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/staff/payroll">Payroll CSV</Link>
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link href="/staff/leaves">Leave requests</Link>
           </Button>

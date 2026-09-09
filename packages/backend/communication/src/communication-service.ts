@@ -25,9 +25,21 @@ export interface CommunicationAuditEvent {
 
 export type CommunicationAuditSink = (event: CommunicationAuditEvent) => void | Promise<void>;
 
+export interface CommunicationDeliveryLogSink {
+  (event: {
+    tenantId: string;
+    channels: string[];
+    sourceType: 'campaign' | 'emergency';
+    sourceId: string;
+    title?: string;
+    body?: string;
+  }): void | Promise<void>;
+}
+
 export class CommunicationService {
   private readonly deliveryAdapter: CommunicationDeliveryAdapter;
   private readonly auditSink: CommunicationAuditSink | null;
+  private readonly deliveryLogSink: CommunicationDeliveryLogSink | null;
   /** In-process audit trail for unit tests / honesty when gateway audit is separate. */
   readonly localAuditLog: CommunicationAuditEvent[] = [];
 
@@ -36,10 +48,12 @@ export class CommunicationService {
     options: {
       deliveryAdapter?: CommunicationDeliveryAdapter;
       auditSink?: CommunicationAuditSink | null;
+      deliveryLogSink?: CommunicationDeliveryLogSink | null;
     } = {},
   ) {
     this.deliveryAdapter = options.deliveryAdapter ?? createSandboxDeliveryAdapter();
     this.auditSink = options.auditSink ?? null;
+    this.deliveryLogSink = options.deliveryLogSink ?? null;
   }
 
   async previewAudience(tenantId: string, audienceJson: Record<string, unknown> = {}) {
@@ -110,6 +124,17 @@ export class CommunicationService {
       delivery,
       at: new Date(),
     });
+
+    if (this.deliveryLogSink) {
+      await this.deliveryLogSink({
+        tenantId,
+        channels: campaign.channels,
+        sourceType: 'campaign',
+        sourceId: id,
+        title: campaign.name,
+        body: campaign.body,
+      });
+    }
 
     return {
       campaign: updated!,
@@ -201,6 +226,16 @@ export class CommunicationService {
       delivery,
       at: new Date(),
     });
+
+    if (this.deliveryLogSink) {
+      await this.deliveryLogSink({
+        tenantId,
+        channels: blast.channels,
+        sourceType: 'emergency',
+        sourceId: id,
+        body: blast.reason,
+      });
+    }
 
     return {
       blast: updated!,
