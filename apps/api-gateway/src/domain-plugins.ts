@@ -99,8 +99,8 @@ import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
-import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
+import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 import { createWorkflowUiSeed } from './workflow-ui-seed.js';
 /** A registrar mounts one domain's plugin and declares the proxy prefixes it supersedes. */
@@ -353,8 +353,11 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(tenantAdminPlugin, {
         prefix: '/tenant',
         onAudit: async (event) => {
-          const auditService = (scope as unknown as { auditService?: { recordAudit: Function } })
-            .auditService;
+          const auditService = (
+            scope as unknown as {
+              auditService?: { recordAudit: (input: Record<string, unknown>) => Promise<unknown> };
+            }
+          ).auditService;
           if (!auditService) return;
           await auditService.recordAudit({
             tenantId: event.tenantId,
