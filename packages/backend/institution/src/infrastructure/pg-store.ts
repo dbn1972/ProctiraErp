@@ -6,6 +6,10 @@
  * from the request-scoped {@link tenantContext} that `institutionPlugin` enters
  * on every request, and every query runs inside `withPgTenant` so RLS
  * (`app.tenant_id`) is bound.
+ *
+ * Every statement also carries an explicit `tenant_id = $n` predicate: RLS is
+ * bypassed for superuser / table-owner roles (the default `POSTGRES_USER` in
+ * container images is one), so the policy alone is not a tenancy guarantee.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -102,13 +106,13 @@ function orderClause(sortBy: string, sortOrder: 'asc' | 'desc'): string {
 export class PgInfrastructureStore implements InfrastructureStore {
   constructor(private readonly pool: InfrastructurePool) {}
 
-  private run<T>(fn: (client: PgQueryable) => Promise<T>): Promise<T> {
-    return withPgTenant(this.pool as never, requireTenantId(), fn);
+  private run<T>(fn: (client: PgQueryable, tenantId: string) => Promise<T>): Promise<T> {
+    const tenantId = requireTenantId();
+    return withPgTenant(this.pool as never, tenantId, (client) => fn(client, tenantId));
   }
 
   async create(record: InfrastructureRecord): Promise<InfrastructureRecord> {
-    const tenantId = requireTenantId();
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
         `INSERT INTO institution_infrastructure
            (id, tenant_id, institution_id, parent_id, type, name, capacity, condition, description, created_at, updated_at)
@@ -133,10 +137,10 @@ export class PgInfrastructureStore implements InfrastructureStore {
   }
 
   async findById(id: string): Promise<InfrastructureRecord | null> {
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
-        `SELECT * FROM institution_infrastructure WHERE id = $1 LIMIT 1`,
-        [id],
+        `SELECT * FROM institution_infrastructure WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId],
       );
       return rows[0] ? toRecord(rows[0] as InfraRow) : null;
     });
@@ -163,18 +167,20 @@ export class PgInfrastructureStore implements InfrastructureStore {
     params: unknown[],
     options: { page: number; pageSize: number; sortBy: string; sortOrder: 'asc' | 'desc' },
   ): Promise<{ items: InfrastructureRecord[]; total: number }> {
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const offset = Math.max(0, (options.page - 1) * options.pageSize);
+      const scoped = `${where} AND tenant_id = $${params.length + 1}`;
+      const scopedParams = [...params, tenantId];
       const [{ rows }, { rows: countRows }] = await Promise.all([
         client.query(
-          `SELECT * FROM institution_infrastructure WHERE ${where}
+          `SELECT * FROM institution_infrastructure WHERE ${scoped}
            ${orderClause(options.sortBy, options.sortOrder)}
-           LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-          [...params, options.pageSize, offset],
+           LIMIT $${scopedParams.length + 1} OFFSET $${scopedParams.length + 2}`,
+          [...scopedParams, options.pageSize, offset],
         ),
         client.query(
-          `SELECT count(*)::int AS total FROM institution_infrastructure WHERE ${where}`,
-          params,
+          `SELECT count(*)::int AS total FROM institution_infrastructure WHERE ${scoped}`,
+          scopedParams,
         ),
       ]);
       return {
@@ -185,10 +191,12 @@ export class PgInfrastructureStore implements InfrastructureStore {
   }
 
   async findAllByInstitution(institutionId: string): Promise<InfrastructureRecord[]> {
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
-        `SELECT * FROM institution_infrastructure WHERE institution_id = $1 ORDER BY created_at ASC, id ASC`,
-        [institutionId],
+        `SELECT * FROM institution_infrastructure
+          WHERE institution_id = $1 AND tenant_id = $2
+          ORDER BY created_at ASC, id ASC`,
+        [institutionId, tenantId],
       );
       return (rows as InfraRow[]).map(toRecord);
     });
@@ -200,7 +208,7 @@ export class PgInfrastructureStore implements InfrastructureStore {
       Pick<InfrastructureRecord, 'name' | 'capacity' | 'condition' | 'description' | 'updatedAt'>
     >,
   ): Promise<InfrastructureRecord | null> {
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
         `UPDATE institution_infrastructure
             SET name = COALESCE($2, name),
@@ -208,7 +216,7 @@ export class PgInfrastructureStore implements InfrastructureStore {
                 condition = COALESCE($4, condition),
                 description = CASE WHEN $6::boolean THEN $5 ELSE description END,
                 updated_at = COALESCE($7, now())
-          WHERE id = $1
+          WHERE id = $1 AND tenant_id = $8
           RETURNING *`,
         [
           id,
@@ -218,6 +226,7 @@ export class PgInfrastructureStore implements InfrastructureStore {
           data.description ?? null,
           data.description !== undefined,
           data.updatedAt ?? null,
+          tenantId,
         ],
       );
       return rows[0] ? toRecord(rows[0] as InfraRow) : null;
@@ -225,19 +234,20 @@ export class PgInfrastructureStore implements InfrastructureStore {
   }
 
   async delete(id: string): Promise<boolean> {
-    return this.run(async (client) => {
-      const result = await client.query(`DELETE FROM institution_infrastructure WHERE id = $1`, [
-        id,
-      ]);
+    return this.run(async (client, tenantId) => {
+      const result = await client.query(
+        `DELETE FROM institution_infrastructure WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
       return Number((result as { rowCount?: number }).rowCount ?? 0) > 0;
     });
   }
 
   async hasChildren(id: string): Promise<boolean> {
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
-        `SELECT 1 FROM institution_infrastructure WHERE parent_id = $1 LIMIT 1`,
-        [id],
+        `SELECT 1 FROM institution_infrastructure WHERE parent_id = $1 AND tenant_id = $2 LIMIT 1`,
+        [id, tenantId],
       );
       return rows.length > 0;
     });
@@ -253,13 +263,13 @@ interface ConditionRow {
 export class PgConditionOptionStore implements ConditionOptionStore {
   constructor(private readonly pool: InfrastructurePool) {}
 
-  private run<T>(fn: (client: PgQueryable) => Promise<T>): Promise<T> {
-    return withPgTenant(this.pool as never, requireTenantId(), fn);
+  private run<T>(fn: (client: PgQueryable, tenantId: string) => Promise<T>): Promise<T> {
+    const tenantId = requireTenantId();
+    return withPgTenant(this.pool as never, tenantId, (client) => fn(client, tenantId));
   }
 
   async create(record: ConditionOptionRecord): Promise<ConditionOptionRecord> {
-    const tenantId = requireTenantId();
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
         `INSERT INTO institution_condition_options (id, tenant_id, name, description)
          VALUES ($1,$2,$3,$4) RETURNING id, name, description`,
@@ -270,29 +280,33 @@ export class PgConditionOptionStore implements ConditionOptionStore {
   }
 
   async findAll(): Promise<ConditionOptionRecord[]> {
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
-        `SELECT id, name, description FROM institution_condition_options ORDER BY name ASC`,
+        `SELECT id, name, description FROM institution_condition_options
+          WHERE tenant_id = $1 ORDER BY name ASC`,
+        [tenantId],
       );
       return rows as ConditionRow[];
     });
   }
 
   async findByName(name: string): Promise<ConditionOptionRecord | null> {
-    return this.run(async (client) => {
+    return this.run(async (client, tenantId) => {
       const { rows } = await client.query(
-        `SELECT id, name, description FROM institution_condition_options WHERE name = $1 LIMIT 1`,
-        [name],
+        `SELECT id, name, description FROM institution_condition_options
+          WHERE name = $1 AND tenant_id = $2 LIMIT 1`,
+        [name, tenantId],
       );
       return (rows[0] as ConditionRow | undefined) ?? null;
     });
   }
 
   async delete(id: string): Promise<boolean> {
-    return this.run(async (client) => {
-      const result = await client.query(`DELETE FROM institution_condition_options WHERE id = $1`, [
-        id,
-      ]);
+    return this.run(async (client, tenantId) => {
+      const result = await client.query(
+        `DELETE FROM institution_condition_options WHERE id = $1 AND tenant_id = $2`,
+        [id, tenantId],
+      );
       return Number((result as { rowCount?: number }).rowCount ?? 0) > 0;
     });
   }
