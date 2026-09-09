@@ -316,11 +316,11 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   {
     package: 'registration',
     mounted: true,
-    prefixes: ['/registrations'],
+    prefixes: ['/registrations', '/admissions'],
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'Raw pg (014_admissions_crm_schema.sql) incl. waitlist/interview CRM when DATABASE_URL set; else in-memory (G-205/G-717).',
+      'Raw pg 014 waitlist/interview + 034 enquiry/merit/seat/offer when DATABASE_URL set; else in-memory (G-205/G-717/G-906). Auto-enrol via student + enrollment services on offer accept.',
     registrarName: 'registration',
   },
   {

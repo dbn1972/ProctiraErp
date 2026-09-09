@@ -41,6 +41,7 @@ export type { InMemoryInstitution } from './in-memory-repository.js';
 export {
   createRegistrationRepository,
   createAdmissionsCrmStore,
+  createAdmissionsPipelineStore,
   isPgRegistrationEnabled,
 } from './create-registration-repository.js';
 export { InMemoryAdmissionsCrmStore } from './admissions-crm-store.js';
@@ -56,6 +57,14 @@ export {
   getSharedRegistrationPool,
   ensureRegistrationSchema,
 } from './pg-registration-repository.js';
+
+export { AdmissionsPipelineService } from './pipeline/pipeline-service.js';
+export type { EnrolOnAccept, EnrolOnAcceptInput } from './pipeline/pipeline-service.js';
+export { InMemoryAdmissionsPipelineStore } from './pipeline/pipeline-store.js';
+export type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
+export { PgAdmissionsPipelineStore } from './pipeline/pg-pipeline-store.js';
+export { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
+export { rankCandidates } from './pipeline/ranking.js';
 
 // Schemas
 export {

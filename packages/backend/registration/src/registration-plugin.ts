@@ -11,6 +11,10 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { AdmissionsCrmStore } from './admissions-crm-store.js';
+import { AdmissionsPipelineService, type EnrolOnAccept } from './pipeline/pipeline-service.js';
+import { InMemoryAdmissionsPipelineStore } from './pipeline/pipeline-store.js';
+import type { AdmissionsPipelineStore } from './pipeline/pipeline-store.js';
+import { registerAdmissionsPipelineRoutes } from './pipeline/routes.js';
 import type { RegistrationRepository } from './registration-repository.js';
 import { RegistrationService } from './registration-service.js';
 import { registerRegistrationRoutes } from './routes.js';
@@ -23,8 +27,14 @@ export interface RegistrationPluginOptions {
   repository: RegistrationRepository;
   /** Waitlist / interview CRM store (G-717). Defaults to in-memory. */
   crmStore?: AdmissionsCrmStore;
+  /** Enquiry / merit / seat / offer store (G-906). Defaults to in-memory. */
+  pipelineStore?: AdmissionsPipelineStore;
+  /** Auto-enrol hook used when an offer is accepted (student + enrollment). */
+  enrolOnAccept?: EnrolOnAccept;
   /** Route prefix for registration endpoints (default: '/registrations') */
   prefix?: string;
+  /** Staff admissions CRM prefix (default: '/admissions') */
+  admissionsPrefix?: string;
   /** Default tenant ID for public routes */
   defaultTenantId?: string;
 }
@@ -47,7 +57,15 @@ export const registrationPlugin = fp(
     fastify: FastifyInstance,
     options: RegistrationPluginOptions,
   ) {
-    const { repository, crmStore, prefix = '/registrations', defaultTenantId } = options;
+    const {
+      repository,
+      crmStore,
+      pipelineStore,
+      enrolOnAccept,
+      prefix = '/registrations',
+      admissionsPrefix = '/admissions',
+      defaultTenantId,
+    } = options;
 
     // Create registration service instance
     const registrationService = new RegistrationService(repository, crmStore);
@@ -60,6 +78,16 @@ export const registrationPlugin = fp(
       registrationService,
       prefix,
       defaultTenantId,
+    });
+
+    const pipelineService = new AdmissionsPipelineService(
+      pipelineStore ?? new InMemoryAdmissionsPipelineStore(),
+      repository,
+      enrolOnAccept,
+    );
+    await registerAdmissionsPipelineRoutes(fastify, {
+      service: pipelineService,
+      prefix: admissionsPrefix,
     });
   },
   {

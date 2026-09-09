@@ -13,6 +13,7 @@ import {
 } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 import { listApplications, listInterviewSlots, listWaitlist } from '@/lib/api/admissions';
+import { AdmissionsNav } from './_components/admissions-nav';
 import { StatusForm } from './_components/status-form';
 import { NewInterviewSlotForm } from './_components/new-interview-slot-form';
 import { BookInterviewForm } from './_components/book-interview-form';
@@ -33,14 +34,16 @@ export default async function AdmissionsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">Admissions</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Staff CRM for applications, waitlist, and interview slots. OCR / live apply portal
-            waived for this slice.
+            Staff CRM for enquiries, applications, merit lists, offers, waitlist, and interview
+            slots.
           </p>
         </div>
         <Button asChild variant="outline">
           <Link href="/">Dashboard</Link>
         </Button>
       </div>
+
+      <AdmissionsNav current="/admissions" />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <StatusForm applications={applications} />
@@ -71,7 +74,9 @@ export default async function AdmissionsPage() {
                   data-testid="application-row"
                 >
                   <p className="text-sm font-medium text-foreground">
-                    {app.firstName} {app.lastName} · {app.trackingNumber}
+                    <Link className="underline" href={`/admissions/${app.id}`}>
+                      {app.firstName} {app.lastName} · {app.trackingNumber}
+                    </Link>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {app.status} · {app.institutionName}

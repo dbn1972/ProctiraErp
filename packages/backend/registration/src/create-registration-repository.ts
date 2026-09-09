@@ -11,6 +11,11 @@ import {
   getSharedRegistrationPool,
   PgRegistrationRepository,
 } from './pg-registration-repository.js';
+import { PgAdmissionsPipelineStore } from './pipeline/pg-pipeline-store.js';
+import {
+  InMemoryAdmissionsPipelineStore,
+  type AdmissionsPipelineStore,
+} from './pipeline/pipeline-store.js';
 import type { RegistrationRepository } from './registration-repository.js';
 
 export function isPgRegistrationEnabled(): boolean {
@@ -35,4 +40,14 @@ export function createAdmissionsCrmStore(): AdmissionsCrmStore {
   }
   assertInMemoryFallbackAllowed('registration-crm');
   return new InMemoryAdmissionsCrmStore();
+}
+
+/** Enquiry / merit / seat / offer store on db/sql/034 when Postgres is configured (G-906). */
+export function createAdmissionsPipelineStore(): AdmissionsPipelineStore {
+  if (isPgRegistrationEnabled()) {
+    const pool = getSharedRegistrationPool();
+    if (pool) return new PgAdmissionsPipelineStore(pool);
+  }
+  assertInMemoryFallbackAllowed('registration-pipeline');
+  return new InMemoryAdmissionsPipelineStore();
 }
