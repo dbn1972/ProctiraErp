@@ -425,6 +425,7 @@ export class StaffHrService {
       created: staffIds.length,
       staffIds,
     };
+    // eslint-disable-next-line no-console
     console.info(
       JSON.stringify({
         msg: 'staff.import.commit',
@@ -498,6 +499,7 @@ export class StaffHrService {
       ]),
     );
 
+    // eslint-disable-next-line no-console
     console.info(
       JSON.stringify({
         msg: 'staff.payroll.export',

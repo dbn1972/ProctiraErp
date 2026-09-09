@@ -129,6 +129,7 @@ export class CircularsService {
       status: 'sent',
       sentAt: now,
     });
+    // eslint-disable-next-line no-console
     console.info(
       JSON.stringify({
         msg: 'communication.circular.send',

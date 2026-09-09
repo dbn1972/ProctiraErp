@@ -16,7 +16,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import type { StaffHrService } from './hr-service.js';
 import {
   AttendanceListQuerySchema,
   AttendanceSummaryQuerySchema,
@@ -47,6 +46,7 @@ import {
   type UpdateContractInput,
   type VerifyQualificationInput,
 } from './hr-schemas.js';
+import type { StaffHrService } from './hr-service.js';
 
 export interface StaffHrRoutesOptions {
   hrService: StaffHrService;
