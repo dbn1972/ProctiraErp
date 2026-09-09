@@ -34,14 +34,19 @@ export type {
   SkillMasteryEntity,
   MasteryFilter,
   PracticeAttemptEntity,
+  BankQuestionEntity,
+  RubricEntity,
+  AssignmentFileEntity,
+  DiscussionEntity,
+  LessonEntity,
 } from './lms-repository.js';
 export { InMemoryLmsRepository, matchesScope } from './in-memory-repository.js';
 export { createLmsRepository, isPgLmsEnabled } from './create-lms-repository.js';
 export { PgLmsRepository, getSharedLmsPool, ensureLmsSchema } from './pg-lms-repository.js';
+export { gradeQuiz } from './spiral-pal.js';
 export {
   applyAttempt,
   buildSpiralPlan,
-  gradeQuiz,
   intervalForStreak,
   INITIAL_MASTERY,
   MASTERY_THRESHOLD,
@@ -51,5 +56,15 @@ export {
   type SpiralPlan,
   type PlanItem,
 } from './spiral-pal.js';
+export {
+  gradeMcq,
+  gradeMsq,
+  gradeNumeric,
+  gradeMatch,
+  gradeEssay,
+  rubricTotal,
+  itemDifficulty,
+  gradeObjectiveQuiz,
+} from './grading-engine.js';
 export * from './schemas.js';
 export { registerLmsRoutes, getLmsActor, type LmsRoutesOptions } from './routes.js';

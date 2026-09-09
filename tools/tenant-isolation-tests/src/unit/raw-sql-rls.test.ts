@@ -646,3 +646,52 @@ describe('Wave 9 transport ops raw-SQL RLS (045_transport_ops_schema.sql)', () =
     }
   });
 });
+describe('Wave 9 LMS depth raw-SQL RLS (038_lms_depth_schema.sql)', () => {
+  const sql = loadSql('038_lms_depth_schema.sql');
+  const tables = [
+    'lms_question_bank',
+    'lms_rubrics',
+    'lms_rubric_criteria',
+    'lms_rubric_scores',
+    'lms_assignment_files',
+    'lms_discussions',
+    'lms_discussion_posts',
+    'lms_content_items',
+    'lms_lessons',
+    'lms_lesson_resources',
+  ] as const;
+
+  it('every LMS-depth table enables + forces RLS with the tenant_isolation policy', () => {
+    for (const table of tables) {
+      expect(sql, `missing ENABLE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing FORCE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing tenant_isolation policy for ${table}`).toMatch(
+        new RegExp(`CREATE POLICY tenant_isolation ON ${table}`),
+      );
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+    }
+  });
+
+  it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
+    const policies =
+      sql.match(/CREATE POLICY tenant_isolation ON lms_(question_bank|rubric_criteria|rubric_scores|rubrics|assignment_files|discussions|discussion_posts|content_items|lesson_resources|lessons)[\s\S]*?;/g) ??
+      [];
+    expect(policies).toHaveLength(tables.length);
+    for (const policy of policies) {
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+});

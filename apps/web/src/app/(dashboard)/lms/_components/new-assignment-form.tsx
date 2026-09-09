@@ -35,6 +35,13 @@ interface SkillOption {
   subject: string;
 }
 
+interface BankOption {
+  id: string;
+  prompt: string;
+  questionType: string;
+  subject: string;
+}
+
 interface QuestionDraft extends QuizQuestionInput {
   key: string;
 }
@@ -60,11 +67,13 @@ export function NewAssignmentForm({
   institutions,
   boards,
   skills,
+  bankItems = [],
 }: {
   initialKind: AssignmentKind;
   institutions: Option[];
   boards: Option[];
   skills: SkillOption[];
+  bankItems?: BankOption[];
 }) {
   const t = useTranslations('lms');
   const tc = useTranslations('common');
@@ -87,6 +96,7 @@ export function NewAssignmentForm({
   const [allowLate, setAllowLate] = useState(true);
   const [skillIds, setSkillIds] = useState<string[]>([]);
   const [questions, setQuestions] = useState<QuestionDraft[]>([newQuestion()]);
+  const [bankIds, setBankIds] = useState<string[]>([]);
   const [publish, setPublish] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
@@ -105,11 +115,12 @@ export function NewAssignmentForm({
       next.timeLimit = t('errPositive');
     }
     if (isQuiz) {
-      if (questions.length === 0) next.questions = t('errQuizNeedsQuestion');
-      questions.forEach((q, i) => {
+      const filled = questions.filter((q) => q.prompt.trim());
+      if (filled.length === 0 && bankIds.length === 0) next.questions = t('errQuizNeedsQuestion');
+      filled.forEach((q, i) => {
         if (!q.prompt.trim()) next[`q-${i}-prompt`] = t('errRequired');
-        const filled = q.options.filter((o) => o.trim());
-        if (filled.length < 2) next[`q-${i}-options`] = t('errTwoOptions');
+        const filledOpts = q.options.filter((o) => o.trim());
+        if (filledOpts.length < 2) next[`q-${i}-options`] = t('errTwoOptions');
         if (!q.options[q.correctOptionIndex]?.trim())
           next[`q-${i}-correct`] = t('errCorrectOption');
       });
@@ -140,15 +151,18 @@ export function NewAssignmentForm({
         allowLate,
         publish,
         questions: isQuiz
-          ? questions.map((q) => ({
-              prompt: q.prompt.trim(),
-              options: q.options.map((o) => o.trim()).filter(Boolean),
-              correctOptionIndex: q.correctOptionIndex,
-              points: q.points,
-              skillId: q.skillId || undefined,
-              explanation: q.explanation?.trim() || undefined,
-            }))
+          ? questions
+              .filter((q) => q.prompt.trim())
+              .map((q) => ({
+                prompt: q.prompt.trim(),
+                options: q.options.map((o) => o.trim()).filter(Boolean),
+                correctOptionIndex: q.correctOptionIndex,
+                points: q.points,
+                skillId: q.skillId || undefined,
+                explanation: q.explanation?.trim() || undefined,
+              }))
           : undefined,
+        bankQuestionIds: isQuiz && bankIds.length > 0 ? bankIds : undefined,
       });
       if (result.status === 'success' && result.id) {
         router.push(`/lms/assignments/${result.id}`);
@@ -471,6 +485,46 @@ export function NewAssignmentForm({
                 );
               })}
             </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {isQuiz ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Add from bank</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {bankItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No bank items yet. Author them under Question bank.
+              </p>
+            ) : (
+              <ul className="space-y-2" data-testid="lms-bank-picker">
+                {bankItems.map((item) => {
+                  const checked = bankIds.includes(item.id);
+                  return (
+                    <li key={item.id} className="flex min-h-11 items-center gap-2">
+                      <Checkbox
+                        id={`${formId}-bank-${item.id}`}
+                        checked={checked}
+                        onCheckedChange={(v) =>
+                          setBankIds((prev) =>
+                            v === true ? [...prev, item.id] : prev.filter((x) => x !== item.id),
+                          )
+                        }
+                      />
+                      <Label htmlFor={`${formId}-bank-${item.id}`} className="text-sm">
+                        {item.prompt}{' '}
+                        <span className="text-muted-foreground">
+                          · {item.questionType} · {item.subject}
+                        </span>
+                      </Label>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </CardContent>
         </Card>
       ) : null}

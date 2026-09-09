@@ -20,11 +20,20 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { getAssignment, listSubmissions, type LmsSubmission } from '@/lib/api/lms';
+import {
+  getAssignment,
+  getQuizAnalytics,
+  getRubric,
+  listAssignmentFiles,
+  listSubmissions,
+  type LmsRubric,
+  type LmsSubmission,
+} from '@/lib/api/lms';
 import { isUuidLike } from '@/lib/entity-label';
 
 import { KindPill, ScopePill, StatusPill, SubmissionPill } from '../../_components/badges';
 import { AssignmentLifecycle } from '../../_components/assignment-lifecycle';
+import { AssignmentFileForm, RubricGradeForm } from '../../_components/depth-grade-forms';
 import { GradeSubmissionForm } from '../../_components/grade-submission-form';
 
 export const dynamic = 'force-dynamic';
@@ -71,6 +80,14 @@ export default async function AssignmentDetailPage({
 
   // Learners get 403 on the roster; treat as "no roster" rather than an error.
   const submissions: LmsSubmission[] = await listSubmissions(id).catch(() => []);
+  const files = await listAssignmentFiles(id).catch(() => []);
+  const quizAnalytics =
+    assignment.kind === 'quiz' ? await getQuizAnalytics(id).catch(() => null) : null;
+  const essayQuestion = assignment.questions?.find(
+    (q) => q.questionType === 'essay' || Boolean(q.payload?.rubricId),
+  );
+  const rubricId = essayQuestion?.payload?.rubricId;
+  const rubric: LmsRubric | null = rubricId ? await getRubric(rubricId).catch(() => null) : null;
   const graded = submissions.filter((s) => s.status === 'graded' || s.status === 'returned');
   const average =
     graded.length > 0 ? graded.reduce((sum, s) => sum + (s.score ?? 0), 0) / graded.length : null;
@@ -176,8 +193,10 @@ export default async function AssignmentDetailPage({
                     {q.prompt}
                     <span className="ms-2 text-xs text-muted-foreground">
                       ({t('pointsShort', { count: q.points })})
+                      {q.questionType ? ` · ${q.questionType}` : ''}
                     </span>
                   </p>
+                  {q.options.length > 0 ? (
                   <ul className="mt-2 grid gap-1 sm:grid-cols-2">
                     {q.options.map((opt, oi) => (
                       <li
@@ -195,12 +214,67 @@ export default async function AssignmentDetailPage({
                       </li>
                     ))}
                   </ul>
+                  ) : null}
                   {q.explanation ? (
                     <p className="mt-2 text-xs text-muted-foreground">{q.explanation}</p>
                   ) : null}
                 </li>
               ))}
             </ol>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Submission files</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <AssignmentFileForm assignmentId={assignment.id} />
+          {files.length > 0 ? (
+            <ul className="space-y-1 text-sm">
+              {files.map((file) => (
+                <li key={file.id} data-testid="lms-file-row">
+                  <a href={`/api/lms/files/${file.id}`} className="underline">
+                    {file.filename}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      {quizAnalytics ? (
+        <Card data-testid="lms-quiz-analytics">
+          <CardHeader>
+            <CardTitle className="text-base">Quiz analytics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Mean {quizAnalytics.mean ?? '—'} · median {quizAnalytics.median ?? '—'} ·{' '}
+              {quizAnalytics.submissionCount} submissions
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Difficulty</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {quizAnalytics.items.map((item) => (
+                  <TableRow key={item.questionId} data-testid="lms-item-difficulty">
+                    <TableCell>{item.prompt}</TableCell>
+                    <TableCell>{item.questionType}</TableCell>
+                    <TableCell>
+                      {item.difficulty == null ? '—' : `${Math.round(item.difficulty * 100)}%`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       ) : null}
@@ -254,6 +328,12 @@ export default async function AssignmentDetailPage({
                           maxScore={assignment.maxScore}
                           initialScore={s.score}
                           initialFeedback={s.feedback}
+                        />
+                        <RubricGradeForm
+                          assignmentId={assignment.id}
+                          submissionId={s.id}
+                          questionId={essayQuestion?.id}
+                          rubric={rubric}
                         />
                       </TableCell>
                     </TableRow>

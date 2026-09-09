@@ -20,12 +20,37 @@ import {
   type PaginationOptions,
 } from '@proctira/common';
 
+import {
+  gradeEssay,
+  gradeObjectiveQuiz,
+  itemDifficulty,
+  mean,
+  median,
+  type QuizAnalytics,
+  type QuestionType,
+} from './grading-engine.js';
+import {
+  assertAllowedUpload,
+  createLmsFileDownloadToken,
+  decodeBase64Payload,
+  putLmsFile,
+  verifyLmsFileDownloadToken,
+} from './lms-file-store.js';
 import type {
   AssignmentEntity,
+  AssignmentFileEntity,
   AssignmentFilter,
+  BankQuestionEntity,
+  BankQuestionFilter,
+  ContentItemEntity,
+  DiscussionEntity,
+  DiscussionPostEntity,
+  LessonEntity,
+  LessonResourceEntity,
   LmsRepository,
   PracticeAttemptEntity,
   QuizQuestionEntity,
+  RubricCriterionEntity,
   SkillEntity,
   SkillFilter,
   SkillMasteryEntity,
@@ -34,18 +59,26 @@ import type {
 } from './lms-repository.js';
 import type {
   CreateAssignmentInput,
+  CreateBankQuestionInput,
+  CreateContentItemInput,
+  CreateDiscussionInput,
+  CreateLessonInput,
+  CreateLessonResourceInput,
+  CreatePostInput,
+  CreateRubricInput,
   CreateSkillInput,
   CreateSubmissionInput,
+  GradeRubricInput,
   GradeSubmissionInput,
   PlanQuery,
   QuizQuestionInput,
   RecordAttemptInput,
   UpdateAssignmentInput,
+  UploadFileInput,
 } from './schemas.js';
 import {
   applyAttempt,
   buildSpiralPlan,
-  gradeQuiz,
   INITIAL_MASTERY,
   type SpiralPlan,
 } from './spiral-pal.js';
@@ -127,14 +160,24 @@ function normaliseQuestions(
   questions: QuizQuestionInput[],
 ): Omit<QuizQuestionEntity, 'createdAt'>[] {
   return questions.map((q, index) => {
-    if (q.correctOptionIndex >= q.options.length) {
-      throw new ValidationError('correctOptionIndex is out of range', [
-        {
-          field: `questions[${index}].correctOptionIndex`,
-          rule: 'range',
-          message: 'correctOptionIndex must reference one of the options',
-        },
-      ]);
+    const questionType: QuestionType = q.questionType ?? 'mcq';
+    const options = q.options ?? [];
+    if (questionType === 'mcq') {
+      if (options.length < 2) {
+        throw new ValidationError('MCQ questions need at least two options', [
+          { field: `questions[${index}].options`, rule: 'min', message: 'Provide at least two options' },
+        ]);
+      }
+      const idx = q.correctOptionIndex ?? 0;
+      if (idx >= options.length) {
+        throw new ValidationError('correctOptionIndex is out of range', [
+          {
+            field: `questions[${index}].correctOptionIndex`,
+            rule: 'range',
+            message: 'correctOptionIndex must reference one of the options',
+          },
+        ]);
+      }
     }
     return {
       id: randomUUID(),
@@ -142,13 +185,73 @@ function normaliseQuestions(
       assignmentId,
       position: index,
       prompt: q.prompt,
-      options: q.options,
-      correctOptionIndex: q.correctOptionIndex,
+      options,
+      correctOptionIndex: q.correctOptionIndex ?? -1,
       points: q.points ?? 1,
       skillId: q.skillId ?? null,
       explanation: q.explanation ?? null,
+      questionType,
+      bankId: q.bankId ?? null,
+      payload: (q.payload as Record<string, unknown> | undefined) ?? {},
     };
   });
+}
+
+function bankToQuizQuestion(
+  tenantId: string,
+  assignmentId: string,
+  bank: BankQuestionEntity,
+  position: number,
+): Omit<QuizQuestionEntity, 'createdAt'> {
+  const options = Array.isArray(bank.payload.options) ? (bank.payload.options as string[]) : [];
+  const correctOptionIndex =
+    typeof bank.payload.correctOptionIndex === 'number'
+      ? bank.payload.correctOptionIndex
+      : -1;
+  return {
+    id: randomUUID(),
+    tenantId,
+    assignmentId,
+    position,
+    prompt: bank.prompt,
+    options,
+    correctOptionIndex,
+    points: bank.points,
+    skillId: bank.skillId,
+    explanation: typeof bank.payload.explanation === 'string' ? bank.payload.explanation : null,
+    questionType: bank.questionType,
+    bankId: bank.id,
+    payload: {
+      ...bank.payload,
+      tags: bank.tags,
+      rubricId: bank.rubricId ?? (typeof bank.payload.rubricId === 'string' ? bank.payload.rubricId : undefined),
+    },
+  };
+}
+
+function toBankLike(q: QuizQuestionEntity) {
+  return {
+    id: q.id,
+    questionType: q.questionType ?? 'mcq',
+    points: q.points,
+    skillId: q.skillId,
+    correctOptionIndex: q.correctOptionIndex,
+    payload: q.payload ?? {},
+  };
+}
+
+function stripAnswerKey(q: QuizQuestionEntity): QuizQuestionEntity {
+  const payload = { ...(q.payload ?? {}) };
+  delete payload.correctOptionIndex;
+  delete payload.correctOptionIndexes;
+  delete payload.correctValue;
+  delete payload.pairs;
+  return {
+    ...q,
+    correctOptionIndex: -1,
+    explanation: null,
+    payload,
+  };
 }
 
 export interface AssignmentWithQuestions extends AssignmentEntity {
@@ -247,18 +350,22 @@ export class LmsService {
     }
 
     const questions = input.questions ?? [];
-    if (input.kind !== 'quiz' && questions.length > 0) {
+    const bankIds = Array.from(new Set<string>(input.bankQuestionIds ?? []));
+    if (input.kind !== 'quiz' && (questions.length > 0 || bankIds.length > 0)) {
       throw new ValidationError('Only quizzes may carry questions', [
         { field: 'questions', rule: 'kind', message: 'questions are only valid when kind=quiz' },
       ]);
     }
     const publish = input.publish === true;
-    if (publish && input.kind === 'quiz' && questions.length === 0) {
+    if (publish && input.kind === 'quiz' && questions.length === 0 && bankIds.length === 0) {
       throw new BusinessRuleError('A quiz needs at least one question before it is published');
     }
 
     const id = randomUUID();
-    const normalised = normaliseQuestions(tenantId, id, questions);
+    const fromInline = normaliseQuestions(tenantId, id, questions);
+    const fromBank =
+      bankIds.length > 0 ? await this.copyBankQuestions(tenantId, id, bankIds, fromInline.length) : [];
+    const normalised = [...fromInline, ...fromBank];
     const quizPoints = normalised.reduce((sum, q) => sum + q.points, 0);
     const maxScore = input.maxScore ?? (input.kind === 'quiz' && quizPoints > 0 ? quizPoints : 100);
     const now = new Date();
@@ -387,9 +494,7 @@ export class LmsService {
     return {
       ...assignment,
       // Learners never see the answer key.
-      questions: isLearner(actor)
-        ? questions.map((q) => ({ ...q, correctOptionIndex: -1, explanation: null }))
-        : questions,
+      questions: isLearner(actor) ? questions.map(stripAnswerKey) : questions,
       submissionCount: submissions.meta.totalItems,
     };
   }
@@ -477,15 +582,16 @@ export class LmsService {
           { field: 'answers', rule: 'required', message: 'Provide at least one answer' },
         ]);
       }
-      const graded = gradeQuiz(questions, answers);
-      // Scale to the assignment's maxScore so quizzes stay comparable.
+      const graded = gradeObjectiveQuiz(questions.map(toBankLike), answers);
       score =
-        graded.maxScore > 0
+        !graded.pendingEssay && graded.maxScore > 0
           ? Math.round((graded.score / graded.maxScore) * assignment.maxScore * 100) / 100
-          : 0;
-      status = 'graded';
-      autoGraded = true;
-      gradedAt = now;
+          : graded.score;
+      if (!graded.pendingEssay) {
+        status = 'graded';
+        autoGraded = true;
+        gradedAt = now;
+      }
       for (const r of graded.results) {
         if (!r.skillId) continue;
         await this.applyPalAttempt(tenantId, input.studentId, r.skillId, {
@@ -753,5 +859,676 @@ export class LmsService {
       throw new ForbiddenError('Students can only view their own attempts');
     }
     return this.repository.listAttempts(tenantId, studentId, pagination);
+  }
+
+  private async copyBankQuestions(
+    tenantId: string,
+    assignmentId: string,
+    bankIds: string[],
+    startPosition: number,
+  ): Promise<Omit<QuizQuestionEntity, 'createdAt'>[]> {
+    const found = await this.repository.findBankQuestionsByIds(tenantId, bankIds);
+    if (found.length !== bankIds.length) {
+      throw new ValidationError('Unknown bank question', [
+        { field: 'bankQuestionIds', rule: 'exists', message: 'All bank questions must exist' },
+      ]);
+    }
+    const byId = new Map(found.map((q) => [q.id, q]));
+    return bankIds.map((id, i) => bankToQuizQuestion(tenantId, assignmentId, byId.get(id)!, startPosition + i));
+  }
+
+  async assembleFromBank(
+    tenantId: string,
+    assignmentId: string,
+    questionIds: string[],
+    actor: LmsActor,
+  ): Promise<AssignmentWithQuestions> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can assemble quizzes');
+    const assignment = await this.requireAssignment(tenantId, assignmentId, actor);
+    if (assignment.kind !== 'quiz') {
+      throw new ValidationError('Only quizzes may carry questions', [
+        { field: 'questionIds', rule: 'kind', message: 'questions are only valid when kind=quiz' },
+      ]);
+    }
+    const existing = await this.repository.listQuestions(tenantId, assignmentId);
+    const copied = await this.copyBankQuestions(tenantId, assignmentId, questionIds, existing.length);
+    const merged = [
+      ...existing.map((q, i) => ({ ...q, position: i })),
+      ...copied.map((q, i) => ({ ...q, position: existing.length + i })),
+    ];
+    const questions = await this.repository.replaceQuestions(tenantId, assignmentId, merged);
+    return { ...assignment, questions };
+  }
+
+  async createBankQuestion(
+    tenantId: string,
+    input: CreateBankQuestionInput,
+    actor: LmsActor,
+  ): Promise<BankQuestionEntity> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can author the question bank');
+    assertScopeTarget(input.scope, input.boardId, input.institutionId);
+    assertInstitutionAllowed(actor, input.institutionId);
+    return this.repository.createBankQuestion({
+      id: randomUUID(),
+      tenantId,
+      scope: input.scope,
+      boardId: input.scope === 'board' ? input.boardId! : null,
+      institutionId: input.scope === 'school' ? input.institutionId! : null,
+      subject: input.subject.trim(),
+      gradeLevel: input.gradeLevel ?? null,
+      tags: (input.tags ?? []).map((t) => t.trim()).filter(Boolean),
+      questionType: input.questionType,
+      prompt: input.prompt.trim(),
+      payload: (input.payload as Record<string, unknown> | undefined) ?? {},
+      points: input.points ?? 1,
+      skillId: input.skillId ?? null,
+      rubricId: input.rubricId ?? null,
+      difficulty: input.difficulty ?? 'medium',
+      createdBy: uuidOrNull(actor.userId),
+    });
+  }
+
+  async listBankQuestions(
+    tenantId: string,
+    filter: BankQuestionFilter,
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    assertInstitutionAllowed(actor, filter.institutionId);
+    return this.repository.listBankQuestions(tenantId, filter, pagination);
+  }
+
+  async getBankQuestion(tenantId: string, id: string, actor: LmsActor): Promise<BankQuestionEntity> {
+    const row = await this.repository.findBankQuestion(tenantId, id);
+    if (!row) throw new NotFoundError('Question not found');
+    if (row.scope === 'school' && isSchoolBound(actor) && !actor.institutions.includes(row.institutionId!)) {
+      throw new NotFoundError('Question not found');
+    }
+    return row;
+  }
+
+  async createRubric(tenantId: string, input: CreateRubricInput, actor: LmsActor) {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can create rubrics');
+    assertScopeTarget(input.scope, input.boardId, input.institutionId);
+    assertInstitutionAllowed(actor, input.institutionId);
+    const rubric = await this.repository.createRubric({
+      id: randomUUID(),
+      tenantId,
+      scope: input.scope,
+      boardId: input.scope === 'board' ? input.boardId! : null,
+      institutionId: input.scope === 'school' ? input.institutionId! : null,
+      name: input.name.trim(),
+      subject: input.subject ?? null,
+      gradeLevel: input.gradeLevel ?? null,
+      createdBy: uuidOrNull(actor.userId),
+    });
+    const criteria = await this.repository.replaceRubricCriteria(
+      tenantId,
+      rubric.id,
+      input.criteria.map((c, i) => ({
+        id: randomUUID(),
+        tenantId,
+        rubricId: rubric.id,
+        position: i,
+        name: c.name.trim(),
+        description: c.description ?? null,
+        maxPoints: c.maxPoints,
+        levels: c.levels,
+      })),
+    );
+    return { ...rubric, criteria };
+  }
+
+  async getRubric(tenantId: string, id: string, actor: LmsActor) {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can view rubrics');
+    const rubric = await this.repository.findRubric(tenantId, id);
+    if (!rubric) throw new NotFoundError('Rubric not found');
+    const criteria = await this.repository.listRubricCriteria(tenantId, id);
+    return { ...rubric, criteria };
+  }
+
+  async listRubrics(
+    tenantId: string,
+    filter: { institutionId?: string; boardId?: string; subject?: string },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    assertInstitutionAllowed(actor, filter.institutionId);
+    return this.repository.listRubrics(tenantId, filter, pagination);
+  }
+
+  async gradeWithRubric(
+    tenantId: string,
+    submissionId: string,
+    input: GradeRubricInput,
+    actor: LmsActor,
+    now: Date = new Date(),
+  ): Promise<SubmissionEntity> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can grade');
+    const submission = await this.repository.findSubmissionById(tenantId, submissionId);
+    if (!submission) throw new NotFoundError('Submission not found');
+    const assignment = await this.requireAssignment(tenantId, submission.assignmentId, actor);
+    const questions = await this.repository.listQuestions(tenantId, assignment.id);
+    const essay = input.questionId
+      ? questions.find((q) => q.id === input.questionId)
+      : questions.find((q) => q.questionType === 'essay');
+    const criteriaById = new Map<string, RubricCriterionEntity>();
+    const rubricId =
+      essay && typeof essay.payload?.rubricId === 'string'
+        ? essay.payload.rubricId
+        : questions.find((q) => q.questionType === 'essay' && typeof q.payload?.rubricId === 'string')
+            ?.payload?.rubricId;
+    if (typeof rubricId === 'string') {
+      for (const c of await this.repository.listRubricCriteria(tenantId, rubricId)) {
+        criteriaById.set(c.id, c);
+      }
+    }
+    const scored = input.scores.map((s) => {
+      const criterion = criteriaById.get(s.criterionId);
+      return {
+        criterionId: s.criterionId,
+        points: s.points,
+        maxPoints: criterion?.maxPoints ?? s.points,
+      };
+    });
+    const essayPoints = essay?.points ?? assignment.maxScore;
+    const essayResult = gradeEssay(scored, essayPoints);
+    await this.repository.replaceRubricScores(
+      tenantId,
+      submissionId,
+      input.scores.map((s) => ({
+        id: randomUUID(),
+        tenantId,
+        submissionId,
+        criterionId: s.criterionId,
+        questionId: input.questionId ?? essay?.id ?? null,
+        levelIndex: s.levelIndex,
+        points: s.points,
+        comment: s.comment ?? null,
+        scoredBy: uuidOrNull(actor.userId),
+      })),
+    );
+    const objective = gradeObjectiveQuiz(
+      questions.map(toBankLike),
+      submission.answers,
+    );
+    const combined = objective.results
+      .filter((r) => r.questionType !== 'essay')
+      .reduce((s, r) => s + r.score, 0);
+    const total = combined + essayResult.score;
+    const updated = await this.repository.updateSubmission(tenantId, submissionId, {
+      score: Math.round(total * 100) / 100,
+      feedback: input.feedback ?? submission.feedback,
+      status: input.returnToStudent ? 'returned' : 'graded',
+      gradedAt: now,
+      gradedBy: uuidOrNull(actor.userId),
+      autoGraded: false,
+    });
+    if (!updated) throw new NotFoundError('Submission not found');
+    return updated;
+  }
+
+  async getQuizAnalytics(
+    tenantId: string,
+    assignmentId: string,
+    actor: LmsActor,
+  ): Promise<QuizAnalytics> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can view analytics');
+    const assignment = await this.requireAssignment(tenantId, assignmentId, actor);
+    const questions = await this.repository.listQuestions(tenantId, assignmentId);
+    const submissions = await this.repository.listSubmissions(
+      tenantId,
+      { assignmentId },
+      { page: 1, pageSize: 500 },
+    );
+    const scores = submissions.data
+      .map((s) => s.score)
+      .filter((s): s is number => s != null);
+    const items = questions.map((q) => {
+      let correctCount = 0;
+      let attemptCount = 0;
+      for (const sub of submissions.data) {
+        const answer = sub.answers.find((a) => a.questionId === q.id);
+        if (!answer && q.questionType !== 'essay') continue;
+        attemptCount += 1;
+        if (q.questionType === 'essay') {
+          const full = (sub.score ?? 0) >= assignment.maxScore * 0.6;
+          if (full) correctCount += 1;
+        } else {
+          const graded = gradeObjectiveQuiz([toBankLike(q)], sub.answers);
+          if (graded.results[0]?.correct) correctCount += 1;
+        }
+      }
+      return {
+        questionId: q.id,
+        prompt: q.prompt,
+        questionType: q.questionType ?? 'mcq',
+        difficulty: itemDifficulty(correctCount, attemptCount),
+        correctCount,
+        attemptCount,
+      };
+    });
+    const students = submissions.data.map((s) => {
+      const answered = s.answers.length;
+      const total = questions.length;
+      return {
+        studentId: s.studentId,
+        score: s.score,
+        answered,
+        total,
+        completion: total === 0 ? 0 : Math.round((answered / total) * 100) / 100,
+      };
+    });
+    return {
+      assignmentId,
+      submissionCount: submissions.data.length,
+      mean: mean(scores),
+      median: median(scores),
+      items,
+      students,
+    };
+  }
+
+  async uploadAssignmentFile(
+    tenantId: string,
+    assignmentId: string,
+    input: UploadFileInput,
+    actor: LmsActor,
+  ): Promise<AssignmentFileEntity> {
+    await this.requireAssignment(tenantId, assignmentId, actor);
+    if (input.submissionId) {
+      const sub = await this.repository.findSubmissionById(tenantId, input.submissionId);
+      if (!sub) throw new NotFoundError('Submission not found');
+      if (isLearner(actor) && sub.studentId !== actor.userId) {
+        throw new ForbiddenError('Students can only upload to their own submission');
+      }
+    } else if (!canAuthor(actor)) {
+      throw new ForbiddenError('Only staff can attach files to an assignment');
+    }
+    let bytes: Buffer;
+    try {
+      bytes = decodeBase64Payload(input.contentBase64);
+    } catch {
+      throw new ValidationError('Invalid base64 payload', [
+        { field: 'contentBase64', rule: 'base64', message: 'contentBase64 must be valid base64' },
+      ]);
+    }
+    try {
+      assertAllowedUpload(input.mimeType, bytes.length);
+    } catch (error) {
+      throw new ValidationError((error as Error).message, [
+        { field: 'mimeType', rule: 'allow-list', message: (error as Error).message },
+      ]);
+    }
+    const id = randomUUID();
+    const stored = await putLmsFile(tenantId, id, input.filename, bytes);
+    return this.repository.createAssignmentFile({
+      id,
+      tenantId,
+      assignmentId,
+      submissionId: input.submissionId ?? null,
+      filename: input.filename,
+      mimeType: input.mimeType,
+      byteSize: stored.byteSize,
+      storageKey: stored.storageKey,
+      createdBy: uuidOrNull(actor.userId),
+    });
+  }
+
+  async listAssignmentFiles(
+    tenantId: string,
+    assignmentId: string,
+    actor: LmsActor,
+    submissionId?: string,
+  ) {
+    await this.requireAssignment(tenantId, assignmentId, actor);
+    return this.repository.listAssignmentFiles(tenantId, assignmentId, submissionId);
+  }
+
+  async signedFileDownload(tenantId: string, fileId: string, actor: LmsActor) {
+    const file = await this.repository.findAssignmentFile(tenantId, fileId);
+    if (!file) throw new NotFoundError('File not found');
+    await this.requireAssignment(tenantId, file.assignmentId, actor);
+    const token = createLmsFileDownloadToken(tenantId, file.id);
+    return { ...file, ...token, url: `/lms/files/${file.id}/download?token=${token.token}` };
+  }
+
+  async downloadFile(tenantId: string, fileId: string, token: string, actor: LmsActor) {
+    const file = await this.repository.findAssignmentFile(tenantId, fileId);
+    if (!file) throw new NotFoundError('File not found');
+    await this.requireAssignment(tenantId, file.assignmentId, actor);
+    const verified = verifyLmsFileDownloadToken(tenantId, fileId, token);
+    if (!verified.ok) throw new ForbiddenError(verified.reason);
+    return file;
+  }
+
+  async createDiscussion(
+    tenantId: string,
+    input: CreateDiscussionInput,
+    actor: LmsActor,
+  ): Promise<DiscussionEntity> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can open discussions');
+    assertInstitutionAllowed(actor, input.institutionId);
+    return this.repository.createDiscussion({
+      id: randomUUID(),
+      tenantId,
+      institutionId: input.institutionId ?? null,
+      classKey: input.classKey.trim(),
+      title: input.title.trim(),
+      locked: false,
+      createdBy: uuidOrNull(actor.userId),
+    });
+  }
+
+  async listDiscussions(
+    tenantId: string,
+    filter: { institutionId?: string; classKey?: string },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    assertInstitutionAllowed(actor, filter.institutionId);
+    return this.repository.listDiscussions(tenantId, filter, pagination);
+  }
+
+  async getDiscussion(tenantId: string, id: string, actor: LmsActor) {
+    const discussion = await this.repository.findDiscussion(tenantId, id);
+    if (!discussion) throw new NotFoundError('Discussion not found');
+    assertInstitutionAllowed(actor, discussion.institutionId);
+    const posts = await this.repository.listDiscussionPosts(tenantId, id);
+    return {
+      ...discussion,
+      posts: isLearner(actor) ? posts.filter((p) => !p.hidden) : posts,
+    };
+  }
+
+  async lockDiscussion(tenantId: string, id: string, locked: boolean, actor: LmsActor) {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can lock discussions');
+    await this.getDiscussion(tenantId, id, actor);
+    const updated = await this.repository.setDiscussionLocked(tenantId, id, locked);
+    if (!updated) throw new NotFoundError('Discussion not found');
+    return updated;
+  }
+
+  async createPost(
+    tenantId: string,
+    discussionId: string,
+    input: CreatePostInput,
+    actor: LmsActor,
+  ): Promise<DiscussionPostEntity> {
+    const discussion = await this.repository.findDiscussion(tenantId, discussionId);
+    if (!discussion) throw new NotFoundError('Discussion not found');
+    assertInstitutionAllowed(actor, discussion.institutionId);
+    if (discussion.locked && !canAuthor(actor)) {
+      throw new ForbiddenError('This discussion is locked');
+    }
+    if (input.parentId) {
+      const parent = await this.repository.findDiscussionPost(tenantId, input.parentId);
+      if (!parent || parent.discussionId !== discussionId) {
+        throw new ValidationError('Unknown parent post', [
+          { field: 'parentId', rule: 'exists', message: 'parentId must belong to this thread' },
+        ]);
+      }
+    }
+    return this.repository.createDiscussionPost({
+      id: randomUUID(),
+      tenantId,
+      discussionId,
+      parentId: input.parentId ?? null,
+      body: input.body.trim(),
+      pinned: false,
+      hidden: false,
+      createdBy: uuidOrNull(actor.userId),
+    });
+  }
+
+  async pinPost(tenantId: string, discussionId: string, postId: string, pinned: boolean, actor: LmsActor) {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can pin posts');
+    await this.getDiscussion(tenantId, discussionId, actor);
+    const post = await this.repository.findDiscussionPost(tenantId, postId);
+    if (!post || post.discussionId !== discussionId) throw new NotFoundError('Post not found');
+    const updated = await this.repository.setPostPinned(tenantId, postId, pinned);
+    if (!updated) throw new NotFoundError('Post not found');
+    return updated;
+  }
+
+  async hidePost(
+    tenantId: string,
+    discussionId: string,
+    postId: string,
+    hidden: boolean,
+    actor: LmsActor,
+  ) {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can hide posts');
+    await this.getDiscussion(tenantId, discussionId, actor);
+    const post = await this.repository.findDiscussionPost(tenantId, postId);
+    if (!post || post.discussionId !== discussionId) throw new NotFoundError('Post not found');
+    const updated = await this.repository.setPostHidden(tenantId, postId, hidden);
+    if (!updated) throw new NotFoundError('Post not found');
+    return updated;
+  }
+
+  async createContentItem(
+    tenantId: string,
+    input: CreateContentItemInput,
+    actor: LmsActor,
+  ): Promise<ContentItemEntity> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can author content');
+    assertScopeTarget(input.scope, input.boardId, input.institutionId);
+    assertInstitutionAllowed(actor, input.institutionId);
+    let objectKey: string | null = null;
+    let mimeType: string | null = input.mimeType ?? null;
+    if (input.kind === 'file') {
+      if (!input.contentBase64 || !input.mimeType) {
+        throw new ValidationError('File content needs contentBase64 and mimeType', [
+          { field: 'contentBase64', rule: 'required', message: 'Upload a file' },
+        ]);
+      }
+      const bytes = decodeBase64Payload(input.contentBase64);
+      try {
+        assertAllowedUpload(input.mimeType, bytes.length);
+      } catch (error) {
+        throw new ValidationError((error as Error).message, [
+          { field: 'mimeType', rule: 'allow-list', message: (error as Error).message },
+        ]);
+      }
+      const stored = await putLmsFile(tenantId, randomUUID(), input.title, bytes);
+      objectKey = stored.storageKey;
+      mimeType = input.mimeType;
+    }
+    return this.repository.createContentItem({
+      id: randomUUID(),
+      tenantId,
+      scope: input.scope,
+      boardId: input.scope === 'board' ? input.boardId! : null,
+      institutionId: input.scope === 'school' ? input.institutionId! : null,
+      title: input.title.trim(),
+      kind: input.kind,
+      body: input.body ?? null,
+      tags: (input.tags ?? []).map((t) => t.trim()).filter(Boolean),
+      classKey: input.classKey ?? null,
+      subject: input.subject ?? null,
+      objectKey,
+      mimeType,
+      published: input.published === true,
+      createdBy: uuidOrNull(actor.userId),
+    });
+  }
+
+  async listContentItems(
+    tenantId: string,
+    filter: {
+      institutionId?: string;
+      boardId?: string;
+      subject?: string;
+      classKey?: string;
+      published?: boolean;
+      scope?: 'board' | 'school';
+    },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    assertInstitutionAllowed(actor, filter.institutionId);
+    const effective = { ...filter };
+    if (isLearner(actor)) effective.published = true;
+    return this.repository.listContentItems(tenantId, effective, pagination);
+  }
+
+  async getContentItem(tenantId: string, id: string, actor: LmsActor) {
+    const item = await this.repository.findContentItem(tenantId, id);
+    if (!item) throw new NotFoundError('Content not found');
+    if (isLearner(actor) && !item.published) throw new NotFoundError('Content not found');
+    return item;
+  }
+
+  async getClassAnalytics(
+    tenantId: string,
+    query: { classKey: string; institutionId?: string; boardId?: string },
+    actor: LmsActor,
+  ) {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can view class analytics');
+    assertInstitutionAllowed(actor, query.institutionId);
+    const listed = await this.repository.listAssignments(
+      tenantId,
+      {
+        institutionId: query.institutionId,
+        boardId: query.boardId,
+      },
+      { page: 1, pageSize: 200 },
+    );
+    const assignments = listed.data.filter(
+      (a) => a.gradeLevel === query.classKey || a.sectionId === query.classKey,
+    );
+    let submissionCount = 0;
+    const students = new Set<string>();
+    const scores: number[] = [];
+    const skillHits = new Map<string, { label: string; correct: number; attempts: number }>();
+    for (const assignment of assignments) {
+      const submissions = await this.repository.listSubmissions(
+        tenantId,
+        { assignmentId: assignment.id },
+        { page: 1, pageSize: 500 },
+      );
+      submissionCount += submissions.data.length;
+      const questions = await this.repository.listQuestions(tenantId, assignment.id);
+      for (const sub of submissions.data) {
+        students.add(sub.studentId);
+        if (sub.score != null) scores.push(sub.score);
+        const graded = gradeObjectiveQuiz(questions.map(toBankLike), sub.answers);
+        for (const r of graded.results) {
+          if (r.questionType === 'essay') continue;
+          const key = r.skillId ?? 'untagged';
+          const current = skillHits.get(key) ?? {
+            label: r.skillId ?? 'untagged',
+            correct: 0,
+            attempts: 0,
+          };
+          current.attempts += 1;
+          if (r.correct) current.correct += 1;
+          skillHits.set(key, current);
+        }
+        for (const q of questions) {
+          const tags = Array.isArray(q.payload?.tags) ? (q.payload.tags as string[]) : [];
+          for (const tag of tags) {
+            const key = `tag:${tag}`;
+            const current = skillHits.get(key) ?? { label: tag, correct: 0, attempts: 0 };
+            const hit = graded.results.find((r) => r.questionId === q.id);
+            current.attempts += 1;
+            if (hit?.correct) current.correct += 1;
+            skillHits.set(key, current);
+          }
+        }
+      }
+    }
+    return {
+      classKey: query.classKey,
+      assignmentCount: assignments.length,
+      submissionCount,
+      uniqueStudents: students.size,
+      submissionRate:
+        assignments.length === 0
+          ? 0
+          : Math.round((submissionCount / assignments.length) * 100) / 100,
+      averageScore: mean(scores) ?? 0,
+      masteryBySkill: Array.from(skillHits.entries()).map(([id, row]) => ({
+        skillId: id,
+        label: row.label,
+        attempts: row.attempts,
+        averageMastery: itemDifficulty(row.correct, row.attempts) ?? 0,
+      })),
+    };
+  }
+
+  async createLesson(tenantId: string, input: CreateLessonInput, actor: LmsActor): Promise<LessonEntity> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can author lessons');
+    assertScopeTarget(input.scope, input.boardId, input.institutionId);
+    assertInstitutionAllowed(actor, input.institutionId);
+    return this.repository.createLesson({
+      id: randomUUID(),
+      tenantId,
+      scope: input.scope,
+      boardId: input.scope === 'board' ? input.boardId! : null,
+      institutionId: input.scope === 'school' ? input.institutionId! : null,
+      title: input.title.trim(),
+      subject: input.subject ?? null,
+      gradeLevel: input.gradeLevel ?? null,
+      description: input.description ?? null,
+      published: input.published === true,
+      createdBy: uuidOrNull(actor.userId),
+    });
+  }
+
+  async listLessons(
+    tenantId: string,
+    filter: { institutionId?: string; boardId?: string; subject?: string; published?: boolean },
+    pagination: { page: number; pageSize: number },
+    actor: LmsActor,
+  ) {
+    assertInstitutionAllowed(actor, filter.institutionId);
+    const effective = { ...filter };
+    if (isLearner(actor)) effective.published = true;
+    return this.repository.listLessons(tenantId, effective, pagination);
+  }
+
+  async getLesson(tenantId: string, id: string, actor: LmsActor) {
+    const lesson = await this.repository.findLesson(tenantId, id);
+    if (!lesson) throw new NotFoundError('Lesson not found');
+    if (isLearner(actor) && !lesson.published) throw new NotFoundError('Lesson not found');
+    const resources = await this.repository.listLessonResources(tenantId, id);
+    return { ...lesson, resources };
+  }
+
+  async addLessonResource(
+    tenantId: string,
+    lessonId: string,
+    input: CreateLessonResourceInput,
+    actor: LmsActor,
+  ): Promise<LessonResourceEntity> {
+    if (!canAuthor(actor)) throw new ForbiddenError('Only staff can add resources');
+    const lesson = await this.repository.findLesson(tenantId, lessonId);
+    if (!lesson) throw new NotFoundError('Lesson not found');
+    const existing = await this.repository.listLessonResources(tenantId, lessonId);
+    let storageKey: string | null = null;
+    if (input.kind === 'file') {
+      if (!input.contentBase64 || !input.mimeType) {
+        throw new ValidationError('File resources need contentBase64 and mimeType', [
+          { field: 'contentBase64', rule: 'required', message: 'Upload a file' },
+        ]);
+      }
+      const bytes = decodeBase64Payload(input.contentBase64);
+      assertAllowedUpload(input.mimeType, bytes.length);
+      const stored = await putLmsFile(tenantId, randomUUID(), input.title, bytes);
+      storageKey = stored.storageKey;
+    }
+    return this.repository.createLessonResource({
+      id: randomUUID(),
+      tenantId,
+      lessonId,
+      kind: input.kind,
+      title: input.title.trim(),
+      url: input.url ?? null,
+      storageKey,
+      mimeType: input.mimeType ?? null,
+      position: existing.length,
+    });
   }
 }

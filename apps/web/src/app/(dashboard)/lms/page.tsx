@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 
 import { KindPill, ScopePill, StatusPill } from './_components/badges';
 import { KpiCard } from './_components/kpi-card';
+import { LmsSubnav } from './_components/lms-subnav';
 import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
@@ -132,6 +133,8 @@ export default async function LmsPage({
           </Button>
         </div>
       </div>
+
+      <LmsSubnav current="/lms" />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
