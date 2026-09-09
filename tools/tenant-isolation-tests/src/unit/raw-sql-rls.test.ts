@@ -257,3 +257,33 @@ describe('Wave 9 academic calendar raw-SQL RLS (030_academic_calendar_schema.sql
     );
   });
 });
+
+const ADMISSIONS_CRM_TABLES = [
+  'admission_enquiries',
+  'enquiry_followups',
+  'seat_matrix',
+  'merit_lists',
+  'merit_list_entries',
+  'admission_offers',
+] as const;
+
+describe('Wave 9 admissions CRM raw-SQL RLS (034_admissions_crm_schema.sql)', () => {
+  const sql = loadSql('034_admissions_crm_schema.sql');
+
+  it('creates enquiry/seat/merit/offer tables with tenant_id and forces RLS on each', () => {
+    for (const table of ADMISSIONS_CRM_TABLES) {
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(
+        new RegExp(
+          `CREATE POLICY tenant_isolation ON ${table}[\\s\\S]*?USING \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)[\\s\\S]*?WITH CHECK \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)`,
+        ),
+      );
+    }
+  });
+});
