@@ -11,6 +11,7 @@ import type {
   CreateAcademicPeriodDto,
   UpdateAcademicPeriodDto,
   AcademicPeriodStatusType,
+  AcademicPeriodKindType,
 } from './academic-period-schemas.js';
 
 export interface AcademicPeriodServiceDeps {
@@ -47,6 +48,12 @@ export class AcademicPeriodService {
       throw new ConflictError(`Academic period with code '${dto.code}' already exists`);
     }
 
+    const kind: AcademicPeriodKindType = dto.kind ?? 'year';
+    const parentId = await this.resolveParent(tenantId, kind, dto.parentId ?? null, {
+      startDate,
+      endDate,
+    });
+
     return this.prisma.academicPeriod.create({
       data: {
         tenantId,
@@ -55,8 +62,63 @@ export class AcademicPeriodService {
         startDate,
         endDate,
         status: dto.status ?? 'active',
+        kind,
+        parentId,
       },
     });
+  }
+
+  /**
+   * G-905 — a `year` has no parent; every other kind must nest under a `year`
+   * of the same tenant and fall inside its date range.
+   */
+  private async resolveParent(
+    tenantId: string,
+    kind: AcademicPeriodKindType,
+    parentId: string | null,
+    range: { startDate: Date; endDate: Date },
+    selfId?: string,
+  ): Promise<string | null> {
+    if (kind === 'year') {
+      if (parentId) {
+        throw new ValidationError('An academic year cannot have a parent period', [
+          { field: 'parentId', rule: 'noParentForYear', message: 'Years are top-level periods' },
+        ]);
+      }
+      return null;
+    }
+    if (!parentId) {
+      throw new ValidationError(`A ${kind} must belong to an academic year`, [
+        { field: 'parentId', rule: 'required', message: 'parentId is required for sub-periods' },
+      ]);
+    }
+    if (selfId && parentId === selfId) {
+      throw new ValidationError('A period cannot be its own parent', [
+        { field: 'parentId', rule: 'selfReference', message: 'parentId must differ from id' },
+      ]);
+    }
+    const parent = await this.prisma.academicPeriod.findFirst({
+      where: { id: parentId, tenantId, deletedAt: null },
+    });
+    if (!parent) {
+      throw new NotFoundError(`Parent academic period '${parentId}' not found`);
+    }
+    const parentKind = (parent as { kind?: string }).kind ?? 'year';
+    if (parentKind !== 'year') {
+      throw new BusinessRuleError('Sub-periods can only nest under an academic year');
+    }
+    if (range.startDate < parent.startDate || range.endDate > parent.endDate) {
+      throw new ValidationError('Sub-period must fall inside its academic year', [
+        {
+          field: 'startDate',
+          rule: 'withinParent',
+          message: `Must fall between ${parent.startDate.toISOString().slice(0, 10)} and ${parent.endDate
+            .toISOString()
+            .slice(0, 10)}`,
+        },
+      ]);
+    }
+    return parentId;
   }
 
   /**
@@ -105,6 +167,38 @@ export class AcademicPeriodService {
       }
     }
 
+    const currentKind = ((period as { kind?: string }).kind ?? 'year') as AcademicPeriodKindType;
+    const currentParent = (period as { parentId?: string | null }).parentId ?? null;
+    const kind = dto.kind ?? currentKind;
+    const hierarchyTouched =
+      dto.kind !== undefined ||
+      dto.parentId !== undefined ||
+      dto.startDate !== undefined ||
+      dto.endDate !== undefined;
+    // Promoting a term to a year is fine; demoting a year that still owns
+    // terms would orphan them — check before parent validation so the caller
+    // sees the real reason rather than "parentId is required".
+    if (kind !== 'year' && currentKind === 'year') {
+      const children = await this.prisma.academicPeriod.count({
+        where: { tenantId, parentId: id, deletedAt: null },
+      });
+      if (children > 0) {
+        throw new BusinessRuleError(
+          `Cannot change an academic year with ${children} sub-period(s) into a ${kind}`,
+        );
+      }
+    }
+    let parentId = currentParent;
+    if (hierarchyTouched) {
+      parentId = await this.resolveParent(
+        tenantId,
+        kind,
+        dto.parentId !== undefined ? dto.parentId : currentParent,
+        { startDate, endDate },
+        id,
+      );
+    }
+
     return this.prisma.academicPeriod.update({
       where: { id },
       data: {
@@ -113,6 +207,7 @@ export class AcademicPeriodService {
         ...(dto.startDate !== undefined && { startDate }),
         ...(dto.endDate !== undefined && { endDate }),
         ...(dto.status !== undefined && { status: dto.status }),
+        ...(hierarchyTouched && { kind, parentId }),
       },
     });
   }
@@ -135,12 +230,17 @@ export class AcademicPeriodService {
   /**
    * List academic periods for a tenant with optional status filter.
    */
-  async list(tenantId: string, options?: { status?: string }): Promise<AcademicPeriod[]> {
+  async list(
+    tenantId: string,
+    options?: { status?: string; parentId?: string; kind?: string },
+  ): Promise<AcademicPeriod[]> {
     return this.prisma.academicPeriod.findMany({
       where: {
         tenantId,
         deletedAt: null,
         ...(options?.status && { status: options.status }),
+        ...(options?.kind && { kind: options.kind }),
+        ...(options?.parentId && { parentId: options.parentId }),
       },
       orderBy: { startDate: 'desc' },
     });
@@ -156,6 +256,15 @@ export class AcademicPeriodService {
 
     if (!period) {
       throw new NotFoundError(`Academic period '${id}' not found`);
+    }
+
+    const children = await this.prisma.academicPeriod.count({
+      where: { tenantId, parentId: id, deletedAt: null },
+    });
+    if (children > 0) {
+      throw new BusinessRuleError(
+        `Cannot delete an academic year that still has ${children} sub-period(s)`,
+      );
     }
 
     await this.prisma.academicPeriod.update({

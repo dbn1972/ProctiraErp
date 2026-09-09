@@ -10,11 +10,11 @@
  */
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import { AcademicPeriodService } from './academic-period-service.js';
 import type {
   CreateAcademicPeriodDto,
   UpdateAcademicPeriodDto,
 } from './academic-period-schemas.js';
+import type { AcademicPeriodService } from './academic-period-service.js';
 
 export interface AcademicPeriodRoutesOptions {
   service: AcademicPeriodService;
@@ -29,6 +29,8 @@ function formatPeriodResponse(period: {
   startDate: Date;
   endDate: Date;
   status: string;
+  kind?: string | null;
+  parentId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -40,6 +42,8 @@ function formatPeriodResponse(period: {
     startDate: period.startDate.toISOString().split('T')[0],
     endDate: period.endDate.toISOString().split('T')[0],
     status: period.status,
+    kind: period.kind ?? 'year',
+    parentId: period.parentId ?? null,
     createdAt: period.createdAt.toISOString(),
     updatedAt: period.updatedAt.toISOString(),
   };
@@ -80,7 +84,7 @@ export async function registerAcademicPeriodRoutes(
   fastify.get(
     prefix,
     async function listHandler(
-      request: FastifyRequest<{ Querystring: { status?: string } }>,
+      request: FastifyRequest<{ Querystring: { status?: string; parentId?: string; kind?: string } }>,
       reply: FastifyReply,
     ) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -92,7 +96,11 @@ export async function registerAcademicPeriodRoutes(
         });
       }
 
-      const periods = await service.list(tenantId, { status: request.query.status });
+      const periods = await service.list(tenantId, {
+        status: request.query.status,
+        parentId: request.query.parentId,
+        kind: request.query.kind,
+      });
       return reply.status(200).send(periods.map(formatPeriodResponse));
     },
   );

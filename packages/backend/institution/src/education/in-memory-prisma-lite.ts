@@ -195,7 +195,8 @@ export function createInMemoryAcademicsPrisma(
 ): PrismaClient {
   const soft = () => ({ deletedAt: null });
   const tables = {
-    academicPeriod: new ModelTable(() => ({ status: 'active', ...soft() })),
+    academicPeriod: new ModelTable(() => ({ status: 'active', kind: 'year', parentId: null, ...soft() })),
+    enrollment: new ModelTable(() => ({ status: 'ENROLLED', classId: null, exitedAt: null })),
     grade: new ModelTable(soft),
     class: new ModelTable(() => ({ capacity: null, ...soft() })),
     subject: new ModelTable(soft),

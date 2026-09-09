@@ -13,23 +13,25 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { AcademicCalendarService } from './academic-calendar/calendar-service.js';
+import { registerAcademicCalendarRoutes } from './academic-calendar/routes.js';
+import { registerAcademicPeriodRoutes } from './academic-period/academic-period-routes.js';
+import { AcademicPeriodService } from './academic-period/academic-period-service.js';
+import { createAcademicsDeps, type AcademicsDeps } from './academics-factory.js';
+import { registerAreaHierarchyRoutes } from './area-hierarchy/area-hierarchy.routes.js';
+import type { AreaHierarchyDbClient } from './area-hierarchy/area-hierarchy.service.js';
+import { AreaHierarchyService } from './area-hierarchy/area-hierarchy.service.js';
+import { registerClassRoutes } from './education/class-routes.js';
+import { ClassService } from './education/class-service.js';
+import { registerGradeRoutes } from './education/grade-routes.js';
+import { GradeService } from './education/grade-service.js';
+import { registerSubjectRoutes } from './education/subject-routes.js';
+import { SubjectService } from './education/subject-service.js';
+import { registerInfrastructureRoutes } from './infrastructure/routes.js';
+import { InfrastructureService } from './infrastructure/service.js';
 import type { InstitutionRepository } from './institution-repository.js';
 import { InstitutionService } from './institution-service.js';
 import { registerInstitutionRoutes } from './routes.js';
-import { AreaHierarchyService } from './area-hierarchy/area-hierarchy.service.js';
-import type { AreaHierarchyDbClient } from './area-hierarchy/area-hierarchy.service.js';
-import { registerAreaHierarchyRoutes } from './area-hierarchy/area-hierarchy.routes.js';
-import { createAcademicsDeps, type AcademicsDeps } from './academics-factory.js';
-import { AcademicPeriodService } from './academic-period/academic-period-service.js';
-import { registerAcademicPeriodRoutes } from './academic-period/academic-period-routes.js';
-import { ClassService } from './education/class-service.js';
-import { registerClassRoutes } from './education/class-routes.js';
-import { GradeService } from './education/grade-service.js';
-import { registerGradeRoutes } from './education/grade-routes.js';
-import { SubjectService } from './education/subject-service.js';
-import { registerSubjectRoutes } from './education/subject-routes.js';
-import { InfrastructureService } from './infrastructure/service.js';
-import { registerInfrastructureRoutes } from './infrastructure/routes.js';
 import { tenantContext } from './tenant-context.js';
 
 /**
@@ -67,6 +69,7 @@ declare module 'fastify' {
     institutionService: InstitutionService;
     areaHierarchyService?: AreaHierarchyService;
     academicPeriodService?: AcademicPeriodService;
+    academicCalendarService?: AcademicCalendarService;
     infrastructureService?: InfrastructureService;
   }
 }
@@ -131,6 +134,16 @@ export const institutionPlugin = fp(
     fastify.decorate('academicPeriodService', academicPeriodService);
     await registerAcademicPeriodRoutes(fastify, {
       service: academicPeriodService,
+      prefix: academicsPrefixes.academicPeriods ?? '/academic-periods',
+    });
+
+    const academicCalendarService = new AcademicCalendarService({
+      prisma: deps.prisma,
+      store: deps.calendarStore,
+    });
+    fastify.decorate('academicCalendarService', academicCalendarService);
+    await registerAcademicCalendarRoutes(fastify, {
+      service: academicCalendarService,
       prefix: academicsPrefixes.academicPeriods ?? '/academic-periods',
     });
 

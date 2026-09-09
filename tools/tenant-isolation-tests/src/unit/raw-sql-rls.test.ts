@@ -239,3 +239,21 @@ describe('Wave 9 classes / subjects raw-SQL RLS (029_academics_classes_subjects_
     expect(sql).toMatch(/CREATE POLICY tenant_isolation ON %I/);
   });
 });
+
+describe('Wave 9 academic calendar raw-SQL RLS (030_academic_calendar_schema.sql)', () => {
+  const sql = loadSql('030_academic_calendar_schema.sql');
+
+  it('adds the hierarchy columns idempotently and forces RLS on calendar events', () => {
+    expect(sql).toMatch(/ALTER TABLE academic_periods\s+ADD COLUMN IF NOT EXISTS kind/);
+    expect(sql).toMatch(/ALTER TABLE academic_periods\s+ADD COLUMN IF NOT EXISTS parent_id UUID/);
+    const ddl = sql.match(/CREATE TABLE IF NOT EXISTS academic_calendar_events \(([\s\S]*?)\n\);/);
+    expect(ddl).not.toBeNull();
+    expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+    expect(ddl?.[1]).toMatch(/CHECK \(end_date >= start_date\)/);
+    expect(sql).toMatch(/ALTER TABLE academic_calendar_events ENABLE ROW LEVEL SECURITY/);
+    expect(sql).toMatch(/ALTER TABLE academic_calendar_events FORCE ROW LEVEL SECURITY/);
+    expect(sql).toMatch(
+      /CREATE POLICY tenant_isolation ON academic_calendar_events[\s\S]*?USING \(tenant_id::text = NULLIF\(current_setting\('app\.tenant_id', true\), ''\)\)[\s\S]*?WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app\.tenant_id', true\), ''\)\)/,
+    );
+  });
+});

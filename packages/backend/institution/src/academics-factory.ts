@@ -17,6 +17,11 @@ import {
   type PrismaClient,
 } from '@proctira/database';
 
+import {
+  InMemoryCalendarStore,
+  PgCalendarStore,
+  type CalendarStore,
+} from './academic-calendar/calendar-store.js';
 import { createInMemoryAcademicsPrisma } from './education/in-memory-prisma-lite.js';
 import {
   InMemoryConditionOptionStore,
@@ -42,6 +47,8 @@ export interface AcademicsDeps {
   prisma: PrismaClient;
   infrastructureStore: InfrastructureStore;
   conditionStore: ConditionOptionStore;
+  /** G-905 calendar events (holidays / windows) — pg (db/sql/030) or in-memory. */
+  calendarStore: CalendarStore;
   /** 'prisma+pg' when DATABASE_URL is set, else 'in-memory'. */
   persistence: 'prisma+pg' | 'in-memory';
 }
@@ -151,6 +158,7 @@ export function createAcademicsDeps(config: AcademicsDepsConfig = {}): Academics
         createInMemoryAcademicsPrisma({ institutionRepository: config.institutionRepository }),
       infrastructureStore: new TenantPartitionedInfrastructureStore(),
       conditionStore: new TenantPartitionedConditionOptionStore(),
+      calendarStore: new InMemoryCalendarStore(),
       persistence: 'in-memory',
     };
   }
@@ -167,6 +175,7 @@ export function createAcademicsDeps(config: AcademicsDepsConfig = {}): Academics
     ),
     infrastructureStore: new PgInfrastructureStore(pool),
     conditionStore: new PgConditionOptionStore(pool),
+    calendarStore: new PgCalendarStore(pool),
     persistence: 'prisma+pg',
   };
 }

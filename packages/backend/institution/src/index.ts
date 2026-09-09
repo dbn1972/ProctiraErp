@@ -119,6 +119,28 @@ export {
 export { tenantContext, currentTenantId, requireTenantId } from './tenant-context.js';
 export { AcademicPeriodService } from './academic-period/academic-period-service.js';
 export { registerAcademicPeriodRoutes } from './academic-period/academic-period-routes.js';
+// G-905 academic calendar: year→term hierarchy events + end-of-year rollover
+export { AcademicCalendarService } from './academic-calendar/calendar-service.js';
+export type { AcademicCalendarServiceDeps } from './academic-calendar/calendar-service.js';
+export { registerAcademicCalendarRoutes } from './academic-calendar/routes.js';
+export {
+  InMemoryCalendarStore,
+  PgCalendarStore,
+} from './academic-calendar/calendar-store.js';
+export type { CalendarStore, CalendarEventRecord } from './academic-calendar/calendar-store.js';
+export {
+  CALENDAR_EVENT_KINDS,
+  CreateCalendarEventSchema,
+  CalendarEventResponseSchema,
+  RolloverRequestSchema,
+} from './academic-calendar/schemas.js';
+export type {
+  CalendarEventKind,
+  CreateCalendarEventDto,
+  CalendarEventResponse,
+  RolloverRequestDto,
+  RolloverSummary,
+} from './academic-calendar/schemas.js';
 export {
   GradeService,
   ClassService,
