@@ -617,6 +617,24 @@ export class AttendanceService {
   }
 
   /**
+   * Daily attendance rows for one student in a date range (G-914 heatmap).
+   * Does not require classId — unlike {@link calculateAttendancePercentage}.
+   */
+  async listStudentAttendanceInRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]> {
+    return this.repository.listStudentAttendanceByStudentDateRange(
+      tenantId,
+      studentId,
+      startDate,
+      endDate,
+    );
+  }
+
+  /**
    * Check if a student's absence count exceeds the configured threshold
    * within the evaluation period.
    *

@@ -91,6 +91,7 @@ import {
   staffPlugin,
 } from '@proctira/backend-staff';
 import {
+  bindAttendanceHeatmapSource,
   createEnrollmentRepository,
   createStudentRepository,
   EnrollmentService,
@@ -150,6 +151,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Reads RLS-safely via withTenantTransaction using the request's tenantId.
       // G-701: studentPlugin also mounts /enrollments and /students/import
       // (Pg enrollment repository on db/sql/001 + 021 when DATABASE_URL set).
+      // G-914 360 routes share the /students prefix (photo, id-card, siblings,
+      // consents, discipline, attendance-heatmap).
       const repository = createStudentRepository();
       await scope.register(studentPlugin, { repository, prefix: '/students' });
     },
@@ -199,6 +202,35 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(attendancePlugin, {
         repository: createAttendanceRepository(),
         prefix: '/attendance',
+      });
+      type HeatmapDay = { date: string; status: string };
+      type HeatmapBinder = (source: {
+        listStudentAttendanceInRange: (
+          tenantId: string,
+          studentId: string,
+          startDate: string,
+          endDate: string,
+        ) => Promise<HeatmapDay[]>;
+      }) => void;
+      const bindHeatmap = bindAttendanceHeatmapSource as unknown as HeatmapBinder;
+      const attendance = scope.attendanceService as unknown as {
+        listStudentAttendanceInRange: (
+          tenantId: string,
+          studentId: string,
+          startDate: string,
+          endDate: string,
+        ) => Promise<Array<{ date: string; status: unknown }>>;
+      };
+      bindHeatmap({
+        listStudentAttendanceInRange: async (tenantId, studentId, startDate, endDate) => {
+          const rows = await attendance.listStudentAttendanceInRange(
+            tenantId,
+            studentId,
+            startDate,
+            endDate,
+          );
+          return rows.map((row) => ({ date: row.date, status: String(row.status) }));
+        },
       });
     },
   },

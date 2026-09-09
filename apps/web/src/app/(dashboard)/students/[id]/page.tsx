@@ -43,9 +43,15 @@ import {
 import {
   getEnrollmentHistory,
   getStudent,
+  getStudentAttendanceHeatmap,
   getStudentCustomFields,
   getStudentEnrollments,
   getTransferRecords,
+  listStudentConsents,
+  listStudentDiscipline,
+  listStudentSiblings,
+  studentHasPhoto,
+  type AttendanceHeatmap,
   type CustomFieldDefinition,
   type EnrollmentEntry,
   type EnrollmentHistoryEntry,
@@ -53,6 +59,7 @@ import {
   type TransferRecord,
 } from '@/lib/api/students';
 import { cn } from '@/lib/utils';
+import { Student360Panel } from '../_components/student-360-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -131,40 +138,34 @@ function formatCustomValue(v: unknown): string {
   return String(v);
 }
 
-/** Deterministic 30-slot heatmap pattern from student id + attendance pct */
-type HeatSlot = 'present' | 'half' | 'absent' | 'empty';
-function buildHeatmap(studentId: string, attendancePct: number | null): HeatSlot[] {
-  const pct = attendancePct ?? 90;
-  const absent = Math.max(0, Math.round(30 * (1 - pct / 100)));
-  const result: HeatSlot[] = Array(30).fill('present') as HeatSlot[];
-  let seed = 0;
-  for (let i = 0; i < studentId.length; i++) seed = (seed * 31 + studentId.charCodeAt(i)) | 0;
-  const used = new Set<number>();
-  for (let j = 0; j < absent; j++) {
-    seed = (seed * 1664525 + 1013904223) | 0;
-    const pos = Math.abs(seed) % 30;
-    if (!used.has(pos)) {
-      result[pos] = 'absent';
-      used.add(pos);
-    }
-  }
-  return result;
-}
-
-/* ------------------------------------------------------------------ page */
-
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function StudentProfilePage(props: PageProps) {
   const params = await props.params;
-  const [student, enrollments, history, transfers, customFields] = await Promise.all([
+  const [
+    student,
+    enrollments,
+    history,
+    transfers,
+    customFields,
+    heatmap,
+    siblings,
+    consents,
+    incidents,
+    hasPhoto,
+  ] = await Promise.all([
     getStudent(params.id),
     getStudentEnrollments(params.id),
     getEnrollmentHistory(params.id),
     getTransferRecords(params.id),
     getStudentCustomFields(),
+    getStudentAttendanceHeatmap(params.id),
+    listStudentSiblings(params.id),
+    listStudentConsents(params.id),
+    listStudentDiscipline(params.id),
+    studentHasPhoto(params.id),
   ]);
 
   if (!student) notFound();
@@ -185,7 +186,8 @@ export default async function StudentProfilePage(props: PageProps) {
   const avgScore = readNum(cd, 'avgScore') ?? readNum(cd, 'averageScore');
   const rankBand = readStr(cd, 'rankBand') || readStr(cd, 'rank');
   const feeStatus = readStr(cd, 'feeStatus') || readStr(cd, 'feeClearanceStatus');
-  const heatmap = buildHeatmap(student.id, attendance);
+  const attendancePct =
+    heatmap?.totalRecords ? heatmap.attendancePercentage : (attendance ?? null);
 
   return (
     <section aria-labelledby="student-profile-heading" className="space-y-0">
@@ -193,19 +195,28 @@ export default async function StudentProfilePage(props: PageProps) {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
           {/* XL avatar */}
-          <span
-            aria-hidden="true"
-            className={cn(
-              'flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-bold',
-              palette.bg,
-              palette.text,
-            )}
-          >
-            {initials}
-          </span>
+          {hasPhoto ? (
+            <img
+              alt=""
+              src={`/api/students/${student.id}/photo`}
+              className="h-16 w-16 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-lg font-bold',
+                palette.bg,
+                palette.text,
+              )}
+            >
+              {initials}
+            </span>
+          )}
           <div>
             <h1
               id="student-profile-heading"
+              data-testid="student-profile-heading"
               className="text-2xl font-extrabold tracking-tight text-foreground"
             >
               {fullName}
@@ -288,11 +299,11 @@ export default async function StudentProfilePage(props: PageProps) {
                   icon={<CheckCircle2 className="h-5 w-5" />}
                   iconColors="bg-emerald-50 text-emerald-600"
                   label="Attendance"
-                  value={attendance !== null ? `${Math.round(attendance)}%` : '—'}
+                  value={attendancePct !== null ? `${Math.round(attendancePct)}%` : '—'}
                   foot={
-                    attendance !== null && attendance >= 90
+                    attendancePct !== null && attendancePct >= 90
                       ? 'On track this term'
-                      : attendance !== null
+                      : attendancePct !== null
                         ? 'Needs attention'
                         : undefined
                   }
@@ -321,21 +332,27 @@ export default async function StudentProfilePage(props: PageProps) {
               </div>
 
               {/* Attendance heatmap */}
-              {attendance !== null && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold">
-                      Attendance — last 30 school days
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      {Math.round(attendance)}% attendance this term
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <AttendanceHeatmap slots={heatmap} />
-                  </CardContent>
-                </Card>
-              )}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Attendance heatmap</CardTitle>
+                  <CardDescription className="text-xs">
+                    {heatmap && heatmap.totalRecords > 0
+                      ? `${heatmap.attendancePercentage}% from ${heatmap.totalRecords} recorded days (${heatmap.from} – ${heatmap.to})`
+                      : 'No attendance recorded in this window yet.'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AttendanceHeatmap heatmap={heatmap} />
+                </CardContent>
+              </Card>
+
+              <Student360Panel
+                studentId={student.id}
+                hasPhoto={hasPhoto}
+                siblings={siblings}
+                consents={consents}
+                incidents={incidents}
+              />
 
               {/* Recent assessments */}
               <RecentAssessmentsCard cd={cd} />
@@ -363,16 +380,11 @@ export default async function StudentProfilePage(props: PageProps) {
             <CardHeader>
               <CardTitle>Attendance</CardTitle>
               <CardDescription>
-                Detailed attendance will populate when the attendance module is connected.
+                Daily records from the attendance service for this student.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {attendance !== null && <AttendanceHeatmap slots={heatmap} />}
-              {attendance === null && (
-                <p className="text-sm text-muted-foreground">
-                  No attendance data available for this student yet.
-                </p>
-              )}
+              <AttendanceHeatmap heatmap={heatmap} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -449,25 +461,36 @@ function KpiCard({
 
 /* --------------------------------------------------------------- heatmap */
 
-function AttendanceHeatmap({ slots }: { slots: HeatSlot[] }) {
+function AttendanceHeatmap({ heatmap }: { heatmap: AttendanceHeatmap | null }) {
+  const days = heatmap?.days ?? [];
+  if (days.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="attendance-heatmap-empty">
+        No attendance days in range.
+      </p>
+    );
+  }
   return (
-    <div>
+    <div data-testid="attendance-heatmap">
       <div
         role="img"
-        aria-label="Attendance for last 30 school days"
-        className="grid grid-cols-[repeat(30,1fr)] gap-1"
+        aria-label={`Attendance from ${heatmap?.from ?? ''} to ${heatmap?.to ?? ''}`}
+        className="grid grid-cols-[repeat(auto-fill,minmax(0.7rem,1fr))] gap-1"
       >
-        {slots.map((slot, i) => (
+        {days.map((day) => (
           <span
-            key={i}
-            aria-hidden="true"
+            key={day.date}
+            data-testid="heatmap-day"
+            data-date={day.date}
+            data-slot={day.slot}
+            title={`${day.date}: ${day.status ?? 'no record'}`}
             className={cn(
               'aspect-square rounded-[3px]',
-              slot === 'present'
+              day.slot === 'present'
                 ? 'bg-emerald-500'
-                : slot === 'half'
+                : day.slot === 'half'
                   ? 'bg-emerald-300'
-                  : slot === 'absent'
+                  : day.slot === 'absent'
                     ? 'bg-red-500'
                     : 'bg-muted',
             )}
@@ -487,7 +510,7 @@ function AttendanceHeatmap({ slots }: { slots: HeatSlot[] }) {
             className="inline-block h-2.5 w-2.5 rounded-[3px] bg-emerald-300"
             aria-hidden="true"
           />
-          Half day
+          Late
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block h-2.5 w-2.5 rounded-[3px] bg-red-500" aria-hidden="true" />

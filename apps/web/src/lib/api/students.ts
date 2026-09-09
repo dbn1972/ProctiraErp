@@ -9,7 +9,7 @@
  *
  * All calls are tenant-scoped via `gatewayFetch`.
  */
-import { gatewayFetch } from './gateway';
+import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, gatewayFetch, getSessionContext } from './gateway';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -361,6 +361,189 @@ export async function submitBulkImport(
 export async function getImportProgress(jobId: string): Promise<ImportProgress | null> {
   const result = await gatewayFetch<ImportProgress>(
     `/students/import/${encodeURIComponent(jobId)}`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok ? result.data : null;
+}
+
+/* ----------------------------------------------------------- Students 360 (G-914) */
+
+export type ConsentKind = 'photo' | 'medical' | 'trips' | 'data_sharing';
+export type DisciplineSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type HeatSlot = 'present' | 'half' | 'absent' | 'empty';
+
+export interface StudentPhotoMeta {
+  id: string;
+  studentId: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedBy: string;
+  createdAt: string;
+}
+
+export interface StudentSibling {
+  id: string;
+  studentId: string;
+  siblingId: string;
+  createdAt: string;
+}
+
+export interface StudentConsent {
+  id: string;
+  studentId: string;
+  kind: ConsentKind;
+  granted: boolean;
+  actorId: string;
+  recordedAt: string;
+}
+
+export interface DisciplineIncident {
+  id: string;
+  studentId: string;
+  incidentType: string;
+  severity: DisciplineSeverity;
+  description: string;
+  actionTaken: string | null;
+  reporterId: string;
+  incidentDate: string;
+  visibleToParent: boolean;
+  createdAt: string;
+}
+
+export interface AttendanceHeatmapDay {
+  date: string;
+  status: string | null;
+  slot: HeatSlot;
+}
+
+export interface AttendanceHeatmap {
+  from: string;
+  to: string;
+  attendancePercentage: number;
+  absencePercentage: number;
+  totalRecords: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  days: AttendanceHeatmapDay[];
+}
+
+export async function uploadStudentPhoto(
+  studentId: string,
+  input: { contentBase64: string; mimeType: string },
+): Promise<StudentPhotoMeta> {
+  const result = await gatewayFetch<StudentPhotoMeta>(`/students/${studentId}/photo`, {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from photo upload');
+  return result.data;
+}
+
+export async function studentHasPhoto(studentId: string): Promise<boolean> {
+  const { tenantId, accessToken } = await getSessionContext();
+  try {
+    const response = await fetch(
+      `${GATEWAY_BASE_URL}${GATEWAY_API_PREFIX}/students/${studentId}/photo`,
+      {
+        method: 'GET',
+        headers: {
+          'X-Tenant-ID': tenantId,
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        cache: 'no-store',
+      },
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function listStudentSiblings(studentId: string): Promise<StudentSibling[]> {
+  const result = await gatewayFetch<{ data: StudentSibling[] }>(`/students/${studentId}/siblings`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? result.data.data : [];
+}
+
+export async function addStudentSibling(
+  studentId: string,
+  siblingId: string,
+): Promise<StudentSibling> {
+  const result = await gatewayFetch<StudentSibling>(`/students/${studentId}/siblings`, {
+    method: 'POST',
+    json: { siblingId },
+  });
+  if (!result.data) throw new Error('Empty response from sibling link');
+  return result.data;
+}
+
+export async function removeStudentSibling(studentId: string, siblingId: string): Promise<void> {
+  await gatewayFetch<void>(`/students/${studentId}/siblings/${siblingId}`, { method: 'DELETE' });
+}
+
+export async function listStudentConsents(studentId: string): Promise<StudentConsent[]> {
+  const result = await gatewayFetch<{ data: StudentConsent[] }>(`/students/${studentId}/consents`, {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? result.data.data : [];
+}
+
+export async function setStudentConsent(
+  studentId: string,
+  input: { kind: ConsentKind; granted: boolean },
+): Promise<StudentConsent> {
+  const result = await gatewayFetch<StudentConsent>(`/students/${studentId}/consents`, {
+    method: 'PUT',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from consent update');
+  return result.data;
+}
+
+export async function listStudentDiscipline(studentId: string): Promise<DisciplineIncident[]> {
+  const result = await gatewayFetch<{ data: DisciplineIncident[] }>(
+    `/students/${studentId}/discipline`,
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok && result.data ? result.data.data : [];
+}
+
+export async function addStudentDiscipline(
+  studentId: string,
+  input: {
+    incidentType: string;
+    severity: DisciplineSeverity;
+    description: string;
+    actionTaken?: string;
+    incidentDate: string;
+    visibleToParent?: boolean;
+  },
+): Promise<DisciplineIncident> {
+  const result = await gatewayFetch<DisciplineIncident>(`/students/${studentId}/discipline`, {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from discipline create');
+  return result.data;
+}
+
+export async function getStudentAttendanceHeatmap(
+  studentId: string,
+  range?: { from?: string; to?: string },
+): Promise<AttendanceHeatmap | null> {
+  const params = new URLSearchParams();
+  if (range?.from) params.set('from', range.from);
+  if (range?.to) params.set('to', range.to);
+  const qs = params.toString();
+  const result = await gatewayFetch<AttendanceHeatmap>(
+    `/students/${studentId}/attendance-heatmap${qs ? `?${qs}` : ''}`,
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
   return result.ok ? result.data : null;

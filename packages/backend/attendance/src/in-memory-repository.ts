@@ -252,6 +252,21 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     });
   }
 
+  async listStudentAttendanceByStudentDateRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]> {
+    return this.studentAttendance.filter(
+      (r) =>
+        r.tenantId === tenantId &&
+        r.studentId === studentId &&
+        r.date >= startDate &&
+        r.date <= endDate,
+    );
+  }
+
   // --- Count absences ---
 
   async countStudentAbsences(
