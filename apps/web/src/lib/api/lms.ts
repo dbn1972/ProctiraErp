@@ -10,6 +10,7 @@ export type LmsScope = 'board' | 'school';
 export type AssignmentKind = 'assignment' | 'homework' | 'quiz';
 export type AssignmentStatus = 'draft' | 'published' | 'closed' | 'archived';
 export type SubmissionStatus = 'submitted' | 'late' | 'graded' | 'returned';
+export type QuestionType = 'mcq' | 'msq' | 'numeric' | 'match' | 'essay';
 
 export interface LmsSkill {
   id: string;
@@ -178,7 +179,7 @@ export interface AssignmentListFilter {
   pageSize?: number;
 }
 
-function toQuery(params: Record<string, string | number | undefined>): string {
+function toQuery(params: Record<string, string | number | boolean | undefined>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== '') search.set(key, String(value));
@@ -318,7 +319,6 @@ export async function recordPracticeAttempt(
   return result.data;
 }
 
-export type QuestionType = 'mcq' | 'msq' | 'numeric' | 'match' | 'essay';
 export type ContentKind = 'link' | 'file' | 'text';
 
 export interface BankQuestion {
