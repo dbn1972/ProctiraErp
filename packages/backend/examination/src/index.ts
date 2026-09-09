@@ -103,6 +103,7 @@ export {
   createExaminationRepository,
   createResultRepository,
   createDocumentRepository,
+  isPgExaminationEnabled,
 } from './repository-factory.js';
 export type { ExaminationRepositoryConfig } from './repository-factory.js';
 
