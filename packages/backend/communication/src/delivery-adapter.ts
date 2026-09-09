@@ -3,7 +3,7 @@
  *
  * Mirrors notification sandbox senders until Twilio/SES/FCM credentials exist.
  */
-export type DeliveryChannel = 'email' | 'sms' | 'push' | 'in_app';
+export type DeliveryChannel = 'email' | 'sms' | 'push' | 'in_app' | 'whatsapp';
 
 export interface DeliveryRequest {
   tenantId: string;
@@ -26,7 +26,7 @@ export interface CommunicationDeliveryAdapter {
 }
 
 export const COMMS_SANDBOX_HONESTY_NOTE =
-  'Sandbox communication delivery — status marked sent without calling SMS/email/push providers. Wire Twilio/SES/FCM credentials for production delivery.';
+  'Sandbox communication delivery — status marked sent without calling SMS/email/push/WhatsApp providers. Wire Twilio/SES/FCM or WHATSAPP_* credentials for production delivery.';
 
 export function createSandboxDeliveryAdapter(): CommunicationDeliveryAdapter {
   return {
