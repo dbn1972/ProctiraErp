@@ -222,7 +222,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'Raw pg (026_lms_schema.sql) when DATABASE_URL set; else in-memory. Board/school scoped assignments · homework · quizzes · Spiral PAL (G-801/G-802).',
+      'Raw pg (026_lms_schema.sql + 038_lms_depth_schema.sql) when DATABASE_URL set; else in-memory. Board/school scoped assignments · homework · quizzes · Spiral PAL (G-801/G-802) plus question bank, rubrics, uploads, discussions, content library, class analytics (G-915).',
     registrarName: 'lms',
   },
   {

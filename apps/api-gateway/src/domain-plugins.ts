@@ -314,7 +314,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'lms',
     proxyPrefixes: ['/lms'],
     register: async (scope) => {
-      // G-801/G-802: Pg when DATABASE_URL (db/sql/026_lms_schema.sql); else in-memory.
+      // G-801/G-802/G-915: Pg when DATABASE_URL (026 + 038); else in-memory.
       await scope.register(lmsPlugin, {
         repository: createLmsRepository(),
         prefix: '/lms',
