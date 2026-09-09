@@ -108,7 +108,7 @@ export function StudentPortalShell({ children }: StudentPortalShellProps) {
 
       <div className="mx-auto flex w-full max-w-5xl flex-1">
         <nav
-          className="hidden w-52 shrink-0 border-r border-border px-3 py-6 md:block"
+          className="hidden w-52 shrink-0 border-e border-border px-3 py-6 md:block"
           aria-label="Student portal navigation"
         >
           <ul className="space-y-1" role="list">
