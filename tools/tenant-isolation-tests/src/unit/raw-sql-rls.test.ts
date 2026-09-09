@@ -451,3 +451,49 @@ describe('Wave 9 students 360 raw-SQL RLS (035_students_360_schema.sql)', () => 
     }
   });
 });
+
+describe('Wave 9 transport ops raw-SQL RLS (045_transport_ops_schema.sql)', () => {
+  const sql = loadSql('045_transport_ops_schema.sql');
+  const tables = [
+    'transport_vehicle_devices',
+    'transport_gps_pings',
+    'transport_bus_attendance',
+    'transport_alert_rules',
+    'transport_alerts',
+    'transport_fee_structures',
+    'transport_fee_links',
+  ] as const;
+
+  it('every transport-ops table enables + forces RLS with the tenant_isolation policy', () => {
+    for (const table of tables) {
+      expect(sql, `missing ENABLE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing FORCE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing tenant_isolation policy for ${table}`).toMatch(
+        new RegExp(`CREATE POLICY tenant_isolation ON ${table}`),
+      );
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+    }
+  });
+
+  it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
+    const policies =
+      sql.match(/CREATE POLICY tenant_isolation ON transport_[a-z_]+[\s\S]*?;/g) ?? [];
+    expect(policies).toHaveLength(tables.length);
+    for (const policy of policies) {
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+});
