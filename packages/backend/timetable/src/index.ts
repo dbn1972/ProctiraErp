@@ -43,8 +43,19 @@ export { timetablePlugin } from './timetable-plugin.js';
 export type { TimetablePluginOptions } from './timetable-plugin.js';
 export { registerTimetableRoutes } from './routes.js';
 export type { TimetableRoutesOptions } from './routes.js';
-export { createTimetableRepository } from './repository-factory.js';
+export { createTimetableRepository, createTimetableOpsStore } from './repository-factory.js';
 export { InMemoryTimetableRepository } from './in-memory-repository.js';
+export {
+  InMemoryTimetableOpsStore,
+  PgTimetableOpsStore,
+} from './generation-store.js';
+export type {
+  TimetableOpsStore,
+  GenerationJobRecord,
+  TeacherAbsenceRecord,
+} from './generation-store.js';
+export { generateTimetable, countHardClashes } from './generation.js';
+export type { GenerateInput, GenerateResult, GeneratorAssignment } from './generation.js';
 export {
   PgTimetableRepository,
   createPgTimetableRepository,
@@ -78,4 +89,6 @@ export {
   EnrollStudentSchema,
   BulkEnrollStudentsSchema,
   CreateRoomSchema,
+  CreateGenerationJobSchema,
+  CreateTeacherAbsenceSchema,
 } from './schemas.js';
