@@ -19,7 +19,13 @@ psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$ROOT/db/seeds/002_multi_board_schools_500
   | tee "$ARTIFACT_DIR/seed-apply.log"
 
 echo "==> Verification counts"
-psql "$DB_URL" -v ON_ERROR_STOP=1 <<'SQL' | tee "$ARTIFACT_DIR/verify-counts.txt"
+# Same RLS posture as the seed: without app.platform_admin / app.tenant_id the
+# app role sees zero rows and the certification would be vacuous.
+psql "$DB_URL" -q -v ON_ERROR_STOP=1 <<'SQL' | tee "$ARTIFACT_DIR/verify-counts.txt"
+DO $$ BEGIN
+  PERFORM set_config('app.platform_admin', '1', false);
+  PERFORM set_config('app.tenant_id', '00000000-0000-4000-8000-00000000ce27', false);
+END $$;
 SELECT 'tenants' AS entity, count(*)::int AS n FROM tenants WHERE slug = 'proctira-multiboard-cert'
 UNION ALL SELECT 'boards', count(*)::int FROM boards b JOIN tenants t ON t.id = b.tenant_id WHERE t.slug = 'proctira-multiboard-cert'
 UNION ALL SELECT 'institutions', count(*)::int FROM institutions i JOIN tenants t ON t.id = i.tenant_id WHERE t.slug = 'proctira-multiboard-cert'
@@ -42,8 +48,12 @@ python3 - <<'PY' | tee "$ARTIFACT_DIR/summary.json"
 import json, re, pathlib, os
 artifact = pathlib.Path(os.environ.get("ARTIFACT_DIR", "/opt/cursor/artifacts/multi-board-onboard"))
 text = (artifact / "verify-counts.txt").read_text()
+counts = {m.group(1): int(m.group(2)) for m in re.finditer(r"^\s*(\w+)\s*\|\s*(\d+)\s*$", text, re.M)}
+expected = {"tenants": 1, "boards": 3, "institutions": 6, "students": 3000, "enrollments": 3000}
+ok = all(counts.get(k) == v for k, v in expected.items())
 summary = {
-  "ok": True,
+  "ok": ok,
+  "counts": counts,
   "gap": "G-408",
   "mode": "live-postgres-raw-sql",
   "database": "redacted",
@@ -52,6 +62,8 @@ summary = {
   "verifySnippet": text.strip().splitlines()[:40],
 }
 print(json.dumps(summary, indent=2))
+if not ok:
+    raise SystemExit(f"G-408 certification counts mismatch: {counts} != {expected}")
 PY
 
 echo "==> Done. Artifacts in $ARTIFACT_DIR"
