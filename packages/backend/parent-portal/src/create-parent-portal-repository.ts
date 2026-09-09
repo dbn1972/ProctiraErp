@@ -15,11 +15,16 @@ export function isPgParentPortalEnabled(): boolean {
   return !!url && url.length > 0;
 }
 
+let sharedMemoryParent: InMemoryParentPortalRepository | null = null;
+
 export function createParentPortalRepository(): ParentPortalRepository {
   if (isPgParentPortalEnabled()) {
     const pool = getSharedParentPortalPool();
     if (pool) return new PgParentPortalRepository(pool);
   }
   assertInMemoryFallbackAllowed('parent-portal');
-  return new InMemoryParentPortalRepository();
+  if (!sharedMemoryParent) {
+    sharedMemoryParent = new InMemoryParentPortalRepository();
+  }
+  return sharedMemoryParent;
 }

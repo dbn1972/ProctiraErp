@@ -2,12 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
 import type { ParentPortalRepository } from './parent-portal-repository.js';
-import { ParentPortalService } from './parent-portal-service.js';
+import { ParentPortalService, type FeesLedgerPort } from './parent-portal-service.js';
 import { registerParentPortalRoutes } from './routes.js';
 
 export interface ParentPortalPluginOptions {
   repository: ParentPortalRepository;
   prefix?: string;
+  feesService?: FeesLedgerPort;
 }
 
 declare module 'fastify' {
@@ -21,8 +22,8 @@ export const parentPortalPlugin = fp(
     fastify: FastifyInstance,
     options: ParentPortalPluginOptions,
   ) {
-    const { repository, prefix = '/parent-portal' } = options;
-    const parentPortalService = new ParentPortalService(repository);
+    const { repository, prefix = '/parent-portal', feesService } = options;
+    const parentPortalService = new ParentPortalService(repository, feesService);
     fastify.decorate('parentPortalService', parentPortalService);
     await registerParentPortalRoutes(fastify, { parentPortalService, prefix });
   },
