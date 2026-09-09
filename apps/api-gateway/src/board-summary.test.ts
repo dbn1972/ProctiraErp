@@ -1,36 +1,50 @@
+/**
+ * Unit tests for G-809 board summary helpers (memory path).
+ */
 import { afterEach, describe, expect, it } from 'vitest';
+
 import {
   clearBoardSummariesForTests,
   emptyBoardSummary,
+  getBoardSummary,
   seedBoardSummaryForTests,
-} from './insights-ui-plugin.js';
+} from './board-summary.js';
 
-describe('G-809 board summary helpers', () => {
-  afterEach(() => clearBoardSummariesForTests());
-
-  it('returns empty summary shape for unknown boardId', () => {
-    const empty = emptyBoardSummary('unknown');
-    expect(empty.boardId).toBe('unknown');
-    expect(empty.schools).toBe(0);
-    expect(empty.enrolment).toBe(0);
-    expect(empty.schoolsBreakdown).toEqual([]);
+describe('board-summary (memory)', () => {
+  afterEach(() => {
+    clearBoardSummariesForTests();
   });
 
-  it('stores and clears seeded summaries', () => {
-    seedBoardSummaryForTests({
-      boardId: 'board-1',
-      generatedAt: '2026-09-08T00:00:00.000Z',
-      schools: 2,
-      enrolment: 1000,
-      attendancePercent: 94.5,
-      feesCollectedCents: 2500000,
-      lmsCompletionPercent: 81,
-      schoolsBreakdown: [
-        { institutionId: 's1', name: 'School A', enrolment: 500 },
-        { institutionId: 's2', name: 'School B', enrolment: 500 },
-      ],
+  it('emptyBoardSummary returns the zero shape', () => {
+    const s = emptyBoardSummary('b1', '2026-01-01T00:00:00.000Z');
+    expect(s).toEqual({
+      boardId: 'b1',
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      schools: 0,
+      enrolment: 0,
+      attendancePercent: null,
+      feesCollectedCents: 0,
+      lmsCompletionPercent: null,
+      schoolsBreakdown: [],
     });
-    clearBoardSummariesForTests();
-    expect(emptyBoardSummary('board-1').schools).toBe(0);
+  });
+
+  it('seedBoardSummaryForTests is returned by getBoardSummary in forceMemory', async () => {
+    seedBoardSummaryForTests('board-seed', {
+      schools: 2,
+      enrolment: 99,
+      feesCollectedCents: 500,
+    });
+    const summary = await getBoardSummary('board-seed', 'tenant-x', { forceMemory: true });
+    expect(summary.schools).toBe(2);
+    expect(summary.enrolment).toBe(99);
+    expect(summary.feesCollectedCents).toBe(500);
+  });
+
+  it('unknown board returns zeros', async () => {
+    const summary = await getBoardSummary('missing', 'tenant-x', { forceMemory: true });
+    expect(summary.boardId).toBe('missing');
+    expect(summary.schools).toBe(0);
+    expect(summary.schoolsBreakdown).toEqual([]);
   });
 });

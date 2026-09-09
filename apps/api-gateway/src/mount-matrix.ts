@@ -351,7 +351,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'mixed',
     rbacWired: false,
     notes:
-      'insightsUiPlugin with PG store when DATABASE_URL set (020; G-209). Real `report` / `data-warehouse` packages still unmounted.',
+      'insightsUiPlugin with PG store when DATABASE_URL set (020; G-209). G-809: GET /reports/board/:boardId/summary. Real `report` / `data-warehouse` packages still unmounted.',
     registrarName: 'insights',
   },
   {

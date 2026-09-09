@@ -6,6 +6,7 @@
  *   GET      /reports/templates/:id
  *   GET/POST /reports/runs
  *   POST     /reports/generate
+ *   GET      /reports/board/:boardId/summary   (G-809 board rollup)
  *   GET      /data-warehouse/indicators
  *   GET/POST /data-warehouse/import/jobs
  *   GET      /data-warehouse/map/features
@@ -15,6 +16,8 @@
  * Otherwise falls back to in-memory seed. Full `@proctira/backend-report` /
  * `data-warehouse` packages remain separately mountable.
  *
+ * G-809 board rollups live here (not `backend-dashboards`, which stays parked).
+ *
  * When these respond, ScaffoldModeBanner hides (source=gateway).
  */
 import { randomUUID } from 'node:crypto';
@@ -22,8 +25,18 @@ import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import {
+  clearBoardSummariesForTests,
+  emptyBoardSummary,
+  getBoardSummary,
+  seedBoardSummaryForTests,
+  type BoardSummary,
+} from './board-summary.js';
 import { createInsightsUiStore, type InsightsUiStore } from './insights-ui-pg-store.js';
 import type { ReportTemplate } from './insights-ui-types.js';
+
+export type { BoardSummary };
+export { clearBoardSummariesForTests, emptyBoardSummary, seedBoardSummaryForTests };
 
 function resolveTenantId(request: FastifyRequest): string {
   const fromRequest = (request as FastifyRequest & { tenantId?: string }).tenantId;
@@ -46,42 +59,6 @@ export interface InsightsUiPluginOptions {
   forceMemory?: boolean;
 }
 
-
-/** G-809 — in-memory board summary seed (tests + fallback). */
-const boardSummaries = new Map<string, BoardSummary>();
-
-export type BoardSummary = {
-  boardId: string;
-  generatedAt: string;
-  schools: number;
-  enrolment: number;
-  attendancePercent: number | null;
-  feesCollectedCents: number;
-  lmsCompletionPercent: number | null;
-  schoolsBreakdown: Array<{ institutionId: string; name: string; enrolment: number }>;
-};
-
-export function seedBoardSummaryForTests(summary: BoardSummary): void {
-  boardSummaries.set(summary.boardId, summary);
-}
-
-export function clearBoardSummariesForTests(): void {
-  boardSummaries.clear();
-}
-
-export function emptyBoardSummary(boardId: string): BoardSummary {
-  return {
-    boardId,
-    generatedAt: new Date().toISOString(),
-    schools: 0,
-    enrolment: 0,
-    attendancePercent: null,
-    feesCollectedCents: 0,
-    lmsCompletionPercent: null,
-    schoolsBreakdown: [],
-  };
-}
-
 export const insightsUiPlugin = fp(
   async function insightsUiPluginImpl(
     fastify: FastifyInstance,
@@ -89,15 +66,16 @@ export const insightsUiPlugin = fp(
   ) {
     const store = options.store ?? createInsightsUiStore({ forceMemory: options.forceMemory });
 
-
-    // G-809 — Board rollup summary
+    // G-809: board rollup (schools, enrolment, attendance, fees, LMS).
+    // Unknown boardId → zeros with 200 (never 404).
     fastify.get<{ Params: { boardId: string } }>(
       '/reports/board/:boardId/summary',
       async (request, reply) => {
-        const { boardId } = request.params;
-        const seeded = boardSummaries.get(boardId);
-        if (seeded) return reply.send(seeded);
-        return reply.send(emptyBoardSummary(boardId));
+        const tenantId = resolveTenantId(request);
+        const summary = await getBoardSummary(request.params.boardId, tenantId, {
+          forceMemory: options.forceMemory,
+        });
+        return reply.send(summary);
       },
     );
 
