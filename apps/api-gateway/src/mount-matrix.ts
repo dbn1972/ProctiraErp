@@ -344,12 +344,13 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   },
   {
     package: 'tenant',
+    registrarName: 'tenant-admin',
     mounted: true,
-    prefixes: ['/tenant-lifecycle'],
-    persistence: 'in-memory',
-    rbacWired: false,
+    prefixes: ['/tenant-lifecycle', '/tenant'],
+    persistence: 'mixed',
+    rbacWired: true,
     notes:
-      'tenantLifecyclePlugin at `/tenant-lifecycle` (G-106); platform-admin UI still owns `/tenants`. Suspend gate wired on mutating routes.',
+      'tenantLifecyclePlugin at `/tenant-lifecycle` (G-106); platform-admin UI still owns `/tenants`. Suspend gate wired on mutating routes. G-910: `/tenant/{roles,permissions,users,settings}` admin console via tenantAdminPlugin (control_plane_documents on db/sql/022 when DATABASE_URL, RLS; else in-memory), RBAC `tenant` → `user`.',
   },
 
   // —— Gateway UI-only registrars (no packages/backend package) ——

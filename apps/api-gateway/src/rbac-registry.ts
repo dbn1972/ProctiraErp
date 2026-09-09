@@ -75,6 +75,9 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   reports: 'report',
   'data-warehouse': 'report',
   'workflow-engine': 'workflow',
+  // G-910: tenant admin console (roles / users / settings) — tenant `admin`
+  // holds `user: manage`, so no platform-admin rights needed.
+  tenant: 'user',
   // Platform control plane (billing / tenant lifecycle / audit log API)
   billing: 'platform',
   'tenant-lifecycle': 'platform',

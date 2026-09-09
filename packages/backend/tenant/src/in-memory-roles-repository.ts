@@ -192,6 +192,27 @@ export class InMemoryRolesRepository implements RolesRepository {
     return { ...user, roleIds: [...user.roleIds] };
   }
 
+  async findUserByEmail(tenantId: string, email: string): Promise<UserRecord | null> {
+    const map = this.usersByTenant.get(tenantId);
+    if (!map) return null;
+    const lower = email.trim().toLowerCase();
+    for (const user of map.values()) {
+      if (user.email.toLowerCase() === lower) return { ...user, roleIds: [...user.roleIds] };
+    }
+    return null;
+  }
+
+  async upsertUser(user: UserRecord): Promise<UserRecord> {
+    let map = this.usersByTenant.get(user.tenantId);
+    if (!map) {
+      map = new Map<string, UserRecord>();
+      this.usersByTenant.set(user.tenantId, map);
+    }
+    const stored: UserRecord = { ...user, roleIds: [...user.roleIds] };
+    map.set(user.id, stored);
+    return { ...stored, roleIds: [...stored.roleIds] };
+  }
+
   async setUserRoles(
     tenantId: string,
     userId: string,

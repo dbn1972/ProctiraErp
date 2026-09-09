@@ -99,6 +99,7 @@ import { healthUiPlugin } from './health-ui-plugin.js';
 import { createHealthUiSeed } from './health-ui-seed.js';
 import { insightsUiPlugin } from './insights-ui-plugin.js';
 import { platformAdminUiPlugin } from './platform-admin-ui-plugin.js';
+import { tenantAdminPlugin } from './tenant-admin-plugin.js';
 import { seedScholarshipDemoData } from './scholarship-demo-seed.js';
 import { workflowUiPlugin } from './workflow-ui-plugin.js';
 import { createWorkflowUiSeed } from './workflow-ui-seed.js';
@@ -340,6 +341,34 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository,
         caseRepository,
         prefix: '/workflow-engine',
+      });
+    },
+  },
+  {
+    name: 'tenant-admin',
+    proxyPrefixes: ['/tenant'],
+    register: async (scope) => {
+      // G-910: tenant-scoped roles/users/settings for the web /admin console.
+      // Postgres (control_plane_documents, RLS) when DATABASE_URL, else in-memory.
+      await scope.register(tenantAdminPlugin, {
+        prefix: '/tenant',
+        onAudit: async (event) => {
+          const auditService = (scope as unknown as { auditService?: { recordAudit: Function } })
+            .auditService;
+          if (!auditService) return;
+          await auditService.recordAudit({
+            tenantId: event.tenantId,
+            entityType: event.entityType,
+            entityId: event.entityId,
+            operation: event.operation,
+            userId: event.actorId ?? 'system',
+            userName: event.actorId ?? 'system',
+            ipAddress: '0.0.0.0',
+            beforeValues: event.beforeValues,
+            afterValues: event.afterValues,
+            metadata: event.metadata,
+          });
+        },
       });
     },
   },

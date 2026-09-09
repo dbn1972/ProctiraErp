@@ -65,6 +65,20 @@ export const AssignRolesToUserSchema = Type.Object({
 });
 export type AssignRolesToUserInput = Static<typeof AssignRolesToUserSchema>;
 
+/** G-910 — invite a user into the tenant directory. */
+export const InviteUserSchema = Type.Object({
+  email: Type.String({ minLength: 3, maxLength: 320 }),
+  displayName: Type.String({ minLength: 1, maxLength: 200 }),
+  roleIds: Type.Array(Type.String({ minLength: 1 }), { maxItems: 20 }),
+});
+export type InviteUserInput = Static<typeof InviteUserSchema>;
+
+/** G-910 — suspend / reactivate. */
+export const SetUserStatusSchema = Type.Object({
+  status: Type.Union([Type.Literal('ACTIVE'), Type.Literal('SUSPENDED')]),
+});
+export type SetUserStatusInput = Static<typeof SetUserStatusSchema>;
+
 export const UserParamsSchema = Type.Object({
   userId: Type.String({ minLength: 1 }),
 });

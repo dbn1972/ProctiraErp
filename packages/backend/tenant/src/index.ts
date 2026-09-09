@@ -127,6 +127,8 @@ export type {
 export { InMemoryRolesRepository } from './in-memory-roles-repository.js';
 export type { BuiltInRoleSeed } from './in-memory-roles-repository.js';
 export {
+  InviteUserSchema,
+  SetUserStatusSchema,
   AssignRolesToUserSchema,
   CreateRoleSchema,
   ListUsersQuerySchema,
@@ -138,6 +140,8 @@ export {
   UserParamsSchema,
 } from './roles-schemas.js';
 export type {
+  InviteUserInput,
+  SetUserStatusInput,
   AssignRolesToUserInput,
   CreateRoleInput,
   ListUsersQuery,
@@ -148,3 +152,22 @@ export type {
 } from './roles-schemas.js';
 export { registerRolesRoutes } from './roles-routes.js';
 export type { RolesRoutesOptions } from './roles-routes.js';
+
+// G-910 — tenant admin console: durable roles/users + settings
+export { PgRolesRepository } from './pg-roles-repository.js';
+export { createRolesRepository } from './create-roles-repository.js';
+export type { RolesPersistence } from './create-roles-repository.js';
+export {
+  DEFAULT_TENANT_SETTINGS,
+  InMemoryTenantSettingsStore,
+  PgTenantSettingsStore,
+  TenantSettingsSchema,
+  effectiveTenantSettings,
+  registerTenantSettingsRoutes,
+} from './tenant-settings.js';
+export type {
+  TenantSettings,
+  TenantSettingsRecord,
+  TenantSettingsRoutesOptions,
+  TenantSettingsStore,
+} from './tenant-settings.js';

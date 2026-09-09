@@ -319,6 +319,76 @@ export class RolesService {
     return updated;
   }
 
+  /**
+   * G-910 — invite a user into the tenant directory. Creates an `INVITED`
+   * record (the IdP invite e-mail is the auth module's job; this is the
+   * tenant-side membership + role assignment that the admin console manages).
+   */
+  async inviteUser(
+    tenantId: string,
+    input: { email: string; displayName: string; roleIds: string[] },
+  ): Promise<UserRecord> {
+    const email = input.email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new ValidationError('Invalid e-mail address', [
+        { field: 'email', rule: 'format', message: 'email must be a valid address' },
+      ]);
+    }
+    const existing = await this.repository.findUserByEmail(tenantId, email);
+    if (existing) {
+      throw new ConflictError(`A user with e-mail '${email}' already exists in this tenant`);
+    }
+    const dedup = Array.from(new Set(input.roleIds));
+    for (const rid of dedup) {
+      const role = await this.repository.findRoleById(tenantId, rid);
+      if (!role) {
+        throw new ValidationError('Role assignment references unknown role', [
+          { field: 'roleIds', rule: 'unknown', message: `Role '${rid}' does not exist` },
+        ]);
+      }
+    }
+    const user = await this.repository.upsertUser({
+      id: uuidv4(),
+      tenantId,
+      email,
+      displayName: input.displayName.trim() || email,
+      roleIds: dedup,
+      status: 'INVITED',
+    });
+    await this.emitAudit({
+      tenantId,
+      entityType: 'user',
+      entityId: user.id,
+      operation: 'CREATE',
+      beforeValues: null,
+      afterValues: { email: user.email, roleIds: [...user.roleIds], status: user.status },
+      metadata: { riskLevel: 'high', change: 'user_invited' },
+    });
+    return user;
+  }
+
+  /** G-910 — suspend / reactivate a directory user. */
+  async setUserStatus(
+    tenantId: string,
+    userId: string,
+    status: 'ACTIVE' | 'SUSPENDED',
+  ): Promise<UserRecord> {
+    const before = await this.repository.findUserById(tenantId, userId);
+    if (!before) throw new NotFoundError(`User with id '${userId}' not found`);
+    if (before.status === status) return before;
+    const updated = await this.repository.upsertUser({ ...before, status });
+    await this.emitAudit({
+      tenantId,
+      entityType: 'user',
+      entityId: userId,
+      operation: 'UPDATE',
+      beforeValues: { status: before.status },
+      afterValues: { status: updated.status },
+      metadata: { riskLevel: 'high', change: 'user_status_changed' },
+    });
+    return updated;
+  }
+
   // ─── Validation helpers ────────────────────────────────────────────────
 
   private validateRoleName(name: string): void {
