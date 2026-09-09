@@ -168,7 +168,7 @@ test.describe('Timetable generation — pages render (ungated)', () => {
     await page.goto(`/institutions/${INSTITUTION_A}/timetable/substitutions`, {
       waitUntil: 'domcontentloaded',
     });
-    await expect(page.getByRole('heading', { name: /substitutions/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /substitutions/i })).toBeVisible();
   });
 });
 

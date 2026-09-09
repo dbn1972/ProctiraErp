@@ -54,13 +54,13 @@ CREATE TABLE IF NOT EXISTS gate_passes (
   student_id UUID NOT NULL,
   requested_by TEXT NOT NULL DEFAULT 'resident'
     CHECK (requested_by IN ('resident', 'parent')),
-  requester_user_id UUID,
+  requester_user_id TEXT,
   reason TEXT,
   expected_out_at TIMESTAMPTZ NOT NULL,
   expected_in_at TIMESTAMPTZ NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending', 'approved', 'rejected', 'out', 'in')),
-  decided_by UUID,
+  decided_by TEXT, -- JWT subject (opaque; not always a UUID)
   out_at TIMESTAMPTZ,
   in_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

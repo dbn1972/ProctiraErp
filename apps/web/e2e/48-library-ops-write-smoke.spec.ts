@@ -70,9 +70,9 @@ test.describe('Library ops — pages render (ungated)', () => {
 
   test('/library/holds and /library/fines render', async ({ page }) => {
     await page.goto('/library/holds', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /holds/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /holds/i })).toBeVisible();
     await page.goto('/library/fines', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /fines/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /fines/i })).toBeVisible();
   });
 });
 
@@ -121,7 +121,7 @@ test.describe('Library ops — live chain (E2E_BACKEND_READY)', () => {
 
     const hold = await request.post(`${GATEWAY_URL}/api/v1/library/holds`, {
       headers: headers(),
-      data: { itemId: item.id, studentId: STUDENT_HOLD, patronUserId: 'patron-hold' },
+      data: { itemId: item.id, studentId: STUDENT_HOLD },
     });
     expect(hold.status(), await hold.text()).toBe(201);
     expect((await hold.json()).status).toBe('queued');
@@ -146,7 +146,7 @@ test.describe('Library ops — live chain (E2E_BACKEND_READY)', () => {
 
     const checkoutReady = await request.post(`${GATEWAY_URL}/api/v1/library/circulation/checkout`, {
       headers: headers(),
-      data: { barcode, studentId: STUDENT_HOLD, patronUserId: 'patron-hold' },
+      data: { barcode, studentId: STUDENT_HOLD },
     });
     expect(checkoutReady.status(), await checkoutReady.text()).toBe(201);
 

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS library_holds (
   tenant_id UUID NOT NULL,
   item_id UUID NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
   copy_id UUID REFERENCES library_copies(id) ON DELETE SET NULL,
-  patron_user_id UUID,
+  patron_user_id UUID, -- same shape as library_loans.patron_user_id (009)
   student_id UUID,
   position INT NOT NULL CHECK (position >= 1),
   status TEXT NOT NULL DEFAULT 'queued'

@@ -47,21 +47,21 @@ test.describe('Hostel ops — pages render (ungated)', () => {
 
   test('/hostel/mess renders the plan form', async ({ page }) => {
     await page.goto('/hostel/mess', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /mess/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /mess/i })).toBeVisible();
     await hydrated(page, 'hostel-mess-plan-form');
   });
 
   test('/hostel/gate-passes renders the request form', async ({ page }) => {
     await page.goto('/hostel/gate-passes', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /gate pass/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /gate pass/i })).toBeVisible();
     await hydrated(page, 'hostel-gate-pass-form');
   });
 
   test('/hostel/fees and /hostel/attendance render', async ({ page }) => {
     await page.goto('/hostel/fees', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /fee/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /fee/i })).toBeVisible();
     await page.goto('/hostel/attendance', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { name: /attendance/i })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: /attendance/i })).toBeVisible();
   });
 });
 

@@ -438,7 +438,7 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
       attendanceId: entry.attendanceId,
       previousStatus: entry.previousStatus,
       newStatus: entry.newStatus,
-      changedBy: entry.changedBy,
+      changedBy: actorUuid(entry.changedBy),
       changedAt: entry.changedAt,
     };
     if (entry.tenantId) {

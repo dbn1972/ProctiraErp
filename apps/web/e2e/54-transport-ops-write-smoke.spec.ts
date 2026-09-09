@@ -84,6 +84,7 @@ test.describe('Transport ops — live chain (E2E_BACKEND_READY)', () => {
   });
 
   test('stop → assign → GPS ping visible on live map', async ({ page, request }) => {
+    test.slow(); // first hit of the dynamic stops route compiles under next dev
     const stamp = Date.now().toString(36);
     const route = await postOk(
       request,
@@ -163,7 +164,9 @@ test.describe('Transport ops — live chain (E2E_BACKEND_READY)', () => {
     await hydrated(page, 'transport-gps-form').catch(() => undefined);
 
     await page.goto(`/transport/routes/${route.id}/stops`, { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { level: 1 })).toContainText(route.name);
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(route.name, {
+      timeout: 20_000,
+    });
     await expect(page.getByText(stop.name)).toBeVisible();
   });
 

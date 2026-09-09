@@ -5,6 +5,7 @@
  * Gated (E2E_BACKEND_READY): mark ABSENT → regularise approve → leave approve
  * → register device → ingest twice (idempotent) → tenant B deny.
  */
+import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
@@ -33,7 +34,8 @@ function headers(tenantId = TENANT_A, sub = 'e2e-admin') {
 }
 
 function stamp() {
-  return Date.now().toString(36).slice(-6).toUpperCase();
+  // Two live tests run back-to-back; a timestamp slice collided on grade codes.
+  return randomUUID().replace(/-/g, '').slice(0, 6).toUpperCase();
 }
 
 function todayIso(): string {
