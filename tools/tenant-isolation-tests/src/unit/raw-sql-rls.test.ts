@@ -540,7 +540,7 @@ describe('Wave 9 attendance ops raw-SQL RLS (042_attendance_ops_schema.sql)', ()
 });
 describe('Wave 9 staff HR raw-SQL RLS (043_staff_hr_schema.sql)', () => {
   const sql = loadSql('043_staff_hr_schema.sql');
-  const tables = ['staff_contracts', 'staff_qualifications', 'staff_attendance'] as const;
+  const tables = ['staff_contracts', 'staff_qualifications', 'staff_hr_attendance'] as const;
 
   it('creates contract / qualification / attendance tables with tenant_id and forces RLS on each', () => {
     for (const table of tables) {
@@ -556,8 +556,7 @@ describe('Wave 9 staff HR raw-SQL RLS (043_staff_hr_schema.sql)', () => {
   });
 
   it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
-    const policies =
-      sql.match(/CREATE POLICY tenant_isolation ON staff_[a-z_]+[\s\S]*?;/g) ?? [];
+    const policies = sql.match(/CREATE POLICY tenant_isolation ON staff_[a-z_]+[\s\S]*?;/g) ?? [];
     expect(policies).toHaveLength(tables.length);
     for (const policy of policies) {
       expect(policy).toMatch(
@@ -588,8 +587,7 @@ describe('Wave 9 communication circulars raw-SQL RLS (044_communication_circular
   });
 
   it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
-    const policies =
-      sql.match(/CREATE POLICY tenant_isolation ON comms_[a-z_]+[\s\S]*?;/g) ?? [];
+    const policies = sql.match(/CREATE POLICY tenant_isolation ON comms_[a-z_]+[\s\S]*?;/g) ?? [];
     expect(policies).toHaveLength(tables.length);
     for (const policy of policies) {
       expect(policy).toMatch(
@@ -682,8 +680,9 @@ describe('Wave 9 LMS depth raw-SQL RLS (038_lms_depth_schema.sql)', () => {
 
   it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
     const policies =
-      sql.match(/CREATE POLICY tenant_isolation ON lms_(question_bank|rubric_criteria|rubric_scores|rubrics|assignment_files|discussions|discussion_posts|content_items|lesson_resources|lessons)[\s\S]*?;/g) ??
-      [];
+      sql.match(
+        /CREATE POLICY tenant_isolation ON lms_(question_bank|rubric_criteria|rubric_scores|rubrics|assignment_files|discussions|discussion_posts|content_items|lesson_resources|lessons)[\s\S]*?;/g,
+      ) ?? [];
     expect(policies).toHaveLength(tables.length);
     for (const policy of policies) {
       expect(policy).toMatch(
@@ -724,8 +723,7 @@ describe('Wave 9 reports raw-SQL RLS (037_reports_schema.sql)', () => {
   });
 
   it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
-    const policies =
-      sql.match(/CREATE POLICY tenant_isolation ON report_[a-z_]+[\s\S]*?;/g) ?? [];
+    const policies = sql.match(/CREATE POLICY tenant_isolation ON report_[a-z_]+[\s\S]*?;/g) ?? [];
     expect(policies).toHaveLength(tables.length);
     for (const policy of policies) {
       expect(policy).toMatch(

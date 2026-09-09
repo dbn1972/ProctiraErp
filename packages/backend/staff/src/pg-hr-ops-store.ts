@@ -265,10 +265,7 @@ export class PgStaffHrStore implements StaffHrStore {
     });
   }
 
-  async findQualification(
-    tenantId: string,
-    id: string,
-  ): Promise<StaffQualificationRecord | null> {
+  async findQualification(tenantId: string, id: string): Promise<StaffQualificationRecord | null> {
     await ensureStaffHrSchema(this.pool);
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
@@ -316,7 +313,7 @@ export class PgStaffHrStore implements StaffHrStore {
     await ensureStaffHrSchema(this.pool);
     return this.run(record.tenantId, async (client) => {
       const { rows } = await client.query(
-        `INSERT INTO staff_attendance (
+        `INSERT INTO staff_hr_attendance (
            id, tenant_id, staff_id, attendance_date, status, notes, marked_by, created_at, updated_at
          ) VALUES ($1,$2,$3,$4::date,$5,$6,$7,$8,$9)
          ON CONFLICT (tenant_id, staff_id, attendance_date)
@@ -364,7 +361,7 @@ export class PgStaffHrStore implements StaffHrStore {
         values.push(filter.to);
       }
       const { rows } = await client.query(
-        `SELECT * FROM staff_attendance WHERE ${clauses.join(' AND ')} ORDER BY attendance_date, staff_id`,
+        `SELECT * FROM staff_hr_attendance WHERE ${clauses.join(' AND ')} ORDER BY attendance_date, staff_id`,
         values,
       );
       return rows.map((row) => mapAttendance(row as Record<string, unknown>));

@@ -40,7 +40,10 @@ CREATE TABLE IF NOT EXISTS staff_qualifications (
 CREATE INDEX IF NOT EXISTS staff_qualifications_tenant_staff_idx
   ON staff_qualifications (tenant_id, staff_id);
 
-CREATE TABLE IF NOT EXISTS staff_attendance (
+-- Named staff_hr_attendance: `staff_attendance` is already owned by the Prisma
+-- attendance model (institution-scoped, app.current_tenant_id policies); this
+-- HR daily register is a separate raw-SQL table.
+CREATE TABLE IF NOT EXISTS staff_hr_attendance (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   staff_id UUID NOT NULL,
@@ -54,9 +57,9 @@ CREATE TABLE IF NOT EXISTS staff_attendance (
   UNIQUE (tenant_id, staff_id, attendance_date)
 );
 CREATE INDEX IF NOT EXISTS staff_attendance_tenant_date_idx
-  ON staff_attendance (tenant_id, attendance_date);
+  ON staff_hr_attendance (tenant_id, attendance_date);
 CREATE INDEX IF NOT EXISTS staff_attendance_tenant_staff_idx
-  ON staff_attendance (tenant_id, staff_id, attendance_date);
+  ON staff_hr_attendance (tenant_id, staff_id, attendance_date);
 
 -- ---------------------------------------------------------------------------
 -- RLS (same policy shape as 030; tenant bound via withPgTenant / app.tenant_id)
@@ -77,10 +80,10 @@ CREATE POLICY tenant_isolation ON staff_qualifications
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
 ALTER TABLE staff_qualifications FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE staff_attendance ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON staff_attendance;
-CREATE POLICY tenant_isolation ON staff_attendance
+ALTER TABLE staff_hr_attendance ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON staff_hr_attendance;
+CREATE POLICY tenant_isolation ON staff_hr_attendance
   FOR ALL
   USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
-ALTER TABLE staff_attendance FORCE ROW LEVEL SECURITY;
+ALTER TABLE staff_hr_attendance FORCE ROW LEVEL SECURITY;

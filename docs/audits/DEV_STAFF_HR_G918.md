@@ -12,47 +12,47 @@
 
 ## 0. Product contract
 
-| Item                   | Content                      |
-| ---------------------- | ---------------------------- |
-| Capability statement   | See `PRODUCT_STAFF_HR_G918.md` |
-| In scope (peer parity) | Contracts, qualifications, daily attendance, CSV import, payroll CSV |
+| Item                   | Content                                                               |
+| ---------------------- | --------------------------------------------------------------------- |
+| Capability statement   | See `PRODUCT_STAFF_HR_G918.md`                                        |
+| In scope (peer parity) | Contracts, qualifications, daily attendance, CSV import, payroll CSV  |
 | Explicit non-goals     | Live payroll tax, xlsx parse, biometric clocks, auto-renewal workflow |
-| Roles (RBAC)           | Existing `staff` resource via `/staff` prefix |
-| Boards impacted        | CBSE ☐ ICSE ☐ State ☐ Other: N/A (HR, not board exams) |
+| Roles (RBAC)           | Existing `staff` resource via `/staff` prefix                         |
+| Boards impacted        | CBSE ☐ ICSE ☐ State ☐ Other: N/A (HR, not board exams)                |
 
 Screen / API inventory:
 
-| Nav / surface | Route | API | Tables | PII |
-| ------------- | ----- | --- | ------ | --- |
-| Contracts | `/staff/contracts` | `/staff/contracts` | `staff_contracts` | salary band, dates |
-| Attendance | `/staff/attendance` | `/staff/attendance` | `staff_attendance` | presence |
-| Import | `/staff/import` | `/staff/import/*` | staff + contracts | identity, phone, email |
-| Payroll | `/staff/payroll` | `/staff/payroll/export` | computed | salary band |
+| Nav / surface | Route               | API                     | Tables                | PII                    |
+| ------------- | ------------------- | ----------------------- | --------------------- | ---------------------- |
+| Contracts     | `/staff/contracts`  | `/staff/contracts`      | `staff_contracts`     | salary band, dates     |
+| Attendance    | `/staff/attendance` | `/staff/attendance`     | `staff_hr_attendance` | presence               |
+| Import        | `/staff/import`     | `/staff/import/*`       | staff + contracts     | identity, phone, email |
+| Payroll       | `/staff/payroll`    | `/staff/payroll/export` | computed              | salary band            |
 
 ---
 
 ## 1. Domain model (SQL-first)
 
-| Check                         | Done | Evidence |
-| ----------------------------- | ---- | -------- |
-| Versioned SQL under `db/sql/` | ☑    | `db/sql/043_staff_hr_schema.sql` |
-| Constraints / indexes / FKs   | ☑    | unique staff+date; contract dates check |
-| Multi-board seed fixtures     | ☐    | N/A this slice |
-| Domain unit/property tests    | ☑    | `hr-service.test.ts`, `staff-csv.test.ts` |
+| Check                         | Done | Evidence                                                               |
+| ----------------------------- | ---- | ---------------------------------------------------------------------- |
+| Versioned SQL under `db/sql/` | ☑    | `db/sql/043_staff_hr_schema.sql`                                       |
+| Constraints / indexes / FKs   | ☑    | unique staff+date; contract dates check                                |
+| Multi-board seed fixtures     | ☐    | N/A this slice                                                         |
+| Domain unit/property tests    | ☑    | `hr-service.test.ts`, `staff-csv.test.ts`                              |
 | Invariants documented         | ☑    | one attendance row per staff/day; payableDays = present + 0.5×half-day |
 
 ---
 
 ## 2. API / services
 
-| Check                              | Done | Evidence |
-| ---------------------------------- | ---- | -------- |
-| Tenant middleware on all routes    | ☑    | gateway tenant + store filter |
-| Validation + typed errors          | ☑    | Typebox + AppError |
-| RBAC enforced                      | ☑    | existing `/staff` → `staff` |
+| Check                              | Done | Evidence                                |
+| ---------------------------------- | ---- | --------------------------------------- |
+| Tenant middleware on all routes    | ☑    | gateway tenant + store filter           |
+| Validation + typed errors          | ☑    | Typebox + AppError                      |
+| RBAC enforced                      | ☑    | existing `/staff` → `staff`             |
 | Conflict / rule failures → 409/422 | ☑    | duplicate attendance 409; bad dates 422 |
-| Idempotent writes where needed     | ☑    | attendance upsert same day/status |
-| Cross-tenant deny test             | ☑    | hr-service tenant isolate |
+| Idempotent writes where needed     | ☑    | attendance upsert same day/status       |
+| Cross-tenant deny test             | ☑    | hr-service tenant isolate               |
 
 ---
 
