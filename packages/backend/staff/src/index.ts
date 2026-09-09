@@ -250,6 +250,36 @@ export {
   PgStaffLeaveRepository,
 } from './pg-leave-repository.js';
 
+// ─── Staff / HR ops (G-918) ───────────────────────────────────────────
+
+export { StaffHrService, payableDays, withRenewalAlert, CONTRACT_RENEWAL_WINDOW_DAYS } from './hr-service.js';
+export type {
+  AttendanceSummaryRow,
+  ContractView,
+  ImportCommitResult,
+  ImportDryRunResult,
+  PayrollExportResult,
+  PayrollRow,
+} from './hr-service.js';
+export type {
+  StaffAttendanceRecord,
+  StaffContractRecord,
+  StaffHrStore,
+  StaffQualificationRecord,
+} from './hr-store.js';
+export { InMemoryStaffHrStore } from './hr-store.js';
+export { PgStaffHrStore, ensureStaffHrSchema } from './pg-hr-ops-store.js';
+export { createStaffHrStore } from './create-staff-hr-store.js';
+export { registerStaffHrRoutes } from './hr-routes.js';
+export {
+  CreateContractSchema,
+  CreateQualificationSchema,
+  MarkAttendanceSchema,
+  StaffImportSchema,
+  PayrollExportQuerySchema,
+} from './hr-schemas.js';
+export { parseCsv, toCsv } from './staff-csv.js';
+
 // Persistence: Prisma repository + env-driven factory
 export { PrismaStaffRepository } from './prisma-staff-repository.js';
 export { PrismaAssignmentRepository } from './prisma-assignment-repository.js';

@@ -8,10 +8,12 @@ import { getSharedPgPool } from '@proctira/database';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { InMemoryStaffHrStore } from './hr-store.js';
 import {
   InMemoryAppraisalRepository,
   InMemoryAppraisalTemplateRepository,
 } from './in-memory-appraisal-repository.js';
+import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import { InMemoryStaffRepository } from './in-memory-repository.js';
 import {
   InMemoryCertificationRepository,
@@ -19,7 +21,6 @@ import {
   InMemoryTrainingProgramRepository,
   InMemoryTrainingSessionRepository,
 } from './in-memory-training-repository.js';
-import { InMemoryStaffLeaveRepository } from './in-memory-leave-repository.js';
 import { PgAppraisalRepository, PgAppraisalTemplateRepository } from './pg-appraisal-repository.js';
 import {
   PgCertificationRepository,
@@ -43,6 +44,7 @@ describe('staffPlugin mounts appraisal + training routes (G-717)', () => {
     await app.register(staffPlugin, {
       repository: new InMemoryStaffRepository(),
       leaveRepository: new InMemoryStaffLeaveRepository(),
+      hrStore: new InMemoryStaffHrStore(),
       appraisalRepositories: {
         templateRepository: new InMemoryAppraisalTemplateRepository(),
         appraisalRepository: new InMemoryAppraisalRepository(),

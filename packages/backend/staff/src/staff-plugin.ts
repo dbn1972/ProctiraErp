@@ -18,6 +18,10 @@ import {
   type AppraisalRepositories,
   type TrainingRepositories,
 } from './create-hr-repositories.js';
+import { createStaffHrStore } from './create-staff-hr-store.js';
+import { registerStaffHrRoutes } from './hr-routes.js';
+import { StaffHrService } from './hr-service.js';
+import type { StaffHrStore } from './hr-store.js';
 import type { StaffLeaveRepository } from './leave-repository.js';
 import { registerStaffLeaveRoutes } from './leave-routes.js';
 import { StaffLeaveService } from './leave-service.js';
@@ -38,6 +42,8 @@ export interface StaffPluginOptions {
   assignmentRepository?: StaffAssignmentRepository;
   /** Staff leave repository (optional — defaults to PG when DATABASE_URL else in-memory) */
   leaveRepository?: StaffLeaveRepository;
+  /** G-918 HR ops store (contracts / qualifications / attendance) */
+  hrStore?: StaffHrStore;
   /** Appraisal stores (optional — defaults to PG when DATABASE_URL else in-memory) */
   appraisalRepositories?: AppraisalRepositories;
   /** Training stores (optional — defaults to PG when DATABASE_URL else in-memory) */
@@ -56,6 +62,7 @@ declare module 'fastify' {
     staffService: StaffService;
     staffAssignmentService?: StaffAssignmentService;
     staffLeaveService?: StaffLeaveService;
+    staffHrService?: StaffHrService;
     staffAppraisalService?: AppraisalService;
     staffTrainingService?: TrainingService;
   }
@@ -98,6 +105,11 @@ export const staffPlugin = fp(
       leaveService,
       prefix,
     });
+
+    const hrStore = options.hrStore ?? createStaffHrStore();
+    const hrService = new StaffHrService(hrStore, staffService);
+    fastify.decorate('staffHrService', hrService);
+    await registerStaffHrRoutes(fastify, { hrService, prefix });
 
     // G-717: appraisals + training were implemented but never mounted.
     const appraisalRepos = options.appraisalRepositories ?? createAppraisalRepositories();
