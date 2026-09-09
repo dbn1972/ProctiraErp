@@ -3,8 +3,11 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlans, listInvoices } from '@/lib/api/parent-portal';
+import { listFeePlans, listInvoices } from '@/lib/api/fees';
 import { NewInvoiceForm } from '../_components/new-invoice-form';
+import { ConcessionDialog } from '../_components/concession-dialog';
+import { PayInvoiceStaffButton } from '../_components/pay-invoice-staff-button';
+import { RefundDialog } from '../_components/refund-dialog';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,8 +58,24 @@ export default async function FeesInvoicesPage() {
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatAmount(invoice.amountCents, invoice.currency)} · Student{' '}
                     {invoice.studentId.slice(0, 8)}… · {invoice.status}
+                    {invoice.invoiceNumber ? ` · ${invoice.invoiceNumber}` : ''}
                     {invoice.planId ? ` · plan ${invoice.planId.slice(0, 8)}…` : ''}
                   </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {invoice.status === 'open' ? (
+                      <PayInvoiceStaffButton invoiceId={invoice.id} />
+                    ) : null}
+                    {invoice.status === 'open' && invoice.structureId ? (
+                      <ConcessionDialog
+                        studentId={invoice.studentId}
+                        structureId={invoice.structureId}
+                        invoiceId={invoice.id}
+                      />
+                    ) : null}
+                    {invoice.status === 'paid' ? (
+                      <RefundDialog invoiceId={invoice.id} amountCents={invoice.amountCents} />
+                    ) : null}
+                  </div>
                 </li>
               ))}
             </ul>

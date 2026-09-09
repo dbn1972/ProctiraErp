@@ -2,7 +2,7 @@
  * Staff fees hub (Server Component).
  */
 import Link from 'next/link';
-import { FileText, Receipt, Wallet } from 'lucide-react';
+import { FileText, Receipt, Wallet, Layers, BarChart3 } from 'lucide-react';
 
 import {
   Button,
@@ -15,7 +15,7 @@ import {
 import { getTranslations } from 'next-intl/server';
 
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlans, listInvoices, listReceipts } from '@/lib/api/parent-portal';
+import { listFeePlans, listInvoices, listReceipts } from '@/lib/api/fees';
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +75,38 @@ export default async function FeesOverviewPage() {
           <CardContent>
             <Button asChild>
               <Link href="/fees/receipts">{t('viewReceipts')}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Layers className="h-4 w-4" aria-hidden="true" />
+              Structures
+            </CardTitle>
+            <CardDescription>Class × category × term fee structures.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/fees/structures" data-testid="open-structures">
+                Manage structures
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <BarChart3 className="h-4 w-4" aria-hidden="true" />
+              Reports
+            </CardTitle>
+            <CardDescription>Dues summary, CSV export, reconciliation import.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/fees/reports" data-testid="open-reports">
+                Open reports
+              </Link>
             </Button>
           </CardContent>
         </Card>

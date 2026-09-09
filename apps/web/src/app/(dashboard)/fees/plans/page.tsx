@@ -3,7 +3,7 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listFeePlans } from '@/lib/api/parent-portal';
+import { listFeePlans } from '@/lib/api/fees';
 import { NewFeePlanForm } from '../_components/new-fee-plan-form';
 
 export const dynamic = 'force-dynamic';
