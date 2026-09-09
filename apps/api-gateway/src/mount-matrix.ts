@@ -158,7 +158,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/attendance'],
     persistence: 'prisma+rls',
     rbacWired: false,
-    notes: 'Prisma when DATABASE_URL set, else in-memory.',
+    notes:
+      'Prisma when DATABASE_URL set, else in-memory. G-919: /attendance/regularisation, /leave-requests, /devices, /ingest on 042 (FORCE RLS); EARLY_DEPARTURE present-partial 0.5. Self-contained request/approve (not WorkflowService).',
     registrarName: 'attendance',
   },
   {
@@ -194,7 +195,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/timetable'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (003_sis_timetable_schedule_schema.sql) when DATABASE_URL set.',
+    notes:
+      'Raw pg (003_sis_timetable_schedule_schema.sql + 041_timetable_generation_schema.sql) when DATABASE_URL set. G-917: /timetable/generation-jobs (sync in-process greedy+repair) and /timetable/teacher-absences. Else in-memory.',
     registrarName: 'timetable',
   },
   {

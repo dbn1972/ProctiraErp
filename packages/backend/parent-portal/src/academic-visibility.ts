@@ -163,7 +163,8 @@ export function summariseAttendance(days: AttendanceDay[]): AttendanceSummary {
     summary.percentage = null;
     return summary;
   }
-  const attended = summary.present + summary.late;
+  const early = days.filter((d) => d.status.toLowerCase() === 'early_departure').length;
+  const attended = summary.present + summary.late + 0.5 * early;
   summary.percentage = Math.round((attended / marked) * 10000) / 100;
   return summary;
 }

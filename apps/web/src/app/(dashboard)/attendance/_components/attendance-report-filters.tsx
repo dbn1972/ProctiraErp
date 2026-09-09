@@ -202,6 +202,7 @@ function toReportCsv(
     ['present', result.presentCount],
     ['absent', result.absentCount],
     ['late', result.lateCount],
+    ['early_departure', result.earlyDepartureCount ?? 0],
     ['excused', result.excusedCount],
     ['attendance_percentage', result.attendancePercentage.toFixed(2)],
     ['absence_percentage', result.absencePercentage.toFixed(2)],
@@ -210,7 +211,25 @@ function toReportCsv(
     const str = String(v);
     return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
   };
-  return `${['metric,value', ...rows.map(([k, v]) => `${k},${cell(v)}`)].join('\n')}\n`;
+  const metricCsv = `${['metric,value', ...rows.map(([k, v]) => `${k},${cell(v)}`)].join('\n')}\n`;
+  const studentRows = result.studentRows ?? [];
+  if (studentRows.length === 0) return metricCsv;
+  const studentHeader =
+    'student_id,total_records,present,absent,late,excused,early_departure,attendance_percentage';
+  const studentLines = studentRows.map(
+    (r) =>
+      [
+        cell(r.studentId),
+        r.totalRecords,
+        r.presentCount,
+        r.absentCount,
+        r.lateCount,
+        r.excusedCount,
+        r.earlyDepartureCount,
+        r.attendancePercentage.toFixed(2),
+      ].join(','),
+  );
+  return `${metricCsv}\n${[studentHeader, ...studentLines].join('\n')}\n`;
 }
 
 function downloadCsv(filename: string, csv: string) {
@@ -285,7 +304,7 @@ function ResultPanel({
       </div>
 
       {/* KPI breakdown */}
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat label="Total records" value={result.totalRecords} />
         <Stat
           label="Present"
@@ -294,8 +313,45 @@ function ResultPanel({
         />
         <Stat label="Absent" value={result.absentCount} accent="text-red-600 dark:text-red-400" />
         <Stat label="Late" value={result.lateCount} accent="text-amber-600 dark:text-amber-400" />
+        <Stat
+          label="Early departure"
+          value={result.earlyDepartureCount ?? 0}
+          accent="text-violet-600 dark:text-violet-400"
+        />
         <Stat label="Excused" value={result.excusedCount} accent="text-sky-600 dark:text-sky-400" />
       </dl>
+
+      {(result.studentRows ?? []).length > 0 ? (
+        <div className="overflow-x-auto" data-testid="attendance-student-rows">
+          <table className="w-full min-w-[36rem] text-sm">
+            <caption className="sr-only">Per-student attendance rows</caption>
+            <thead>
+              <tr className="border-b border-border text-start text-muted-foreground">
+                <th className="px-2 py-2 font-medium">Student</th>
+                <th className="px-2 py-2 font-medium">Present</th>
+                <th className="px-2 py-2 font-medium">Absent</th>
+                <th className="px-2 py-2 font-medium">Late</th>
+                <th className="px-2 py-2 font-medium">Early</th>
+                <th className="px-2 py-2 font-medium">Excused</th>
+                <th className="px-2 py-2 font-medium">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(result.studentRows ?? []).map((row) => (
+                <tr key={row.studentId} className="border-b border-border/60">
+                  <td className="px-2 py-2 font-mono text-xs">{row.studentId.slice(0, 8)}…</td>
+                  <td className="px-2 py-2 tabular-nums">{row.presentCount}</td>
+                  <td className="px-2 py-2 tabular-nums">{row.absentCount}</td>
+                  <td className="px-2 py-2 tabular-nums">{row.lateCount}</td>
+                  <td className="px-2 py-2 tabular-nums">{row.earlyDepartureCount}</td>
+                  <td className="px-2 py-2 tabular-nums">{row.excusedCount}</td>
+                  <td className="px-2 py-2 tabular-nums">{row.attendancePercentage.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

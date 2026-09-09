@@ -13,7 +13,7 @@ import { gatewayFetch } from './gateway';
 
 /* ------------------------------------------------------------------ Types */
 
-export type StudentAttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+export type StudentAttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'EARLY_DEPARTURE';
 export type StaffAttendanceStatus = 'PRESENT' | 'ABSENT' | 'ON_LEAVE';
 
 export interface RosterEntry {
@@ -92,6 +92,17 @@ export interface AttendancePercentageInput {
   endDate: string;
 }
 
+export interface AttendanceStudentRow {
+  studentId: string;
+  totalRecords: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  excusedCount: number;
+  earlyDepartureCount: number;
+  attendancePercentage: number;
+}
+
 export interface AttendancePercentageResult {
   scope: string;
   totalRecords: number;
@@ -99,8 +110,10 @@ export interface AttendancePercentageResult {
   absentCount: number;
   excusedCount: number;
   lateCount: number;
+  earlyDepartureCount?: number;
   attendancePercentage: number;
   absencePercentage: number;
+  studentRows?: AttendanceStudentRow[];
 }
 
 /* ----------------------------------------------------------------- API */
@@ -154,4 +167,103 @@ export async function calculateAttendancePercentage(
     { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
   );
   return result.ok ? result.data : null;
+}
+
+export interface RegularisationRequest {
+  id: string;
+  attendanceId: string;
+  studentId: string;
+  toStatus: string;
+  fromStatus: string;
+  status: string;
+  reason: string | null;
+  attendanceDate: string;
+}
+
+export interface LeaveRequest {
+  id: string;
+  studentId: string;
+  fromDate: string;
+  toDate: string;
+  status: string;
+  reason: string | null;
+}
+
+export async function listRegularisations(): Promise<RegularisationRequest[]> {
+  const result = await gatewayFetch<{ data: RegularisationRequest[] }>(
+    '/attendance/regularisation',
+    { method: 'GET', throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function createRegularisation(input: {
+  attendanceId: string;
+  studentId: string;
+  institutionId: string;
+  classId: string;
+  attendanceDate: string;
+  fromStatus: string;
+  toStatus: StudentAttendanceStatus;
+  reason?: string;
+}): Promise<RegularisationRequest> {
+  const result = await gatewayFetch<RegularisationRequest>('/attendance/regularisation', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty regularisation response');
+  return result.data;
+}
+
+export async function decideRegularisation(
+  id: string,
+  decision: 'approve' | 'reject',
+  decisionNote?: string,
+): Promise<RegularisationRequest> {
+  const result = await gatewayFetch<RegularisationRequest>(
+    `/attendance/regularisation/${encodeURIComponent(id)}/${decision}`,
+    { method: 'POST', json: { decisionNote } },
+  );
+  if (!result.data) throw new Error('Empty regularisation decision');
+  return result.data;
+}
+
+export async function listLeaveRequests(): Promise<LeaveRequest[]> {
+  const result = await gatewayFetch<{ data: LeaveRequest[] }>('/attendance/leave-requests', {
+    method: 'GET',
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.ok && result.data ? (result.data.data ?? []) : [];
+}
+
+export async function createLeaveRequest(input: {
+  studentId: string;
+  institutionId: string;
+  classId: string;
+  academicPeriodId: string;
+  fromDate: string;
+  toDate: string;
+  reason?: string;
+  attachmentUrl?: string;
+}): Promise<LeaveRequest> {
+  const result = await gatewayFetch<LeaveRequest>('/attendance/leave-requests', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty leave response');
+  return result.data;
+}
+
+export async function decideLeaveRequest(
+  id: string,
+  decision: 'approve' | 'reject',
+  decisionNote?: string,
+): Promise<LeaveRequest> {
+  const result = await gatewayFetch<LeaveRequest>(
+    `/attendance/leave-requests/${encodeURIComponent(id)}/${decision}`,
+    { method: 'POST', json: { decisionNote } },
+  );
+  if (!result.data) throw new Error('Empty leave decision');
+  return result.data;
 }

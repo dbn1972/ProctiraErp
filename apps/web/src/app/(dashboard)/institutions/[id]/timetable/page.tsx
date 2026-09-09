@@ -3,8 +3,10 @@
  *
  * Route: /institutions/[id]/timetable
  */
+import Link from 'next/link';
+
 import { MeetingCreateForm } from '@/components/timetable/meeting-create-form';
-import { Card, CardContent } from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listAcademicPeriods } from '@/lib/institutions/api';
 import { listStaff } from '@/lib/api/staff';
@@ -93,11 +95,23 @@ export default async function InstitutionTimetablePage(props: PageProps) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold tracking-tight text-foreground">Timetable</h2>
-        <p className="text-sm text-muted-foreground">
-          Weekly section meetings for this institution. Teacher double-books return HTTP 409.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold tracking-tight text-foreground">Timetable</h2>
+          <p className="text-sm text-muted-foreground">
+            Weekly section meetings for this institution. Teacher double-books return HTTP 409.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/institutions/${institutionId}/timetable/generate`}>Generate</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/institutions/${institutionId}/timetable/substitutions`}>
+              Substitutions
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {apiError ? (

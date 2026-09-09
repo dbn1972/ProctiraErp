@@ -452,3 +452,90 @@ describe('Wave 9 students 360 raw-SQL RLS (035_students_360_schema.sql)', () => 
     }
   });
 });
+
+describe('Wave 9 timetable generation raw-SQL RLS (041_timetable_generation_schema.sql)', () => {
+  const sql = loadSql('041_timetable_generation_schema.sql');
+  const tables = ['timetable_generation_jobs', 'timetable_teacher_absences'] as const;
+
+  it('every generation table enables + forces RLS with the tenant_isolation policy', () => {
+    for (const table of tables) {
+      expect(sql, `missing ENABLE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing FORCE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing tenant_isolation policy for ${table}`).toMatch(
+        new RegExp(`CREATE POLICY tenant_isolation ON ${table}`),
+      );
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+    }
+  });
+
+  it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
+    const policies =
+      sql.match(/CREATE POLICY tenant_isolation ON timetable_[a-z_]+[\s\S]*?;/g) ?? [];
+    expect(policies).toHaveLength(tables.length);
+    for (const policy of policies) {
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+});
+
+describe('Wave 9 attendance ops raw-SQL RLS (042_attendance_ops_schema.sql)', () => {
+  const sql = loadSql('042_attendance_ops_schema.sql');
+  const tables = [
+    'attendance_regularisation_requests',
+    'attendance_leave_requests',
+    'attendance_device_keys',
+    'attendance_ingest_events',
+  ] as const;
+
+  it('every attendance-ops table enables + forces RLS with the tenant_isolation policy', () => {
+    for (const table of tables) {
+      expect(sql, `missing ENABLE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing FORCE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing tenant_isolation policy for ${table}`).toMatch(
+        new RegExp(`CREATE POLICY tenant_isolation ON ${table}`),
+      );
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+    }
+  });
+
+  it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
+    const policies =
+      sql.match(/CREATE POLICY tenant_isolation ON attendance_[a-z_]+[\s\S]*?;/g) ?? [];
+    expect(policies).toHaveLength(tables.length);
+    for (const policy of policies) {
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+
+  it('documents EARLY_DEPARTURE as a checked student_attendance status', () => {
+    expect(sql).toMatch(/EARLY_DEPARTURE/);
+    expect(sql).toMatch(/student_attendance_status_check/);
+  });
+});
+

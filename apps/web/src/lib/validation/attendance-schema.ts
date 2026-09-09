@@ -14,7 +14,13 @@ const isoDate = z
   .min(1, 'Date is required')
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the YYYY-MM-DD date format');
 
-export const attendanceStatusSchema = z.enum(['PRESENT', 'ABSENT', 'LATE', 'EXCUSED']);
+export const attendanceStatusSchema = z.enum([
+  'PRESENT',
+  'ABSENT',
+  'LATE',
+  'EXCUSED',
+  'EARLY_DEPARTURE',
+]);
 
 export type AttendanceStatusValue = z.infer<typeof attendanceStatusSchema>;
 

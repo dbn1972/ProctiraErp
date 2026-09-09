@@ -225,7 +225,7 @@ async function loadFromPostgres(tenantId: string, boardId: string): Promise<Boar
         try {
           const result = await client.query(
             `SELECT
-               COUNT(*) FILTER (WHERE status IN ('PRESENT', 'LATE'))::float AS present_like,
+               COUNT(*) FILTER (WHERE status IN ('PRESENT', 'LATE', 'EARLY_DEPARTURE'))::float AS present_like,
                COUNT(*)::float AS total
              FROM student_attendance
              WHERE institution_id::text = ANY($1::text[])`,

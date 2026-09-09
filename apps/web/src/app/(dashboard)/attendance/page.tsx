@@ -81,12 +81,17 @@ export default async function AttendancePage(props: PageProps) {
             are locked.
           </p>
         </div>
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link href="/attendance/reports">
-            <BarChart3 className="me-1.5 h-4 w-4" aria-hidden="true" />
-            View reports
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" size="sm" className="shrink-0">
+            <Link href="/attendance/ops">Regularisation & leave</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm" className="shrink-0">
+            <Link href="/attendance/reports">
+              <BarChart3 className="me-1.5 h-4 w-4" aria-hidden="true" />
+              View reports
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {institutionId && (

@@ -60,6 +60,7 @@ export const RecordStudentAttendanceSchema = Type.Object({
       Type.Literal('ABSENT'),
       Type.Literal('LATE'),
       Type.Literal('EXCUSED'),
+      Type.Literal('EARLY_DEPARTURE'),
     ],
     { description: 'Attendance status' },
   ),
@@ -117,6 +118,7 @@ export const RecordBulkStudentAttendanceSchema = Type.Object({
           Type.Literal('ABSENT'),
           Type.Literal('LATE'),
           Type.Literal('EXCUSED'),
+          Type.Literal('EARLY_DEPARTURE'),
         ],
         { description: 'Attendance status' },
       ),
@@ -327,9 +329,27 @@ export const AttendancePercentageResponseSchema = Type.Object({
   absentCount: Type.Number({ description: 'Number of ABSENT records' }),
   excusedCount: Type.Number({ description: 'Number of EXCUSED records' }),
   lateCount: Type.Number({ description: 'Number of LATE records' }),
-  attendancePercentage: Type.Number({
-    description: 'Attendance percentage (present + late) / total, rounded to 2 decimal places',
+  earlyDepartureCount: Type.Number({
+    description: 'Number of EARLY_DEPARTURE records (present-partial, weight 0.5)',
   }),
+  attendancePercentage: Type.Number({
+    description:
+      'Attendance percentage (present + late + 0.5*earlyDeparture) / total, rounded to 2 decimal places',
+  }),
+  studentRows: Type.Optional(
+    Type.Array(
+      Type.Object({
+        studentId: Type.String(),
+        totalRecords: Type.Number(),
+        presentCount: Type.Number(),
+        absentCount: Type.Number(),
+        lateCount: Type.Number(),
+        excusedCount: Type.Number(),
+        earlyDepartureCount: Type.Number(),
+        attendancePercentage: Type.Number(),
+      }),
+    ),
+  ),
   absencePercentage: Type.Number({
     description: 'Absence percentage (absent / total), rounded to 2 decimal places',
   }),
