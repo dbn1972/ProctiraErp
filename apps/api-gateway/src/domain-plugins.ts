@@ -471,13 +471,22 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'fees',
     proxyPrefixes: ['/fees'],
     register: async (scope) => {
-      // Pg when DATABASE_URL (db/sql/010 + 011_fees_finance_schema.sql); else in-memory.
+      // Pg when DATABASE_URL (db/sql/010 + 011_fees_finance_schema.sql + 031); else in-memory.
       // Sandbox PaymentAdapter only — live PSP waived (G-202).
       // Registered before library so fines can share createFeesRepository().
       const repository = createFeesRepository();
+      const parentRepo = createParentPortalRepository();
       await scope.register(feesPlugin, {
         repository,
         prefix: '/fees',
+        parentBinding: {
+          listLinkedStudentIds: async (tenantId, parentUserId) => {
+            const links = await parentRepo.listChildLinksForParent(tenantId, parentUserId);
+            return links.map((link) => link.studentId);
+          },
+          isLinked: (tenantId, parentUserId, studentId) =>
+            parentRepo.hasActiveLink(tenantId, parentUserId, studentId),
+        },
       });
     },
   },
@@ -522,6 +531,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       const repository = createParentPortalRepository();
       await scope.register(parentPortalPlugin, {
         repository,
+        feesService: new FeesService(createFeesRepository()),
         prefix: '/parent-portal',
         studentPrefix: '/student-portal',
       });

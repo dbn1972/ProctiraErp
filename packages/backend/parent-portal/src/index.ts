@@ -7,6 +7,7 @@ export type { ParentPortalPluginOptions } from './parent-portal-plugin.js';
 
 export { ParentPortalService } from './parent-portal-service.js';
 export type { StudentActor } from './parent-portal-service.js';
+export type { FeesLedgerPort } from './parent-portal-service.js';
 
 export type {
   ParentChildLinkEntity,

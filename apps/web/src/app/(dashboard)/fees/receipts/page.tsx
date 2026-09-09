@@ -3,7 +3,7 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listReceipts } from '@/lib/api/parent-portal';
+import { listReceipts } from '@/lib/api/fees';
 
 export const dynamic = 'force-dynamic';
 

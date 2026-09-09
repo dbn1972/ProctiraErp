@@ -33,10 +33,31 @@ function receiptNumberFor(paymentId: string): string {
   return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
+/** Duck-typed FeesService so parent-portal fee routes share one ledger (G-903). */
+export interface FeesLedgerPort {
+  createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput): Promise<unknown>;
+  listFeePlans(tenantId: string): Promise<unknown[]>;
+  createInvoice(tenantId: string, actorId: string, input: CreateInvoiceInput): Promise<unknown>;
+  listInvoices(tenantId: string): Promise<unknown[]>;
+  listInvoicesForStudentIds(tenantId: string, studentIds: string[]): Promise<unknown[]>;
+  getInvoice(tenantId: string, invoiceId: string): Promise<{ studentId: string }>;
+  voidInvoice(tenantId: string, invoiceId: string): Promise<unknown>;
+  recordPayment(
+    tenantId: string,
+    actorId: string,
+    input: { invoiceId: string; payerUserId?: string; method?: PayInvoiceInput['method'] },
+  ): Promise<{ invoice: unknown; payment: unknown; receipt: unknown }>;
+  listPayments(tenantId: string): Promise<unknown[]>;
+  listReceipts(tenantId: string): Promise<unknown[]>;
+  listReceiptsForInvoiceIds(tenantId: string, invoiceIds: string[]): Promise<unknown[]>;
+  getReceipt(tenantId: string, receiptId: string): Promise<unknown>;
+}
+
 export class ParentPortalService {
   constructor(
     private readonly repository: ParentPortalRepository,
     private readonly academicStore: AcademicVisibilityStore = new EmptyAcademicVisibilityStore(),
+    private readonly fees?: FeesLedgerPort,
   ) {}
 
   async linkChild(tenantId: string, parentUserId: string, input: LinkChildInput) {
@@ -187,6 +208,11 @@ export class ParentPortalService {
   }
 
   async createFeePlan(tenantId: string, actorId: string, input: CreateFeePlanInput) {
+    if (this.fees) {
+      return this.fees.createFeePlan(tenantId, actorId, input) as unknown as ReturnType<
+        ParentPortalRepository['createFeePlan']
+      >;
+    }
     const code =
       input.code?.trim() ||
       input.name
@@ -212,10 +238,18 @@ export class ParentPortalService {
   }
 
   async listFeePlans(tenantId: string) {
+    if (this.fees) {
+      return this.fees.listFeePlans(tenantId) as ReturnType<ParentPortalRepository['listFeePlans']>;
+    }
     return this.repository.listFeePlans(tenantId);
   }
 
   async createInvoice(tenantId: string, actorId: string, input: CreateInvoiceInput) {
+    if (this.fees) {
+      return this.fees.createInvoice(tenantId, actorId, input) as unknown as ReturnType<
+        ParentPortalRepository['createInvoice']
+      >;
+    }
     let title = input.title;
     let description = input.description ?? '';
     let amountCents = input.amountCents;
@@ -258,14 +292,29 @@ export class ParentPortalService {
 
   async listInvoicesForParent(tenantId: string, parentUserId: string) {
     const studentIds = await this.getLinkedStudentIds(tenantId, parentUserId);
+    if (this.fees) {
+      return this.fees.listInvoicesForStudentIds(tenantId, studentIds) as ReturnType<
+        ParentPortalRepository['listInvoicesForStudentIds']
+      >;
+    }
     return this.repository.listInvoicesForStudentIds(tenantId, studentIds);
   }
 
   async listInvoicesForStaff(tenantId: string) {
+    if (this.fees) {
+      return this.fees.listInvoices(tenantId) as ReturnType<
+        ParentPortalRepository['listInvoicesForTenant']
+      >;
+    }
     return this.repository.listInvoicesForTenant(tenantId);
   }
 
   async voidInvoice(tenantId: string, invoiceId: string) {
+    if (this.fees) {
+      return this.fees.voidInvoice(tenantId, invoiceId) as unknown as NonNullable<
+        Awaited<ReturnType<ParentPortalRepository['updateInvoice']>>
+      >;
+    }
     const invoice = await this.repository.findInvoiceById(invoiceId, tenantId);
     if (!invoice) {
       throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);
@@ -281,15 +330,31 @@ export class ParentPortalService {
   }
 
   async listPaymentsForStaff(tenantId: string) {
+    if (this.fees) {
+      return this.fees.listPayments(tenantId) as ReturnType<
+        ParentPortalRepository['listPaymentsForTenant']
+      >;
+    }
     return this.repository.listPaymentsForTenant(tenantId);
   }
 
   async listReceiptsForStaff(tenantId: string) {
+    if (this.fees) {
+      return this.fees.listReceipts(tenantId) as ReturnType<
+        ParentPortalRepository['listReceiptsForTenant']
+      >;
+    }
     return this.repository.listReceiptsForTenant(tenantId);
   }
 
   async listReceiptsForParent(tenantId: string, parentUserId: string) {
     const invoices = await this.listInvoicesForParent(tenantId, parentUserId);
+    if (this.fees) {
+      return this.fees.listReceiptsForInvoiceIds(
+        tenantId,
+        invoices.map((invoice) => invoice.id),
+      ) as ReturnType<ParentPortalRepository['listReceiptsForInvoiceIds']>;
+    }
     return this.repository.listReceiptsForInvoiceIds(
       tenantId,
       invoices.map((invoice) => invoice.id),
@@ -297,6 +362,11 @@ export class ParentPortalService {
   }
 
   async getReceipt(tenantId: string, receiptId: string) {
+    if (this.fees) {
+      return this.fees.getReceipt(tenantId, receiptId) as unknown as NonNullable<
+        Awaited<ReturnType<ParentPortalRepository['findReceiptById']>>
+      >;
+    }
     const receipt = await this.repository.findReceiptById(receiptId, tenantId);
     if (!receipt) {
       throw new NotFoundError(`Receipt with id '${receiptId}' not found`);
@@ -310,6 +380,19 @@ export class ParentPortalService {
     invoiceId: string,
     input: PayInvoiceInput = {},
   ) {
+    if (this.fees) {
+      const invoice = await this.fees.getInvoice(tenantId, invoiceId);
+      await this.assertParentLinkedToStudent(tenantId, parentUserId, invoice.studentId);
+      return this.fees.recordPayment(tenantId, parentUserId, {
+        invoiceId,
+        payerUserId: parentUserId,
+        method: input.method,
+      }) as unknown as Promise<{
+        invoice: NonNullable<Awaited<ReturnType<ParentPortalRepository['findInvoiceById']>>>;
+        payment: Awaited<ReturnType<ParentPortalRepository['createPayment']>>;
+        receipt: Awaited<ReturnType<ParentPortalRepository['createReceipt']>>;
+      }>;
+    }
     const invoice = await this.repository.findInvoiceById(invoiceId, tenantId);
     if (!invoice) {
       throw new NotFoundError(`Invoice with id '${invoiceId}' not found`);

@@ -300,7 +300,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'Raw pg (010_parent_portal_schema.sql) when DATABASE_URL set. G-904 academic reads + /student-portal/me self-binding.',
+      'Raw pg (010_parent_portal_schema.sql) when DATABASE_URL set. G-904 academic reads + /student-portal/me self-binding. Fee routes delegate to backend-fees (G-903) with parent self-binding.',
     registrarName: 'parent-portal',
   },
   {
@@ -310,7 +310,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'feesPlugin (G-201); raw pg 010+011 when DATABASE_URL set; else shared in-memory. Sandbox PSP only (G-202 waived).',
+      'feesPlugin (G-201/G-903); raw pg 010+011+031 when DATABASE_URL set; else shared in-memory. Structures/concessions/refunds/recon + overdue reminder feed. Sandbox PSP only (G-202 waived).',
     registrarName: 'fees',
   },
   {

@@ -345,3 +345,38 @@ describe('Wave 9 admissions CRM raw-SQL RLS (034_admissions_crm_schema.sql)', ()
     }
   });
 });
+
+describe('Wave 9 fee structures raw-SQL RLS (031_fees_structures_schema.sql)', () => {
+  const sql = loadSql('031_fees_structures_schema.sql');
+
+  it('creates structure / concession / refund / reconciliation tables with tenant_id and forces RLS on each', () => {
+    for (const table of [
+      'fee_structures',
+      'fee_structure_components',
+      'fee_structure_instalments',
+      'fee_concessions',
+      'fee_refunds',
+      'fee_reconciliation_batches',
+      'fee_reconciliation_rows',
+    ]) {
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(
+        new RegExp(
+          `CREATE POLICY tenant_isolation ON ${table}[\\s\\S]*?USING \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)[\\s\\S]*?WITH CHECK \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)`,
+        ),
+      );
+    }
+    expect(sql).toMatch(
+      /ALTER TABLE parent_fee_invoices\s+ADD COLUMN IF NOT EXISTS invoice_number TEXT/,
+    );
+    expect(sql).toMatch(
+      /ALTER TABLE parent_fee_invoices\s+ADD COLUMN IF NOT EXISTS structure_id UUID/,
+    );
+  });
+});

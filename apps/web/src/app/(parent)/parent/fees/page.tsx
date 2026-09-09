@@ -3,14 +3,14 @@
  */
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
-import { listInvoices, listReceipts } from '@/lib/api/parent-portal';
+import { listInvoices, listReceipts } from '@/lib/api/fees';
 import { formatAmount, PayInvoiceButton } from './_components/pay-invoice-button';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ParentFeesPage() {
   await requireSession();
-  const [invoices, receipts] = await Promise.all([listInvoices(), listReceipts('parent')]);
+  const [invoices, receipts] = await Promise.all([listInvoices('parent'), listReceipts('parent')]);
 
   return (
     <div className="space-y-6">
