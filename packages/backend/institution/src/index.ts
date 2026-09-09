@@ -103,5 +103,8 @@ export type {
 
 // Persistence: Prisma repository + env-driven factory
 export { PrismaInstitutionRepository } from './prisma-institution-repository.js';
-export { createInstitutionRepository } from './repository-factory.js';
+export {
+  createInstitutionRepository,
+  isPgInstitutionEnabled,
+} from './repository-factory.js';
 export type { InstitutionRepositoryConfig } from './repository-factory.js';

@@ -30,6 +30,11 @@ function resolveDatabaseUrl(config: ExaminationRepositoryConfig): string | undef
   return config.databaseUrl ?? process.env['DATABASE_URL'];
 }
 
+/** True when Postgres-backed examination repositories should be used. */
+export function isPgExaminationEnabled(): boolean {
+  return Boolean(process.env['DATABASE_URL']?.trim());
+}
+
 function getPrismaClient(databaseUrl: string): PrismaClient {
   let client = clientCache.get(databaseUrl);
   if (!client) {
@@ -66,9 +71,4 @@ export function createDocumentRepository(
     return new InMemoryDocumentRepository();
   }
   return new PrismaDocumentRepository(getPrismaClient(databaseUrl));
-}
-
-/** True when DATABASE_URL is set (Prisma/pg path). Used by G-812 smoke tests. */
-export function isPgExaminationEnabled(): boolean {
-  return Boolean(process.env['DATABASE_URL']);
 }
