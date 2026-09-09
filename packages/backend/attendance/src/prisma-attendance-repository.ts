@@ -15,6 +15,8 @@
  *  - `attendance_audit` carries no tenant id; its RLS policy derives tenancy from
  *    the parent attendance row, so callers pass `tenantId` to bind the context.
  */
+import { createHash } from 'node:crypto';
+
 import type { AttendanceStatus } from '@proctira/common';
 import { withTenantTransaction } from '@proctira/database';
 import type { Prisma, PrismaClient } from '@proctira/database';
@@ -107,6 +109,26 @@ function toStaffEntity(row: StaffAttendanceRow): StaffAttendanceEntity {
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** Fixed namespace for actor subjects (RFC 4122 v5 derivation). */
+const ACTOR_NAMESPACE = '4f4b2e2a-6a7c-4c9e-9d0b-2b7f1c9a5e11';
+
+/**
+ * `recorded_by` is a NOT NULL UUID column, but the actor is the JWT subject,
+ * which is an opaque string for many IdPs (and `'system'` for unauthenticated
+ * device ingest). Non-UUID subjects are mapped to a deterministic UUIDv5 so the
+ * same subject always yields the same id and the write no longer fails.
+ */
+export function actorUuid(subject: string): string {
+  if (UUID_RE.test(subject)) return subject;
+  const ns = Buffer.from(ACTOR_NAMESPACE.replace(/-/g, ''), 'hex');
+  const hash = createHash('sha1').update(ns).update(subject).digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
 export class PrismaAttendanceRepository implements AttendanceRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -129,7 +151,7 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
           periodId: data.periodId,
           status: data.status,
           comment: data.comment,
-          recordedBy: data.recordedBy,
+          recordedBy: actorUuid(data.recordedBy),
         },
       })) as StudentAttendanceRow;
       return toStudentEntity(row);
@@ -152,7 +174,7 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
       if (data.comment !== undefined) updateData.comment = data.comment;
       if (data.subjectId !== undefined) updateData.subjectId = data.subjectId;
       if (data.periodId !== undefined) updateData.periodId = data.periodId;
-      if (data.recordedBy !== undefined) updateData.recordedBy = data.recordedBy;
+      if (data.recordedBy !== undefined) updateData.recordedBy = actorUuid(data.recordedBy);
       if (data.date !== undefined) updateData.date = toDateOnly(data.date);
 
       const row = (await tx.studentAttendance.update({
@@ -278,7 +300,7 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
           status: data.status,
           leaveTypeId: data.leaveTypeId,
           comment: data.comment,
-          recordedBy: data.recordedBy,
+          recordedBy: actorUuid(data.recordedBy),
         },
       })) as StaffAttendanceRow;
       return toStaffEntity(row);
@@ -300,7 +322,7 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
       if (data.status !== undefined) updateData.status = data.status;
       if (data.comment !== undefined) updateData.comment = data.comment;
       if (data.leaveTypeId !== undefined) updateData.leaveTypeId = data.leaveTypeId;
-      if (data.recordedBy !== undefined) updateData.recordedBy = data.recordedBy;
+      if (data.recordedBy !== undefined) updateData.recordedBy = actorUuid(data.recordedBy);
       if (data.date !== undefined) updateData.date = toDateOnly(data.date);
 
       const row = (await tx.staffAttendance.update({
