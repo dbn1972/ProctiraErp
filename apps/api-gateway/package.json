@@ -38,6 +38,7 @@
     "@proctira/backend-notification": "workspace:*",
     "@proctira/backend-parent-portal": "workspace:*",
     "@proctira/backend-registration": "workspace:*",
+    "@proctira/backend-report": "workspace:*",
     "@proctira/backend-lms": "workspace:*",
     "@proctira/backend-scholarship": "workspace:*",
     "@proctira/backend-staff": "workspace:*",

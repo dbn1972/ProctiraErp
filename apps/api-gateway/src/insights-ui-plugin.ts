@@ -2,21 +2,17 @@
  * Insights & System redesign UI aggregates + write proofs.
  *
  * Serves App Router shapes under `/api/v1`:
- *   GET/POST /reports/templates
- *   GET      /reports/templates/:id
- *   GET/POST /reports/runs
- *   POST     /reports/generate
  *   GET      /reports/board/:boardId/summary   (G-809 board rollup)
  *   GET      /data-warehouse/indicators
  *   GET/POST /data-warehouse/import/jobs
  *   GET      /data-warehouse/map/features
  *
  * Persistence (G-209): when DATABASE_URL is set, uses Postgres-backed
- * insights-ui store so report runs / import jobs survive restart.
- * Otherwise falls back to in-memory seed. Full `@proctira/backend-report` /
- * `data-warehouse` packages remain separately mountable.
+ * insights-ui store so import jobs survive restart. Otherwise falls back
+ * to in-memory seed.
  *
- * G-809 board rollups live here (not `backend-dashboards`, which stays parked).
+ * G-909: catalogue generate / templates / runs live on backend-report.
+ * G-809 board rollups stay here (`backend-dashboards` remains parked).
  *
  * When these respond, ScaffoldModeBanner hides (source=gateway).
  */
@@ -33,7 +29,6 @@ import {
   type BoardSummary,
 } from './board-summary.js';
 import { createInsightsUiStore, type InsightsUiStore } from './insights-ui-pg-store.js';
-import type { ReportTemplate } from './insights-ui-types.js';
 
 export type { BoardSummary };
 export { clearBoardSummariesForTests, emptyBoardSummary, seedBoardSummaryForTests };
@@ -45,11 +40,6 @@ function resolveTenantId(request: FastifyRequest): string {
   if (typeof header === 'string' && header.length > 0) return header;
   const user = (request as FastifyRequest & { user?: { tenantId?: string } }).user;
   return user?.tenantId ?? 'default';
-}
-
-function resolveUserId(request: FastifyRequest): string {
-  const user = (request as FastifyRequest & { user?: { sub?: string; userId?: string } }).user;
-  return user?.sub ?? user?.userId ?? 'system';
 }
 
 export interface InsightsUiPluginOptions {
@@ -78,123 +68,6 @@ export const insightsUiPlugin = fp(
         return reply.send(summary);
       },
     );
-
-    fastify.get('/reports/templates', async (_request, reply) => {
-      return reply.send({ data: await store.listTemplates() });
-    });
-
-    fastify.get<{ Params: { id: string } }>('/reports/templates/:id', async (request, reply) => {
-      const tpl = await store.getTemplate(request.params.id);
-      if (!tpl) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Report template not found',
-          statusCode: 404,
-        });
-      }
-      return reply.send(tpl);
-    });
-
-    fastify.post('/reports/templates', async (request, reply) => {
-      const body = (request.body ?? {}) as Partial<ReportTemplate>;
-      if (!body.name || !body.module) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'name and module are required',
-          statusCode: 400,
-        });
-      }
-      const tpl: ReportTemplate = {
-        id: body.id ?? randomUUID(),
-        name: body.name,
-        description: body.description ?? '',
-        module: body.module,
-        format: body.format ?? ['PDF'],
-        filters: body.filters ?? [],
-      };
-      await store.createTemplate(tpl);
-      return reply.status(201).send(tpl);
-    });
-
-    fastify.get('/reports/runs', async (request, reply) => {
-      const tenantId = resolveTenantId(request);
-      const query = request.query as { templateId?: string };
-      const runs = await store.listRuns(tenantId, query.templateId);
-      return reply.send({ data: runs });
-    });
-
-    fastify.post('/reports/generate', async (request, reply) => {
-      const tenantId = resolveTenantId(request);
-      const body = (request.body ?? {}) as {
-        templateId?: string;
-        format?: 'PDF' | 'XLSX' | 'CSV';
-        filters?: Record<string, unknown>;
-      };
-      if (!body.templateId) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'templateId is required',
-          statusCode: 400,
-        });
-      }
-      const tpl = await store.getTemplate(body.templateId);
-      if (!tpl) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Report template not found',
-          statusCode: 404,
-        });
-      }
-      const format = body.format ?? tpl.format[0] ?? 'PDF';
-      const run = await store.createRun(tenantId, {
-        id: randomUUID(),
-        templateId: tpl.id,
-        templateName: tpl.name,
-        generatedAt: new Date().toISOString(),
-        generatedBy: resolveUserId(request),
-        format,
-        fileSizeKb: 12,
-        status: 'READY',
-        downloadUrl: `/api/v1/reports/runs/${randomUUID()}/download`,
-      });
-      return reply.status(201).send(run);
-    });
-
-    // Alias used by some FE clients
-    fastify.post('/reports/runs', async (request, reply) => {
-      const tenantId = resolveTenantId(request);
-      const body = (request.body ?? {}) as {
-        templateId?: string;
-        format?: 'PDF' | 'XLSX' | 'CSV';
-      };
-      if (!body.templateId) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'templateId is required',
-          statusCode: 400,
-        });
-      }
-      const tpl = await store.getTemplate(body.templateId);
-      if (!tpl) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Report template not found',
-          statusCode: 404,
-        });
-      }
-      const run = await store.createRun(tenantId, {
-        id: randomUUID(),
-        templateId: tpl.id,
-        templateName: tpl.name,
-        generatedAt: new Date().toISOString(),
-        generatedBy: resolveUserId(request),
-        format: body.format ?? 'PDF',
-        fileSizeKb: 8,
-        status: 'QUEUED',
-        downloadUrl: null,
-      });
-      return reply.status(201).send(run);
-    });
 
     fastify.get('/data-warehouse/indicators', async (_request, reply) => {
       return reply.send({ data: await store.listIndicators() });
