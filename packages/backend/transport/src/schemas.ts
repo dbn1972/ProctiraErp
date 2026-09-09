@@ -443,3 +443,77 @@ export const RecordBusAttendanceSchema = Type.Object({
 });
 
 export type RecordBusAttendanceInput = Static<typeof RecordBusAttendanceSchema>;
+
+// ─── Wave 9 / G-920 ops schemas ───────────────────────────────────────────────
+
+export const IngestGpsBatchSchema = Type.Object({
+  deviceId: Type.String({ minLength: 1, maxLength: 128 }),
+  pings: Type.Array(
+    Type.Object({
+      pingId: Type.String({ minLength: 1, maxLength: 128 }),
+      latitude: Type.Number({ minimum: -90, maximum: 90 }),
+      longitude: Type.Number({ minimum: -180, maximum: 180 }),
+      recordedAt: Type.Optional(Type.String()),
+      speedKph: Type.Optional(Type.Number({ minimum: 0 })),
+      headingDeg: Type.Optional(Type.Number({ minimum: 0, maximum: 360 })),
+    }),
+    { minItems: 1, maxItems: 100 },
+  ),
+});
+
+export type IngestGpsBatchInput = Static<typeof IngestGpsBatchSchema>;
+
+export const RegisterVehicleDeviceSchema = Type.Object({
+  deviceId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+});
+
+export type RegisterVehicleDeviceInput = Static<typeof RegisterVehicleDeviceSchema>;
+
+export const UpsertBusAttendanceSchema = Type.Object({
+  routeId: Type.String({ pattern: UUID_PATTERN }),
+  tripDate: Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' }),
+  direction: Type.Union([Type.Literal('pickup'), Type.Literal('drop')]),
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  stopId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  status: Type.Union([
+    Type.Literal('boarded'),
+    Type.Literal('alighted'),
+    Type.Literal('absent'),
+  ]),
+});
+
+export type UpsertBusAttendanceInput = Static<typeof UpsertBusAttendanceSchema>;
+
+export const CreateAlertRuleSchema = Type.Object({
+  kind: Type.Union([
+    Type.Literal('delay_minutes'),
+    Type.Literal('geofence_exit'),
+    Type.Literal('missed_pickup'),
+  ]),
+  threshold: Type.Number({ minimum: 0 }),
+  channels: Type.Optional(
+    Type.Array(Type.String({ minLength: 1, maxLength: 32 })),
+  ),
+  routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+});
+
+export type CreateAlertRuleInput = Static<typeof CreateAlertRuleSchema>;
+
+export const EvaluateAlertsSchema = Type.Object({
+  tripDate: Type.Optional(Type.String({ pattern: '^\\d{4}-\\d{2}-\\d{2}$' })),
+  routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+});
+
+export type EvaluateAlertsInput = Static<typeof EvaluateAlertsSchema>;
+
+export const CreateTransportFeeStructureSchema = Type.Object({
+  name: Type.String({ minLength: 1, maxLength: 255 }),
+  routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  stopId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  minDistanceKm: Type.Optional(Type.Number({ minimum: 0 })),
+  maxDistanceKm: Type.Optional(Type.Number({ minimum: 0 })),
+  amountCents: Type.Number({ minimum: 0 }),
+  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+});
+
+export type CreateTransportFeeStructureInput = Static<typeof CreateTransportFeeStructureSchema>;

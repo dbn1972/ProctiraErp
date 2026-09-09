@@ -265,7 +265,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'Raw pg (006) when DATABASE_URL; GPS + attendance-on-bus sandbox stubs (G-602). Live telematics residual.',
+      'Raw pg (006 + 045 G-920) when DATABASE_URL; GPS ingest + live map, trip attendance, alerts; fees via FeesService (G-903). SVG map (no MapLibre).',
     registrarName: 'transport',
   },
   {

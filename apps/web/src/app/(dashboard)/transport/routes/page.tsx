@@ -65,6 +65,14 @@ export default async function TransportRoutesPage() {
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {route.operatingDays.join(', ')} · {route.status}
                     </p>
+                    <p className="mt-1">
+                      <Link
+                        href={`/transport/routes/${route.id}/stops`}
+                        className="text-xs font-medium underline-offset-4 hover:underline"
+                      >
+                        Manage stops
+                      </Link>
+                    </p>
                   </div>
                 </li>
               ))}

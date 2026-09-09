@@ -120,6 +120,111 @@ export interface StudentAssignmentFilter {
   isActive?: boolean;
 }
 
+// ─── Wave 9 / G-920 ops entities ──────────────────────────────────────────────
+
+export interface VehicleDeviceEntity {
+  id: string;
+  tenantId: string;
+  vehicleId: string;
+  deviceId: string;
+  deviceKeyHash: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GpsPingEntity {
+  id: string;
+  tenantId: string;
+  vehicleId: string;
+  deviceId: string;
+  pingId: string;
+  latitude: number;
+  longitude: number;
+  recordedAt: Date;
+  speedKph: number | null;
+  headingDeg: number | null;
+  createdAt: Date;
+}
+
+export type TripDirection = 'pickup' | 'drop';
+export type BusAttendanceStatus = 'boarded' | 'alighted' | 'absent';
+
+export interface BusAttendanceEntity {
+  id: string;
+  tenantId: string;
+  routeId: string;
+  tripDate: string;
+  direction: TripDirection;
+  studentId: string;
+  stopId: string | null;
+  status: BusAttendanceStatus;
+  recordedAt: Date;
+  recordedBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type AlertKind = 'delay_minutes' | 'geofence_exit' | 'missed_pickup';
+
+export interface AlertRuleEntity {
+  id: string;
+  tenantId: string;
+  kind: AlertKind;
+  threshold: number;
+  channels: string[];
+  routeId: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface TransportAlertEntity {
+  id: string;
+  tenantId: string;
+  ruleId: string;
+  kind: AlertKind;
+  vehicleId: string | null;
+  routeId: string | null;
+  studentId: string | null;
+  message: string;
+  payload: Record<string, unknown>;
+  acknowledgedAt: Date | null;
+  acknowledgedBy: string | null;
+  createdAt: Date;
+}
+
+export interface TransportFeeStructureEntity {
+  id: string;
+  tenantId: string;
+  name: string;
+  routeId: string | null;
+  stopId: string | null;
+  minDistanceKm: number | null;
+  maxDistanceKm: number | null;
+  amountCents: number;
+  currency: string;
+  feesStructureId: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type TransportFeeLinkStatus = 'invoiced' | 'pending' | 'skipped';
+
+export interface TransportFeeLinkEntity {
+  id: string;
+  tenantId: string;
+  assignmentId: string;
+  studentId: string;
+  transportFeeStructureId: string | null;
+  feesInvoiceId: string | null;
+  feesStructureId: string | null;
+  status: TransportFeeLinkStatus;
+  reason: string | null;
+  createdAt: Date;
+}
+
 // ─── Repository Interface ────────────────────────────────────────────────────
 
 export interface TransportRepository {
@@ -212,4 +317,48 @@ export interface TransportRepository {
     studentId: string,
     tenantId: string,
   ): Promise<StudentRouteAssignmentEntity | null>;
+
+  // Wave 9 / G-920 ops
+  listAllStops(tenantId: string): Promise<RouteStopEntity[]>;
+
+  registerVehicleDevice(
+    data: Omit<VehicleDeviceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<VehicleDeviceEntity>;
+  findDeviceByDeviceId(deviceId: string, tenantId: string): Promise<VehicleDeviceEntity | null>;
+  findDeviceByVehicleId(vehicleId: string, tenantId: string): Promise<VehicleDeviceEntity | null>;
+
+  ingestGpsPing(
+    data: Omit<GpsPingEntity, 'createdAt'>,
+  ): Promise<{ ping: GpsPingEntity; duplicate: boolean }>;
+  listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]>;
+  listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]>;
+
+  upsertBusAttendance(
+    data: Omit<BusAttendanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<BusAttendanceEntity>;
+  listBusAttendanceTrip(
+    tenantId: string,
+    filter: { routeId: string; tripDate: string; direction: TripDirection },
+  ): Promise<BusAttendanceEntity[]>;
+
+  createAlertRule(data: Omit<AlertRuleEntity, 'createdAt' | 'updatedAt'>): Promise<AlertRuleEntity>;
+  listAlertRules(tenantId: string): Promise<AlertRuleEntity[]>;
+  createAlert(data: Omit<TransportAlertEntity, 'createdAt'>): Promise<TransportAlertEntity>;
+  listAlerts(tenantId: string): Promise<TransportAlertEntity[]>;
+  acknowledgeAlert(
+    id: string,
+    tenantId: string,
+    acknowledgedBy: string,
+  ): Promise<TransportAlertEntity | null>;
+
+  createTransportFeeStructure(
+    data: Omit<TransportFeeStructureEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TransportFeeStructureEntity>;
+  listTransportFeeStructures(tenantId: string): Promise<TransportFeeStructureEntity[]>;
+  createFeeLink(data: Omit<TransportFeeLinkEntity, 'createdAt'>): Promise<TransportFeeLinkEntity>;
+  listFeeLinks(tenantId: string): Promise<TransportFeeLinkEntity[]>;
+  findFeeLinkByAssignment(
+    assignmentId: string,
+    tenantId: string,
+  ): Promise<TransportFeeLinkEntity | null>;
 }
