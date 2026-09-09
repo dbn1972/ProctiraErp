@@ -7,7 +7,7 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey } from '@proctira/cache';
+import { tenantKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type {
@@ -59,11 +59,12 @@ export class CachedScholarshipRepository implements ScholarshipRepository {
     }
 
     const key = tenantKey(tenantId, 'scholarship-program', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findProgramById(id, tenantId),
       PROGRAM_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
   async listPrograms(

@@ -7,7 +7,7 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey } from '@proctira/cache';
+import { tenantKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type {
@@ -52,11 +52,12 @@ export class CachedExaminationRepository implements ExaminationRepository {
     }
 
     const key = tenantKey(tenantId, 'examination', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findById(id, tenantId),
       EXAMINATION_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
   async findByCode(code: string, tenantId: string): Promise<ExaminationEntity | null> {

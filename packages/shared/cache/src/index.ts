@@ -12,3 +12,5 @@ export { CacheClient } from './cache-client.js';
 export type { CacheClientOptions, CacheMetrics } from './cache-client.js';
 
 export { tenantKey, configKey, listKey } from './cache-keys.js';
+
+export { reviveDates } from './revive-dates.js';
