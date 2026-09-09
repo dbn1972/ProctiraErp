@@ -9,7 +9,13 @@
  *
  * All calls are tenant-scoped via `gatewayFetch`.
  */
-import { GATEWAY_API_PREFIX, GATEWAY_BASE_URL, gatewayFetch, getSessionContext } from './gateway';
+import {
+  GATEWAY_API_PREFIX,
+  GATEWAY_BASE_URL,
+  GatewayError,
+  gatewayFetch,
+  getSessionContext,
+} from './gateway';
 
 /* ------------------------------------------------------------------ Types */
 
@@ -236,13 +242,25 @@ export async function listStudents(filters: StudentListFilters = {}): Promise<St
   return result.data;
 }
 
+/**
+ * Resolves to `null` only when the gateway says the student does not exist
+ * (404). Any other failure (5xx, network, auth) is thrown so the page shows an
+ * error boundary instead of a misleading "Page not found".
+ */
 export async function getStudent(id: string): Promise<Student | null> {
   const result = await gatewayFetch<Student>(`/students/${id}`, {
     method: 'GET',
     throwOnError: false,
     next: { revalidate: 0 },
   });
-  return result.ok ? result.data : null;
+  if (result.ok) return result.data;
+  if (result.status === 404) return null;
+  throw new GatewayError({
+    status: result.status,
+    code: result.error?.code ?? 'GATEWAY_ERROR',
+    message: result.error?.message ?? `Failed to load student (${result.status})`,
+    details: result.error?.details,
+  });
 }
 
 export async function createStudent(input: CreateStudentInput): Promise<Student> {

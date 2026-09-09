@@ -14,6 +14,23 @@ import type { StudentEntity, StudentFilter, StudentRepository } from './student-
 /** TTL for student entity cache (5 minutes) */
 const STUDENT_TTL_SECONDS = 300;
 
+/**
+ * Redis round-trips entities through JSON, so `Date` fields come back as ISO
+ * strings. Callers (e.g. `formatStudentResponse`) call `.toISOString()` on
+ * them, so a cache hit must restore the same shape the delegate returns.
+ */
+function reviveDates(entity: StudentEntity | null): StudentEntity | null {
+  if (!entity) return entity;
+  const createdAt = entity.createdAt as unknown;
+  const updatedAt = entity.updatedAt as unknown;
+  if (createdAt instanceof Date && updatedAt instanceof Date) return entity;
+  return {
+    ...entity,
+    createdAt: createdAt instanceof Date ? createdAt : new Date(String(createdAt)),
+    updatedAt: updatedAt instanceof Date ? updatedAt : new Date(String(updatedAt)),
+  };
+}
+
 export class CachedStudentRepository implements StudentRepository {
   constructor(
     private readonly delegate: StudentRepository,
@@ -44,11 +61,12 @@ export class CachedStudentRepository implements StudentRepository {
     }
 
     const key = tenantKey(tenantId, 'student', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findById(id, tenantId),
       STUDENT_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
   async findByNationalId(nationalId: string, tenantId: string): Promise<StudentEntity | null> {
