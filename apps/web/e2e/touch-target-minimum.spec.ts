@@ -32,6 +32,8 @@ import * as fc from 'fast-check';
 import { loginAsTenantAdmin } from './fixtures/auth';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
+/** Seeded by tools/e2e/seed-e2e-tenants.sql for tenant A (G-722). */
+const E2E_INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
 
 /**
  * Minimum touch-target dimension for standard (desktop) routes.
@@ -558,6 +560,49 @@ const WAVE9_ROUTES = [
   '/student/pal',
 ] as const;
 
+/** Wave 9 batch 3 (G-909, G-915–G-922) — static dashboard routes. */
+const WAVE9_BATCH3_ROUTES = [
+  '/reports/dashboard',
+  '/reports/schedules',
+  '/reports/dashboards',
+  '/lms/bank',
+  '/lms/rubrics',
+  '/lms/discussions',
+  '/lms/lessons',
+  '/lms/content',
+  '/lms/analytics',
+  '/library/opac',
+  '/library/holds',
+  '/library/fines',
+  '/hostel/mess',
+  '/hostel/gate-passes',
+  '/hostel/fees',
+  '/hostel/attendance',
+  '/attendance/ops',
+  '/staff/attendance',
+  '/staff/import',
+  '/staff/payroll',
+  '/staff/contracts',
+  '/communication/circulars',
+  '/communication/circulars/new',
+  '/communication/delivery',
+  '/transport/live',
+  '/transport/attendance',
+  '/transport/alerts',
+  '/transport/fees',
+] as const;
+
+const WAVE9_BATCH3_INSTITUTION_ROUTES = [
+  `/institutions/${E2E_INSTITUTION_ID}/timetable/generate`,
+  `/institutions/${E2E_INSTITUTION_ID}/timetable/substitutions`,
+] as const;
+
+const WAVE9_ALL_ROUTES = [
+  ...WAVE9_ROUTES,
+  ...WAVE9_BATCH3_ROUTES,
+  ...WAVE9_BATCH3_INSTITUTION_ROUTES,
+] as const;
+
 function formatViolations(violations: TouchTargetViolation[]): string {
   return violations
     .slice(0, 8)
@@ -574,7 +619,7 @@ test.describe('Wave 9 routes — touch targets (E2E_BACKEND_READY=1)', () => {
     'E2E_BACKEND_READY is not set; skipping live-backend touch-target tests.',
   );
 
-  for (const route of WAVE9_ROUTES) {
+  for (const route of WAVE9_ALL_ROUTES) {
     test(`${route} — desktop interactive elements ≥ ${MIN_TARGET_SIZE_STANDARD}px`, async ({
       page,
     }) => {

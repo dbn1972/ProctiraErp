@@ -53,6 +53,7 @@ GATEWAY_URL="${E2E_GATEWAY_URL:-http://127.0.0.1:3000}"
 # Extract port from URL (default 3000); avoid python dependency on runners.
 GATEWAY_PORT="$(printf '%s' "$GATEWAY_URL" | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p')"
 GATEWAY_PORT="${GATEWAY_PORT:-3000}"
+WEB_PORT="${PORT:-3001}"
 export JWT_SECRET
 export E2E_BACKEND_READY=1
 export E2E_GATEWAY_URL="$GATEWAY_URL"
@@ -166,7 +167,7 @@ SEED_DEMO_DATA="${SEED_DEMO_DATA:-1}" \
 DATABASE_URL="$DATABASE_URL" \
 REDIS_URL="${REDIS_URL:-}" \
 JWT_SECRET="$JWT_SECRET" \
-CORS_ORIGINS="http://localhost:3001,http://127.0.0.1:3001" \
+CORS_ORIGINS="http://localhost:${WEB_PORT},http://127.0.0.1:${WEB_PORT}" \
 RATE_LIMIT_MAX_REQUESTS="${RATE_LIMIT_MAX_REQUESTS:-10000}" \
 setsid pnpm --filter @proctira/api-gateway start >"$ROOT/.e2e-gateway.log" 2>&1 &
 GATEWAY_PID=$!
