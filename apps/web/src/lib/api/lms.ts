@@ -34,6 +34,8 @@ export interface QuizQuestion {
   points: number;
   skillId: string | null;
   explanation: string | null;
+  questionType?: QuestionType;
+  payload?: { rubricId?: string };
 }
 
 export interface LmsAssignment {
@@ -144,6 +146,7 @@ export interface CreateAssignmentInput {
   allowLate?: boolean;
   publish?: boolean;
   questions?: QuizQuestionInput[];
+  bankQuestionIds?: string[];
 }
 
 export interface CreateSkillInput {
@@ -312,5 +315,390 @@ export async function recordPracticeAttempt(
     throwOnError: false,
   });
   if (!result.data) failed(result, 'Failed to record attempt');
+  return result.data;
+}
+
+export type QuestionType = 'mcq' | 'msq' | 'numeric' | 'match' | 'essay';
+export type ContentKind = 'link' | 'file' | 'text';
+
+export interface BankQuestion {
+  id: string;
+  scope: LmsScope;
+  subject: string;
+  gradeLevel: string | null;
+  tags: string[];
+  questionType: QuestionType;
+  difficulty: 'easy' | 'medium' | 'hard';
+  prompt: string;
+  points: number;
+  skillId: string | null;
+  rubricId: string | null;
+}
+
+export interface LmsRubric {
+  id: string;
+  name: string;
+  subject: string | null;
+  criteria?: Array<{
+    id: string;
+    name: string;
+    maxPoints: number;
+    levels: Array<{ label: string; points: number }>;
+  }>;
+}
+
+export interface DiscussionThread {
+  id: string;
+  classKey: string;
+  title: string;
+  locked: boolean;
+  posts?: Array<{ id: string; body: string; hidden: boolean; pinned: boolean }>;
+}
+
+export interface ContentItem {
+  id: string;
+  title: string;
+  kind: ContentKind;
+  body: string | null;
+  tags: string[];
+  classKey: string | null;
+  subject: string | null;
+  published: boolean;
+}
+
+export interface ClassAnalytics {
+  classKey: string;
+  assignmentCount: number;
+  submissionCount: number;
+  uniqueStudents: number;
+  submissionRate: number;
+  averageScore: number;
+  masteryBySkill: Array<{
+    skillId: string;
+    label: string;
+    attempts: number;
+    averageMastery: number;
+  }>;
+}
+
+export async function listBankQuestions(filter: {
+  subject?: string;
+  gradeLevel?: string;
+  questionType?: QuestionType;
+  tags?: string;
+  pageSize?: number;
+} = {}): Promise<BankQuestion[]> {
+  const result = await gatewayFetch<{ data: BankQuestion[] }>(
+    `/lms/bank${toQuery({ ...filter, pageSize: filter.pageSize ?? 100 })}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function createBankQuestion(input: {
+  scope: LmsScope;
+  boardId?: string;
+  institutionId?: string;
+  subject: string;
+  gradeLevel?: string;
+  tags?: string[];
+  questionType: QuestionType;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  prompt: string;
+  payload?: Record<string, unknown>;
+  points?: number;
+  skillId?: string;
+  rubricId?: string;
+}): Promise<BankQuestion> {
+  const result = await gatewayFetch<BankQuestion>('/lms/bank', {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to create bank item');
+  return result.data;
+}
+
+export async function listRubrics(): Promise<LmsRubric[]> {
+  const result = await gatewayFetch<{ data: LmsRubric[] }>('/lms/rubrics?pageSize=100', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function getRubric(id: string): Promise<LmsRubric | null> {
+  const result = await gatewayFetch<LmsRubric>(`/lms/rubrics/${id}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data ?? null;
+}
+
+export async function createRubric(input: {
+  scope: LmsScope;
+  boardId?: string;
+  institutionId?: string;
+  name: string;
+  subject?: string;
+  criteria: Array<{
+    name: string;
+    maxPoints: number;
+    levels: Array<{ label: string; points: number }>;
+  }>;
+}): Promise<LmsRubric> {
+  const result = await gatewayFetch<LmsRubric>('/lms/rubrics', {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to create rubric');
+  return result.data;
+}
+
+export async function gradeSubmissionWithRubric(
+  submissionId: string,
+  input: {
+    questionId?: string;
+    scores: Array<{ criterionId: string; levelIndex: number; points: number; comment?: string }>;
+    feedback?: string;
+  },
+): Promise<LmsSubmission> {
+  const result = await gatewayFetch<LmsSubmission>(
+    `/lms/submissions/${submissionId}/rubric-grade`,
+    { method: 'POST', json: input, throwOnError: false },
+  );
+  if (!result.data) failed(result, 'Failed to apply rubric grade');
+  return result.data;
+}
+
+export async function uploadAssignmentFile(
+  assignmentId: string,
+  input: { filename: string; mimeType: string; contentBase64: string; submissionId?: string },
+): Promise<{ id: string; filename: string }> {
+  const result = await gatewayFetch<{ id: string; filename: string }>(
+    `/lms/assignments/${assignmentId}/files`,
+    { method: 'POST', json: input, throwOnError: false },
+  );
+  if (!result.data) failed(result, 'Failed to upload file');
+  return result.data;
+}
+
+export async function getDiscussion(id: string): Promise<DiscussionThread | null> {
+  const result = await gatewayFetch<DiscussionThread>(`/lms/discussions/${id}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data ?? null;
+}
+
+export async function listDiscussions(classKey?: string): Promise<DiscussionThread[]> {
+  const result = await gatewayFetch<{ data: DiscussionThread[] }>(
+    `/lms/discussions${toQuery({ classKey, pageSize: 50 })}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function createDiscussion(input: {
+  institutionId?: string;
+  classKey: string;
+  title: string;
+}): Promise<DiscussionThread> {
+  const result = await gatewayFetch<DiscussionThread>('/lms/discussions', {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to create discussion');
+  return result.data;
+}
+
+export async function createDiscussionPost(
+  threadId: string,
+  body: string,
+): Promise<{ id: string }> {
+  const result = await gatewayFetch<{ id: string }>(`/lms/discussions/${threadId}/posts`, {
+    method: 'POST',
+    json: { body },
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to post');
+  return result.data;
+}
+
+export async function lockDiscussion(threadId: string, locked: boolean): Promise<DiscussionThread> {
+  const result = await gatewayFetch<DiscussionThread>(`/lms/discussions/${threadId}/lock`, {
+    method: 'POST',
+    json: { locked },
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to lock discussion');
+  return result.data;
+}
+
+export async function hideDiscussionPost(
+  threadId: string,
+  postId: string,
+  hidden: boolean,
+): Promise<{ id: string; hidden: boolean }> {
+  const result = await gatewayFetch<{ id: string; hidden: boolean }>(
+    `/lms/discussions/${threadId}/posts/${postId}/hide`,
+    { method: 'POST', json: { hidden }, throwOnError: false },
+  );
+  if (!result.data) failed(result, 'Failed to hide post');
+  return result.data;
+}
+
+export async function listContentItems(filter: {
+  classKey?: string;
+  published?: boolean;
+} = {}): Promise<ContentItem[]> {
+  const result = await gatewayFetch<{ data: ContentItem[] }>(
+    `/lms/content${toQuery({ ...filter, pageSize: 100 })}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function createContentItem(input: {
+  scope: LmsScope;
+  boardId?: string;
+  institutionId?: string;
+  title: string;
+  kind: ContentKind;
+  body?: string;
+  tags?: string[];
+  classKey?: string;
+  subject?: string;
+  published?: boolean;
+}): Promise<ContentItem> {
+  const result = await gatewayFetch<ContentItem>('/lms/content', {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to create content');
+  return result.data;
+}
+
+export async function getClassAnalytics(classKey: string, institutionId?: string): Promise<ClassAnalytics | null> {
+  const result = await gatewayFetch<ClassAnalytics>(
+    `/lms/analytics${toQuery({ classKey, institutionId })}`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data ?? null;
+}
+
+export interface QuizItemAnalytics {
+  questionId: string;
+  prompt: string;
+  questionType: QuestionType;
+  difficulty: number | null;
+  correctCount: number;
+  attemptCount: number;
+}
+
+export interface QuizAnalytics {
+  assignmentId: string;
+  submissionCount: number;
+  mean: number | null;
+  median: number | null;
+  items: QuizItemAnalytics[];
+  students: Array<{
+    studentId: string;
+    score: number | null;
+    answered: number;
+    total: number;
+    completion: number;
+  }>;
+}
+
+export async function getQuizAnalytics(assignmentId: string): Promise<QuizAnalytics | null> {
+  const result = await gatewayFetch<QuizAnalytics>(`/lms/assignments/${assignmentId}/analytics`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data ?? null;
+}
+
+export async function listAssignmentFiles(
+  assignmentId: string,
+): Promise<Array<{ id: string; filename: string }>> {
+  const result = await gatewayFetch<{ data: Array<{ id: string; filename: string }> }>(
+    `/lms/assignments/${assignmentId}/files`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export interface LmsLesson {
+  id: string;
+  title: string;
+  subject: string | null;
+  gradeLevel: string | null;
+  description: string | null;
+  published: boolean;
+  resources?: Array<{ id: string; kind: string; title: string; url: string | null }>;
+}
+
+export async function getLesson(id: string): Promise<LmsLesson | null> {
+  const result = await gatewayFetch<LmsLesson>(`/lms/lessons/${id}`, {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data ?? null;
+}
+
+export async function listLessons(): Promise<LmsLesson[]> {
+  const result = await gatewayFetch<{ data: LmsLesson[] }>('/lms/lessons?pageSize=100', {
+    throwOnError: false,
+    next: { revalidate: 0 },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function createLesson(input: {
+  scope: LmsScope;
+  boardId?: string;
+  institutionId?: string;
+  title: string;
+  subject?: string;
+  gradeLevel?: string;
+  description?: string;
+  published?: boolean;
+}): Promise<LmsLesson> {
+  const result = await gatewayFetch<LmsLesson>('/lms/lessons', {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to create lesson');
+  return result.data;
+}
+
+export async function addLessonResource(
+  lessonId: string,
+  input: { kind: 'link' | 'file' | 'video'; title: string; url?: string },
+): Promise<{ id: string }> {
+  const result = await gatewayFetch<{ id: string }>(`/lms/lessons/${lessonId}/resources`, {
+    method: 'POST',
+    json: input,
+    throwOnError: false,
+  });
+  if (!result.data) failed(result, 'Failed to add resource');
+  return result.data;
+}
+
+export async function pinDiscussionPost(
+  threadId: string,
+  postId: string,
+  pinned: boolean,
+): Promise<{ id: string; pinned: boolean }> {
+  const result = await gatewayFetch<{ id: string; pinned: boolean }>(
+    `/lms/discussions/${threadId}/posts/${postId}/pin`,
+    { method: 'POST', json: { pinned }, throwOnError: false },
+  );
+  if (!result.data) failed(result, 'Failed to pin post');
   return result.data;
 }

@@ -9,7 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Button } from '@proctira/ui/components';
 import { listGradebookBoards } from '@/lib/api/gradebook';
 import { listInstitutions } from '@/lib/api/institutions';
-import { listSkills } from '@/lib/api/lms';
+import { listBankQuestions, listSkills } from '@/lib/api/lms';
 
 import { NewAssignmentForm } from '../../_components/new-assignment-form';
 
@@ -27,11 +27,12 @@ export default async function NewAssignmentPage({
       ? kindParam
       : 'assignment';
 
-  const [t, institutions, boardsResult, skills] = await Promise.all([
+  const [t, institutions, boardsResult, skills, bankItems] = await Promise.all([
     getTranslations('lms'),
     listInstitutions({ pageSize: 200 }),
     listGradebookBoards(),
     listSkills(),
+    listBankQuestions(),
   ]);
 
   const boards = (boardsResult.ok ? boardsResult.data : []).map((b) => ({
@@ -58,6 +59,12 @@ export default async function NewAssignmentPage({
         institutions={institutions.map((i) => ({ id: i.id, name: i.name, code: i.code }))}
         boards={boards}
         skills={skills.map((s) => ({ id: s.id, name: s.name, subject: s.subject }))}
+        bankItems={bankItems.map((b) => ({
+          id: b.id,
+          prompt: b.prompt,
+          questionType: b.questionType,
+          subject: b.subject,
+        }))}
       />
     </section>
   );
