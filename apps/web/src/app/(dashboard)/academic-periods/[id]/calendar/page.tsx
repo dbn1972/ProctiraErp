@@ -9,7 +9,7 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, CalendarRange } from 'lucide-react';
+import { ArrowLeft, CalendarRange, Download } from 'lucide-react';
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 import {
@@ -134,6 +134,16 @@ export default async function AcademicCalendarPage(props: PageProps) {
             </p>
           </div>
         </div>
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+          <a
+            href={`/api/academic-calendar/export?periodId=${period.id}`}
+            download
+            data-testid="export-period-calendar"
+          >
+            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Export .ics
+          </a>
+        </Button>
       </div>
 
       {kind === 'year' && (

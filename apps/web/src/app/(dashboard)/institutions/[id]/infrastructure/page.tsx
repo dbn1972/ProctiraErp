@@ -6,15 +6,7 @@
  * summarising any nodes flagged for repair. Powered by the institution
  * service's `/infrastructure/hierarchy` endpoint (Requirement 5.6).
  */
-import {
-  AlertTriangle,
-  Building,
-  FileText,
-  Home,
-  Layers,
-  Map as MapIcon,
-  Plus,
-} from 'lucide-react';
+import { AlertTriangle, Building, FileText, Home, Layers, Map as MapIcon } from 'lucide-react';
 
 import { Button, Card, CardContent } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
@@ -137,13 +129,15 @@ export default async function InstitutionInfrastructurePage(props: Infrastructur
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Verification report
-          </Button>
-          <Button size="sm" disabled>
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Log repair request
+          <Button asChild variant="outline" size="sm">
+            <a
+              href={`/api/institutions/${params.id}/infrastructure/report`}
+              download
+              data-testid="infrastructure-verification-report"
+            >
+              <FileText className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Verification report (.csv)
+            </a>
           </Button>
         </div>
       </div>

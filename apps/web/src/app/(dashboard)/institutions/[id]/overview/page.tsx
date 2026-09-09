@@ -385,10 +385,30 @@ export default async function InstitutionOverviewPage(props: OverviewPageProps) 
                   </FactRow>
                 )}
               </dl>
-              <Button variant="outline" size="sm" className="mt-3 w-full" disabled>
-                <MapIcon className="me-1.5 h-4 w-4" aria-hidden="true" />
-                View on district map
-              </Button>
+              {institution.latitude !== null && institution.longitude !== null ? (
+                <Button asChild variant="outline" size="sm" className="mt-3 w-full">
+                  <a
+                    href={`https://www.openstreetmap.org/?mlat=${institution.latitude}&mlon=${institution.longitude}#map=16/${institution.latitude}/${institution.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    data-testid="view-on-map"
+                  >
+                    <MapIcon className="me-1.5 h-4 w-4" aria-hidden="true" />
+                    View on map
+                  </a>
+                </Button>
+              ) : (
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Add coordinates in{' '}
+                  <Link
+                    href={`/institutions/${institution.id}/edit`}
+                    className="underline underline-offset-4"
+                  >
+                    Edit institution
+                  </Link>{' '}
+                  to enable the map link.
+                </p>
+              )}
             </CardContent>
           </Card>
         </aside>

@@ -54,9 +54,11 @@ export default async function AcademicPeriodsPage() {
               </Link>
             </Button>
           )}
-          <Button variant="outline" size="sm" disabled>
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export calendar
+          <Button asChild variant="outline" size="sm">
+            <a href="/api/academic-calendar/export" download data-testid="export-calendar">
+              <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
+              Export calendar (.ics)
+            </a>
           </Button>
         </div>
       </div>

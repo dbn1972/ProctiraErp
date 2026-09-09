@@ -9,6 +9,7 @@
  *   percentage breakdown rounded to 2 decimal places.
  */
 import { useState } from 'react';
+import { Download } from 'lucide-react';
 
 import {
   Button,
@@ -176,13 +177,61 @@ export function AttendanceReportFilters({ institutions }: AttendanceReportFilter
       )}
 
       {serverState?.status === 'success' && serverState.data && (
-        <ResultPanel result={serverState.data} />
+        <ResultPanel
+          result={serverState.data}
+          range={{ startDate, endDate }}
+          scopeId={scope === 'student' ? studentId : scope === 'class' ? classId : institutionId}
+        />
       )}
     </div>
   );
 }
 
-function ResultPanel({ result }: { result: AttendancePercentageResult }) {
+/** G-925 — CSV of the computed report (one row per metric), downloaded client-side. */
+function toReportCsv(
+  result: AttendancePercentageResult,
+  range: { startDate: string; endDate: string },
+  scopeId: string,
+): string {
+  const rows: Array<[string, string | number]> = [
+    ['scope', result.scope],
+    ['scope_id', scopeId],
+    ['start_date', range.startDate],
+    ['end_date', range.endDate],
+    ['total_records', result.totalRecords],
+    ['present', result.presentCount],
+    ['absent', result.absentCount],
+    ['late', result.lateCount],
+    ['excused', result.excusedCount],
+    ['attendance_percentage', result.attendancePercentage.toFixed(2)],
+    ['absence_percentage', result.absencePercentage.toFixed(2)],
+  ];
+  const cell = (v: string | number) => {
+    const str = String(v);
+    return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+  return `${['metric,value', ...rows.map(([k, v]) => `${k},${cell(v)}`)].join('\n')}\n`;
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function ResultPanel({
+  result,
+  range,
+  scopeId,
+}: {
+  result: AttendancePercentageResult;
+  range: { startDate: string; endDate: string };
+  scopeId: string;
+}) {
   const fmt = (value: number) => `${value.toFixed(2)}%`;
   const pct = result.attendancePercentage;
   const tone =
@@ -197,13 +246,30 @@ function ResultPanel({ result }: { result: AttendancePercentageResult }) {
     <div className="space-y-4" role="status" aria-live="polite">
       {/* Headline */}
       <div className="rounded-xl border border-border bg-muted/20 p-5">
-        <div className="flex flex-wrap items-baseline gap-3">
-          <span className={`text-4xl font-extrabold tabular-nums tracking-tight ${tone}`}>
-            {fmt(pct)}
-          </span>
-          <span className="text-sm text-muted-foreground">
-            attendance · {fmt(result.absencePercentage)} absence · scope: {result.scope}
-          </span>
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <span className={`text-4xl font-extrabold tabular-nums tracking-tight ${tone}`}>
+              {fmt(pct)}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              attendance · {fmt(result.absencePercentage)} absence · scope: {result.scope}
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              downloadCsv(
+                `attendance-${result.scope}-${range.startDate}-${range.endDate}.csv`,
+                toReportCsv(result, range, scopeId),
+              )
+            }
+            data-testid="export-attendance-csv"
+          >
+            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
+            Export CSV
+          </Button>
         </div>
         <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-muted">
           <div

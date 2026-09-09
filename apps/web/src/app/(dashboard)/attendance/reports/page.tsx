@@ -6,7 +6,7 @@
  */
 import Link from 'next/link';
 
-import { ArrowLeft, ClipboardCheck, Download } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck } from 'lucide-react';
 
 import {
   Button,
@@ -49,10 +49,6 @@ export default async function AttendanceReportsPage() {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export CSV
-          </Button>
           <Button asChild size="sm">
             <Link href="/attendance">
               <ClipboardCheck className="me-1.5 h-4 w-4" aria-hidden="true" />

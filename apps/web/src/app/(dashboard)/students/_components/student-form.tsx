@@ -222,7 +222,13 @@ export function StudentForm({ mode, studentId, initialValues, customFields }: St
                 student record is created
               </p>
             </div>
-            <Button type="button" variant="outline" size="sm" disabled>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled
+              title="Photo upload is available from the student profile after the record is created"
+            >
               Browse files
             </Button>
           </div>
