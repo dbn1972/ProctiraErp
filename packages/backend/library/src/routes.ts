@@ -396,6 +396,33 @@ export async function registerLibraryRoutes(
   );
 
   fastify.get(
+    `${prefix}/loans`,
+    async function listLoansHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) {
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
+      }
+      const studentId =
+        typeof (request.query as { studentId?: string }).studentId === 'string'
+          ? (request.query as { studentId?: string }).studentId
+          : undefined;
+      const patronUserId =
+        typeof (request.query as { patronUserId?: string }).patronUserId === 'string'
+          ? (request.query as { patronUserId?: string }).patronUserId
+          : undefined;
+      let loans = await libraryService.listLoans(tenantId, studentId);
+      if (patronUserId) {
+        loans = loans.filter((loan) => loan.patronUserId === patronUserId);
+      }
+      return reply.status(200).send({ data: loans.map(formatLoan) });
+    },
+  );
+
+  fastify.get(
     `${prefix}/patrons/:studentId/clearance`,
     async function clearanceHandler(
       request: FastifyRequest<{ Params: PatronParams }>,
@@ -723,7 +750,7 @@ export async function registerLibraryRoutes(
         const holds = await libraryService.listHolds(tenantId, item.id);
         return reply.status(200).send({
           ...formatItem(item),
-          copies: copies.map(formatCopy),
+          copyList: copies.map(formatCopy),
           holds: holds.map(formatHold),
         });
       } catch (error: unknown) {
@@ -878,7 +905,21 @@ export async function registerLibraryRoutes(
         typeof (request.query as { itemId?: string }).itemId === 'string'
           ? (request.query as { itemId?: string }).itemId
           : undefined;
-      const holds = await libraryService.listHolds(tenantId, itemId);
+      const studentId =
+        typeof (request.query as { studentId?: string }).studentId === 'string'
+          ? (request.query as { studentId?: string }).studentId
+          : undefined;
+      const patronUserId =
+        typeof (request.query as { patronUserId?: string }).patronUserId === 'string'
+          ? (request.query as { patronUserId?: string }).patronUserId
+          : undefined;
+      let holds = await libraryService.listHolds(tenantId, itemId);
+      if (studentId) {
+        holds = holds.filter((h) => h.studentId === studentId);
+      }
+      if (patronUserId) {
+        holds = holds.filter((h) => h.patronUserId === patronUserId);
+      }
       return reply.status(200).send({ data: holds.map(formatHold) });
     },
   );

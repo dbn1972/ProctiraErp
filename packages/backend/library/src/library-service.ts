@@ -271,6 +271,12 @@ export class LibraryService implements LibraryFinesPort {
     );
   }
 
+  async listLoans(tenantId: string, studentId?: string) {
+    const loans = await this.repository.listLoans(tenantId);
+    if (!studentId) return loans;
+    return loans.filter((loan) => loan.studentId === studentId);
+  }
+
   /**
    * Student-transfer checklist hook: clear when no open loans remain.
    */
