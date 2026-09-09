@@ -80,7 +80,7 @@ export default async function StaffAttendancePage(props: PageProps) {
                 name="date"
                 type="date"
                 defaultValue={date}
-                className="mt-1 block h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 block h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
               />
             </label>
             <Button type="submit" variant="outline" size="sm">

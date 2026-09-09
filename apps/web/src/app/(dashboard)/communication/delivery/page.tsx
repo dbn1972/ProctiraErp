@@ -59,7 +59,7 @@ export default async function DeliveryLogPage(props: PageProps) {
                 id="dl-channel"
                 name="channel"
                 defaultValue={channel}
-                className="mt-1 block h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 block h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
               />
             </label>
             <label className="text-sm" htmlFor="dl-status">
@@ -68,7 +68,7 @@ export default async function DeliveryLogPage(props: PageProps) {
                 id="dl-status"
                 name="status"
                 defaultValue={status}
-                className="mt-1 block h-10 rounded-md border border-input bg-background px-3 text-sm"
+                className="mt-1 block h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
               >
                 <option value="">Any</option>
                 <option value="queued">queued</option>

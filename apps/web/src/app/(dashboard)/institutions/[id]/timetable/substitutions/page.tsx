@@ -48,7 +48,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
     <div className="space-y-4" data-testid="timetable-substitutions-page">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold tracking-tight text-foreground">Substitutions</h1>
+          <h2 className="text-lg font-bold tracking-tight text-foreground">Substitutions</h2>
           <p className="text-sm text-muted-foreground">
             Mark a teacher absent for a date, review affected periods, then assign a substitute.
             Double-books return HTTP 409.

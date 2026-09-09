@@ -58,7 +58,10 @@ export default async function LmsLessonsPage() {
                       {resource.url ? (
                         <>
                           {' '}
-                          <a href={resource.url} className="underline">
+                          <a
+                            href={resource.url}
+                            className="inline-flex min-h-11 items-center underline"
+                          >
                             {resource.url}
                           </a>
                         </>

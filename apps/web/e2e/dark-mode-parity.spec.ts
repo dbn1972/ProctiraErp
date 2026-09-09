@@ -185,6 +185,24 @@ async function setTheme(
   await page.waitForTimeout(100);
 }
 
+async function gotoDashboardRoute(
+  page: import('@playwright/test').Page,
+  path: string,
+): Promise<void> {
+  await page.goto(path);
+  if (path === '/reports/dashboards') {
+    await page.waitForURL('**/reports/dashboard**', { timeout: 20_000 });
+  }
+  await page
+    .waitForSelector('[role="main"], main', {
+      state: 'visible',
+      timeout: 15_000,
+    })
+    .catch(() => {
+      // Some routes may not have a <main> landmark yet; proceed anyway.
+    });
+}
+
 test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
   test.skip(
     !BACKEND_READY,
@@ -196,17 +214,7 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
       page,
     }) => {
       await loginAsTenantAdmin(page);
-      await page.goto(route.path);
-      // Wait for the main content area to be visible before scanning.
-      await page
-        .waitForSelector('[role="main"], main', {
-          state: 'visible',
-          timeout: 15_000,
-        })
-        .catch(() => {
-          // Some routes may not have a <main> landmark yet; proceed anyway.
-        });
-
+      await gotoDashboardRoute(page, route.path);
       await setTheme(page, 'light');
       await runAxe(page, {
         checkpointLabel: `${route.path} [light]`,
@@ -217,16 +225,7 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
       page,
     }) => {
       await loginAsTenantAdmin(page);
-      await page.goto(route.path);
-      await page
-        .waitForSelector('[role="main"], main', {
-          state: 'visible',
-          timeout: 15_000,
-        })
-        .catch(() => {
-          // Some routes may not have a <main> landmark yet; proceed anyway.
-        });
-
+      await gotoDashboardRoute(page, route.path);
       await setTheme(page, 'dark');
       await runAxe(page, {
         checkpointLabel: `${route.path} [dark]`,

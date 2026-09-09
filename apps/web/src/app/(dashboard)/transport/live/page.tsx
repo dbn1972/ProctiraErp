@@ -26,7 +26,10 @@ export default async function TransportLivePage() {
           <li key={v.vehicleId} data-testid="transport-live-bus">
             {v.registrationNumber ?? v.vehicleId.slice(0, 8)} · {v.latitude.toFixed(4)},{' '}
             {v.longitude.toFixed(4)} ·{' '}
-            <a href={v.osmUrl} className="underline-offset-4 hover:underline">
+            <a
+              href={v.osmUrl}
+              className="inline-flex min-h-11 items-center underline-offset-4 hover:underline"
+            >
               OpenStreetMap
             </a>
           </li>

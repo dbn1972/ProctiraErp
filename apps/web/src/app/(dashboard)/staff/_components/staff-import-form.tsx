@@ -62,7 +62,7 @@ export function StaffImportForm() {
           accept=".csv,text/csv"
           onChange={onFile}
           disabled={!hydrated || pending}
-          className="block text-sm"
+          className="block min-h-11 w-full text-sm file:mr-4 file:min-h-11 file:rounded-md file:border file:border-input file:bg-background file:px-4 file:py-2 file:text-sm file:font-medium file:text-foreground"
         />
       </FormField>
       <FormField id="staff-csv" label="CSV text" required>

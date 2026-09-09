@@ -1,7 +1,7 @@
 /**
  * Question bank (G-915).
  */
-import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
+import { Button, Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
 import { listBankQuestions, type QuestionType } from '@/lib/api/lms';
 import { EmptyState } from '@/components/page';
@@ -33,7 +33,10 @@ export default async function LmsBankPage({
   return (
     <section className="space-y-6" aria-labelledby="lms-bank-heading">
       <div>
-        <h1 id="lms-bank-heading" className="text-3xl font-extrabold tracking-tight">
+        <h1
+          id="lms-bank-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
           Question bank
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -46,27 +49,27 @@ export default async function LmsBankPage({
           name="subject"
           defaultValue={subject ?? ''}
           placeholder="Subject"
-          className="h-11 rounded-md border px-3"
+          className="h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
           aria-label="Filter by subject"
         />
         <input
           name="gradeLevel"
           defaultValue={gradeLevel ?? ''}
           placeholder="Grade"
-          className="h-11 rounded-md border px-3"
+          className="h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
           aria-label="Filter by grade"
         />
         <input
           name="tags"
           defaultValue={tags ?? ''}
           placeholder="Tags"
-          className="h-11 rounded-md border px-3"
+          className="h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
           aria-label="Filter by tags"
         />
         <select
           name="questionType"
           defaultValue={questionType ?? ''}
-          className="h-11 rounded-md border px-3"
+          className="h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
           aria-label="Filter by type"
         >
           <option value="">All types</option>
@@ -76,9 +79,9 @@ export default async function LmsBankPage({
           <option value="match">Match</option>
           <option value="essay">Essay</option>
         </select>
-        <button type="submit" className="h-11 rounded-md border px-4 text-sm font-medium">
+        <Button type="submit" variant="outline" className="h-11 min-h-11">
           Filter
-        </button>
+        </Button>
       </form>
       <Card>
         <CardHeader>

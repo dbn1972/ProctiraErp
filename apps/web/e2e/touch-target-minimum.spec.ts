@@ -626,6 +626,9 @@ test.describe('Wave 9 routes — touch targets (E2E_BACKEND_READY=1)', () => {
       await loginAsTenantAdmin(page);
       const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
       expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
+      if (route === '/reports/dashboards') {
+        await page.waitForURL('**/reports/dashboard**', { timeout: 20_000 });
+      }
       // `networkidle` never settles under `next dev` (HMR); wait for load + a short settle.
       await page.waitForLoadState('load').catch(() => {});
       await page.waitForTimeout(750);
@@ -649,6 +652,9 @@ test.describe('Wave 9 routes — touch targets (E2E_BACKEND_READY=1)', () => {
         await loginAsTenantAdmin(page);
         const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
         expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
+        if (route === '/reports/dashboards') {
+          await page.waitForURL('**/reports/dashboard**', { timeout: 20_000 });
+        }
         // `networkidle` never settles under `next dev` (HMR); wait for load + a short settle.
         await page.waitForLoadState('load').catch(() => {});
         await page.waitForTimeout(750);
