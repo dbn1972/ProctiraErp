@@ -17,9 +17,6 @@ export default async function TransportLivePage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Last known vehicle positions on route stops. Tap a marker for an OpenStreetMap link.
         </p>
-        {live.honestyNote ? (
-          <p className="mt-1 text-xs text-muted-foreground">{live.honestyNote}</p>
-        ) : null}
       </div>
       <LiveMapRefresher />
       <LiveMapSvg vehicles={live.vehicles} stops={live.stops} />
