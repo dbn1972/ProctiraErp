@@ -22,7 +22,7 @@
  *  - scholarships: raw SQL + `pg` when DATABASE_URL is set (db/sql/016_scholarships_schema.sql);
  *    else in-memory (+ demo seed).
  *  - registration / admissions: raw SQL + `pg` when DATABASE_URL is set
- *    (db/sql/014_admissions_crm_schema.sql); else in-memory.
+ *    (db/sql/014_admissions_crm_schema.sql + 034 enquiry/merit/offer); else in-memory.
  *  - timetable (bell schedules / periods / meetings / substitutions): raw SQL
  *    + `pg` when DATABASE_URL is set (db/sql/003_sis_timetable_schedule_schema.sql);
  *    else in-memory.
@@ -77,6 +77,7 @@ import { createNotificationStack, notificationPlugin } from '@proctira/backend-n
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import {
   createAdmissionsCrmStore,
+  createAdmissionsPipelineStore,
   createRegistrationRepository,
   registrationPlugin,
 } from '@proctira/backend-registration';
@@ -87,7 +88,13 @@ import {
   createStaffRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
-import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import {
+  createEnrollmentRepository,
+  createStudentRepository,
+  EnrollmentService,
+  StudentService,
+  studentPlugin,
+} from '@proctira/backend-student';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import { createWorkflowRepositories, workflowPlugin } from '@proctira/backend-workflow';
@@ -488,16 +495,61 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   },
   {
     name: 'registration',
-    proxyPrefixes: ['/registrations'],
+    proxyPrefixes: ['/registrations', '/admissions'],
     register: async (scope) => {
-      // Pg when DATABASE_URL (db/sql/014_admissions_crm_schema.sql); else in-memory.
-      // G-717: waitlist/interview CRM store also on 014 under RLS; OCR waived.
+      // Pg when DATABASE_URL (014 waitlist/interview + 034 enquiry/merit/offer); else in-memory.
       const repository = createRegistrationRepository();
       const crmStore = createAdmissionsCrmStore();
+      const pipelineStore = createAdmissionsPipelineStore();
+      const studentService = new StudentService(createStudentRepository());
+      const enrollmentService = new EnrollmentService(createEnrollmentRepository());
       await scope.register(registrationPlugin, {
         repository,
         crmStore,
+        pipelineStore,
         prefix: '/registrations',
+        admissionsPrefix: '/admissions',
+        enrolOnAccept: async (input: {
+          tenantId: string;
+          applicationId: string;
+          firstName: string;
+          lastName: string;
+          dateOfBirth: string;
+          gender: string;
+          guardianName: string;
+          guardianPhone: string;
+          guardianEmail: string | null;
+          institutionId: string;
+          gradeId: string;
+          academicPeriodId: string;
+        }): Promise<{ studentId: string; enrollmentId: string }> => {
+          const parts = input.guardianName.trim().split(/\s+/);
+          const guardianFirst = parts[0] ?? input.guardianName;
+          const guardianLast = parts.slice(1).join(' ') || guardianFirst;
+          const student = await studentService.create(input.tenantId, {
+            firstName: input.firstName,
+            lastName: input.lastName,
+            dateOfBirth: input.dateOfBirth,
+            gender: input.gender,
+            guardians: [
+              {
+                firstName: guardianFirst,
+                lastName: guardianLast,
+                relationship: 'guardian',
+                contactPhone: input.guardianPhone,
+                contactEmail: input.guardianEmail ?? undefined,
+              },
+            ],
+          });
+          const enrollment = await enrollmentService.createEnrollment(input.tenantId, {
+            studentId: student.id,
+            institutionId: input.institutionId,
+            gradeId: input.gradeId,
+            academicPeriodId: input.academicPeriodId,
+            enrolledAt: new Date().toISOString().slice(0, 10),
+          });
+          return { studentId: student.id, enrollmentId: enrollment.id };
+        },
       });
     },
   },

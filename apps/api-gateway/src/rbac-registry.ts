@@ -56,6 +56,7 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   library: 'library',
   'parent-portal': 'parent',
   registrations: 'registration',
+  admissions: 'registration',
   fees: 'fees',
   developer: 'developer',
   // G-701 / G-702: native prefixes served by mounted packages

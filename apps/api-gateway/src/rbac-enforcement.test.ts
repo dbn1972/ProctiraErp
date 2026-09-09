@@ -526,6 +526,7 @@ describe('G-301 campus module RBAC deny matrix', () => {
     expect(resourceForApiPath('/api/v1/library/circulation/checkout')).toBe('library');
     expect(resourceForApiPath('/api/v1/communication/campaigns/x/send')).toBe('communication');
     expect(resourceForApiPath('/api/v1/developer/accounts')).toBe('developer');
+    expect(resourceForApiPath('/api/v1/admissions/enquiries')).toBe('registration');
   });
 });
 
