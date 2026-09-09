@@ -1448,12 +1448,12 @@ export class LmsService {
         assignments.length === 0
           ? 0
           : Math.round((submissionCount / assignments.length) * 100) / 100,
-      averageScore: mean(scores),
+      averageScore: mean(scores) ?? 0,
       masteryBySkill: Array.from(skillHits.entries()).map(([id, row]) => ({
         skillId: id,
         label: row.label,
         attempts: row.attempts,
-        averageMastery: itemDifficulty(row.correct, row.attempts),
+        averageMastery: itemDifficulty(row.correct, row.attempts) ?? 0,
       })),
     };
   }

@@ -1,7 +1,18 @@
+/**
+ * G-915 — LMS file store: StorageAdapter when a bucket is configured,
+ * otherwise a local-disk fallback. HMAC download tokens stay tenant-bound.
+ */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
+import type { Readable } from 'node:stream';
+
+import {
+  createStorageAdapter,
+  type StorageAdapter,
+  type StorageAdapterConfig,
+} from '@proctira/storage';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
@@ -92,6 +103,55 @@ export function buildLmsStorageKey(tenantId: string, fileId: string, filename: s
   return `tenants/${tenantId}/lms/${fileId}/${safe}`;
 }
 
+function storageConfigFromEnv(): StorageAdapterConfig | null {
+  const bucket = process.env['S3_BUCKET']?.trim();
+  if (!bucket) return null;
+  const endpoint = process.env['S3_ENDPOINT']?.trim();
+  const accessKey = process.env['S3_ACCESS_KEY']?.trim() ?? '';
+  const secretKey = process.env['S3_SECRET_KEY']?.trim() ?? '';
+  const region = process.env['S3_REGION']?.trim() || 'us-east-1';
+  if (endpoint) {
+    return {
+      adapter: 'minio',
+      config: { endpoint, bucket, accessKey, secretKey, region },
+    };
+  }
+  return {
+    adapter: 's3',
+    config: {
+      bucket,
+      region,
+      accessKeyId: accessKey || undefined,
+      secretAccessKey: secretKey || undefined,
+    },
+  };
+}
+
+let cachedAdapter: StorageAdapter | null | undefined;
+
+function getAdapter(): StorageAdapter | null {
+  if (cachedAdapter !== undefined) return cachedAdapter;
+  const config = storageConfigFromEnv();
+  if (!config) {
+    cachedAdapter = null;
+    return null;
+  }
+  try {
+    cachedAdapter = createStorageAdapter(config);
+  } catch {
+    cachedAdapter = null;
+  }
+  return cachedAdapter;
+}
+
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Uint8Array[] = [];
+  for await (const chunk of stream) {
+    chunks.push(chunk instanceof Uint8Array ? chunk : Buffer.from(String(chunk)));
+  }
+  return Buffer.concat(chunks);
+}
+
 export async function putLmsFile(
   tenantId: string,
   fileId: string,
@@ -99,6 +159,15 @@ export async function putLmsFile(
   bytes: Buffer,
 ): Promise<{ storageKey: string; byteSize: number }> {
   const key = buildLmsStorageKey(tenantId, fileId, filename);
+  const adapter = getAdapter();
+  if (adapter) {
+    const result = await adapter.upload(key, bytes, {
+      tenantId,
+      contentType: 'application/octet-stream',
+      lifecycle: 'permanent',
+    });
+    return { storageKey: result.key, byteSize: bytes.length };
+  }
   const dest = resolve(fileRoot(), key);
   await mkdir(dirname(dest), { recursive: true });
   await writeFile(dest, bytes);
@@ -106,6 +175,11 @@ export async function putLmsFile(
 }
 
 export async function getLmsFile(storageKey: string): Promise<Buffer> {
+  const adapter = getAdapter();
+  if (adapter) {
+    const stream = await adapter.download(storageKey);
+    return streamToBuffer(stream);
+  }
   const dest = resolve(fileRoot(), storageKey);
   const root = resolve(fileRoot());
   if (!dest.startsWith(root + '/') && dest !== root) {

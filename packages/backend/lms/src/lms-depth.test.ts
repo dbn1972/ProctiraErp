@@ -272,6 +272,47 @@ describe('LMS depth — question bank + quiz from bank', () => {
     const detail = await svc.getLesson(TENANT_A, published.id, student);
     expect(detail.resources).toHaveLength(1);
   });
+
+  it('publishes content-library items and hides drafts from learners', async () => {
+    const svc = service();
+    await svc.createContentItem(
+      TENANT_A,
+      {
+        scope: 'school',
+        institutionId: SCHOOL,
+        title: 'Draft notes',
+        kind: 'text',
+        body: 'Not ready',
+      },
+      teacher,
+    );
+    const published = await svc.createContentItem(
+      TENANT_A,
+      {
+        scope: 'school',
+        institutionId: SCHOOL,
+        title: 'Fractions notes',
+        kind: 'text',
+        body: 'A fraction is a part of a whole.',
+        tags: ['fractions'],
+        classKey: '7A',
+        published: true,
+      },
+      teacher,
+    );
+    const student = { userId: randomUUID(), roles: ['student'], institutions: [SCHOOL] };
+    const listed = await svc.listContentItems(
+      TENANT_A,
+      { institutionId: SCHOOL, classKey: '7A' },
+      { page: 1, pageSize: 20 },
+      student,
+    );
+    expect(listed.data.map((c) => c.id)).toEqual([published.id]);
+    await expect(svc.getContentItem(TENANT_A, published.id, student)).resolves.toMatchObject({
+      kind: 'text',
+      published: true,
+    });
+  });
 });
 
 describe('LMS file signed download', () => {

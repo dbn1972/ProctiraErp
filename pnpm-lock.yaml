@@ -1806,6 +1806,9 @@ importers:
       '@proctira/database':
         specifier: workspace:*
         version: link:../../shared/database
+      '@proctira/storage':
+        specifier: workspace:*
+        version: link:../../shared/storage
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation
