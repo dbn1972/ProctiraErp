@@ -54,8 +54,8 @@ export async function upsertGradeEntryAction(input: {
   try {
     const { institutionId, ...payload } = input;
     const row = await upsertGradeEntry(payload);
-    if (input.institutionId) {
-      revalidatePath(`/institutions/${input.institutionId}/gradebook`);
+    if (institutionId) {
+      revalidatePath(`/institutions/${institutionId}/gradebook`);
     }
     revalidatePath('/students/records');
     return { ok: true, id: row.id };

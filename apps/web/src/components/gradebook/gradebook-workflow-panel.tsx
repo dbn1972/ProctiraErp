@@ -191,19 +191,19 @@ export function GradebookWorkflowPanel({
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[52rem] text-left text-sm" data-testid="gradebook-entries">
+          <table className="w-full min-w-[52rem] text-start text-sm" data-testid="gradebook-entries">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">
+                <th className="py-2 pe-3 font-medium">
                   <span className="sr-only">Select</span>
                 </th>
-                <th className="py-2 pr-3 font-medium">Student</th>
-                <th className="py-2 pr-3 font-medium">Assessment</th>
-                <th className="py-2 pr-3 font-medium">Score</th>
-                <th className="py-2 pr-3 font-medium">Letter</th>
-                <th className="py-2 pr-3 font-medium">Workflow</th>
-                <th className="py-2 pr-3 font-medium">Rank</th>
-                <th className="py-2 pr-3 font-medium">CGPA</th>
+                <th className="py-2 pe-3 font-medium">Student</th>
+                <th className="py-2 pe-3 font-medium">Assessment</th>
+                <th className="py-2 pe-3 font-medium">Score</th>
+                <th className="py-2 pe-3 font-medium">Letter</th>
+                <th className="py-2 pe-3 font-medium">Workflow</th>
+                <th className="py-2 pe-3 font-medium">Rank</th>
+                <th className="py-2 pe-3 font-medium">CGPA</th>
                 <th className="py-2 font-medium">Actions</th>
               </tr>
             </thead>
@@ -221,7 +221,7 @@ export function GradebookWorkflowPanel({
                     data-entry-id={row.id}
                     data-workflow={status}
                   >
-                    <td className="py-2 pr-3">
+                    <td className="py-2 pe-3">
                       <input
                         type="checkbox"
                         aria-label={`Select ${resolveEntityLabel(row.studentId, studentLabel, 'Student')}`}
@@ -230,22 +230,22 @@ export function GradebookWorkflowPanel({
                         data-testid={`select-entry-${row.id}`}
                       />
                     </td>
-                    <td className="py-2 pr-3 text-sm">
+                    <td className="py-2 pe-3 text-sm">
                       {resolveEntityLabel(row.studentId, studentLabel, 'Student')}
                     </td>
-                    <td className="py-2 pr-3">{row.assessmentCode ?? '—'}</td>
-                    <td className="py-2 pr-3 tabular-nums">{row.numericScore ?? '—'}</td>
-                    <td className="py-2 pr-3">{row.letterGrade ?? '—'}</td>
-                    <td className="py-2 pr-3 text-xs" data-testid={`workflow-${row.id}`}>
+                    <td className="py-2 pe-3">{row.assessmentCode ?? '—'}</td>
+                    <td className="py-2 pe-3 tabular-nums">{row.numericScore ?? '—'}</td>
+                    <td className="py-2 pe-3">{row.letterGrade ?? '—'}</td>
+                    <td className="py-2 pe-3 text-xs" data-testid={`workflow-${row.id}`}>
                       {status}
                       {remark ? (
                         <span className="mt-0.5 block text-[11px] text-muted-foreground">{remark}</span>
                       ) : null}
                     </td>
-                    <td className="py-2 pr-3 tabular-nums" data-testid={`rank-${row.studentId}`}>
+                    <td className="py-2 pe-3 tabular-nums" data-testid={`rank-${row.studentId}`}>
                       {rank?.classRank ?? '—'}
                     </td>
-                    <td className="py-2 pr-3 tabular-nums" data-testid={`cgpa-${row.studentId}`}>
+                    <td className="py-2 pe-3 tabular-nums" data-testid={`cgpa-${row.studentId}`}>
                       {rank?.cgpa ?? '—'}
                     </td>
                     <td className="py-2">

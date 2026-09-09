@@ -83,12 +83,12 @@ export default async function AssessmentReportCardsPage() {
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm" data-testid="report-cards-classes">
+              <table className="w-full text-start text-sm" data-testid="report-cards-classes">
                 <thead>
                   <tr className="border-b border-border text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">Class</th>
-                    <th className="py-2 pr-3 font-medium">Entries</th>
-                    <th className="py-2 pr-3 font-medium">Published</th>
+                    <th className="py-2 pe-3 font-medium">Class</th>
+                    <th className="py-2 pe-3 font-medium">Entries</th>
+                    <th className="py-2 pe-3 font-medium">Published</th>
                     <th className="py-2 font-medium">Open</th>
                   </tr>
                 </thead>
@@ -99,11 +99,11 @@ export default async function AssessmentReportCardsPage() {
                       className="border-b border-border/60"
                       data-testid="report-card-class-row"
                     >
-                      <td className="py-2 pr-3">
+                      <td className="py-2 pe-3">
                         {row.section.code} — {row.section.name}
                       </td>
-                      <td className="py-2 pr-3 tabular-nums">{row.total}</td>
-                      <td className="py-2 pr-3 tabular-nums" data-testid="published-count">
+                      <td className="py-2 pe-3 tabular-nums">{row.total}</td>
+                      <td className="py-2 pe-3 tabular-nums" data-testid="published-count">
                         {row.published}
                       </td>
                       <td className="py-2">
