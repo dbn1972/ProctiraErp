@@ -275,6 +275,15 @@ function buildListWhere(tenantId: string, filter: StudentFilter): Record<string,
   if (filter.search) {
     where.OR = nameOrNationalIdMatch(filter.search);
   }
+  if (filter.institutionId) {
+    where.enrollments = {
+      some: {
+        institutionId: filter.institutionId,
+        status: 'ENROLLED',
+        deletedAt: null,
+      },
+    };
+  }
   return where;
 }
 

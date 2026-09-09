@@ -81,6 +81,13 @@ export class InMemoryStudentRepository implements StudentRepository {
           (entity.nationalId && entity.nationalId.toLowerCase().includes(searchLower)),
       );
     }
+    if (filter.institutionId) {
+      const institutionId = filter.institutionId;
+      items = items.filter((entity) => {
+        const custom = entity.customData as Record<string, unknown> | null;
+        return custom?.['institutionId'] === institutionId;
+      });
+    }
 
     // Sort
     const sortBy = pagination.sortBy ?? 'lastName';

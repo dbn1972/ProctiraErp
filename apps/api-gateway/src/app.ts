@@ -66,6 +66,15 @@ import {
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
+import {
+  decideInstitutionScope,
+  extractInstitutionId,
+  type InstitutionScopeUser,
+} from './institution-scope.js';
+import {
+  missingFeatureForRequest,
+  type FeaturesUser,
+} from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 
 export interface BuildAppOptions {
@@ -505,6 +514,60 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
         code: 'TENANT_SUSPENDED',
         message: 'Tenant is suspended; mutating requests are not allowed',
         statusCode: 403,
+      });
+    }
+  });
+
+
+  // 8a-bis. G-810 — Feature entitlements (optional modules). Absent feature maps allow.
+  app.addHook('onRequest', async (request, reply) => {
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    const tenantId = request.tenantId ?? request.user?.tenantId;
+    const user = request.user as FeaturesUser | undefined;
+    const missing = missingFeatureForRequest(tenantId, user, url);
+    if (missing) {
+      return reply.status(403).send({
+        code: 'FEATURE_NOT_ENTITLED',
+        message: `Tenant is not entitled to feature '${missing}'`,
+        feature: missing,
+        statusCode: 403,
+      });
+    }
+  });
+
+  // 8a-ter. G-805 — School (institution) scope for school-bound principals.
+  app.addHook('onRequest', async (request, reply) => {
+    const url = request.url.split('?')[0]!;
+    if (!url.startsWith('/api/v1/')) return;
+    if (url.startsWith('/api/v1/auth/') || url === '/api/v1/auth') return;
+    const user = request.user as InstitutionScopeUser | undefined;
+    if (!user) return;
+    const institutionId = extractInstitutionId({
+      query: request.query,
+      params: request.params,
+      body: request.body,
+    });
+    const decision = decideInstitutionScope(user, url, institutionId);
+    if (decision.action === 'deny') {
+      return reply.status(403).send({
+        code: 'INSTITUTION_OUT_OF_SCOPE',
+        message: 'Institution is outside the caller school scope',
+        institutionId: decision.institutionId,
+        statusCode: 403,
+      });
+    }
+    if (decision.action === 'inject') {
+      const current =
+        request.query && typeof request.query === 'object'
+          ? (request.query as Record<string, unknown>)
+          : {};
+      Object.defineProperty(request, 'query', {
+        value: { ...current, institutionId: decision.institutionId },
+        writable: true,
+        enumerable: true,
+        configurable: true,
       });
     }
   });

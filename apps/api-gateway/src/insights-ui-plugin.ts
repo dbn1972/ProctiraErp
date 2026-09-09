@@ -46,12 +46,60 @@ export interface InsightsUiPluginOptions {
   forceMemory?: boolean;
 }
 
+
+/** G-809 — in-memory board summary seed (tests + fallback). */
+const boardSummaries = new Map<string, BoardSummary>();
+
+export type BoardSummary = {
+  boardId: string;
+  generatedAt: string;
+  schools: number;
+  enrolment: number;
+  attendancePercent: number | null;
+  feesCollectedCents: number;
+  lmsCompletionPercent: number | null;
+  schoolsBreakdown: Array<{ institutionId: string; name: string; enrolment: number }>;
+};
+
+export function seedBoardSummaryForTests(summary: BoardSummary): void {
+  boardSummaries.set(summary.boardId, summary);
+}
+
+export function clearBoardSummariesForTests(): void {
+  boardSummaries.clear();
+}
+
+export function emptyBoardSummary(boardId: string): BoardSummary {
+  return {
+    boardId,
+    generatedAt: new Date().toISOString(),
+    schools: 0,
+    enrolment: 0,
+    attendancePercent: null,
+    feesCollectedCents: 0,
+    lmsCompletionPercent: null,
+    schoolsBreakdown: [],
+  };
+}
+
 export const insightsUiPlugin = fp(
   async function insightsUiPluginImpl(
     fastify: FastifyInstance,
     options: InsightsUiPluginOptions = {},
   ) {
     const store = options.store ?? createInsightsUiStore({ forceMemory: options.forceMemory });
+
+
+    // G-809 — Board rollup summary
+    fastify.get<{ Params: { boardId: string } }>(
+      '/reports/board/:boardId/summary',
+      async (request, reply) => {
+        const { boardId } = request.params;
+        const seeded = boardSummaries.get(boardId);
+        if (seeded) return reply.send(seeded);
+        return reply.send(emptyBoardSummary(boardId));
+      },
+    );
 
     fastify.get('/reports/templates', async (_request, reply) => {
       return reply.send({ data: await store.listTemplates() });

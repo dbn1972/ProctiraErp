@@ -200,7 +200,7 @@ export async function registerStaffRoutes(
           status: query.status as 'ACTIVE' | 'INACTIVE' | undefined,
           position: query.position,
           search: query.search,
-        },
+          institutionId: query.institutionId,},
         { page, pageSize, sortBy, sortOrder },
       );
 

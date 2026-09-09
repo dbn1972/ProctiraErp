@@ -656,7 +656,17 @@ export async function registerHostelRoutes(
         });
       }
 
-      const hostels = await hostelService.listHostels(tenantId);
+      const institutionId =
+        typeof (request.query as { institutionId?: string }).institutionId === 'string'
+          ? (request.query as { institutionId?: string }).institutionId
+          : undefined;
+      let hostels = await hostelService.listHostels(tenantId);
+      if (institutionId) {
+        hostels = hostels.filter((h) => {
+          const id = (h as { institutionId?: string | null }).institutionId;
+          return id == null || id === institutionId;
+        });
+      }
       return reply.status(200).send({ data: hostels.map(formatHostel) });
     },
   );

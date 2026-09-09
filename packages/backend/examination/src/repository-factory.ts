@@ -67,3 +67,8 @@ export function createDocumentRepository(
   }
   return new PrismaDocumentRepository(getPrismaClient(databaseUrl));
 }
+
+/** True when DATABASE_URL is set (Prisma/pg path). Used by G-812 smoke tests. */
+export function isPgExaminationEnabled(): boolean {
+  return Boolean(process.env['DATABASE_URL']);
+}

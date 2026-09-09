@@ -263,7 +263,17 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/invoices`, async function listInvoices(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
-      const invoices = await feesService.listInvoices(tenantId);
+      const institutionId =
+        typeof (request.query as { institutionId?: string }).institutionId === 'string'
+          ? (request.query as { institutionId?: string }).institutionId
+          : undefined;
+      let invoices = await feesService.listInvoices(tenantId);
+      if (institutionId) {
+        invoices = invoices.filter((inv) => {
+          const id = (inv as { institutionId?: string | null }).institutionId;
+          return id == null || id === institutionId;
+        });
+      }
       return reply.status(200).send({ data: invoices.map(formatInvoice) });
     });
 

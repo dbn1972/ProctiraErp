@@ -28,3 +28,8 @@ export function createInstitutionRepository(
   }
   return new PrismaInstitutionRepository(createPrismaClient({ datasourceUrl: databaseUrl }));
 }
+
+/** True when DATABASE_URL is set (Prisma/pg path). Used by G-812 smoke tests. */
+export function isPgInstitutionEnabled(): boolean {
+  return Boolean(process.env['DATABASE_URL']);
+}

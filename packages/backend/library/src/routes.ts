@@ -100,7 +100,17 @@ export async function registerLibraryRoutes(
         });
       }
 
-      const items = await libraryService.listItems(tenantId);
+      const institutionId =
+        typeof (request.query as { institutionId?: string }).institutionId === 'string'
+          ? (request.query as { institutionId?: string }).institutionId
+          : undefined;
+      let items = await libraryService.listItems(tenantId);
+      if (institutionId) {
+        items = items.filter((item) => {
+          const id = (item as { institutionId?: string | null }).institutionId;
+          return id == null || id === institutionId;
+        });
+      }
       return reply.status(200).send({ data: items.map(formatItem) });
     },
   );
