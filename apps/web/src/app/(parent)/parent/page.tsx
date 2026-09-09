@@ -129,6 +129,17 @@ export default async function ParentHomePage() {
         </Card>
         <Card>
           <CardHeader>
+            <CardTitle className="text-base">Library</CardTitle>
+            <CardDescription>Catalogue, loans, and holds</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/library">Open library</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
             <CardTitle className="text-base">Timetable</CardTitle>
             <CardDescription>Class meetings</CardDescription>
           </CardHeader>
