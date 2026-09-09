@@ -51,7 +51,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
           <h1 className="text-lg font-bold tracking-tight text-foreground">Substitutions</h1>
           <p className="text-sm text-muted-foreground">
             Mark a teacher absent for a date, review affected periods, then assign a substitute.
-            Double-books return HTTP 409.
+            Overlapping assignments are blocked with a clear error.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
