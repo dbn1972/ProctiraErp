@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@proctira/ui/components';
+import { PageHeader } from '@/components/page';
 import { getStaff } from '@/lib/api/staff';
 import type { StaffFormValues } from '@/lib/validation/staff-schema';
 
@@ -51,12 +52,15 @@ export default async function EditStaffPage(props: PageProps) {
         </Link>
       </Button>
 
+      <PageHeader
+        title={`Edit ${staff.firstName} ${staff.lastName}`}
+        description="Update identity and contact information."
+      />
+
       <Card>
         <CardHeader>
-          <CardTitle id="edit-staff-heading">
-            Edit {staff.firstName} {staff.lastName}
-          </CardTitle>
-          <CardDescription>Update identity and contact information.</CardDescription>
+          <CardTitle id="edit-staff-heading">Staff details</CardTitle>
+          <CardDescription>Identity and contact fields for this record.</CardDescription>
         </CardHeader>
         <CardContent>
           <StaffForm mode="edit" staffId={staff.id} initialValues={initialValues} />

@@ -1,9 +1,19 @@
-export default function DashboardLoading() {
+import { getTranslations } from 'next-intl/server';
+
+import { Skeleton } from '@proctira/ui/components';
+
+export default async function DashboardLoading() {
+  const t = await getTranslations('common');
   return (
-    <div className="space-y-4 p-6" role="status" aria-busy="true" aria-label="Loading">
-      <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-      <div className="h-4 w-72 animate-pulse rounded bg-muted" />
-      <div className="mt-6 h-64 animate-pulse rounded-md bg-muted" />
+    <div role="status" aria-live="polite" aria-busy="true" className="space-y-6">
+      <span className="sr-only">{t('loading')}</span>
+      <Skeleton className="h-9 w-56" />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-64 rounded-xl" />
     </div>
   );
 }
