@@ -26,8 +26,8 @@ export default async function ParentHomePage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Welcome</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Stay connected with your school — messages, permission requests, and fees for your
-          children.
+          Stay connected with your school — attendance, grades, timetable, homework, messages,
+          permission requests, and fees for your children.
         </p>
       </div>
 
@@ -102,6 +102,72 @@ export default async function ParentHomePage() {
           <CardContent>
             <Button asChild variant="outline" className="min-h-12">
               <Link href="/parent/fees">Open fees</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Attendance</CardTitle>
+            <CardDescription>Presence and absences</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/attendance">Open attendance</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Grades</CardTitle>
+            <CardDescription>Published marks and report cards</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/grades">Open grades</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Timetable</CardTitle>
+            <CardDescription>Class meetings</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/timetable">Open timetable</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Homework</CardTitle>
+            <CardDescription>Assignments that are due</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/homework">Open homework</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Calendar</CardTitle>
+            <CardDescription>Holidays and school events</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/calendar">Open calendar</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Notices</CardTitle>
+            <CardDescription>School announcements</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline" className="min-h-12">
+              <Link href="/parent/notices">Open notices</Link>
             </Button>
           </CardContent>
         </Card>

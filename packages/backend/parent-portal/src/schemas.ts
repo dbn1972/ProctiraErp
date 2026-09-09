@@ -126,6 +126,12 @@ export const PayInvoiceSchema = Type.Object({
 
 export type PayInvoiceInput = Static<typeof PayInvoiceSchema>;
 
+export const ChildParamsSchema = Type.Object({
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+});
+
+export type ChildParams = Static<typeof ChildParamsSchema>;
+
 export const StudentQuerySchema = Type.Object({
   studentId: Type.String({ pattern: UUID_PATTERN }),
 });

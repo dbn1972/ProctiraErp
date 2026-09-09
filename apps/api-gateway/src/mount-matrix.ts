@@ -296,10 +296,11 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   {
     package: 'parent-portal',
     mounted: true,
-    prefixes: ['/parent-portal'],
+    prefixes: ['/parent-portal', '/student-portal'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (010_parent_portal_schema.sql) when DATABASE_URL set.',
+    notes:
+      'Raw pg (010_parent_portal_schema.sql) when DATABASE_URL set. G-904 academic reads + /student-portal/me self-binding.',
     registrarName: 'parent-portal',
   },
   {
