@@ -14,7 +14,8 @@
  *   examination's JSONB `centers`/`subjects` and the `students` table for
  *   names; subject ids come from the candidate's registration when present,
  *   otherwise from the candidate's `subject_results`.
- * - {@link getSeatingAssignments}: no seating source exists → returns [].
+ * - {@link getSeatingAssignments}: persisted `exam_seating` rows (G-908) when
+ *   an ops store is wired; otherwise [].
  * - {@link getCandidateResults}: derived from the persisted publication
  *   payload's gradeResults.
  */
@@ -29,6 +30,7 @@ import type {
   SeatingAssignment,
 } from './document-repository.js';
 import type { ExaminationCenter, ExaminationSubject } from './examination-repository.js';
+import type { ExamOpsStore } from './ops-store.js';
 import type {
   CandidateGradeResult,
   CandidateSubjectResult,
@@ -78,7 +80,10 @@ function toJob(row: JobRow): DocumentGenerationJob {
 }
 
 export class PrismaDocumentRepository implements DocumentRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly seatingStore?: ExamOpsStore,
+  ) {}
 
   /**
    * Derived read-model: `examination_candidates` joined with the parent
@@ -150,17 +155,28 @@ export class PrismaDocumentRepository implements DocumentRepository {
   }
 
   /**
-   * Documented gap: no seating source exists yet — there is no table holding
-   * room/seat allocations (the in-memory implementation is test-seeded).
-   * Until a seating-allocation domain is persisted, this returns an empty
-   * list rather than inventing assignments.
+   * G-908: seating is persisted in `exam_seating` (db/sql/036) via ExamOpsStore.
    */
   async getSeatingAssignments(
-    _examinationId: string,
+    examinationId: string,
     tenantId: string,
-    _centerId?: string,
+    centerId?: string,
   ): Promise<SeatingAssignment[]> {
-    return withTenantTransaction(this.prisma, tenantId, async () => []);
+    if (!this.seatingStore) {
+      return withTenantTransaction(this.prisma, tenantId, async () => []);
+    }
+    const seats = await this.seatingStore.listSeating(tenantId, examinationId);
+    const mapped: SeatingAssignment[] = seats.map((row) => ({
+      candidateId: row.candidateId,
+      studentName: row.studentName,
+      rollNumber: row.rollNumber,
+      centerId: row.centerId,
+      centerName: row.centerName,
+      roomNumber: row.roomNumber,
+      seatNumber: row.seatNumber,
+      subjectNames: row.subjectNames,
+    }));
+    return centerId ? mapped.filter((a) => a.centerId === centerId) : mapped;
   }
 
   /**

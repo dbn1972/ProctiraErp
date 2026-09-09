@@ -380,3 +380,47 @@ describe('Wave 9 fee structures raw-SQL RLS (031_fees_structures_schema.sql)', (
     );
   });
 });
+
+describe('Wave 9 examination ops raw-SQL RLS (036_examination_ops_schema.sql)', () => {
+  const sql = loadSql('036_examination_ops_schema.sql');
+  const tables = [
+    'exam_sessions',
+    'exam_invigilators',
+    'exam_seating',
+    'exam_marks_entries',
+    'exam_reevaluation_requests',
+  ] as const;
+
+  it('every exam-ops table enables + forces RLS with the tenant_isolation policy', () => {
+    for (const table of tables) {
+      expect(sql, `missing ENABLE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing FORCE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing tenant_isolation policy for ${table}`).toMatch(
+        new RegExp(`CREATE POLICY tenant_isolation ON ${table}`),
+      );
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+    }
+  });
+
+  it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
+    const policies =
+      sql.match(/CREATE POLICY tenant_isolation ON exam_[a-z_]+[\s\S]*?;/g) ?? [];
+    expect(policies).toHaveLength(tables.length);
+    for (const policy of policies) {
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+});
