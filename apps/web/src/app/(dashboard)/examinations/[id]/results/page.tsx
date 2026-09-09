@@ -2,12 +2,13 @@
  * Examination results tab.
  *
  * Validates: Requirement 10.1 — record and review examination results.
+ * G-902: merges recorded marks (POST /results/marks) with the publication
+ * (POST /results/publish) and exposes working upload / publish controls.
  */
-import { Download, Upload } from 'lucide-react';
+import { notFound } from 'next/navigation';
 
 import {
   Badge,
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -20,67 +21,99 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { listExaminationResults } from '@/lib/api/examinations';
+import { ResultsControls } from '@/components/examinations/exam-ops-controls';
+import { getExamination, getExaminationResultsView } from '@/lib/api/examinations';
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+const STATUS_VARIANT = {
+  PUBLISHED: 'success',
+  PENDING: 'warning',
+  INCOMPLETE: 'secondary',
+} as const;
+
 export default async function ExaminationResultsPage(props: PageProps) {
   const params = await props.params;
-  const results = await listExaminationResults(params.id);
+  const examination = await getExamination(params.id);
+  if (!examination) notFound();
+  const view = await getExaminationResultsView(examination);
+
+  const csv = [
+    ['studentId', ...view.subjects.map((s) => s.code), 'total', 'status'].join(','),
+    ...view.rows.map((row) =>
+      [
+        row.studentId,
+        ...row.subjects.map((s) => (s.score === null ? '' : String(s.score))),
+        row.totalScore === null ? '' : String(row.totalScore),
+        row.status,
+      ].join(','),
+    ),
+  ].join('\n');
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <div>
           <CardTitle className="text-base">Results</CardTitle>
-          <CardDescription>{results.length.toLocaleString()} entries.</CardDescription>
+          <CardDescription>
+            {view.rows.length.toLocaleString()} candidates with recorded marks
+            {view.publishedAt
+              ? ` · published ${new Date(view.publishedAt).toLocaleString('en-GB')}`
+              : ' · not yet published'}
+            .
+          </CardDescription>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline">
-            <Upload className="me-2 h-4 w-4" aria-hidden="true" />
-            Upload results
-          </Button>
-          <Button variant="outline">
-            <Download className="me-2 h-4 w-4" aria-hidden="true" />
-            Download CSV
-          </Button>
-        </div>
+        <ResultsControls
+          examination={examination}
+          published={view.published}
+          subjects={view.subjects}
+          csv={csv}
+        />
       </CardHeader>
       <CardContent>
-        {results.length === 0 ? (
+        {view.rows.length === 0 ? (
           <p className="rounded-md border border-dashed py-8 text-center text-sm text-muted-foreground">
-            Results have not been entered yet.
+            Results have not been entered yet. Use “Upload marks” to record scores for registered
+            candidates.
           </p>
         ) : (
           <Table aria-label="Results">
             <TableHeader>
               <TableRow>
-                <TableHead>Registration #</TableHead>
                 <TableHead>Student</TableHead>
-                <TableHead className="text-right">Score</TableHead>
-                <TableHead>Grade</TableHead>
+                {view.subjects.map((subject) => (
+                  <TableHead key={subject.id} className="text-end">
+                    {subject.code}
+                    <span className="block text-[10px] font-normal text-muted-foreground">
+                      / {subject.maxScore}
+                    </span>
+                  </TableHead>
+                ))}
+                <TableHead className="text-end">Total</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {results.map((result) => (
-                <TableRow key={result.id}>
-                  <TableCell>
-                    <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
-                      {result.registrationNumber}
-                    </code>
+              {view.rows.map((row) => (
+                <TableRow key={row.candidateId}>
+                  <TableCell className="font-mono text-xs">{row.studentId}</TableCell>
+                  {row.subjects.map((subject) => (
+                    <TableCell key={subject.id} className="text-end">
+                      {subject.score === null ? '—' : subject.score}
+                      {subject.grade && (
+                        <Badge variant="outline" className="ms-1.5">
+                          {subject.grade}
+                        </Badge>
+                      )}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-end">
+                    {row.totalScore !== null ? `${row.totalScore} / ${row.maxScore}` : '—'}
                   </TableCell>
-                  <TableCell className="font-medium">{result.studentName}</TableCell>
-                  <TableCell className="text-right">
-                    {result.totalScore !== null ? `${result.totalScore} / ${result.maxScore}` : '—'}
-                  </TableCell>
-                  <TableCell>{result.grade ?? '—'}</TableCell>
                   <TableCell>
-                    <Badge variant={result.status === 'PUBLISHED' ? 'success' : 'warning'}>
-                      {result.status}
-                    </Badge>
+                    <Badge variant={STATUS_VARIANT[row.status]}>{row.status}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

@@ -87,7 +87,7 @@ export default async function BoardExportsPage() {
         {jobs.ok && jobs.data.length > 0 ? (
           <div className="overflow-x-auto rounded-md border border-border">
             <table
-              className="w-full min-w-[640px] text-left text-sm"
+              className="w-full min-w-[640px] text-start text-sm"
               aria-label="Board export jobs"
             >
               <thead className="bg-muted/40">

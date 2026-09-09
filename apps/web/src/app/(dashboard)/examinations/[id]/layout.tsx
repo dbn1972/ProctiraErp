@@ -21,6 +21,8 @@ interface LayoutProps {
 
 const STATUS_PILL: Record<string, string> = {
   OPEN: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
+  SCHEDULED: 'bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-400',
+  IN_PROGRESS: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400',
   DRAFT: 'bg-amber-50   text-amber-700   dark:bg-amber-950/40   dark:text-amber-400',
   COMPLETED: 'bg-violet-50  text-violet-700  dark:bg-violet-950/40  dark:text-violet-400',
   CLOSED: 'bg-zinc-100   text-zinc-600    dark:bg-zinc-800       dark:text-zinc-400',
