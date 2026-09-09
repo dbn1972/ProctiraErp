@@ -326,7 +326,7 @@ function ResultPanel({
           <table className="w-full min-w-[36rem] text-sm">
             <caption className="sr-only">Per-student attendance rows</caption>
             <thead>
-              <tr className="border-b border-border text-left text-muted-foreground">
+              <tr className="border-b border-border text-start text-muted-foreground">
                 <th className="px-2 py-2 font-medium">Student</th>
                 <th className="px-2 py-2 font-medium">Present</th>
                 <th className="px-2 py-2 font-medium">Absent</th>

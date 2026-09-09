@@ -4,18 +4,18 @@ import { NotFoundError, ValidationError } from '@proctira/common';
 
 import { detectMeetingClashes, detectSubstituteClashes } from './clash-helper.js';
 import {
+  InMemoryTimetableOpsStore,
+  type GenerationJobRecord,
+  type TeacherAbsenceRecord,
+  type TimetableOpsStore,
+} from './generation-store.js';
+import {
   generateTimetable,
   type GenerateInput,
   type GeneratorDemand,
   type GeneratorPeriod,
   type GeneratorRoom,
 } from './generation.js';
-import {
-  InMemoryTimetableOpsStore,
-  type GenerationJobRecord,
-  type TeacherAbsenceRecord,
-  type TimetableOpsStore,
-} from './generation-store.js';
 import type { CreateGenerationJobInput, CreateTeacherAbsenceInput } from './schemas.js';
 import { isTimetableClashError, TimetableClashError } from './timetable-errors.js';
 import type {
