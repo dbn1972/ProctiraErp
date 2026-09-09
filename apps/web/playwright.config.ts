@@ -19,6 +19,11 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // CI runs `next dev` on a 2-core runner shared with the gateway, Postgres and
+  // Redis: first visits compile routes and server actions, so a chain of 5–7
+  // page loads regularly needs more than the 30s local budget.
+  timeout: process.env.CI ? 90_000 : 30_000,
+  expect: { timeout: process.env.CI ? 20_000 : 5_000 },
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : 'list',
   use: {
     baseURL: BASE_URL,

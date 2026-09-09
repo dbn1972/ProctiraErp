@@ -99,7 +99,7 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     await page.getByRole('checkbox', { name: 'All student permissions' }).click();
     await page.getByRole('button', { name: /^create role$/i }).click();
 
-    await expect(page.getByTestId(`role-card-${name}`)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(`role-card-${name}`)).toBeVisible({ timeout: 30_000 });
 
     await page.goto('/admin/permissions', { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(name).first()).toBeVisible();
@@ -107,7 +107,7 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     await page.goto('/admin/roles', { waitUntil: 'domcontentloaded' });
     page.once('dialog', (d) => d.accept());
     await (await hydrated(page, `delete-role-${name}`)).click();
-    await expect(page.getByTestId(`role-card-${name}`)).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId(`role-card-${name}`)).toHaveCount(0, { timeout: 30_000 });
   });
 
   test('tenant settings save and reload', async ({ page, request }) => {

@@ -122,6 +122,9 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     await expect(page.getByTestId('bulk-invoice-form')).toHaveAttribute('data-hydrated', 'true', {
       timeout: 20_000,
     });
+    // The select defaults to the first structure in the list; other specs and
+    // earlier runs leave structures behind, so pin ours explicitly.
+    await page.locator('#bi-structure').selectOption(structure.id);
     await page.locator('#bi-students').fill(STUDENT_A);
     await page.getByTestId('submit-bulk-invoice').click();
     await expect(page.getByTestId('bulk-invoice-result')).toHaveAttribute('data-created', '1', {
