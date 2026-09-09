@@ -88,6 +88,7 @@ const STATUS_OPTIONS: { value: AttendanceStatusValue; label: string }[] = [
   { value: 'ABSENT', label: 'Absent' },
   { value: 'LATE', label: 'Late' },
   { value: 'EXCUSED', label: 'Excused' },
+  { value: 'EARLY_DEPARTURE', label: 'Early' },
 ];
 
 const ZERO_UUID = '00000000-0000-4000-8000-000000000000';
@@ -121,6 +122,7 @@ const TOGGLE_ON: Record<AttendanceStatusValue, string> = {
   ABSENT: 'bg-red-500 text-white',
   LATE: 'bg-amber-500 text-white',
   EXCUSED: 'bg-sky-500 text-white',
+  EARLY_DEPARTURE: 'bg-violet-500 text-white',
 };
 
 function StatusToggle({
@@ -342,7 +344,10 @@ export function AttendanceMarkingForm({
       acc[r.status] = (acc[r.status] ?? 0) + 1;
       return acc;
     },
-    { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 } as Record<AttendanceStatusValue, number>,
+    { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, EARLY_DEPARTURE: 0 } as Record<
+      AttendanceStatusValue,
+      number
+    >,
   );
 
   return (
@@ -486,6 +491,7 @@ export function AttendanceMarkingForm({
               <SummaryChip color="bg-red-500" count={counts.ABSENT} label="absent" />
               <SummaryChip color="bg-amber-500" count={counts.LATE} label="late" />
               <SummaryChip color="bg-sky-500" count={counts.EXCUSED} label="excused" />
+              <SummaryChip color="bg-violet-500" count={counts.EARLY_DEPARTURE} label="early" />
             </div>
             <Button type="button" variant="outline" size="sm" onClick={() => bulkSet('PRESENT')}>
               <CheckCheck className="me-1.5 h-4 w-4" aria-hidden="true" />

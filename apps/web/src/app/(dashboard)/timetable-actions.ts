@@ -14,6 +14,8 @@ import {
   publishSection,
   unpublishSection,
   withdrawStudent,
+  runGenerationJob,
+  markTeacherAbsent,
 } from '@/lib/api/timetable';
 
 export type TimetableActionResult =
@@ -198,6 +200,46 @@ export async function unpublishSectionAction(input: {
     revalidatePath(`/institutions/${input.institutionId}/schedule`);
     revalidatePath(`/institutions/${input.institutionId}/schedule/${input.sectionId}`);
     return { ok: true, id: row.id };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function runGenerationJobAction(input: {
+  institutionId: string;
+  academicPeriodId: string;
+  bellScheduleId?: string;
+  persistMeetings?: boolean;
+  demands: Array<{
+    sectionId: string;
+    subjectId: string;
+    staffId: string;
+    periodsPerWeek: number;
+    preferredRoomId?: string | null;
+    enrollmentCount?: number;
+  }>;
+}): Promise<TimetableActionResult & { clashCount?: number; assignedCount?: number }> {
+  try {
+    const row = await runGenerationJob(input);
+    revalidatePath(`/institutions/${input.institutionId}/timetable`);
+    revalidatePath(`/institutions/${input.institutionId}/timetable/generate`);
+    return { ok: true, id: row.id, clashCount: row.clashCount, assignedCount: row.assignedCount };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function markTeacherAbsentAction(input: {
+  institutionId: string;
+  staffId: string;
+  absenceDate: string;
+  reason?: string | null;
+}): Promise<TimetableActionResult & { affectedCount?: number }> {
+  try {
+    const row = await markTeacherAbsent(input);
+    revalidatePath(`/institutions/${input.institutionId}/timetable/substitutions`);
+    revalidatePath('/staff/substitutions');
+    return { ok: true, id: row.absence.id, affectedCount: row.affected.length };
   } catch (error) {
     return fail(error);
   }

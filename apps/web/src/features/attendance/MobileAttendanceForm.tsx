@@ -58,7 +58,7 @@ import { cn } from '@/lib/utils';
  * `StudentAttendanceStatus` enum in `@/lib/api/attendance` so callers
  * can pass either value through unchanged.
  */
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'EARLY_DEPARTURE';
 
 /** A single student record the form mutates. */
 export interface MobileAttendanceRow {
@@ -471,7 +471,7 @@ export function MobileAttendanceForm({
   // ─── Derived view state ───────────────────────────────────────────────────
 
   const summary = useMemo(() => {
-    const tally = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0 };
+    const tally = { PRESENT: 0, ABSENT: 0, LATE: 0, EXCUSED: 0, EARLY_DEPARTURE: 0 };
     for (const row of rows) tally[row.status] += 1;
     return tally;
   }, [rows]);

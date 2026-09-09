@@ -14,7 +14,7 @@ import { browserGatewayFetch, BrowserGatewayError } from '@/lib/api/browser-gate
 
 /* ------------------------------------------------------------------ Types */
 
-type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
+type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED' | 'EARLY_DEPARTURE';
 
 interface RosterEntry {
   studentId: string;
@@ -142,7 +142,7 @@ export default function AttendanceMarking() {
     }
   };
 
-  const statuses: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'];
+  const statuses: AttendanceStatus[] = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED', 'EARLY_DEPARTURE'];
 
   return (
     <div className="p-6 space-y-6">

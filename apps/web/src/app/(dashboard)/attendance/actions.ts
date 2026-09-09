@@ -10,6 +10,10 @@ import { revalidatePath } from 'next/cache';
 
 import {
   calculateAttendancePercentage,
+  createLeaveRequest,
+  createRegularisation,
+  decideLeaveRequest,
+  decideRegularisation,
   recordBulkAttendance,
   type AttendancePercentageResult,
   type BulkAttendanceInput,
@@ -123,5 +127,71 @@ export async function getAttendanceReportAction(
       error,
       'Failed to calculate attendance percentage',
     );
+  }
+}
+
+export async function createRegularisationAction(input: {
+  attendanceId: string;
+  studentId: string;
+  institutionId: string;
+  classId: string;
+  attendanceDate: string;
+  fromStatus: string;
+  toStatus: StudentAttendanceStatus;
+  reason?: string;
+}): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await createRegularisation(input);
+    revalidatePath('/attendance/ops');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to request regularisation');
+  }
+}
+
+export async function decideRegularisationAction(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await decideRegularisation(id, decision);
+    revalidatePath('/attendance/ops');
+    revalidatePath('/attendance');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to decide regularisation');
+  }
+}
+
+export async function createLeaveRequestAction(input: {
+  studentId: string;
+  institutionId: string;
+  classId: string;
+  academicPeriodId: string;
+  fromDate: string;
+  toDate: string;
+  reason?: string;
+  attachmentUrl?: string;
+}): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await createLeaveRequest(input);
+    revalidatePath('/attendance/ops');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to request leave');
+  }
+}
+
+export async function decideLeaveAction(
+  id: string,
+  decision: 'approve' | 'reject',
+): Promise<ActionState<{ id: string }>> {
+  try {
+    const row = await decideLeaveRequest(id, decision);
+    revalidatePath('/attendance/ops');
+    revalidatePath('/attendance');
+    return { status: 'success', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to decide leave');
   }
 }
