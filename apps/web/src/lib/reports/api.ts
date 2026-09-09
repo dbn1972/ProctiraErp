@@ -43,7 +43,7 @@ export interface ReportRun {
   downloadUrl: string | null;
   artifactId?: string | null;
   sha256?: string | null;
-  trigger?: 'manual' | 'schedule' | string | null;
+  trigger?: string | null;
 }
 
 export interface ReportSchedule {
@@ -84,7 +84,7 @@ export interface GenerateReportInput {
 
 export interface CreateReportScheduleInput {
   reportKey: string;
-  format: ReportFormat | string;
+  format: string;
   cadence: ScheduleCadence;
   hour?: number;
   recipients?: string[];
