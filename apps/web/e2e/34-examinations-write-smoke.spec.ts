@@ -184,6 +184,8 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
     page,
     request,
   }) => {
+    // Six page loads across four tabs; under `next dev` each first visit compiles.
+    test.slow();
     const fx = await buildExam(request);
 
     // Candidates tab: empty, then the registration row.

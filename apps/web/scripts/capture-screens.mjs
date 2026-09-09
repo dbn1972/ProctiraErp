@@ -299,12 +299,18 @@ const SCREENS = {
       'institution-curriculum',
       `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/curriculum`,
     ],
+  ],
+  // Portal routes bounce non-matching roles, so capture these with
+  // CAPTURE_ROLE=parent / CAPTURE_ROLE=student and CAPTURE_MODULES=wave9-parent|wave9-student.
+  'wave9-parent': [
     ['parent-attendance', '/parent/attendance'],
     ['parent-grades', '/parent/grades'],
     ['parent-timetable', '/parent/timetable'],
     ['parent-homework', '/parent/homework'],
     ['parent-calendar', '/parent/calendar'],
     ['parent-notices', '/parent/notices'],
+  ],
+  'wave9-student': [
     ['student-home', '/student'],
     ['student-attendance', '/student/attendance'],
     ['student-grades', '/student/grades'],
