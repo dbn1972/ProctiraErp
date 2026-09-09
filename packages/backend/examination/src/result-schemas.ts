@@ -24,6 +24,31 @@ export const ResultExaminationParamsSchema = Type.Object({
 export type ResultExaminationParams = Static<typeof ResultExaminationParamsSchema>;
 
 /**
+ * Marks entry payload (G-902). `score: null` records an incomplete subject.
+ */
+export const RecordMarksSchema = Type.Object({
+  entries: Type.Array(
+    Type.Object({
+      studentId: Type.String({ pattern: UUID_PATTERN }),
+      gender: Type.Optional(
+        Type.Union([Type.Literal('male'), Type.Literal('female'), Type.Literal('other')]),
+      ),
+      areaId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+      marks: Type.Array(
+        Type.Object({
+          subjectId: Type.String({ pattern: UUID_PATTERN }),
+          score: Type.Union([Type.Number(), Type.Null()]),
+        }),
+        { minItems: 1 },
+      ),
+    }),
+    { minItems: 1, maxItems: 500 },
+  ),
+});
+
+export type RecordMarksBody = Static<typeof RecordMarksSchema>;
+
+/**
  * Score distribution bucket in analysis response.
  */
 export const ScoreDistributionBucketSchema = Type.Object({

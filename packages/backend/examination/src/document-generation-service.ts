@@ -13,12 +13,13 @@ import { NotFoundError, BusinessRuleError, ValidationError } from '@proctira/com
 import type { FieldError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { ExaminationRepository } from './examination-repository.js';
 import type {
+  DocumentCandidate,
   DocumentRepository,
   DocumentType,
   DocumentGenerationJob,
 } from './document-repository.js';
+import type { ExaminationRepository } from './examination-repository.js';
 import type { PdfGenerator, ExaminationInfo } from './pdf-generator.js';
 
 /** Maximum batch size for document generation */
@@ -56,6 +57,31 @@ export class NoOpDocumentTaskQueue implements DocumentTaskQueue {
   }
 }
 
+/** Where generated PDFs are kept (G-902). */
+export interface DocumentBlobStore {
+  put(key: string, bytes: Buffer): Promise<void>;
+  get(key: string): Promise<Buffer | null>;
+}
+
+/** Default: process-local, bounded so long-running workers do not leak. */
+export class InMemoryDocumentBlobStore implements DocumentBlobStore {
+  private readonly blobs = new Map<string, Buffer>();
+
+  constructor(private readonly maxEntries = 500) {}
+
+  async put(key: string, bytes: Buffer): Promise<void> {
+    if (this.blobs.size >= this.maxEntries) {
+      const oldest = this.blobs.keys().next().value;
+      if (oldest !== undefined) this.blobs.delete(oldest);
+    }
+    this.blobs.set(key, bytes);
+  }
+
+  async get(key: string): Promise<Buffer | null> {
+    return this.blobs.get(key) ?? null;
+  }
+}
+
 /**
  * Service handling examination document generation.
  */
@@ -65,7 +91,62 @@ export class DocumentGenerationService {
     private readonly documentRepository: DocumentRepository,
     private readonly pdfGenerator: PdfGenerator,
     private readonly taskQueue: DocumentTaskQueue = new NoOpDocumentTaskQueue(),
+    private readonly blobStore: DocumentBlobStore = new InMemoryDocumentBlobStore(),
   ) {}
+
+  /**
+   * Bytes of a completed job's PDF (G-902 download link). Null when the job
+   * is not completed, belongs to another tenant, or the blob has expired.
+   */
+  async getJobOutput(
+    tenantId: string,
+    jobId: string,
+  ): Promise<{ job: DocumentGenerationJob; pdf: Buffer } | null> {
+    const job = await this.getJobStatus(tenantId, jobId);
+    if (job.status !== 'completed' || !job.outputPath) return null;
+    const pdf = await this.blobStore.get(job.outputPath);
+    return pdf ? { job, pdf } : null;
+  }
+
+  /**
+   * G-902: admit cards must be printable straight after registration, before
+   * any marks/candidate rows exist. Fall back to candidate registrations when
+   * the document repository has no enriched candidate rows yet.
+   */
+  private async resolveCandidates(
+    examinationId: string,
+    tenantId: string,
+    candidateIds?: string[],
+  ): Promise<DocumentCandidate[]> {
+    const enriched = await this.documentRepository.getDocumentCandidates(
+      examinationId,
+      tenantId,
+      candidateIds,
+    );
+    if (enriched.length > 0) return enriched;
+
+    const [examination, registrations] = await Promise.all([
+      this.examinationRepository.findById(examinationId, tenantId),
+      this.examinationRepository.listCandidateRegistrations(examinationId, tenantId),
+    ]);
+    if (!examination) return [];
+    const centerNameById = new Map(examination.centers.map((c) => [c.id, c.name]));
+    const subjectNameById = new Map(examination.subjects.map((s) => [s.id, s.name]));
+    const wanted = candidateIds && candidateIds.length > 0 ? new Set(candidateIds) : null;
+    return registrations
+      .filter((r) => !wanted || wanted.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        studentId: r.studentId,
+        studentName: r.studentId,
+        rollNumber: r.id.slice(0, 8).toUpperCase(),
+        centerId: r.centerId,
+        centerName: centerNameById.get(r.centerId) ?? r.centerId,
+        subjectIds: r.subjectIds,
+        subjectNames: r.subjectIds.map((id) => subjectNameById.get(id) ?? id),
+        gender: 'other',
+      }));
+  }
 
   /**
    * Request document generation for an examination.
@@ -111,10 +192,7 @@ export class DocumentGenerationService {
     let resolvedCandidateIds = candidateIds;
     if (resolvedCandidateIds.length === 0) {
       // Get all candidates for the examination
-      const candidates = await this.documentRepository.getDocumentCandidates(
-        examinationId,
-        tenantId,
-      );
+      const candidates = await this.resolveCandidates(examinationId, tenantId);
       resolvedCandidateIds = candidates.map((c) => c.id);
     }
 
@@ -196,7 +274,7 @@ export class DocumentGenerationService {
 
       switch (job.documentType) {
         case 'admit_card': {
-          const candidates = await this.documentRepository.getDocumentCandidates(
+          const candidates = await this.resolveCandidates(
             job.examinationId,
             tenantId,
             job.candidateIds,
@@ -222,13 +300,15 @@ export class DocumentGenerationService {
           break;
         }
         default:
-          throw new BusinessRuleError(`Unsupported document type: ${job.documentType}`);
+          throw new BusinessRuleError(`Unsupported document type: ${String(job.documentType)}`);
       }
 
       const durationMs = Date.now() - startTime;
 
-      // Store the generated PDF path (in production, this would be uploaded to S3/MinIO)
+      // Tenant-prefixed key; the blob store decides where bytes live
+      // (in-memory by default, object storage when an adapter is wired).
       const outputPath = `documents/${tenantId}/${job.examinationId}/${job.documentType}_${job.id}.pdf`;
+      await this.blobStore.put(outputPath, pdfBuffer);
 
       const updatedJob = await this.documentRepository.updateJob(jobId, tenantId, {
         status: 'completed',

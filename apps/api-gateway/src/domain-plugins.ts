@@ -61,6 +61,7 @@ import {
   createExaminationRepository,
   createResultRepository,
   examinationPlugin,
+  SimplePdfGenerator,
 } from '@proctira/backend-examination';
 import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
@@ -185,6 +186,9 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository: createExaminationRepository(),
         resultRepository: createResultRepository(),
         documentRepository: createDocumentRepository(),
+        // G-902: document routes (/documents/generate, /documents/jobs) only
+        // register when a PdfGenerator is supplied.
+        pdfGenerator: new SimplePdfGenerator(),
         prefix: '/examinations',
       });
     },

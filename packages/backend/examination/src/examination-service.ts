@@ -420,6 +420,15 @@ export class ExaminationService {
    * @throws ValidationError if candidate fails eligibility validation
    * @throws ConflictError if candidate is already registered
    */
+  /** List registrations for the Candidates tab (G-902). */
+  async listCandidates(tenantId: string, examinationId: string): Promise<CandidateRegistration[]> {
+    const examination = await this.repository.findById(examinationId, tenantId);
+    if (!examination) {
+      throw new NotFoundError(`Examination with id '${examinationId}' not found`);
+    }
+    return this.repository.listCandidateRegistrations(examinationId, tenantId);
+  }
+
   async registerCandidate(
     tenantId: string,
     examinationId: string,
@@ -545,7 +554,11 @@ export class ExaminationService {
     }
 
     // Check prerequisite subject completion
-    // All examination subjects are considered prerequisites that must be completed
+    // All examination subjects are considered prerequisites that must be completed.
+    // Skipped when the enrollment source cannot supply transcript data (null).
+    if (enrollment.completedSubjectCodes === null) {
+      return errors;
+    }
     const examSubjectCodes = examination.subjects.map((s) => s.code);
     const completedCodes = new Set(enrollment.completedSubjectCodes);
     const missingSubjects: string[] = [];

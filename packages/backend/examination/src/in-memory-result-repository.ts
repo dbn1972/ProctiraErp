@@ -32,6 +32,16 @@ export class InMemoryResultRepository implements ResultRepository {
     return this.candidates.get(examinationId) ?? [];
   }
 
+  async upsertCandidates(_tenantId: string, candidates: ExaminationCandidate[]): Promise<void> {
+    for (const candidate of candidates) {
+      const list = this.candidates.get(candidate.examinationId) ?? [];
+      const idx = list.findIndex((c) => c.studentId === candidate.studentId);
+      if (idx >= 0) list[idx] = candidate;
+      else list.push(candidate);
+      this.candidates.set(candidate.examinationId, list);
+    }
+  }
+
   async savePublicationResult(result: PublicationResult): Promise<void> {
     this.publicationResults.set(result.examinationId, result);
   }

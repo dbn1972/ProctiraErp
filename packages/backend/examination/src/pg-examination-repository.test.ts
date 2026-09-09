@@ -13,10 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { InMemoryExaminationRepository } from './in-memory-repository.js';
 import { PrismaExaminationRepository } from './prisma-examination-repository.js';
-import {
-  createExaminationRepository,
-  isPgExaminationEnabled,
-} from './repository-factory.js';
+import { createExaminationRepository, isPgExaminationEnabled } from './repository-factory.js';
 
 const created: Array<{ id: string; tenantId: string }> = [];
 

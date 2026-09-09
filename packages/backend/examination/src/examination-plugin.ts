@@ -15,17 +15,17 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
-import type { ExaminationRepository } from './examination-repository.js';
-import type { ResultRepository } from './result-repository.js';
-import type { DocumentRepository } from './document-repository.js';
-import type { PdfGenerator } from './pdf-generator.js';
 import type { DocumentTaskQueue } from './document-generation-service.js';
-import { ExaminationService } from './examination-service.js';
-import { ResultPublicationService } from './result-publication-service.js';
 import { DocumentGenerationService } from './document-generation-service.js';
-import { registerExaminationRoutes } from './routes.js';
-import { registerResultRoutes } from './result-routes.js';
+import type { DocumentRepository } from './document-repository.js';
 import { registerDocumentRoutes } from './document-routes.js';
+import type { ExaminationRepository } from './examination-repository.js';
+import { ExaminationService } from './examination-service.js';
+import type { PdfGenerator } from './pdf-generator.js';
+import { ResultPublicationService } from './result-publication-service.js';
+import type { ResultRepository } from './result-repository.js';
+import { registerResultRoutes } from './result-routes.js';
+import { registerExaminationRoutes } from './routes.js';
 
 /**
  * Options for the examination plugin.

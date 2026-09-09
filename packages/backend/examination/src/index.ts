@@ -40,11 +40,16 @@ export {
 // Document Generation Service
 export {
   DocumentGenerationService,
+  InMemoryDocumentBlobStore,
   NoOpDocumentTaskQueue,
   MAX_BATCH_SIZE,
   MAX_GENERATION_DURATION_MS,
 } from './document-generation-service.js';
-export type { GenerateDocumentsInput, DocumentTaskQueue } from './document-generation-service.js';
+export type {
+  GenerateDocumentsInput,
+  DocumentTaskQueue,
+  DocumentBlobStore,
+} from './document-generation-service.js';
 
 // PDF Generator
 export { SimplePdfGenerator } from './pdf-generator.js';

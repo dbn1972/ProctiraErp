@@ -122,7 +122,13 @@ export interface StudentEnrollment {
   studentId: string;
   status: 'enrolled' | 'transferred' | 'withdrawn' | 'graduated';
   institutionId: string;
-  completedSubjectCodes: string[];
+  /**
+   * Subject codes the student has completed. `null` means the enrollment
+   * source has no transcript data (e.g. the Postgres repository today), in
+   * which case the prerequisite-completion rule is skipped rather than
+   * rejecting every registration.
+   */
+  completedSubjectCodes: string[] | null;
 }
 
 /**
@@ -167,4 +173,10 @@ export interface ExaminationRepository {
     studentId: string,
     tenantId: string,
   ): Promise<CandidateRegistration | null>;
+
+  /** List all candidate registrations for an examination (G-902 candidates tab) */
+  listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]>;
 }

@@ -259,8 +259,9 @@ export class PrismaExaminationRepository implements ExaminationRepository {
    *
    * Integration gap: there is no source for completed subjects in the schema
    * (no completed-subjects/transcript table the enrollment domain exposes),
-   * so `completedSubjectCodes` is always `[]`. Prerequisite-based eligibility
-   * checks therefore cannot pass until that data source exists.
+   * so `completedSubjectCodes` is `null` and the service skips the
+   * prerequisite-completion rule (G-902: otherwise no candidate could ever be
+   * registered against live Postgres).
    */
   async getStudentEnrollment(
     studentId: string,
@@ -276,7 +277,7 @@ export class PrismaExaminationRepository implements ExaminationRepository {
         studentId,
         status: enrollment.status.toLowerCase() as StudentEnrollment['status'],
         institutionId: enrollment.institutionId,
-        completedSubjectCodes: [],
+        completedSubjectCodes: null,
       };
     });
   }
@@ -309,6 +310,19 @@ export class PrismaExaminationRepository implements ExaminationRepository {
         where: { examinationId, studentId, tenantId },
       })) as RegistrationRow | null;
       return row ? toRegistration(row) : null;
+    });
+  }
+
+  async listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.examinationCandidateRegistration.findMany({
+        where: { examinationId, tenantId },
+        orderBy: { registeredAt: 'asc' },
+      })) as RegistrationRow[];
+      return rows.map(toRegistration);
     });
   }
 }

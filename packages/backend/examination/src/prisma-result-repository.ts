@@ -55,6 +55,40 @@ export class PrismaResultRepository implements ResultRepository {
     });
   }
 
+  async upsertCandidates(tenantId: string, candidates: ExaminationCandidate[]): Promise<void> {
+    if (candidates.length === 0) return;
+    await withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      for (const candidate of candidates) {
+        const subjectResults = toJsonPayload(candidate.subjectResults);
+        await tx.examinationCandidate.upsert({
+          where: {
+            tenantId_examinationId_studentId: {
+              tenantId,
+              examinationId: candidate.examinationId,
+              studentId: candidate.studentId,
+            },
+          },
+          create: {
+            id: candidate.id,
+            tenantId,
+            examinationId: candidate.examinationId,
+            studentId: candidate.studentId,
+            centerId: candidate.centerId,
+            gender: candidate.gender,
+            areaId: candidate.areaId,
+            subjectResults,
+          },
+          update: {
+            centerId: candidate.centerId,
+            gender: candidate.gender,
+            areaId: candidate.areaId,
+            subjectResults,
+          },
+        });
+      }
+    });
+  }
+
   async savePublicationResult(result: PublicationResult): Promise<void> {
     await withTenantTransaction(this.prisma, result.tenantId, async (tx) => {
       const payload = toJsonPayload(result);

@@ -99,4 +99,11 @@ export class CachedExaminationRepository implements ExaminationRepository {
   ): Promise<CandidateRegistration | null> {
     return this.delegate.findCandidateRegistration(examinationId, studentId, tenantId);
   }
+
+  async listCandidateRegistrations(
+    examinationId: string,
+    tenantId: string,
+  ): Promise<CandidateRegistration[]> {
+    return this.delegate.listCandidateRegistrations(examinationId, tenantId);
+  }
 }
