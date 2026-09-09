@@ -24,13 +24,14 @@ Screen / API inventory:
 
 | Nav / surface | Route | API | Tables | PII |
 | ------------- | ----- | --- | ------ | --- |
-| Bank | `/lms/bank` | `POST/GET /lms/bank` | `lms_question_bank` | prompts (academic) |
+| Bank | `/lms/bank` | `POST/GET /lms/bank` | `lms_question_bank_items` | prompts (academic) |
 | Rubrics | `/lms/rubrics` | `POST/GET /lms/rubrics` | `lms_rubrics`, `lms_rubric_criteria` | staff names via created_by |
-| Rubric grade | assignment detail | `POST /lms/submissions/:id/rubric-grade` | `lms_rubric_scores` | scores, comments |
-| Files | assignment detail | `POST /lms/assignments/:id/files` `GET /lms/files/:id` | `lms_assignment_files` | filenames |
+| Rubric grade | assignment detail | `POST /lms/submissions/:id/rubric-grade` | `lms_rubric_grades` | scores, comments |
+| Files | assignment detail | `POST /lms/assignments/:id/files` `GET /lms/files/:id` | `lms_submission_files` | filenames |
 | Discussions | `/lms/discussions` | `/lms/discussions` | discussions + posts | student posts |
+| Content | `/lms/content` | `POST/GET /lms/content` | `lms_content_items` | none beyond titles |
 | Lessons | `/lms/lessons` | `/lms/lessons` | `lms_lessons`, `lms_lesson_resources` | none beyond titles |
-| Analytics | assignment detail | `GET /lms/assignments/:id/analytics` | derived | scores, student counts |
+| Analytics | `/lms/analytics` | `GET /lms/analytics` | derived | scores, student counts |
 
 ---
 

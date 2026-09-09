@@ -51,12 +51,13 @@ Teachers and board authors can author a typed question bank (MCQ, MSQ, numeric, 
 | Nav label | Route | API | Tables / events | Shell (staff / parent / public) |
 | --------- | ----- | --- | --------------- | ------------------------------- |
 | Learning hub | `/lms` | `/lms/assignments` | `lms_assignments` | Staff (students read published) |
-| Question bank | `/lms/bank` | `/lms/bank` | `lms_question_bank` | Staff |
-| Rubrics | `/lms/rubrics` | `/lms/rubrics` | `lms_rubrics`, `lms_rubric_criteria`, `lms_rubric_scores` | Staff |
-| Discussions | `/lms/discussions` | `/lms/discussions` | `lms_discussions`, `lms_discussion_posts` | Staff + student post |
+| Question bank | `/lms/bank` | `/lms/bank` | `lms_question_bank_items` | Staff |
+| Rubrics | `/lms/rubrics` | `/lms/rubrics` | `lms_rubrics`, `lms_rubric_criteria`, `lms_rubric_grades` | Staff |
+| Discussions | `/lms/discussions` | `/lms/discussions` | `lms_discussion_threads`, `lms_discussion_posts` | Staff + student post |
 | Lessons | `/lms/lessons` | `/lms/lessons` | `lms_lessons`, `lms_lesson_resources` | Staff author; student read published |
-| Class analytics | assignment detail | `/lms/assignments/:id/analytics` | derived from submissions | Staff |
-| Assignment detail | `/lms/assignments/[id]` | submissions, files, rubric grade | `lms_submissions`, `lms_assignment_files` | Staff grade; student submit |
+| Content library | `/lms/content` | `/lms/content` | `lms_content_items` | Staff author; student read published |
+| Class analytics | `/lms/analytics` | `/lms/analytics` | derived from submissions + bank tags | Staff |
+| Assignment detail | `/lms/assignments/[id]` | submissions, files, rubric grade | `lms_submissions`, `lms_submission_files` | Staff grade; student submit |
 | File download | `/api/lms/files/[id]` | `/lms/files/:id` | object storage key | Authenticated |
 
 ## 6. Roles & tenancy (high level)

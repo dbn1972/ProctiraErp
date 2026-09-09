@@ -1,5 +1,5 @@
--- LMS depth (Wave 9 / G-915): question bank, rubrics, assignment files,
--- discussions, lesson/content library. Extends 026_lms_schema.sql.
+-- LMS depth (Wave 9 / G-915): question bank, rubrics, submission files,
+-- discussions, content library. Extends 026_lms_schema.sql.
 -- Raw SQL — applied after 026 via tools/scripts/apply-sql.sh / ensureLmsSchema.
 --
 -- RLS: tenant bound via withPgTenant / app.tenant_id (same policy shape as 026/030).
@@ -25,9 +25,9 @@ ALTER TABLE lms_assignments
   ADD COLUMN IF NOT EXISTS rubric_id UUID;
 
 -- ---------------------------------------------------------------------------
--- Question bank (tenant × subject × grade × tags)
+-- Question bank items (tenant × subject × grade × tags × skill)
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS lms_question_bank (
+CREATE TABLE IF NOT EXISTS lms_question_bank_items (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   scope TEXT NOT NULL CHECK (scope IN ('board', 'school')),
@@ -48,18 +48,18 @@ CREATE TABLE IF NOT EXISTS lms_question_bank (
   created_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT lms_question_bank_scope_target CHECK (
+  CONSTRAINT lms_question_bank_items_scope_target CHECK (
     (scope = 'board' AND board_id IS NOT NULL) OR
     (scope = 'school' AND institution_id IS NOT NULL)
   )
 );
-CREATE INDEX IF NOT EXISTS lms_question_bank_tenant_scope_idx
-  ON lms_question_bank (tenant_id, scope, board_id, institution_id);
-CREATE INDEX IF NOT EXISTS lms_question_bank_tenant_type_idx
-  ON lms_question_bank (tenant_id, question_type, subject);
+CREATE INDEX IF NOT EXISTS lms_question_bank_items_tenant_scope_idx
+  ON lms_question_bank_items (tenant_id, scope, board_id, institution_id);
+CREATE INDEX IF NOT EXISTS lms_question_bank_items_tenant_type_idx
+  ON lms_question_bank_items (tenant_id, question_type, subject);
 
 -- ---------------------------------------------------------------------------
--- Rubrics (criteria × levels) and per-submission scores
+-- Rubrics (criteria × levels) and per-submission grades
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS lms_rubrics (
   id UUID PRIMARY KEY,
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS lms_rubric_criteria (
 CREATE INDEX IF NOT EXISTS lms_rubric_criteria_tenant_rubric_idx
   ON lms_rubric_criteria (tenant_id, rubric_id);
 
-CREATE TABLE IF NOT EXISTS lms_rubric_scores (
+CREATE TABLE IF NOT EXISTS lms_rubric_grades (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   submission_id UUID NOT NULL REFERENCES lms_submissions(id) ON DELETE CASCADE,
@@ -107,31 +107,31 @@ CREATE TABLE IF NOT EXISTS lms_rubric_scores (
   scored_by UUID,
   scored_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS lms_rubric_scores_tenant_submission_idx
-  ON lms_rubric_scores (tenant_id, submission_id);
+CREATE INDEX IF NOT EXISTS lms_rubric_grades_tenant_submission_idx
+  ON lms_rubric_grades (tenant_id, submission_id);
 
 -- ---------------------------------------------------------------------------
--- Assignment / submission file metadata (bytes live in object storage / disk)
+-- Submission / assignment file metadata (bytes live in @proctira/storage or disk)
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS lms_assignment_files (
+CREATE TABLE IF NOT EXISTS lms_submission_files (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   assignment_id UUID NOT NULL REFERENCES lms_assignments(id) ON DELETE CASCADE,
   submission_id UUID REFERENCES lms_submissions(id) ON DELETE CASCADE,
   filename TEXT NOT NULL,
   mime_type TEXT NOT NULL,
-  byte_size INTEGER NOT NULL CHECK (byte_size > 0 AND byte_size <= 5242880),
-  storage_key TEXT NOT NULL,
+  byte_size INTEGER NOT NULL CHECK (byte_size > 0 AND byte_size <= 10485760),
+  object_key TEXT NOT NULL,
   created_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS lms_assignment_files_tenant_assignment_idx
-  ON lms_assignment_files (tenant_id, assignment_id, submission_id);
+CREATE INDEX IF NOT EXISTS lms_submission_files_tenant_assignment_idx
+  ON lms_submission_files (tenant_id, assignment_id, submission_id);
 
 -- ---------------------------------------------------------------------------
--- Discussions (teacher pin / lock)
+-- Discussions (teacher hide / lock)
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS lms_discussions (
+CREATE TABLE IF NOT EXISTS lms_discussion_threads (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
   institution_id UUID,
@@ -142,13 +142,13 @@ CREATE TABLE IF NOT EXISTS lms_discussions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS lms_discussions_tenant_class_idx
-  ON lms_discussions (tenant_id, class_key);
+CREATE INDEX IF NOT EXISTS lms_discussion_threads_tenant_class_idx
+  ON lms_discussion_threads (tenant_id, class_key);
 
 CREATE TABLE IF NOT EXISTS lms_discussion_posts (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
-  discussion_id UUID NOT NULL REFERENCES lms_discussions(id) ON DELETE CASCADE,
+  thread_id UUID NOT NULL REFERENCES lms_discussion_threads(id) ON DELETE CASCADE,
   parent_id UUID,
   body TEXT NOT NULL,
   hidden BOOLEAN NOT NULL DEFAULT false,
@@ -156,12 +156,38 @@ CREATE TABLE IF NOT EXISTS lms_discussion_posts (
   created_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS lms_discussion_posts_tenant_discussion_idx
-  ON lms_discussion_posts (tenant_id, discussion_id, created_at);
+CREATE INDEX IF NOT EXISTS lms_discussion_posts_tenant_thread_idx
+  ON lms_discussion_posts (tenant_id, thread_id, created_at);
 
 -- ---------------------------------------------------------------------------
--- Lessons / content library (lesson → resources: link, file, embedded video)
+-- Content library (student read-only when published)
 -- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS lms_content_items (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  scope TEXT NOT NULL CHECK (scope IN ('board', 'school')),
+  board_id UUID,
+  institution_id UUID,
+  title TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('link', 'file', 'text')),
+  body TEXT,
+  tags JSONB NOT NULL DEFAULT '[]'::jsonb,
+  class_key TEXT,
+  subject TEXT,
+  object_key TEXT,
+  mime_type TEXT,
+  published BOOLEAN NOT NULL DEFAULT false,
+  created_by UUID,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT lms_content_items_scope_target CHECK (
+    (scope = 'board' AND board_id IS NOT NULL) OR
+    (scope = 'school' AND institution_id IS NOT NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS lms_content_items_tenant_scope_idx
+  ON lms_content_items (tenant_id, scope, published, subject, class_key);
+
 CREATE TABLE IF NOT EXISTS lms_lessons (
   id UUID PRIMARY KEY,
   tenant_id UUID NOT NULL,
@@ -202,13 +228,13 @@ CREATE INDEX IF NOT EXISTS lms_lesson_resources_tenant_lesson_idx
 -- ---------------------------------------------------------------------------
 -- RLS (same policy shape as 026/030; tenant bound via withPgTenant)
 -- ---------------------------------------------------------------------------
-ALTER TABLE lms_question_bank ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON lms_question_bank;
-CREATE POLICY tenant_isolation ON lms_question_bank
+ALTER TABLE lms_question_bank_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lms_question_bank_items;
+CREATE POLICY tenant_isolation ON lms_question_bank_items
   FOR ALL
   USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
-ALTER TABLE lms_question_bank FORCE ROW LEVEL SECURITY;
+ALTER TABLE lms_question_bank_items FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE lms_rubrics ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON lms_rubrics;
@@ -226,29 +252,29 @@ CREATE POLICY tenant_isolation ON lms_rubric_criteria
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
 ALTER TABLE lms_rubric_criteria FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE lms_rubric_scores ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON lms_rubric_scores;
-CREATE POLICY tenant_isolation ON lms_rubric_scores
+ALTER TABLE lms_rubric_grades ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lms_rubric_grades;
+CREATE POLICY tenant_isolation ON lms_rubric_grades
   FOR ALL
   USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
-ALTER TABLE lms_rubric_scores FORCE ROW LEVEL SECURITY;
+ALTER TABLE lms_rubric_grades FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE lms_assignment_files ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON lms_assignment_files;
-CREATE POLICY tenant_isolation ON lms_assignment_files
+ALTER TABLE lms_submission_files ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lms_submission_files;
+CREATE POLICY tenant_isolation ON lms_submission_files
   FOR ALL
   USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
-ALTER TABLE lms_assignment_files FORCE ROW LEVEL SECURITY;
+ALTER TABLE lms_submission_files FORCE ROW LEVEL SECURITY;
 
-ALTER TABLE lms_discussions ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS tenant_isolation ON lms_discussions;
-CREATE POLICY tenant_isolation ON lms_discussions
+ALTER TABLE lms_discussion_threads ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lms_discussion_threads;
+CREATE POLICY tenant_isolation ON lms_discussion_threads
   FOR ALL
   USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
-ALTER TABLE lms_discussions FORCE ROW LEVEL SECURITY;
+ALTER TABLE lms_discussion_threads FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE lms_discussion_posts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON lms_discussion_posts;
@@ -257,6 +283,14 @@ CREATE POLICY tenant_isolation ON lms_discussion_posts
   USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
   WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
 ALTER TABLE lms_discussion_posts FORCE ROW LEVEL SECURITY;
+
+ALTER TABLE lms_content_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON lms_content_items;
+CREATE POLICY tenant_isolation ON lms_content_items
+  FOR ALL
+  USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
+  WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
+ALTER TABLE lms_content_items FORCE ROW LEVEL SECURITY;
 
 ALTER TABLE lms_lessons ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON lms_lessons;
