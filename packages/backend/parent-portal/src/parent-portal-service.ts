@@ -1,9 +1,15 @@
 /**
- * Parent portal service — child links, messaging, consents, fee sandbox.
+ * Parent portal service — child links, messaging, consents, fee sandbox, academic reads.
  */
 import { BusinessRuleError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import {
+  EmptyAcademicVisibilityStore,
+  STUDENT_SELF_BINDING_ASSUMPTION,
+  UUID_RE,
+  type AcademicVisibilityStore,
+} from './academic-visibility.js';
 import type { ParentPortalRepository } from './parent-portal-repository.js';
 import type {
   CreateConsentInput,
@@ -15,13 +21,23 @@ import type {
   PayInvoiceInput,
 } from './schemas.js';
 
+export { STUDENT_SELF_BINDING_ASSUMPTION };
+
+export interface StudentActor {
+  userId: string;
+  email?: string | null;
+}
+
 function receiptNumberFor(paymentId: string): string {
   const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   return `RCP-${stamp}-${paymentId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
 }
 
 export class ParentPortalService {
-  constructor(private readonly repository: ParentPortalRepository) {}
+  constructor(
+    private readonly repository: ParentPortalRepository,
+    private readonly academicStore: AcademicVisibilityStore = new EmptyAcademicVisibilityStore(),
+  ) {}
 
   async linkChild(tenantId: string, parentUserId: string, input: LinkChildInput) {
     const existing = await this.repository.hasActiveLink(tenantId, parentUserId, input.studentId);
@@ -335,5 +351,81 @@ export class ParentPortalService {
     });
 
     return { invoice: updatedInvoice!, payment, receipt };
+  }
+
+  async resolveStudentSelfId(tenantId: string, actor: StudentActor): Promise<string> {
+    const mapped = await this.academicStore.resolveStudentId(
+      tenantId,
+      actor.userId,
+      actor.email ?? null,
+    );
+    if (mapped) return mapped;
+    if (UUID_RE.test(actor.userId)) return actor.userId;
+    throw new NotFoundError('Student record not found for this account');
+  }
+
+  async getChildAttendance(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getAttendance(tenantId, studentId);
+  }
+
+  async getChildGrades(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getGrades(tenantId, studentId);
+  }
+
+  async getChildTimetable(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getTimetable(tenantId, studentId);
+  }
+
+  async getChildHomework(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getHomework(tenantId, studentId);
+  }
+
+  async getChildCalendar(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getCalendar(tenantId, studentId);
+  }
+
+  async getChildNotices(tenantId: string, parentUserId: string, studentId: string) {
+    await this.assertParentLinkedToStudent(tenantId, parentUserId, studentId);
+    return this.academicStore.getNotices(tenantId, studentId, parentUserId);
+  }
+
+  async getSelfAttendance(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getAttendance(tenantId, studentId);
+  }
+
+  async getSelfGrades(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getGrades(tenantId, studentId);
+  }
+
+  async getSelfTimetable(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getTimetable(tenantId, studentId);
+  }
+
+  async getSelfHomework(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getHomework(tenantId, studentId);
+  }
+
+  async getSelfCalendar(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getCalendar(tenantId, studentId);
+  }
+
+  async getSelfNotices(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getNotices(tenantId, studentId, actor.userId);
+  }
+
+  async getSelfPalPlan(tenantId: string, actor: StudentActor) {
+    const studentId = await this.resolveStudentSelfId(tenantId, actor);
+    return this.academicStore.getPalPlan(tenantId, studentId);
   }
 }

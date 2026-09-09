@@ -3,8 +3,13 @@
  */
 import { assertInMemoryFallbackAllowed } from '@proctira/database';
 
+import {
+  EmptyAcademicVisibilityStore,
+  type AcademicVisibilityStore,
+} from './academic-visibility.js';
 import { InMemoryParentPortalRepository } from './in-memory-repository.js';
 import type { ParentPortalRepository } from './parent-portal-repository.js';
+import { PgAcademicVisibilityStore } from './pg-academic-visibility-store.js';
 import {
   getSharedParentPortalPool,
   PgParentPortalRepository,
@@ -22,4 +27,12 @@ export function createParentPortalRepository(): ParentPortalRepository {
   }
   assertInMemoryFallbackAllowed('parent-portal');
   return new InMemoryParentPortalRepository();
+}
+
+export function createAcademicVisibilityStore(): AcademicVisibilityStore {
+  if (isPgParentPortalEnabled()) {
+    const pool = getSharedParentPortalPool();
+    if (pool) return new PgAcademicVisibilityStore(pool);
+  }
+  return new EmptyAcademicVisibilityStore();
 }
