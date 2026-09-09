@@ -231,7 +231,10 @@ Run locally with `tools/scripts/run-e2e-backend-ready.sh` (`E2E_BACKEND_READY=1`
 
 - Batch-3 UX / multidevice captures were **not** re-taken; the §4 capture set predates the merge. Ungated heading smokes across all new pages ran headless on desktop viewport only.
 - Open Library ISBN, WhatsApp, GPS device feeds are stub / sandbox / env-gated.
-- Tip CI on the merged tip is pending at the time of writing (see §6 note).
+- Tip CI on the merged tip `7b20d79`: **`CI` workflow green** (Lint, Type Check, Unit, DoD, Tenant Isolation, Build, Bundle, Lighthouse, Integration Tests). **E2E Backend Ready: 294 passed / 5 flaky (passed on retry) / 2 failed / 1 skipped** — all ten new specs passed; the two failures were pre-existing specs affected by the merge and are fixed on the follow-up commit:
+  - `26` quiz client validation expected the two-options error on blank question rows; G-915 now ignores blank rows (bank picks may replace them), so the spec asserts the rule on a prompted question with no options.
+  - `44` discipline row not visible within 15 s after `router.refresh()` on the 2-core runner (passes locally in <1 min); chain marked `test.slow()` with a 30 s expect on that step, like the other long chains.
+  - Flaky-then-passed: `35` admin console chain, `48` two ungated library pages, `a11y-axe` `/parent` and `/parent/messages`.
 
 ## Done criteria
 

@@ -86,6 +86,13 @@ test.describe('LMS — client validation (ungated)', () => {
     await expect(page.getByTestId('quiz-question')).toHaveCount(2);
     await page.getByLabel(/^title/i).fill('Fractions check');
     await page.getByLabel(/^subject/i).fill('Mathematics');
+    // G-915: blank question rows are ignored (bank picks may stand in for them), so
+    // the two-options rule is asserted on a question that has a prompt but no options.
+    await page
+      .getByTestId('quiz-question')
+      .first()
+      .getByRole('textbox', { name: /prompt/i })
+      .fill('What is 1/2 + 1/4?');
     await page.getByRole('button', { name: /save draft/i }).click();
     await expect(page.getByText(/at least two answer options/i).first()).toBeVisible();
   });

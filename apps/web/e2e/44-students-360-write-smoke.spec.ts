@@ -101,6 +101,8 @@ test.describe('Students 360 — live chain (E2E_BACKEND_READY)', () => {
     page,
     request,
   }) => {
+    // Five server actions + router.refresh() re-renders on a 2-core CI runner.
+    test.slow();
     const studentId = await createStudent(request);
 
     await page.goto(`/students/${studentId}`, { waitUntil: 'domcontentloaded' });
@@ -139,7 +141,7 @@ test.describe('Students 360 — live chain (E2E_BACKEND_READY)', () => {
     await page.getByTestId('discipline-date').fill(todayIso());
     await page.getByTestId('discipline-description').fill('Arrived 12 minutes after the bell.');
     await page.getByRole('button', { name: /save incident/i }).click();
-    await expect(page.getByTestId('discipline-row')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('discipline-row')).toBeVisible({ timeout: 30_000 });
 
     const yearStart = shiftIso(-40);
     const yearEnd = shiftIso(40);
