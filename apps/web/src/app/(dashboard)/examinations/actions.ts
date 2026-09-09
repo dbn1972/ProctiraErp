@@ -8,11 +8,19 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import {
+  allocateExamInvigilator,
+  assignExamReevaluation,
+  completeExamReevaluation,
+  createExamReevaluation,
+  createExamSession,
   createExamination,
+  generateExamSeating,
   generateExaminationDocuments,
   publishExaminationResults,
+  recordExamDoubleEntry,
   recordExaminationMarks,
   registerExaminationCandidate,
+  resolveExamMarks,
   toCreateExaminationInput,
   type ExaminationDocumentType,
 } from '@/lib/api/examinations';
@@ -187,5 +195,266 @@ export async function generateDocumentsAction(
     };
   } catch (error) {
     return toErrorState(error, 'Could not generate documents');
+  }
+}
+
+function revalidateOps(examinationId: string) {
+  revalidatePath(`/examinations/${examinationId}/ops`);
+}
+
+const createSessionSchema = z.object({
+  examinationId: UUID,
+  subjectId: UUID,
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  roomId: z.string().trim().min(1).max(100),
+  centerId: UUID.optional(),
+});
+
+export async function createExamSessionAction(
+  input: z.input<typeof createSessionSchema>,
+): Promise<ActionState<{ sessionId: string }>> {
+  const parsed = createSessionSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const session = await createExamSession(parsed.data.examinationId, {
+      subjectId: parsed.data.subjectId,
+      date: parsed.data.date,
+      startTime: parsed.data.startTime,
+      endTime: parsed.data.endTime,
+      roomId: parsed.data.roomId,
+      centerId: parsed.data.centerId,
+    });
+    revalidateOps(parsed.data.examinationId);
+    return { status: 'success', message: 'Session created', data: { sessionId: session.id } };
+  } catch (error) {
+    return toErrorState(error, 'Could not create session');
+  }
+}
+
+const allocateSchema = z.object({
+  examinationId: UUID,
+  sessionId: UUID,
+  staffId: UUID,
+});
+
+export async function allocateInvigilatorAction(
+  input: z.input<typeof allocateSchema>,
+): Promise<ActionState<{ allocationId: string }>> {
+  const parsed = allocateSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const allocation = await allocateExamInvigilator(
+      parsed.data.examinationId,
+      parsed.data.sessionId,
+      parsed.data.staffId,
+    );
+    revalidateOps(parsed.data.examinationId);
+    return {
+      status: 'success',
+      message: 'Invigilator allocated',
+      data: { allocationId: allocation.id },
+    };
+  } catch (error) {
+    return toErrorState(error, 'Could not allocate invigilator');
+  }
+}
+
+export async function generateSeatingAction(
+  examinationId: string,
+): Promise<ActionState<{ count: number }>> {
+  if (!UUID.safeParse(examinationId).success) {
+    return { status: 'error', message: 'Invalid examination id' };
+  }
+  try {
+    const seats = await generateExamSeating(examinationId);
+    revalidateOps(examinationId);
+    return {
+      status: 'success',
+      message: `Seating generated for ${seats.length} candidates`,
+      data: { count: seats.length },
+    };
+  } catch (error) {
+    return toErrorState(error, 'Could not generate seating');
+  }
+}
+
+const doubleEntrySchema = z.object({
+  examinationId: UUID,
+  candidateId: UUID,
+  subjectId: UUID,
+  entryNo: z.union([z.literal(1), z.literal(2)]),
+  marks: z.coerce.number().min(0),
+});
+
+export async function recordDoubleEntryAction(
+  input: z.input<typeof doubleEntrySchema>,
+): Promise<ActionState<{ varianceFlag: boolean }>> {
+  const parsed = doubleEntrySchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const entry = await recordExamDoubleEntry(parsed.data.examinationId, {
+      candidateId: parsed.data.candidateId,
+      subjectId: parsed.data.subjectId,
+      entryNo: parsed.data.entryNo,
+      marks: parsed.data.marks,
+    });
+    revalidateOps(parsed.data.examinationId);
+    return {
+      status: 'success',
+      message: entry.varianceFlag ? 'Second entry recorded — variance flagged' : 'Marks recorded',
+      data: { varianceFlag: entry.varianceFlag },
+    };
+  } catch (error) {
+    return toErrorState(error, 'Could not record marks entry');
+  }
+}
+
+const resolveSchema = z.object({
+  examinationId: UUID,
+  candidateId: UUID,
+  subjectId: UUID,
+  finalMarks: z.coerce.number().min(0),
+});
+
+export async function resolveMarksAction(
+  input: z.input<typeof resolveSchema>,
+): Promise<ActionState<{ finalMarks: number | null }>> {
+  const parsed = resolveSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const view = await resolveExamMarks(parsed.data.examinationId, {
+      candidateId: parsed.data.candidateId,
+      subjectId: parsed.data.subjectId,
+      finalMarks: parsed.data.finalMarks,
+    });
+    revalidateOps(parsed.data.examinationId);
+    return {
+      status: 'success',
+      message: 'Marks resolved',
+      data: { finalMarks: view.finalMarks },
+    };
+  } catch (error) {
+    return toErrorState(error, 'Could not resolve marks');
+  }
+}
+
+const reevalRequestSchema = z.object({
+  examinationId: UUID,
+  candidateId: UUID,
+  subjectId: UUID,
+  originalMarks: z.coerce.number().min(0).optional(),
+  notes: z.string().max(2000).optional(),
+});
+
+export async function requestReevaluationAction(
+  input: z.input<typeof reevalRequestSchema>,
+): Promise<ActionState<{ requestId: string }>> {
+  const parsed = reevalRequestSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const row = await createExamReevaluation(parsed.data.examinationId, {
+      candidateId: parsed.data.candidateId,
+      subjectId: parsed.data.subjectId,
+      originalMarks: parsed.data.originalMarks,
+      notes: parsed.data.notes,
+    });
+    revalidateOps(parsed.data.examinationId);
+    return { status: 'success', message: 'Re-evaluation requested', data: { requestId: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Could not request re-evaluation');
+  }
+}
+
+const assignSchema = z.object({
+  examinationId: UUID,
+  requestId: UUID,
+  evaluatorId: UUID,
+});
+
+export async function assignReevaluationAction(
+  input: z.input<typeof assignSchema>,
+): Promise<ActionState> {
+  const parsed = assignSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    await assignExamReevaluation(
+      parsed.data.examinationId,
+      parsed.data.requestId,
+      parsed.data.evaluatorId,
+    );
+    revalidateOps(parsed.data.examinationId);
+    return { status: 'success', message: 'Evaluator assigned' };
+  } catch (error) {
+    return toErrorState(error, 'Could not assign evaluator');
+  }
+}
+
+const completeSchema = z.object({
+  examinationId: UUID,
+  requestId: UUID,
+  revisedMarks: z.coerce.number().min(0),
+  notes: z.string().max(2000).optional(),
+});
+
+export async function completeReevaluationAction(
+  input: z.input<typeof completeSchema>,
+): Promise<ActionState> {
+  const parsed = completeSchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: zodFlatten(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    await completeExamReevaluation(
+      parsed.data.examinationId,
+      parsed.data.requestId,
+      parsed.data.revisedMarks,
+      parsed.data.notes,
+    );
+    revalidateOps(parsed.data.examinationId);
+    return { status: 'success', message: 'Re-evaluation completed' };
+  } catch (error) {
+    return toErrorState(error, 'Could not complete re-evaluation');
   }
 }

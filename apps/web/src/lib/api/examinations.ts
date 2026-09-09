@@ -431,3 +431,201 @@ export async function generateExaminationDocuments(
   );
   return toDocument(examinationId, processed.data ?? queued.data);
 }
+
+export interface ExamOpsSession {
+  id: string;
+  examinationId: string;
+  subjectId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  roomId: string;
+  centerId: string | null;
+}
+
+export interface ExamOpsInvigilator {
+  id: string;
+  sessionId: string;
+  staffId: string;
+  allocatedAt: string;
+}
+
+export interface ExamOpsSeat {
+  id: string;
+  candidateId: string;
+  studentName: string;
+  rollNumber: string;
+  centerName: string;
+  roomNumber: string;
+  seatNumber: string;
+}
+
+export interface ExamOpsMarksPair {
+  candidateId: string;
+  subjectId: string;
+  entry1: { marks: number; enteredBy: string } | null;
+  entry2: { marks: number; enteredBy: string } | null;
+  varianceFlag: boolean;
+  variance: number | null;
+  finalMarks: number | null;
+  resolved: boolean;
+}
+
+export interface ExamOpsReevaluation {
+  id: string;
+  candidateId: string;
+  subjectId: string;
+  status: 'requested' | 'assigned' | 'completed' | 'rejected';
+  evaluatorId: string | null;
+  originalMarks: number | null;
+  revisedMarks: number | null;
+  notes: string | null;
+}
+
+export async function listExamSessions(examinationId: string): Promise<ExamOpsSession[]> {
+  const result = await gatewayFetch<{ data: ExamOpsSession[] }>(
+    `/examinations/${examinationId}/sessions`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function createExamSession(
+  examinationId: string,
+  input: {
+    subjectId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    roomId: string;
+    centerId?: string;
+  },
+): Promise<ExamOpsSession> {
+  const result = await gatewayFetch<ExamOpsSession>(`/examinations/${examinationId}/sessions`, {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function allocateExamInvigilator(
+  examinationId: string,
+  sessionId: string,
+  staffId: string,
+): Promise<ExamOpsInvigilator> {
+  const result = await gatewayFetch<ExamOpsInvigilator>(
+    `/examinations/${examinationId}/sessions/${sessionId}/invigilators`,
+    { method: 'POST', json: { staffId } },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function listExamInvigilators(
+  examinationId: string,
+  sessionId: string,
+): Promise<ExamOpsInvigilator[]> {
+  const result = await gatewayFetch<{ data: ExamOpsInvigilator[] }>(
+    `/examinations/${examinationId}/sessions/${sessionId}/invigilators`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function listExamSeating(examinationId: string): Promise<ExamOpsSeat[]> {
+  const result = await gatewayFetch<{ data: ExamOpsSeat[] }>(
+    `/examinations/${examinationId}/seating`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function generateExamSeating(examinationId: string): Promise<ExamOpsSeat[]> {
+  const result = await gatewayFetch<{ data: ExamOpsSeat[] }>(
+    `/examinations/${examinationId}/seating/generate`,
+    { method: 'POST', json: {} },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function listExamMarksPairs(examinationId: string): Promise<ExamOpsMarksPair[]> {
+  const result = await gatewayFetch<{ data: ExamOpsMarksPair[] }>(
+    `/examinations/${examinationId}/marks/entries`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function recordExamDoubleEntry(
+  examinationId: string,
+  input: { candidateId: string; subjectId: string; entryNo: 1 | 2; marks: number },
+): Promise<{ varianceFlag: boolean }> {
+  const result = await gatewayFetch<{ varianceFlag: boolean }>(
+    `/examinations/${examinationId}/marks/entries`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function resolveExamMarks(
+  examinationId: string,
+  input: { candidateId: string; subjectId: string; finalMarks: number },
+): Promise<ExamOpsMarksPair> {
+  const result = await gatewayFetch<ExamOpsMarksPair>(
+    `/examinations/${examinationId}/marks/resolve`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function listExamReevaluations(
+  examinationId: string,
+): Promise<ExamOpsReevaluation[]> {
+  const result = await gatewayFetch<{ data: ExamOpsReevaluation[] }>(
+    `/examinations/${examinationId}/reevaluations`,
+    { throwOnError: false, next: { revalidate: 0 } },
+  );
+  return result.data?.data ?? [];
+}
+
+export async function createExamReevaluation(
+  examinationId: string,
+  input: { candidateId: string; subjectId: string; originalMarks?: number; notes?: string },
+): Promise<ExamOpsReevaluation> {
+  const result = await gatewayFetch<ExamOpsReevaluation>(
+    `/examinations/${examinationId}/reevaluations`,
+    { method: 'POST', json: input },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function assignExamReevaluation(
+  examinationId: string,
+  requestId: string,
+  evaluatorId: string,
+): Promise<ExamOpsReevaluation> {
+  const result = await gatewayFetch<ExamOpsReevaluation>(
+    `/examinations/${examinationId}/reevaluations/${requestId}/assign`,
+    { method: 'POST', json: { evaluatorId } },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}
+
+export async function completeExamReevaluation(
+  examinationId: string,
+  requestId: string,
+  revisedMarks: number,
+  notes?: string,
+): Promise<ExamOpsReevaluation> {
+  const result = await gatewayFetch<ExamOpsReevaluation>(
+    `/examinations/${examinationId}/reevaluations/${requestId}/complete`,
+    { method: 'POST', json: { revisedMarks, notes } },
+  );
+  if (!result.data) throw new Error('Empty response from examination-service');
+  return result.data;
+}

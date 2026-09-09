@@ -25,6 +25,7 @@ export function ExamTabs({ examId, candidateCount }: ExamTabsProps) {
     { key: 'candidates', href: `${base}/candidates`, label: 'Candidates', count: candidateCount },
     { key: 'results', href: `${base}/results`, label: 'Results' },
     { key: 'documents', href: `${base}/documents`, label: 'Documents' },
+    { key: 'ops', href: `${base}/ops`, label: 'Exam ops' },
   ];
 
   return (
