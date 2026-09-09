@@ -11,7 +11,6 @@ import {
   CreditCard,
   GraduationCap,
   Home,
-  Library,
   MessageSquare,
   ShieldCheck,
   type LucideIcon,
@@ -63,13 +62,6 @@ const PARENT_NAV: readonly ParentNavItem[] = [
     href: '/parent/homework',
     Icon: BookOpen,
     match: (pathname) => pathname.startsWith('/parent/homework'),
-  },
-  {
-    key: 'library',
-    label: 'Library',
-    href: '/parent/library',
-    Icon: Library,
-    match: (pathname) => pathname.startsWith('/parent/library'),
   },
   {
     key: 'calendar',

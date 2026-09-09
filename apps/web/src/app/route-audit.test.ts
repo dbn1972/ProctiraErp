@@ -86,7 +86,6 @@ describe('G-727 App Router route audit', () => {
       '/parent/homework',
       '/parent/calendar',
       '/parent/notices',
-      '/parent/library',
       '/student',
       '/student/attendance',
       '/student/grades',
@@ -95,7 +94,6 @@ describe('G-727 App Router route audit', () => {
       '/student/calendar',
       '/student/notices',
       '/student/pal',
-      '/student/library',
     ]) {
       expect(ROUTES.has(required), `${required} missing from src/app`).toBe(true);
     }

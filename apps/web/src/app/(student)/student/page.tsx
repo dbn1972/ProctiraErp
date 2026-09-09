@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bell, BookOpen, Brain, CalendarDays, ClipboardList, Clock, GraduationCap, Library } from 'lucide-react';
+import { Bell, BookOpen, Brain, CalendarDays, ClipboardList, Clock, GraduationCap } from 'lucide-react';
 
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
@@ -11,7 +11,6 @@ const LINKS = [
   { href: '/student/grades', label: 'Grades', Icon: GraduationCap, hint: 'Published marks' },
   { href: '/student/timetable', label: 'Timetable', Icon: Clock, hint: 'Class meetings' },
   { href: '/student/homework', label: 'Homework', Icon: BookOpen, hint: 'Work that is due' },
-  { href: '/student/library', label: 'Library', Icon: Library, hint: 'Catalogue, loans, holds' },
   { href: '/student/calendar', label: 'Calendar', Icon: CalendarDays, hint: 'Holidays and events' },
   { href: '/student/notices', label: 'Notices', Icon: Bell, hint: 'School announcements' },
   { href: '/student/pal', label: 'PAL plan', Icon: Brain, hint: 'Today’s practice plan' },
