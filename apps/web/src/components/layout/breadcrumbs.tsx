@@ -33,7 +33,10 @@ export function Breadcrumbs() {
       <ol className="flex items-center text-sm text-muted-foreground" role="list">
         {/* Home link */}
         <li>
-          <Link href="/" className="hover:text-foreground">
+          <Link
+            href="/"
+            className="inline-flex min-h-11 min-w-11 items-center justify-center hover:text-foreground"
+          >
             {t('home')}
           </Link>
         </li>
@@ -47,7 +50,10 @@ export function Breadcrumbs() {
                 {crumb.label}
               </span>
             ) : (
-              <Link href={crumb.href} className="hover:text-foreground">
+              <Link
+                href={crumb.href}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center hover:text-foreground"
+              >
                 {crumb.label}
               </Link>
             )}

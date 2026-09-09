@@ -82,7 +82,7 @@ export function SeatMatrixPanel({
                 id="seat-institution"
                 name="institutionId"
                 data-testid="seat-institution"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={institutions[0]?.id ?? ''}
               >
@@ -98,7 +98,7 @@ export function SeatMatrixPanel({
                 id="seat-period"
                 name="academicPeriodId"
                 data-testid="seat-period"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={periods[0]?.id ?? ''}
               >
@@ -114,7 +114,7 @@ export function SeatMatrixPanel({
                 id="seat-grade"
                 name="gradeId"
                 data-testid="seat-grade"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={grades[0]?.id ?? ''}
               >

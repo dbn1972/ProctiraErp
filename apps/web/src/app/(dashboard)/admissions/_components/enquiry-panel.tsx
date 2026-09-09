@@ -94,7 +94,7 @@ export function EnquiryPanel({
                 id="enq-institution"
                 name="institutionId"
                 data-testid="enquiry-institution"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={institutions[0]?.id ?? ''}
               >
@@ -110,7 +110,7 @@ export function EnquiryPanel({
                 id="enq-period"
                 name="academicPeriodId"
                 data-testid="enquiry-period"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={periods[0]?.id ?? ''}
               >
@@ -126,7 +126,7 @@ export function EnquiryPanel({
                 id="enq-grade"
                 name="gradeId"
                 data-testid="enquiry-grade"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={grades[0]?.id ?? ''}
               >
@@ -190,7 +190,7 @@ export function EnquiryPanel({
                 id="enq-source"
                 name="source"
                 data-testid="enquiry-source"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue="other"
               >
@@ -284,7 +284,7 @@ export function EnquiryPanel({
                         name="stage"
                         data-testid="enquiry-stage"
                         defaultValue={row.stage}
-                        className="mt-1 flex h-10 rounded-md border border-input bg-background px-2 text-sm"
+                        className="mt-1 flex h-10 min-h-11 rounded-md border border-input bg-background px-2 text-sm"
                         disabled={!hydrated || pending}
                       >
                         {['new', 'contacted', 'qualified', 'applied', 'lost', 'waitlisted'].map(

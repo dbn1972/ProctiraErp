@@ -527,3 +527,94 @@ test.describe('Property F-5: Touch Target Minimum — public surfaces (no backen
     }
   });
 });
+
+// ────────────────────────────────────────────────────────────────────
+// Wave 9 routes — deterministic (every route, desktop 44px + mobile 48px)
+// The property tests above sample STANDARD_ROUTES; the gap-closure slice
+// gets explicit per-route coverage so the evidence is not sampling-dependent.
+// ────────────────────────────────────────────────────────────────────
+
+const WAVE9_ROUTES = [
+  '/fees/structures',
+  '/fees/reports',
+  '/admissions/enquiries',
+  '/admissions/seat-matrix',
+  '/admissions/merit',
+  '/assessments/outcomes',
+  '/assessments/report-cards',
+  '/parent/attendance',
+  '/parent/grades',
+  '/parent/timetable',
+  '/parent/homework',
+  '/parent/calendar',
+  '/parent/notices',
+  '/student',
+  '/student/attendance',
+  '/student/grades',
+  '/student/timetable',
+  '/student/homework',
+  '/student/calendar',
+  '/student/notices',
+  '/student/pal',
+] as const;
+
+function formatViolations(violations: TouchTargetViolation[]): string {
+  return violations
+    .slice(0, 8)
+    .map(
+      (v) =>
+        `  • ${v.selector} "${v.text}" — ${v.width}×${v.height}px (min: ${v.minDimension}px < ${v.threshold}px)`,
+    )
+    .join('\n');
+}
+
+test.describe('Wave 9 routes — touch targets (E2E_BACKEND_READY=1)', () => {
+  test.skip(
+    !BACKEND_READY,
+    'E2E_BACKEND_READY is not set; skipping live-backend touch-target tests.',
+  );
+
+  for (const route of WAVE9_ROUTES) {
+    test(`${route} — desktop interactive elements ≥ ${MIN_TARGET_SIZE_STANDARD}px`, async ({
+      page,
+    }) => {
+      await loginAsTenantAdmin(page);
+      const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
+      expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
+      // `networkidle` never settles under `next dev` (HMR); wait for load + a short settle.
+      await page.waitForLoadState('load').catch(() => {});
+      await page.waitForTimeout(750);
+      const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_STANDARD, route);
+      expect(
+        violations,
+        `Touch targets on ${route}:\n${formatViolations(violations)}`,
+      ).toHaveLength(0);
+    });
+
+    test(`${route} — mobile interactive elements ≥ ${MIN_TARGET_SIZE_MOBILE}px`, async ({
+      browser,
+    }) => {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        isMobile: true,
+        hasTouch: true,
+      });
+      const page = await context.newPage();
+      try {
+        await loginAsTenantAdmin(page);
+        const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
+        expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
+        // `networkidle` never settles under `next dev` (HMR); wait for load + a short settle.
+        await page.waitForLoadState('load').catch(() => {});
+        await page.waitForTimeout(750);
+        const violations = await findTouchTargetViolations(page, MIN_TARGET_SIZE_MOBILE, route);
+        expect(
+          violations,
+          `Mobile touch targets on ${route}:\n${formatViolations(violations)}`,
+        ).toHaveLength(0);
+      } finally {
+        await context.close();
+      }
+    });
+  }
+});

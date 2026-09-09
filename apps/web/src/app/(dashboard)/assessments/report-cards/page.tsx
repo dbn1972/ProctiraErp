@@ -106,7 +106,7 @@ export default async function AssessmentReportCardsPage() {
                       </td>
                       <td className="py-2">
                         <Link
-                          className="text-sm font-medium text-primary hover:underline"
+                          className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
                           href={`/institutions/${row.section.institutionId}/gradebook?sectionId=${row.section.id}`}
                         >
                           Gradebook
@@ -119,7 +119,10 @@ export default async function AssessmentReportCardsPage() {
             </div>
           )}
           <p className="text-sm text-muted-foreground">
-            <Link href="/students/records" className="font-medium text-primary hover:underline">
+            <Link
+              href="/students/records"
+              className="inline-flex min-h-11 items-center font-medium text-primary hover:underline"
+            >
               Student records
             </Link>
             {' · '}

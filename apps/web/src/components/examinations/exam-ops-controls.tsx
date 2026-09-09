@@ -121,7 +121,7 @@ export function RegisterCandidateDialog({ examination }: { examination: Examinat
                 id="candidate-center"
                 name="centerId"
                 required
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 defaultValue={examination.centers[0]?.id ?? ''}
               >
                 {examination.centers.map((center) => (

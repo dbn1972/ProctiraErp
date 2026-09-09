@@ -68,7 +68,7 @@ export function Header() {
           <button
             type="button"
             onClick={handleLogout}
-            className="text-sm text-gray-500 hover:text-gray-700 dark:text-muted-foreground dark:hover:text-foreground"
+            className="inline-flex min-h-11 items-center rounded-md px-2 text-sm text-muted-foreground hover:text-foreground"
           >
             {t('logout')}
           </button>

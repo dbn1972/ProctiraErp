@@ -197,7 +197,7 @@ export function AddClassSectionDialog({
                   id="section-grade"
                   name="gradeId"
                   required
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   defaultValue={grades[0]?.id}
                 >
                   {grades
@@ -216,7 +216,7 @@ export function AddClassSectionDialog({
                   id="section-period"
                   name="academicPeriodId"
                   required
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   defaultValue={activePeriod?.id}
                 >
                   {periods.map((p) => (

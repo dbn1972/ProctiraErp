@@ -89,7 +89,7 @@ export function NewFeePlanForm() {
             <select
               id="plan-frequency"
               name="frequency"
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               defaultValue="term"
               disabled={!hydrated || pending}
             >

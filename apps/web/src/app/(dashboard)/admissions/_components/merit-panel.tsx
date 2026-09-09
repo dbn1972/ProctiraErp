@@ -82,7 +82,7 @@ export function MeritPanel({
                 id="merit-institution"
                 name="institutionId"
                 data-testid="merit-institution"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={institutions[0]?.id ?? ''}
               >
@@ -98,7 +98,7 @@ export function MeritPanel({
                 id="merit-period"
                 name="academicPeriodId"
                 data-testid="merit-period"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={periods[0]?.id ?? ''}
               >
@@ -114,7 +114,7 @@ export function MeritPanel({
                 id="merit-grade"
                 name="gradeId"
                 data-testid="merit-grade"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 disabled={!hydrated || pending}
                 defaultValue={grades[0]?.id ?? ''}
               >

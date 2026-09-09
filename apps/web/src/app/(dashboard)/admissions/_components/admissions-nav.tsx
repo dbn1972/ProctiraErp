@@ -16,7 +16,7 @@ export function AdmissionsNav({ current }: { current: string }) {
           <Link
             key={link.href}
             href={link.href}
-            className={`inline-flex min-h-10 items-center rounded-md px-3 text-sm ${
+            className={`inline-flex min-h-11 items-center rounded-md px-3 text-sm ${
               active
                 ? 'bg-primary text-primary-foreground'
                 : 'border border-border text-foreground hover:bg-muted'

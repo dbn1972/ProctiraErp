@@ -51,7 +51,7 @@ export function OutcomeCreateForm({
           name="subjectId"
           required
           defaultValue={defaultSubjectId}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          className="h-10 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
           data-testid="outcome-subject"
         >
           <option value="">Select subject</option>

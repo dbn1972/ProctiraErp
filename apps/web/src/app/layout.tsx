@@ -185,7 +185,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           dangerouslySetInnerHTML={{ __html: getThemeBootScript() }}
         />
       </head>
-      <body className="min-h-screen bg-background font-sans text-foreground antialiased">
+      <body className="touch-controls min-h-screen bg-background font-sans text-foreground antialiased">
         <ServiceWorkerRegister />
         <BrandConfigProvider>
           <LanguageProvider

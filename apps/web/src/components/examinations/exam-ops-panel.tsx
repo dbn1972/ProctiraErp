@@ -127,7 +127,7 @@ export function ExamOpsPanel({
                 id="ops-subject"
                 name="subjectId"
                 required
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 defaultValue={examination.subjects[0]?.id ?? ''}
               >
                 {examination.subjects.map((subject) => (
@@ -158,7 +158,7 @@ export function ExamOpsPanel({
               <select
                 id="ops-center"
                 name="centerId"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 defaultValue={examination.centers[0]?.id ?? ''}
               >
                 {examination.centers.map((center) => (
@@ -329,7 +329,7 @@ export function ExamOpsPanel({
               <select
                 id="marks-subject"
                 name="subjectId"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 defaultValue={examination.subjects[0]?.id ?? ''}
               >
                 {examination.subjects.map((subject) => (
@@ -344,7 +344,7 @@ export function ExamOpsPanel({
               <select
                 id="marks-entry"
                 name="entryNo"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 defaultValue="1"
               >
                 <option value="1">First</option>
@@ -473,7 +473,7 @@ export function ExamOpsPanel({
               <select
                 id="reeval-subject"
                 name="subjectId"
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="flex h-9 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
                 defaultValue={examination.subjects[0]?.id ?? ''}
               >
                 {examination.subjects.map((subject) => (
