@@ -215,7 +215,12 @@ export function NewAssignmentForm({
                         ? 'kindHomework'
                         : 'kindQuiz',
                   )}
-                  <span className="block text-xs font-normal text-muted-foreground">
+                  <span
+                    className={cn(
+                      'block text-xs font-normal',
+                      kind === k ? 'text-primary' : 'text-muted-foreground',
+                    )}
+                  >
                     {t(
                       k === 'assignment'
                         ? 'kindAssignmentHint'
@@ -320,7 +325,12 @@ export function NewAssignmentForm({
                 )}
               >
                 {s === 'school' ? t('scopeSchool') : t('scopeBoard')}
-                <span className="block text-xs font-normal text-muted-foreground">
+                <span
+                  className={cn(
+                    'block text-xs font-normal',
+                    scope === s ? 'text-primary' : 'text-muted-foreground',
+                  )}
+                >
                   {s === 'school' ? t('scopeSchoolHint') : t('scopeBoardHint')}
                 </span>
               </button>
@@ -516,13 +526,13 @@ export function NewAssignmentForm({
                         {errors[`q-${i}-options`] ?? errors[`q-${i}-correct`]}
                       </p>
                     ) : null}
-                    <ul
+                    <div
                       className="space-y-2"
                       role="radiogroup"
                       aria-label={t('fieldCorrectOption')}
                     >
                       {q.options.map((opt, oi) => (
-                        <li key={oi} className="flex items-center gap-2">
+                        <div key={oi} className="flex items-center gap-2">
                           <input
                             type="radio"
                             name={`${formId}-q${i}-correct`}
@@ -562,9 +572,9 @@ export function NewAssignmentForm({
                           >
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
-                        </li>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                     <Button
                       type="button"
                       variant="link"

@@ -112,6 +112,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
 
   test('signed-in dashboard landing is WCAG 2.1 AA clean', async ({ page }) => {
     await setupGatewayTenantSession(page);
+    await page.goto('/');
     await expect(page.getByRole('main')).toBeVisible();
     await runAxe(page, { checkpointLabel: 'dashboard /' });
   });
@@ -253,6 +254,14 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
       await setupGatewayTenantSession(page);
       const response = await page.goto(path, { waitUntil: 'domcontentloaded' });
       expect(response?.status(), `${path} must resolve (seeded institution)`).toBeLessThan(400);
+      if (suffix === '') {
+        // The bare detail route `redirect()`s to /overview after the layout
+        // shell has streamed; settle on the final URL before scanning so the
+        // client-side hop cannot tear down axe's execution context.
+        await page.waitForURL(`**/institutions/${E2E_INSTITUTION_ID}/overview`, {
+          timeout: 20_000,
+        });
+      }
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
       await runAxe(page, { checkpointLabel: path });
     });
@@ -293,6 +302,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     const page = await context.newPage();
     try {
       await setupGatewayTenantSession(page);
+      await page.goto('/');
       await expect(page.getByRole('main')).toBeVisible();
       await runAxe(page, { checkpointLabel: 'mobile shell /' });
     } finally {
