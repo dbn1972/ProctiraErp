@@ -1,15 +1,20 @@
 /**
- * @proctira/backend-library — catalog and circulation.
+ * @proctira/backend-library — catalog, circulation, holds, OPAC, fines (G-916).
  */
 
 export { libraryPlugin } from './library-plugin.js';
 export type { LibraryPluginOptions } from './library-plugin.js';
 
 export { LibraryService } from './library-service.js';
+export type { LibraryFinesPort, LibraryFinesSummary, PlaceHoldInput } from './library-service.js';
 
 export type {
   LibraryItemEntity,
   LibraryLoanEntity,
+  LibraryCopyEntity,
+  LibraryHoldEntity,
+  LibraryFinePolicyEntity,
+  LibraryFineEntity,
   LibraryRepository,
 } from './library-repository.js';
 
@@ -30,6 +35,8 @@ export {
   RenewSchema,
   PatronParamsSchema,
   AssessFineSchema,
+  ImportIsbnSchema,
+  PlaceHoldSchema,
 } from './schemas.js';
 export type {
   CreateLibraryItemInput,
@@ -38,6 +45,7 @@ export type {
   RenewInput,
   PatronParams,
   AssessFineInput,
+  ImportIsbnInput,
 } from './schemas.js';
 
 export type {
@@ -46,6 +54,16 @@ export type {
   LibraryFineInvoiceResult,
 } from './fees-ledger-port.js';
 export { InMemoryFeesLedgerPort } from './fees-ledger-port.js';
+
+export {
+  createIsbnLookup,
+  StubIsbnLookup,
+  OpenLibraryIsbnLookup,
+  normalizeIsbn,
+} from './isbn-lookup.js';
+export type { IsbnLookup, IsbnLookupResult } from './isbn-lookup.js';
+
+export { computeFineCents, overdueDaysSince, HOLD_READY_MS } from './library-ops.js';
 
 export { registerLibraryRoutes } from './routes.js';
 export type { LibraryRoutesOptions } from './routes.js';

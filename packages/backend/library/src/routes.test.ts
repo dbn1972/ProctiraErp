@@ -139,4 +139,43 @@ describe('Library Routes', () => {
       expect(response.json().openLoanCount).toBe(0);
     });
   });
+
+  describe('G-916 OPAC, holds, barcode, fines', () => {
+    it('searches OPAC and looks up a copy by barcode', async () => {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/library/items',
+        payload: { title: 'OPAC Physics', author: 'Feynman', copies: 1 },
+      });
+      expect(created.statusCode).toBe(201);
+      const item = created.json();
+
+      const opac = await app.inject({ method: 'GET', url: '/library/opac/search?q=Physics' });
+      expect(opac.statusCode).toBe(200);
+      expect(opac.json().data.some((row: { title: string }) => row.title.includes('Physics'))).toBe(
+        true,
+      );
+
+      const copies = (await app.inject({ method: 'GET', url: `/library/items/${item.id}` })).json()
+        .copies as Array<{ barcode: string }>;
+      expect(copies.length).toBe(1);
+
+      const lookup = await app.inject({
+        method: 'GET',
+        url: `/library/copies/by-barcode?barcode=${encodeURIComponent(copies[0]!.barcode)}`,
+      });
+      expect(lookup.statusCode).toBe(200);
+      expect(lookup.json().copy.itemId).toBe(item.id);
+    });
+
+    it('imports a title from the stub ISBN provider', async () => {
+      const imported = await app.inject({
+        method: 'POST',
+        url: '/library/items/import-isbn',
+        payload: { isbn: '9780134685991', copies: 1 },
+      });
+      expect(imported.statusCode).toBe(201);
+      expect(imported.json().title).toBe('Introduction to Algorithms');
+    });
+  });
 });
