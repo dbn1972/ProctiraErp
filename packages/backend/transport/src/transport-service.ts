@@ -13,6 +13,9 @@ import { ConflictError, NotFoundError, BusinessRuleError } from '@proctira/commo
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
+import { evaluateTransportAlerts, osmDeepLink } from './alert-evaluator.js';
+import { generateDeviceId, generateDeviceKey, hashDeviceKey } from './device-key.js';
+import type { TransportFeesPort } from './fees-port.js';
 import {
   BUS_ATTENDANCE_STUB_HONESTY_NOTE,
   GPS_STUB_HONESTY_NOTE,
@@ -31,6 +34,12 @@ import type {
   UpdateStudentAssignmentInput,
   RecordGpsPingInput,
   RecordBusAttendanceInput,
+  IngestGpsBatchInput,
+  RegisterVehicleDeviceInput,
+  UpsertBusAttendanceInput,
+  CreateAlertRuleInput,
+  EvaluateAlertsInput,
+  CreateTransportFeeStructureInput,
 } from './schemas.js';
 import type {
   TransportRouteEntity,
@@ -43,7 +52,14 @@ import type {
   DriverAssignmentFilter,
   StudentAssignmentFilter,
   TransportRepository,
+  TripDirection,
 } from './transport-repository.js';
+
+export const GPS_LIVE_HONESTY_NOTE =
+  'Live map uses last ingested ping per vehicle projected onto an inline SVG (no MapLibre/Leaflet). Each marker links to OpenStreetMap. GPS ingest requires a tenant JWT plus X-Transport-Device-Key; anonymous device-only ingest is not enabled because FORCE RLS needs app.tenant_id.';
+
+export const TRANSPORT_FEE_PENDING_NOTE =
+  'FeesService was not injected; a pending transport_fee_links row was recorded instead of an invoice.';
 
 /**
  * Service handling transport business logic.
@@ -54,6 +70,7 @@ export class TransportService {
   constructor(
     private readonly repository: TransportRepository,
     gpsAttendance?: GpsAttendanceStubStore,
+    private readonly fees?: TransportFeesPort,
   ) {
     this.gpsAttendance = gpsAttendance ?? new GpsAttendanceStubStore();
   }
@@ -509,6 +526,7 @@ export class TransportService {
   async createStudentAssignment(
     tenantId: string,
     input: CreateStudentAssignmentInput,
+    actorId = 'transport',
   ): Promise<StudentRouteAssignmentEntity> {
     // Validate route exists and is active
     const route = await this.repository.findRouteById(input.routeId, tenantId);
@@ -553,7 +571,9 @@ export class TransportService {
       isActive: true,
     };
 
-    return this.repository.createStudentAssignment(assignment);
+    const created = await this.repository.createStudentAssignment(assignment);
+    await this.linkTransportFee(tenantId, actorId, created);
+    return created;
   }
 
   /**
@@ -671,5 +691,455 @@ export class TransportService {
       mode: 'sandbox' as const,
       honestyNote: BUS_ATTENDANCE_STUB_HONESTY_NOTE,
     };
+  }
+
+  // ─── Wave 9 / G-920 ops ──────────────────────────────────────────────────
+
+  async listAllStops(tenantId: string) {
+    return this.repository.listAllStops(tenantId);
+  }
+
+  async registerVehicleDevice(
+    tenantId: string,
+    vehicleId: string,
+    input: RegisterVehicleDeviceInput = {},
+  ) {
+    await this.getVehicleById(tenantId, vehicleId);
+    const existing = await this.repository.findDeviceByVehicleId(vehicleId, tenantId);
+    if (existing) {
+      throw new ConflictError('Vehicle already has an active GPS device. Rotate by deactivating first.');
+    }
+    const plaintext = generateDeviceKey();
+    const deviceId = input.deviceId?.trim() || generateDeviceId();
+    const taken = await this.repository.findDeviceByDeviceId(deviceId, tenantId);
+    if (taken) {
+      throw new ConflictError(`Device id '${deviceId}' is already registered`);
+    }
+    const device = await this.repository.registerVehicleDevice({
+      id: uuidv4(),
+      tenantId,
+      vehicleId,
+      deviceId,
+      deviceKeyHash: hashDeviceKey(plaintext),
+      isActive: true,
+    });
+    return {
+      id: device.id,
+      vehicleId: device.vehicleId,
+      deviceId: device.deviceId,
+      deviceKey: plaintext,
+      honestyNote:
+        'Store the device key now — only the SHA-256 hash is persisted. Send it as X-Transport-Device-Key on POST /transport/gps.',
+    };
+  }
+
+  async ingestGpsBatch(
+    tenantId: string,
+    deviceKey: string | undefined,
+    input: IngestGpsBatchInput,
+  ) {
+    if (!deviceKey) {
+      throw new BusinessRuleError('X-Transport-Device-Key header is required');
+    }
+    const device = await this.repository.findDeviceByDeviceId(input.deviceId, tenantId);
+    if (!device || hashDeviceKey(deviceKey) !== device.deviceKeyHash) {
+      throw new NotFoundError('Unknown device or invalid device key');
+    }
+    await this.getVehicleById(tenantId, device.vehicleId);
+    const results = [];
+    for (const ping of input.pings) {
+      const recordedAt = ping.recordedAt ? new Date(ping.recordedAt) : new Date();
+      const stored = await this.repository.ingestGpsPing({
+        id: uuidv4(),
+        tenantId,
+        vehicleId: device.vehicleId,
+        deviceId: device.deviceId,
+        pingId: ping.pingId,
+        latitude: ping.latitude,
+        longitude: ping.longitude,
+        recordedAt,
+        speedKph: ping.speedKph ?? null,
+        headingDeg: ping.headingDeg ?? null,
+      });
+      this.gpsAttendance.recordGpsPing({
+        tenantId,
+        vehicleId: device.vehicleId,
+        latitude: ping.latitude,
+        longitude: ping.longitude,
+        recordedAt,
+        speedKph: ping.speedKph,
+        headingDeg: ping.headingDeg,
+      });
+      results.push({
+        ...stored.ping,
+        duplicate: stored.duplicate,
+        osmUrl: osmDeepLink(stored.ping.latitude, stored.ping.longitude),
+      });
+    }
+    return { data: results, vehicleId: device.vehicleId, deviceId: device.deviceId };
+  }
+
+  async getLiveMap(tenantId: string) {
+    const [vehicles, pings, stops] = await Promise.all([
+      this.repository.listVehicles(tenantId, {}, { page: 1, pageSize: 100 }),
+      this.repository.listLatestGpsPingPerVehicle(tenantId),
+      this.repository.listAllStops(tenantId),
+    ]);
+    const vehicleById = new Map(vehicles.data.map((v) => [v.id, v]));
+    return {
+      honestyNote: GPS_LIVE_HONESTY_NOTE,
+      vehicles: pings.map((p) => ({
+        vehicleId: p.vehicleId,
+        registrationNumber: vehicleById.get(p.vehicleId)?.registrationNumber ?? null,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        recordedAt: p.recordedAt,
+        speedKph: p.speedKph,
+        headingDeg: p.headingDeg,
+        osmUrl: osmDeepLink(p.latitude, p.longitude),
+      })),
+      stops: stops
+        .filter((s) => s.latitude != null && s.longitude != null)
+        .map((s) => ({
+          id: s.id,
+          routeId: s.routeId,
+          name: s.name,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          stopOrder: s.stopOrder,
+          pickupTime: s.pickupTime,
+          dropoffTime: s.dropoffTime,
+          osmUrl: osmDeepLink(s.latitude as number, s.longitude as number),
+        })),
+    };
+  }
+
+  async upsertTripAttendance(
+    tenantId: string,
+    input: UpsertBusAttendanceInput,
+    actorId = 'transport',
+  ) {
+    await this.getRouteById(tenantId, input.routeId);
+    if (input.stopId) {
+      const stop = await this.repository.findStopById(input.stopId, tenantId);
+      if (!stop) {
+        throw new NotFoundError(`Route stop with id '${input.stopId}' not found`);
+      }
+      if (stop.routeId !== input.routeId) {
+        throw new BusinessRuleError('The specified stop does not belong to the specified route');
+      }
+    }
+    return this.repository.upsertBusAttendance({
+      id: uuidv4(),
+      tenantId,
+      routeId: input.routeId,
+      tripDate: input.tripDate,
+      direction: input.direction,
+      studentId: input.studentId,
+      stopId: input.stopId ?? null,
+      status: input.status,
+      recordedAt: new Date(),
+      recordedBy: actorId,
+    });
+  }
+
+  async getTripAttendance(
+    tenantId: string,
+    filter: { routeId: string; tripDate: string; direction: TripDirection },
+  ) {
+    await this.getRouteById(tenantId, filter.routeId);
+    const [rows, assignments] = await Promise.all([
+      this.repository.listBusAttendanceTrip(tenantId, filter),
+      this.repository.listStudentAssignments(
+        tenantId,
+        { routeId: filter.routeId, isActive: true },
+        { page: 1, pageSize: 200 },
+      ),
+    ]);
+    const boarded = rows.filter((r) => r.status === 'boarded').length;
+    const alighted = rows.filter((r) => r.status === 'alighted').length;
+    const absent = rows.filter((r) => r.status === 'absent').length;
+    return {
+      data: rows,
+      assigned: assignments.meta.totalItems,
+      summary: {
+        boarded,
+        alighted,
+        absent,
+        unmarked: Math.max(0, assignments.meta.totalItems - rows.length),
+      },
+    };
+  }
+
+  async createAlertRule(tenantId: string, input: CreateAlertRuleInput) {
+    if (input.routeId) {
+      await this.getRouteById(tenantId, input.routeId);
+    }
+    return this.repository.createAlertRule({
+      id: uuidv4(),
+      tenantId,
+      kind: input.kind,
+      threshold: input.threshold,
+      channels: input.channels ?? [],
+      routeId: input.routeId ?? null,
+      isActive: true,
+    });
+  }
+
+  async listAlertRules(tenantId: string) {
+    return this.repository.listAlertRules(tenantId);
+  }
+
+  async evaluateAlerts(
+    tenantId: string,
+    input: EvaluateAlertsInput = {},
+    now = new Date(),
+  ) {
+    const tripDate = input.tripDate ?? now.toISOString().slice(0, 10);
+    const [rules, pings, stops, routes, assignments] = await Promise.all([
+      this.repository.listAlertRules(tenantId),
+      this.repository.listLatestGpsPingPerVehicle(tenantId),
+      this.repository.listAllStops(tenantId),
+      this.repository.listRoutes(tenantId, {}, { page: 1, pageSize: 100 }),
+      this.repository.listStudentAssignments(
+        tenantId,
+        { routeId: input.routeId, isActive: true },
+        { page: 1, pageSize: 500 },
+      ),
+    ]);
+    const driverAssignments = await this.repository.listDriverAssignments(
+      tenantId,
+      { isActive: true },
+      { page: 1, pageSize: 200 },
+    );
+    const routeByVehicle = new Map(
+      driverAssignments.data
+        .filter((d) => d.routeId)
+        .map((d) => [d.vehicleId, d.routeId as string]),
+    );
+    const attendance = input.routeId
+      ? await this.repository.listBusAttendanceTrip(tenantId, {
+          routeId: input.routeId,
+          tripDate,
+          direction: 'pickup',
+        })
+      : [];
+    const drafts = evaluateTransportAlerts({
+      now,
+      tripDate,
+      pings: pings.map((p) => ({
+        vehicleId: p.vehicleId,
+        routeId: routeByVehicle.get(p.vehicleId) ?? null,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        recordedAt: p.recordedAt,
+      })),
+      stops: stops.map((s) => ({
+        id: s.id,
+        routeId: s.routeId,
+        latitude: s.latitude,
+        longitude: s.longitude,
+        pickupTime: s.pickupTime,
+      })),
+      rules: rules.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        threshold: Number(r.threshold),
+        routeId: r.routeId,
+        isActive: r.isActive,
+      })),
+      attendance: attendance.map((a) => ({
+        studentId: a.studentId,
+        routeId: a.routeId,
+        status: a.status,
+        stopId: a.stopId,
+      })),
+      assignments: assignments.data.map((a) => ({
+        studentId: a.studentId,
+        routeId: a.routeId,
+        stopId: a.stopId,
+      })),
+      routeDeparture: Object.fromEntries(routes.data.map((r) => [r.id, r.departureTime])),
+    });
+    const created = [];
+    for (const draft of drafts) {
+      const alert = await this.repository.createAlert({
+        id: uuidv4(),
+        tenantId,
+        ruleId: draft.ruleId,
+        kind: draft.kind,
+        vehicleId: draft.vehicleId,
+        routeId: draft.routeId,
+        studentId: draft.studentId,
+        message: draft.message,
+        payload: draft.payload,
+        acknowledgedAt: null,
+        acknowledgedBy: null,
+      });
+      created.push(alert);
+    }
+    return { data: created, evaluated: drafts.length };
+  }
+
+  async listAlerts(tenantId: string) {
+    return this.repository.listAlerts(tenantId);
+  }
+
+  async acknowledgeAlert(tenantId: string, id: string, actorId: string) {
+    const updated = await this.repository.acknowledgeAlert(id, tenantId, actorId);
+    if (!updated) {
+      throw new NotFoundError(`Alert with id '${id}' not found`);
+    }
+    return updated;
+  }
+
+  async createTransportFeeStructure(
+    tenantId: string,
+    input: CreateTransportFeeStructureInput,
+    actorId = 'transport',
+  ) {
+    if (input.routeId) await this.getRouteById(tenantId, input.routeId);
+    if (input.stopId) {
+      const stop = await this.repository.findStopById(input.stopId, tenantId);
+      if (!stop) throw new NotFoundError(`Route stop with id '${input.stopId}' not found`);
+    }
+    let feesStructureId: string | null = null;
+    if (this.fees) {
+      const fees = await this.fees.createFeeStructure(tenantId, actorId, {
+        name: input.name,
+        category: 'transport',
+        amountCents: input.amountCents,
+        currency: input.currency,
+      });
+      feesStructureId = fees.id;
+    }
+    return this.repository.createTransportFeeStructure({
+      id: uuidv4(),
+      tenantId,
+      name: input.name,
+      routeId: input.routeId ?? null,
+      stopId: input.stopId ?? null,
+      minDistanceKm: input.minDistanceKm ?? null,
+      maxDistanceKm: input.maxDistanceKm ?? null,
+      amountCents: input.amountCents,
+      currency: input.currency ?? 'INR',
+      feesStructureId,
+      isActive: true,
+    });
+  }
+
+  async listTransportFeeStructures(tenantId: string) {
+    return this.repository.listTransportFeeStructures(tenantId);
+  }
+
+  async listFeeLinks(tenantId: string) {
+    return this.repository.listFeeLinks(tenantId);
+  }
+
+  private matchFeeBand(
+    bands: Awaited<ReturnType<TransportRepository['listTransportFeeStructures']>>,
+    assignment: StudentRouteAssignmentEntity,
+    routeDistanceKm: number | null,
+  ) {
+    const active = bands.filter((b) => b.isActive);
+    const byStop = assignment.stopId
+      ? active.find((b) => b.stopId === assignment.stopId)
+      : undefined;
+    if (byStop) return byStop;
+    const byRoute = active.find((b) => b.routeId === assignment.routeId && !b.stopId);
+    if (byRoute) {
+      if (routeDistanceKm != null && (byRoute.minDistanceKm != null || byRoute.maxDistanceKm != null)) {
+        const min = byRoute.minDistanceKm ?? 0;
+        const max = byRoute.maxDistanceKm ?? Number.POSITIVE_INFINITY;
+        if (routeDistanceKm >= min && routeDistanceKm <= max) return byRoute;
+      } else {
+        return byRoute;
+      }
+    }
+    return active.find((b) => !b.routeId && !b.stopId) ?? null;
+  }
+
+  private async linkTransportFee(
+    tenantId: string,
+    actorId: string,
+    assignment: StudentRouteAssignmentEntity,
+  ) {
+    const existing = await this.repository.findFeeLinkByAssignment(assignment.id, tenantId);
+    if (existing) return existing;
+    const [bands, route] = await Promise.all([
+      this.repository.listTransportFeeStructures(tenantId),
+      this.repository.findRouteById(assignment.routeId, tenantId),
+    ]);
+    const band = this.matchFeeBand(bands, assignment, route?.distanceKm ?? null);
+    if (!band) {
+      return this.repository.createFeeLink({
+        id: uuidv4(),
+        tenantId,
+        assignmentId: assignment.id,
+        studentId: assignment.studentId,
+        transportFeeStructureId: null,
+        feesInvoiceId: null,
+        feesStructureId: null,
+        status: 'skipped',
+        reason: 'No matching transport fee band for this route/stop',
+      });
+    }
+    if (!this.fees) {
+      return this.repository.createFeeLink({
+        id: uuidv4(),
+        tenantId,
+        assignmentId: assignment.id,
+        studentId: assignment.studentId,
+        transportFeeStructureId: band.id,
+        feesInvoiceId: null,
+        feesStructureId: band.feesStructureId,
+        status: 'pending',
+        reason: TRANSPORT_FEE_PENDING_NOTE,
+      });
+    }
+    let invoiceId: string | null = null;
+    try {
+      if (band.feesStructureId && this.fees.bulkInvoiceClass) {
+        const bulk = await this.fees.bulkInvoiceClass(tenantId, actorId, {
+          structureId: band.feesStructureId,
+          studentIds: [assignment.studentId],
+        });
+        invoiceId = bulk.created[0]?.id ?? null;
+      }
+      if (!invoiceId) {
+        const invoice = await this.fees.createInvoice(tenantId, actorId, {
+          studentId: assignment.studentId,
+          title: `Transport — ${band.name}`,
+          description: 'Stop/route transport fee',
+          amountCents: band.amountCents,
+          currency: band.currency,
+        });
+        invoiceId = invoice.id;
+      }
+      return this.repository.createFeeLink({
+        id: uuidv4(),
+        tenantId,
+        assignmentId: assignment.id,
+        studentId: assignment.studentId,
+        transportFeeStructureId: band.id,
+        feesInvoiceId: invoiceId,
+        feesStructureId: band.feesStructureId,
+        status: 'invoiced',
+        reason: null,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Fees service rejected the invoice';
+      return this.repository.createFeeLink({
+        id: uuidv4(),
+        tenantId,
+        assignmentId: assignment.id,
+        studentId: assignment.studentId,
+        transportFeeStructureId: band.id,
+        feesInvoiceId: null,
+        feesStructureId: band.feesStructureId,
+        status: 'pending',
+        reason: message,
+      });
+    }
   }
 }

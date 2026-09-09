@@ -12,15 +12,26 @@ import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
 import type {
+  AlertRuleEntity,
+  AlertKind,
+  BusAttendanceEntity,
+  BusAttendanceStatus,
   DriverAssignmentEntity,
   DriverAssignmentFilter,
+  GpsPingEntity,
   RouteFilter,
   RouteStopEntity,
   RouteStatus,
   StudentAssignmentFilter,
   StudentRouteAssignmentEntity,
+  TransportAlertEntity,
+  TransportFeeLinkEntity,
+  TransportFeeLinkStatus,
+  TransportFeeStructureEntity,
   TransportRepository,
   TransportRouteEntity,
+  TripDirection,
+  VehicleDeviceEntity,
   VehicleEntity,
   VehicleFilter,
   VehicleStatus,
@@ -47,12 +58,12 @@ export function getSharedTransportPool(): pg.Pool | null {
   return sharedPool;
 }
 
-function schemaSqlPath(): string {
+function resolveSqlFile(name: string): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, '../../../../db/sql/006_transport_schema.sql'),
-    join(process.cwd(), 'db/sql/006_transport_schema.sql'),
-    join(process.cwd(), '../../db/sql/006_transport_schema.sql'),
+    join(here, `../../../../db/sql/${name}`),
+    join(process.cwd(), `db/sql/${name}`),
+    join(process.cwd(), `../../db/sql/${name}`),
   ];
   for (const path of candidates) {
     try {
@@ -71,8 +82,10 @@ export async function ensureTransportSchema(
   if (!pool) throw new Error('DATABASE_URL is required for transport schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
+      for (const name of ['006_transport_schema.sql', '045_transport_ops_schema.sql']) {
+        const sql = readFileSync(resolveSqlFile(name), 'utf8');
+        await pool.query(sql);
+      }
     })();
   }
   await schemaReady;
@@ -179,6 +192,134 @@ function mapStudentAssignmentRow(row: Record<string, unknown>): StudentRouteAssi
     isActive: Boolean(row.is_active),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapDeviceRow(row: Record<string, unknown>): VehicleDeviceEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    vehicleId: String(row.vehicle_id),
+    deviceId: String(row.device_id),
+    deviceKeyHash: String(row.device_key_hash),
+    isActive: Boolean(row.is_active),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapGpsPingRow(row: Record<string, unknown>): GpsPingEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    vehicleId: String(row.vehicle_id),
+    deviceId: String(row.device_id),
+    pingId: String(row.ping_id),
+    latitude: Number(row.latitude),
+    longitude: Number(row.longitude),
+    recordedAt: toDate(row.recorded_at),
+    speedKph: numOrNull(row.speed_kph),
+    headingDeg: numOrNull(row.heading_deg),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapAttendanceRow(row: Record<string, unknown>): BusAttendanceEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    routeId: String(row.route_id),
+    tripDate: dateOnly(row.trip_date)!,
+    direction: String(row.direction) as TripDirection,
+    studentId: String(row.student_id),
+    stopId: row.stop_id == null ? null : String(row.stop_id),
+    status: String(row.status) as BusAttendanceStatus,
+    recordedAt: toDate(row.recorded_at),
+    recordedBy: row.recorded_by == null ? null : String(row.recorded_by),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapAlertRuleRow(row: Record<string, unknown>): AlertRuleEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    kind: String(row.kind) as AlertKind,
+    threshold: Number(row.threshold),
+    channels: stringArray(row.channels),
+    routeId: row.route_id == null ? null : String(row.route_id),
+    isActive: Boolean(row.is_active),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function jsonObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
+function mapAlertRow(row: Record<string, unknown>): TransportAlertEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    ruleId: String(row.rule_id),
+    kind: String(row.kind) as AlertKind,
+    vehicleId: row.vehicle_id == null ? null : String(row.vehicle_id),
+    routeId: row.route_id == null ? null : String(row.route_id),
+    studentId: row.student_id == null ? null : String(row.student_id),
+    message: String(row.message),
+    payload: jsonObject(row.payload),
+    acknowledgedAt: row.acknowledged_at == null ? null : toDate(row.acknowledged_at),
+    acknowledgedBy: row.acknowledged_by == null ? null : String(row.acknowledged_by),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapFeeStructureRow(row: Record<string, unknown>): TransportFeeStructureEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    name: String(row.name),
+    routeId: row.route_id == null ? null : String(row.route_id),
+    stopId: row.stop_id == null ? null : String(row.stop_id),
+    minDistanceKm: numOrNull(row.min_distance_km),
+    maxDistanceKm: numOrNull(row.max_distance_km),
+    amountCents: Number(row.amount_cents),
+    currency: String(row.currency),
+    feesStructureId: row.fees_structure_id == null ? null : String(row.fees_structure_id),
+    isActive: Boolean(row.is_active),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapFeeLinkRow(row: Record<string, unknown>): TransportFeeLinkEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    assignmentId: String(row.assignment_id),
+    studentId: String(row.student_id),
+    transportFeeStructureId:
+      row.transport_fee_structure_id == null ? null : String(row.transport_fee_structure_id),
+    feesInvoiceId: row.fees_invoice_id == null ? null : String(row.fees_invoice_id),
+    feesStructureId: row.fees_structure_id == null ? null : String(row.fees_structure_id),
+    status: String(row.status) as TransportFeeLinkStatus,
+    reason: row.reason == null ? null : String(row.reason),
+    createdAt: toDate(row.created_at),
   };
 }
 
@@ -954,6 +1095,377 @@ export class PgTransportRepository implements TransportRepository {
     );
     if (!result.rows[0]) return null;
     return mapStudentAssignmentRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listAllStops(tenantId: string): Promise<RouteStopEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_stops WHERE tenant_id = $1 ORDER BY route_id, stop_order`,
+      [tenantId],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapStopRow);
+  }
+
+  async registerVehicleDevice(
+    data: Omit<VehicleDeviceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<VehicleDeviceEntity> {
+    await this.ensureSchema();
+    const now = new Date();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_vehicle_devices (
+        id, tenant_id, vehicle_id, device_id, device_key_hash, is_active, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.vehicleId,
+        data.deviceId,
+        data.deviceKeyHash,
+        data.isActive,
+        now,
+        now,
+      ],
+    );
+    return mapDeviceRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async findDeviceByDeviceId(
+    deviceId: string,
+    tenantId: string,
+  ): Promise<VehicleDeviceEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_vehicle_devices
+       WHERE device_id = $1 AND tenant_id = $2 AND is_active = true
+       LIMIT 1`,
+      [deviceId, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapDeviceRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async findDeviceByVehicleId(
+    vehicleId: string,
+    tenantId: string,
+  ): Promise<VehicleDeviceEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_vehicle_devices
+       WHERE vehicle_id = $1 AND tenant_id = $2 AND is_active = true
+       LIMIT 1`,
+      [vehicleId, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapDeviceRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async ingestGpsPing(
+    data: Omit<GpsPingEntity, 'createdAt'>,
+  ): Promise<{ ping: GpsPingEntity; duplicate: boolean }> {
+    await this.ensureSchema();
+    const now = new Date();
+    const inserted = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_gps_pings (
+        id, tenant_id, vehicle_id, device_id, ping_id, latitude, longitude,
+        recorded_at, speed_kph, heading_deg, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      ON CONFLICT (tenant_id, device_id, ping_id) DO NOTHING
+      RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.vehicleId,
+        data.deviceId,
+        data.pingId,
+        data.latitude,
+        data.longitude,
+        data.recordedAt,
+        data.speedKph,
+        data.headingDeg,
+        now,
+      ],
+    );
+    if (inserted.rows[0]) {
+      return { ping: mapGpsPingRow(inserted.rows[0] as Record<string, unknown>), duplicate: false };
+    }
+    const existing = await this.query(
+      data.tenantId,
+      `SELECT * FROM transport_gps_pings
+       WHERE tenant_id = $1 AND device_id = $2 AND ping_id = $3
+       LIMIT 1`,
+      [data.tenantId, data.deviceId, data.pingId],
+    );
+    return { ping: mapGpsPingRow(existing.rows[0] as Record<string, unknown>), duplicate: true };
+  }
+
+  async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_gps_pings
+       WHERE tenant_id = $1 AND vehicle_id = $2
+       ORDER BY recorded_at DESC`,
+      [tenantId, vehicleId],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapGpsPingRow);
+  }
+
+  async listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT DISTINCT ON (vehicle_id) *
+       FROM transport_gps_pings
+       WHERE tenant_id = $1
+       ORDER BY vehicle_id, recorded_at DESC`,
+      [tenantId],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapGpsPingRow);
+  }
+
+  async upsertBusAttendance(
+    data: Omit<BusAttendanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<BusAttendanceEntity> {
+    await this.ensureSchema();
+    const now = new Date();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_bus_attendance (
+        id, tenant_id, route_id, trip_date, direction, student_id, stop_id,
+        status, recorded_at, recorded_by, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      ON CONFLICT (tenant_id, route_id, trip_date, direction, student_id)
+      DO UPDATE SET
+        stop_id = EXCLUDED.stop_id,
+        status = EXCLUDED.status,
+        recorded_at = EXCLUDED.recorded_at,
+        recorded_by = EXCLUDED.recorded_by,
+        updated_at = EXCLUDED.updated_at
+      RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.routeId,
+        data.tripDate,
+        data.direction,
+        data.studentId,
+        data.stopId,
+        data.status,
+        data.recordedAt,
+        data.recordedBy,
+        now,
+        now,
+      ],
+    );
+    return mapAttendanceRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listBusAttendanceTrip(
+    tenantId: string,
+    filter: { routeId: string; tripDate: string; direction: TripDirection },
+  ): Promise<BusAttendanceEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_bus_attendance
+       WHERE tenant_id = $1 AND route_id = $2 AND trip_date = $3 AND direction = $4
+       ORDER BY recorded_at`,
+      [tenantId, filter.routeId, filter.tripDate, filter.direction],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapAttendanceRow);
+  }
+
+  async createAlertRule(
+    data: Omit<AlertRuleEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AlertRuleEntity> {
+    await this.ensureSchema();
+    const now = new Date();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_alert_rules (
+        id, tenant_id, kind, threshold, channels, route_id, is_active, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.kind,
+        data.threshold,
+        data.channels,
+        data.routeId,
+        data.isActive,
+        now,
+        now,
+      ],
+    );
+    return mapAlertRuleRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listAlertRules(tenantId: string): Promise<AlertRuleEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_alert_rules WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapAlertRuleRow);
+  }
+
+  async createAlert(data: Omit<TransportAlertEntity, 'createdAt'>): Promise<TransportAlertEntity> {
+    await this.ensureSchema();
+    const now = new Date();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_alerts (
+        id, tenant_id, rule_id, kind, vehicle_id, route_id, student_id,
+        message, payload, acknowledged_at, acknowledged_by, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.ruleId,
+        data.kind,
+        data.vehicleId,
+        data.routeId,
+        data.studentId,
+        data.message,
+        JSON.stringify(data.payload),
+        data.acknowledgedAt,
+        data.acknowledgedBy,
+        now,
+      ],
+    );
+    return mapAlertRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listAlerts(tenantId: string): Promise<TransportAlertEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_alerts WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapAlertRow);
+  }
+
+  async acknowledgeAlert(
+    id: string,
+    tenantId: string,
+    acknowledgedBy: string,
+  ): Promise<TransportAlertEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `UPDATE transport_alerts
+       SET acknowledged_at = now(), acknowledged_by = $3
+       WHERE id = $1 AND tenant_id = $2
+       RETURNING *`,
+      [id, tenantId, acknowledgedBy],
+    );
+    if (!result.rows[0]) return null;
+    return mapAlertRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async createTransportFeeStructure(
+    data: Omit<TransportFeeStructureEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TransportFeeStructureEntity> {
+    await this.ensureSchema();
+    const now = new Date();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_fee_structures (
+        id, tenant_id, name, route_id, stop_id, min_distance_km, max_distance_km,
+        amount_cents, currency, fees_structure_id, is_active, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.name,
+        data.routeId,
+        data.stopId,
+        data.minDistanceKm,
+        data.maxDistanceKm,
+        data.amountCents,
+        data.currency,
+        data.feesStructureId,
+        data.isActive,
+        now,
+        now,
+      ],
+    );
+    return mapFeeStructureRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listTransportFeeStructures(tenantId: string): Promise<TransportFeeStructureEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_fee_structures WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapFeeStructureRow);
+  }
+
+  async createFeeLink(
+    data: Omit<TransportFeeLinkEntity, 'createdAt'>,
+  ): Promise<TransportFeeLinkEntity> {
+    await this.ensureSchema();
+    const now = new Date();
+    const result = await this.query(
+      data.tenantId,
+      `INSERT INTO transport_fee_links (
+        id, tenant_id, assignment_id, student_id, transport_fee_structure_id,
+        fees_invoice_id, fees_structure_id, status, reason, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      RETURNING *`,
+      [
+        data.id,
+        data.tenantId,
+        data.assignmentId,
+        data.studentId,
+        data.transportFeeStructureId,
+        data.feesInvoiceId,
+        data.feesStructureId,
+        data.status,
+        data.reason,
+        now,
+      ],
+    );
+    return mapFeeLinkRow(result.rows[0] as Record<string, unknown>);
+  }
+
+  async listFeeLinks(tenantId: string): Promise<TransportFeeLinkEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_fee_links WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return (result.rows as Record<string, unknown>[]).map(mapFeeLinkRow);
+  }
+
+  async findFeeLinkByAssignment(
+    assignmentId: string,
+    tenantId: string,
+  ): Promise<TransportFeeLinkEntity | null> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM transport_fee_links
+       WHERE assignment_id = $1 AND tenant_id = $2
+       LIMIT 1`,
+      [assignmentId, tenantId],
+    );
+    if (!result.rows[0]) return null;
+    return mapFeeLinkRow(result.rows[0] as Record<string, unknown>);
   }
 }
 

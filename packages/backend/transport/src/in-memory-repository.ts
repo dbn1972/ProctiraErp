@@ -17,6 +17,14 @@ import type {
   DriverAssignmentFilter,
   StudentAssignmentFilter,
   TransportRepository,
+  VehicleDeviceEntity,
+  GpsPingEntity,
+  BusAttendanceEntity,
+  AlertRuleEntity,
+  TransportAlertEntity,
+  TransportFeeStructureEntity,
+  TransportFeeLinkEntity,
+  TripDirection,
 } from './transport-repository.js';
 
 export class InMemoryTransportRepository implements TransportRepository {
@@ -390,6 +398,200 @@ export class InMemoryTransportRepository implements TransportRepository {
     return (
       Array.from(this.studentAssignments.values()).find(
         (e) => e.tenantId === tenantId && e.studentId === studentId && e.isActive,
+      ) ?? null
+    );
+  }
+
+  private devices: Map<string, VehicleDeviceEntity> = new Map();
+  private gpsPings: Map<string, GpsPingEntity> = new Map();
+  private busAttendance: Map<string, BusAttendanceEntity> = new Map();
+  private alertRules: Map<string, AlertRuleEntity> = new Map();
+  private alerts: Map<string, TransportAlertEntity> = new Map();
+  private feeStructures: Map<string, TransportFeeStructureEntity> = new Map();
+  private feeLinks: Map<string, TransportFeeLinkEntity> = new Map();
+
+  async listAllStops(tenantId: string): Promise<RouteStopEntity[]> {
+    return Array.from(this.stops.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => a.stopOrder - b.stopOrder);
+  }
+
+  async registerVehicleDevice(
+    data: Omit<VehicleDeviceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<VehicleDeviceEntity> {
+    const now = new Date();
+    const entity: VehicleDeviceEntity = { ...data, createdAt: now, updatedAt: now };
+    this.devices.set(entity.id, entity);
+    return entity;
+  }
+
+  async findDeviceByDeviceId(
+    deviceId: string,
+    tenantId: string,
+  ): Promise<VehicleDeviceEntity | null> {
+    return (
+      Array.from(this.devices.values()).find(
+        (e) => e.tenantId === tenantId && e.deviceId === deviceId && e.isActive,
+      ) ?? null
+    );
+  }
+
+  async findDeviceByVehicleId(
+    vehicleId: string,
+    tenantId: string,
+  ): Promise<VehicleDeviceEntity | null> {
+    return (
+      Array.from(this.devices.values()).find(
+        (e) => e.tenantId === tenantId && e.vehicleId === vehicleId && e.isActive,
+      ) ?? null
+    );
+  }
+
+  async ingestGpsPing(
+    data: Omit<GpsPingEntity, 'createdAt'>,
+  ): Promise<{ ping: GpsPingEntity; duplicate: boolean }> {
+    const existing = Array.from(this.gpsPings.values()).find(
+      (e) =>
+        e.tenantId === data.tenantId && e.deviceId === data.deviceId && e.pingId === data.pingId,
+    );
+    if (existing) return { ping: existing, duplicate: true };
+    const ping: GpsPingEntity = { ...data, createdAt: new Date() };
+    this.gpsPings.set(ping.id, ping);
+    return { ping, duplicate: false };
+  }
+
+  async listGpsPingsForVehicle(tenantId: string, vehicleId: string): Promise<GpsPingEntity[]> {
+    return Array.from(this.gpsPings.values())
+      .filter((e) => e.tenantId === tenantId && e.vehicleId === vehicleId)
+      .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime());
+  }
+
+  async listLatestGpsPingPerVehicle(tenantId: string): Promise<GpsPingEntity[]> {
+    const latest = new Map<string, GpsPingEntity>();
+    for (const ping of this.gpsPings.values()) {
+      if (ping.tenantId !== tenantId) continue;
+      const prev = latest.get(ping.vehicleId);
+      if (!prev || ping.recordedAt.getTime() > prev.recordedAt.getTime()) {
+        latest.set(ping.vehicleId, ping);
+      }
+    }
+    return [...latest.values()];
+  }
+
+  async upsertBusAttendance(
+    data: Omit<BusAttendanceEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<BusAttendanceEntity> {
+    const existing = Array.from(this.busAttendance.values()).find(
+      (e) =>
+        e.tenantId === data.tenantId &&
+        e.routeId === data.routeId &&
+        e.tripDate === data.tripDate &&
+        e.direction === data.direction &&
+        e.studentId === data.studentId,
+    );
+    const now = new Date();
+    if (existing) {
+      const updated: BusAttendanceEntity = {
+        ...existing,
+        ...data,
+        id: existing.id,
+        createdAt: existing.createdAt,
+        updatedAt: now,
+      };
+      this.busAttendance.set(existing.id, updated);
+      return updated;
+    }
+    const entity: BusAttendanceEntity = { ...data, createdAt: now, updatedAt: now };
+    this.busAttendance.set(entity.id, entity);
+    return entity;
+  }
+
+  async listBusAttendanceTrip(
+    tenantId: string,
+    filter: { routeId: string; tripDate: string; direction: TripDirection },
+  ): Promise<BusAttendanceEntity[]> {
+    return Array.from(this.busAttendance.values()).filter(
+      (e) =>
+        e.tenantId === tenantId &&
+        e.routeId === filter.routeId &&
+        e.tripDate === filter.tripDate &&
+        e.direction === filter.direction,
+    );
+  }
+
+  async createAlertRule(
+    data: Omit<AlertRuleEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<AlertRuleEntity> {
+    const now = new Date();
+    const entity: AlertRuleEntity = { ...data, createdAt: now, updatedAt: now };
+    this.alertRules.set(entity.id, entity);
+    return entity;
+  }
+
+  async listAlertRules(tenantId: string): Promise<AlertRuleEntity[]> {
+    return Array.from(this.alertRules.values()).filter((e) => e.tenantId === tenantId);
+  }
+
+  async createAlert(data: Omit<TransportAlertEntity, 'createdAt'>): Promise<TransportAlertEntity> {
+    const entity: TransportAlertEntity = { ...data, createdAt: new Date() };
+    this.alerts.set(entity.id, entity);
+    return entity;
+  }
+
+  async listAlerts(tenantId: string): Promise<TransportAlertEntity[]> {
+    return Array.from(this.alerts.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async acknowledgeAlert(
+    id: string,
+    tenantId: string,
+    acknowledgedBy: string,
+  ): Promise<TransportAlertEntity | null> {
+    const existing = this.alerts.get(id);
+    if (!existing || existing.tenantId !== tenantId) return null;
+    const updated: TransportAlertEntity = {
+      ...existing,
+      acknowledgedAt: new Date(),
+      acknowledgedBy,
+    };
+    this.alerts.set(id, updated);
+    return updated;
+  }
+
+  async createTransportFeeStructure(
+    data: Omit<TransportFeeStructureEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<TransportFeeStructureEntity> {
+    const now = new Date();
+    const entity: TransportFeeStructureEntity = { ...data, createdAt: now, updatedAt: now };
+    this.feeStructures.set(entity.id, entity);
+    return entity;
+  }
+
+  async listTransportFeeStructures(tenantId: string): Promise<TransportFeeStructureEntity[]> {
+    return Array.from(this.feeStructures.values()).filter((e) => e.tenantId === tenantId);
+  }
+
+  async createFeeLink(
+    data: Omit<TransportFeeLinkEntity, 'createdAt'>,
+  ): Promise<TransportFeeLinkEntity> {
+    const entity: TransportFeeLinkEntity = { ...data, createdAt: new Date() };
+    this.feeLinks.set(entity.id, entity);
+    return entity;
+  }
+
+  async listFeeLinks(tenantId: string): Promise<TransportFeeLinkEntity[]> {
+    return Array.from(this.feeLinks.values()).filter((e) => e.tenantId === tenantId);
+  }
+
+  async findFeeLinkByAssignment(
+    assignmentId: string,
+    tenantId: string,
+  ): Promise<TransportFeeLinkEntity | null> {
+    return (
+      Array.from(this.feeLinks.values()).find(
+        (e) => e.tenantId === tenantId && e.assignmentId === assignmentId,
       ) ?? null
     );
   }
