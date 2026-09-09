@@ -74,6 +74,13 @@ env:
     e2e/36-audit-integrity-dsar-smoke.spec.ts
     e2e/37-scholarship-decision-write-smoke.spec.ts
     e2e/38-academic-calendar-write-smoke.spec.ts
+    e2e/39-fees-structures-write-smoke.spec.ts
+    e2e/40-portals-academic-visibility-smoke.spec.ts
+    e2e/41-admissions-crm-write-smoke.spec.ts
+    e2e/42-gradebook-workflow-write-smoke.spec.ts
+    e2e/43-curriculum-coverage-write-smoke.spec.ts
+    e2e/44-students-360-write-smoke.spec.ts
+    e2e/45-exam-ops-write-smoke.spec.ts
   # Nightly: PR set + the remaining live write smokes.
   NIGHTLY_SPECS: >-
     e2e/17b-health-counselling-write-smoke.spec.ts
@@ -91,6 +98,13 @@ env:
     e2e/36-audit-integrity-dsar-smoke.spec.ts
     e2e/37-scholarship-decision-write-smoke.spec.ts
     e2e/38-academic-calendar-write-smoke.spec.ts
+    e2e/39-fees-structures-write-smoke.spec.ts
+    e2e/40-portals-academic-visibility-smoke.spec.ts
+    e2e/41-admissions-crm-write-smoke.spec.ts
+    e2e/42-gradebook-workflow-write-smoke.spec.ts
+    e2e/43-curriculum-coverage-write-smoke.spec.ts
+    e2e/44-students-360-write-smoke.spec.ts
+    e2e/45-exam-ops-write-smoke.spec.ts
     e2e/21d-campus-hostel-library-write-smoke.spec.ts
     e2e/15b-staff-write-validation-smoke.spec.ts
     e2e/15d-student-write-validation-smoke.spec.ts
