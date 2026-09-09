@@ -101,6 +101,9 @@ function jsonObj(value: unknown): Record<string, unknown> {
 }
 
 function mapEntry(row: Record<string, unknown>): GradeEntryEntity {
+  const metadata = jsonObj(row.metadata);
+  const enteredByRef =
+    typeof metadata.enteredByRef === 'string' ? (metadata.enteredByRef as string) : null;
   return {
     id: String(row.id),
     tenantId: String(row.tenant_id),
@@ -109,11 +112,11 @@ function mapEntry(row: Record<string, unknown>): GradeEntryEntity {
     assessmentCode: row.assessment_code == null ? null : String(row.assessment_code),
     numericScore: num(row.numeric_score),
     letterGrade: row.letter_grade == null ? null : String(row.letter_grade),
-    enteredBy: row.entered_by == null ? null : String(row.entered_by),
+    enteredBy: row.entered_by == null ? enteredByRef : String(row.entered_by),
     enteredAt: iso(row.entered_at),
     lockedAt: row.locked_at == null ? null : iso(row.locked_at),
     publishedAt: row.published_at == null ? null : iso(row.published_at),
-    metadata: jsonObj(row.metadata),
+    metadata,
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };
@@ -227,6 +230,26 @@ function mapBoardCode(row: Record<string, unknown>): BoardCodeEntity {
   };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * `grade_entries.entered_by` is a UUID column (db/sql/003) but the actor comes
+ * from the JWT subject, which is an opaque string for many IdPs (and the e2e
+ * harness). Keep the UUID column NULL for non-UUID subjects and preserve the
+ * raw subject in `metadata.enteredByRef` so the audit trail is not lost.
+ */
+function splitActor(
+  enteredBy: string | null | undefined,
+  metadata: Record<string, unknown> | null | undefined,
+): { enteredBy: string | null; metadata: Record<string, unknown> } {
+  const meta = { ...(metadata ?? {}) };
+  if (enteredBy && !UUID_RE.test(enteredBy)) {
+    meta.enteredByRef = enteredBy;
+    return { enteredBy: null, metadata: meta };
+  }
+  return { enteredBy: enteredBy ?? null, metadata: meta };
+}
+
 export class PgGradebookRepository implements GradebookRepository {
   constructor(private readonly pool: PgPoolLike) {}
 
@@ -294,6 +317,7 @@ export class PgGradebookRepository implements GradebookRepository {
 
   createGradeEntry(row: GradeEntryEntity) {
     return withSchemaCheck(async () => {
+      const actor = splitActor(row.enteredBy, row.metadata);
       const res = await this.query(
         row.tenantId,
         `INSERT INTO grade_entries (
@@ -311,11 +335,11 @@ export class PgGradebookRepository implements GradebookRepository {
           row.assessmentCode,
           row.numericScore,
           row.letterGrade,
-          row.enteredBy,
+          actor.enteredBy,
           row.enteredAt,
           row.lockedAt,
           row.publishedAt,
-          JSON.stringify(row.metadata ?? {}),
+          JSON.stringify(actor.metadata),
           row.createdAt,
           row.updatedAt,
         ],
@@ -329,6 +353,7 @@ export class PgGradebookRepository implements GradebookRepository {
       const cur = await this.getGradeEntry(tenantId, id);
       if (!cur) return null;
       const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId };
+      const actor = splitActor(next.enteredBy, next.metadata);
       const res = await this.query(
         tenantId,
         `UPDATE grade_entries SET
@@ -351,11 +376,11 @@ export class PgGradebookRepository implements GradebookRepository {
           next.assessmentCode,
           next.numericScore,
           next.letterGrade,
-          next.enteredBy,
+          actor.enteredBy,
           next.enteredAt,
           next.lockedAt,
           next.publishedAt,
-          JSON.stringify(next.metadata ?? {}),
+          JSON.stringify(actor.metadata),
           next.updatedAt ?? new Date().toISOString(),
         ],
       );
