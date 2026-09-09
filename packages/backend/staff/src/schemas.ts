@@ -147,6 +147,9 @@ export const StaffListQuerySchema = Type.Object({
   sortOrder: Type.Optional(
     Type.String({ enum: ['asc', 'desc'], default: 'asc', description: 'Sort direction' }),
   ),
+  institutionId: Type.Optional(
+    Type.String({ description: 'Scope to one institution (school) within the tenant' }),
+  ),
 });
 
 export type StaffListQuery = Static<typeof StaffListQuerySchema>;
