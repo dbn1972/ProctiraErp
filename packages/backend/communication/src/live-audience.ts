@@ -5,7 +5,6 @@
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
-
 const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
