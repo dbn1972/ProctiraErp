@@ -155,6 +155,8 @@ function mapApplication(row: Record<string, unknown>): ScholarshipApplicationEnt
     workflowInstanceId: row.workflow_instance_id == null ? null : String(row.workflow_instance_id),
     submittedAt: toDate(row.submitted_at),
     reviewedAt: toDateOrNull(row.reviewed_at),
+    reviewerId: row.reviewer_id == null ? null : String(row.reviewer_id),
+    reviewNotes: row.review_notes == null ? null : String(row.review_notes),
     createdAt: toDate(row.created_at),
     updatedAt: toDate(row.updated_at),
   };
@@ -366,9 +368,10 @@ export class PgScholarshipRepository implements ScholarshipRepository {
         `INSERT INTO scholarship_applications (
            id, tenant_id, program_id, applicant_id, institution_id, status,
            academic_records, financial_info, documents, personal_statement,
-           area_id, gender, workflow_instance_id, submitted_at, reviewed_at
+           area_id, gender, workflow_instance_id, submitted_at, reviewed_at,
+           reviewer_id, review_notes
          ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15
+           $1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb,$9::jsonb,$10,$11,$12,$13,$14,$15,$16,$17
          ) RETURNING *`,
         [
           data.id,
@@ -386,6 +389,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
           data.workflowInstanceId,
           data.submittedAt,
           data.reviewedAt,
+          data.reviewerId ?? null,
+          data.reviewNotes ?? null,
         ],
       );
       return mapApplication(result.rows[0] as Record<string, unknown>);
@@ -411,7 +416,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
            program_id = $3, applicant_id = $4, institution_id = $5, status = $6,
            academic_records = $7::jsonb, financial_info = $8::jsonb, documents = $9::jsonb,
            personal_statement = $10, area_id = $11, gender = $12, workflow_instance_id = $13,
-           submitted_at = $14, reviewed_at = $15, updated_at = now()
+           submitted_at = $14, reviewed_at = $15, reviewer_id = $16, review_notes = $17,
+           updated_at = now()
          WHERE id = $1 AND tenant_id = $2
          RETURNING *`,
         [
@@ -430,6 +436,8 @@ export class PgScholarshipRepository implements ScholarshipRepository {
           merged.workflowInstanceId,
           merged.submittedAt,
           merged.reviewedAt,
+          merged.reviewerId ?? null,
+          merged.reviewNotes ?? null,
         ],
       );
       if (!result.rows[0]) return null;

@@ -68,6 +68,8 @@ export async function seedScholarshipDemoData(repository: ScholarshipRepository)
     workflowInstanceId: null,
     submittedAt: now,
     reviewedAt: null,
+    reviewerId: null,
+    reviewNotes: null,
   };
   await repository.createApplication(application);
 

@@ -226,6 +226,23 @@ export const CreateApplicationSchema = Type.Object({
 
 export type CreateApplicationInput = Static<typeof CreateApplicationSchema>;
 
+/**
+ * Optional body for POST …/applications/:id/approve | reject (G-911).
+ * The reviewer is taken from the JWT, never from the body.
+ */
+export const ApplicationDecisionSchema = Type.Object({
+  comment: Type.Optional(
+    Type.String({ maxLength: 2000, description: 'Reviewer note visible to the school' }),
+  ),
+  scheduleFirstDisbursement: Type.Optional(
+    Type.Boolean({
+      description: 'Approve only — queue the first instalment today (default true)',
+    }),
+  ),
+});
+
+export type ApplicationDecisionInput = Static<typeof ApplicationDecisionSchema>;
+
 // ─── Disbursement Schemas ────────────────────────────────────────────────────
 
 /**
@@ -410,6 +427,8 @@ export const ApplicationResponseSchema = Type.Object({
   workflowInstanceId: Type.Union([Type.String(), Type.Null()]),
   submittedAt: Type.String(),
   reviewedAt: Type.Union([Type.String(), Type.Null()]),
+  reviewerId: Type.Union([Type.String(), Type.Null()]),
+  reviewNotes: Type.Union([Type.String(), Type.Null()]),
   createdAt: Type.String(),
   updatedAt: Type.String(),
 });

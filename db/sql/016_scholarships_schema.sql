@@ -49,6 +49,10 @@ CREATE TABLE IF NOT EXISTS scholarship_applications (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- G-911: who decided and why (idempotent so ensureScholarshipSchema can re-run).
+ALTER TABLE scholarship_applications ADD COLUMN IF NOT EXISTS reviewer_id TEXT;
+ALTER TABLE scholarship_applications ADD COLUMN IF NOT EXISTS review_notes TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_scholarship_applications_tenant_program
   ON scholarship_applications (tenant_id, program_id);
 

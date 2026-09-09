@@ -70,6 +70,10 @@ export interface ScholarshipApplicationEntity {
   workflowInstanceId: string | null;
   submittedAt: Date;
   reviewedAt: Date | null;
+  /** Actor (JWT `sub`) who approved / rejected — null until a decision is made (G-911). */
+  reviewerId: string | null;
+  /** Reviewer's note, shown to the school coordinator alongside the decision (G-911). */
+  reviewNotes: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

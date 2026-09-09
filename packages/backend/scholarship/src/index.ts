@@ -18,7 +18,11 @@ export type { ScholarshipPluginOptions } from './scholarship-plugin.js';
 
 // Service
 export { ScholarshipService } from './scholarship-service.js';
-export type { WorkflowEngineClient, ScholarshipServiceOptions } from './scholarship-service.js';
+export type {
+  WorkflowEngineClient,
+  ScholarshipServiceOptions,
+  ApplicationDecision,
+} from './scholarship-service.js';
 
 // Repository
 export type {

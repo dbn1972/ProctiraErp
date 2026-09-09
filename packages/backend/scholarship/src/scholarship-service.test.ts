@@ -375,6 +375,98 @@ describe('ScholarshipService', () => {
         vi.useRealTimers();
       }
     });
+
+    it('records the reviewer and trimmed note on a rejection (G-911)', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15'));
+      try {
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
+        const rejected = await service.rejectApplication(TENANT_ID, application.id, {
+          reviewerId: 'reviewer-1',
+          notes: '  Income certificate expired  ',
+        });
+
+        expect(rejected.reviewerId).toBe('reviewer-1');
+        expect(rejected.reviewNotes).toBe('Income certificate expired');
+        // A blank note must not be persisted as an empty string.
+        const other = await service.submitApplication(TENANT_ID, {
+          ...makeApplicationInput(program.id),
+          applicantId: '00000000-0000-4000-8000-0000000000a1',
+        });
+        const blank = await service.rejectApplication(TENANT_ID, other.id, { notes: '   ' });
+        expect(blank.reviewNotes).toBeNull();
+        expect(blank.reviewerId).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('approveApplication decision (G-911)', () => {
+    it('stores the reviewer and queues the first instalment when asked', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15T09:00:00Z'));
+      try {
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
+        const approved = await service.approveApplication(TENANT_ID, application.id, {
+          reviewerId: 'reviewer-1',
+          notes: 'Documents verified',
+          scheduleFirstDisbursement: true,
+        });
+
+        expect(approved.status).toBe('approved');
+        expect(approved.reviewerId).toBe('reviewer-1');
+        expect(approved.reviewNotes).toBe('Documents verified');
+
+        const disbursements = await service.listDisbursementsByApplication(
+          TENANT_ID,
+          application.id,
+        );
+        expect(disbursements).toHaveLength(1);
+        expect(disbursements[0]).toMatchObject({
+          amount: program.amountPerRecipient,
+          paymentStatus: 'scheduled',
+          scheduledDate: '2024-03-15',
+          notes: 'Scheduled on approval',
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('does not queue a disbursement by default', async () => {
+      const program = await service.createProgram(TENANT_ID, makeProgramInput());
+      await service.updateProgram(TENANT_ID, program.id, { status: 'open' });
+
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2024-03-15'));
+      try {
+        const application = await service.submitApplication(
+          TENANT_ID,
+          makeApplicationInput(program.id),
+        );
+        await service.approveApplication(TENANT_ID, application.id);
+        const disbursements = await service.listDisbursementsByApplication(
+          TENANT_ID,
+          application.id,
+        );
+        expect(disbursements).toHaveLength(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   // ─── Disbursement Tests ──────────────────────────────────────────────────

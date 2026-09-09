@@ -57,6 +57,23 @@ export interface WorkflowEngineClient {
 }
 
 /**
+ * Reviewer context attached to an approve / reject decision (G-911).
+ */
+export interface ApplicationDecision {
+  /** JWT `sub` of the deciding user; null / omitted for system decisions. */
+  reviewerId?: string | null;
+  /** Free-text note for the school coordinator (trimmed; blank → null). */
+  notes?: string | null;
+  /** Approve only: queue the first instalment for today at the program amount. */
+  scheduleFirstDisbursement?: boolean;
+}
+
+function normaliseNotes(notes: string | null | undefined): string | null {
+  const trimmed = notes?.trim();
+  return trimmed ? trimmed : null;
+}
+
+/**
  * Options for the ScholarshipService.
  */
 export interface ScholarshipServiceOptions {
@@ -311,6 +328,8 @@ export class ScholarshipService {
       workflowInstanceId: null,
       submittedAt: new Date(),
       reviewedAt: null,
+      reviewerId: null,
+      reviewNotes: null,
     };
 
     const created = await this.repository.createApplication(application);
@@ -366,11 +385,19 @@ export class ScholarshipService {
   /**
    * Approve an application.
    *
+   * With `scheduleFirstDisbursement` the first instalment (program amount per
+   * recipient, due today) is queued in the same call so the approval → payout
+   * chain is one decision rather than two screens (G-911).
+   *
    * @throws NotFoundError if application not found
    * @throws BusinessRuleError if application is not in a reviewable state
    * @throws BusinessRuleError if no slots available
    */
-  async approveApplication(tenantId: string, id: string): Promise<ScholarshipApplicationEntity> {
+  async approveApplication(
+    tenantId: string,
+    id: string,
+    decision: ApplicationDecision = {},
+  ): Promise<ScholarshipApplicationEntity> {
     const application = await this.repository.findApplicationById(id, tenantId);
     if (!application) {
       throw new NotFoundError(`Scholarship application with id '${id}' not found`);
@@ -396,12 +423,29 @@ export class ScholarshipService {
     const updated = await this.repository.updateApplication(id, tenantId, {
       status: 'approved' as ApplicationStatus,
       reviewedAt: new Date(),
+      reviewerId: decision.reviewerId ?? null,
+      reviewNotes: normaliseNotes(decision.notes),
     });
 
     // Increment used slots
     await this.repository.updateProgram(application.programId, tenantId, {
       usedSlots: program.usedSlots + 1,
     });
+
+    if (decision.scheduleFirstDisbursement) {
+      await this.repository.createDisbursement({
+        id: uuidv4(),
+        tenantId,
+        applicationId: id,
+        amount: program.amountPerRecipient,
+        scheduledDate: new Date().toISOString().slice(0, 10),
+        paidDate: null,
+        paymentStatus: 'scheduled',
+        paymentMethod: null,
+        transactionReference: null,
+        notes: 'Scheduled on approval',
+      });
+    }
 
     return updated!;
   }
@@ -412,7 +456,11 @@ export class ScholarshipService {
    * @throws NotFoundError if application not found
    * @throws BusinessRuleError if application is not in a reviewable state
    */
-  async rejectApplication(tenantId: string, id: string): Promise<ScholarshipApplicationEntity> {
+  async rejectApplication(
+    tenantId: string,
+    id: string,
+    decision: ApplicationDecision = {},
+  ): Promise<ScholarshipApplicationEntity> {
     const application = await this.repository.findApplicationById(id, tenantId);
     if (!application) {
       throw new NotFoundError(`Scholarship application with id '${id}' not found`);
@@ -427,6 +475,8 @@ export class ScholarshipService {
     const updated = await this.repository.updateApplication(id, tenantId, {
       status: 'rejected' as ApplicationStatus,
       reviewedAt: new Date(),
+      reviewerId: decision.reviewerId ?? null,
+      reviewNotes: normaliseNotes(decision.notes),
     });
 
     return updated!;

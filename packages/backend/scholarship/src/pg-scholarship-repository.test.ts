@@ -77,6 +77,8 @@ describe('PgScholarshipRepository', () => {
         workflowInstanceId: null,
         submittedAt: new Date(),
         reviewedAt: null,
+        reviewerId: null,
+        reviewNotes: null,
       });
 
       await repo.createDisbursement({

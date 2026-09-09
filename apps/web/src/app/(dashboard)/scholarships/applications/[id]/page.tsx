@@ -11,7 +11,7 @@
  */
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Check, X } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 import {
   Button,
@@ -20,7 +20,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Textarea,
 } from '@proctira/ui/components';
 import {
   getScholarshipApplication,
@@ -28,6 +27,8 @@ import {
   type ScholarshipApplication,
 } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
+
+import { ApplicationDecisionForm } from '../../_components/application-decision-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -122,6 +123,7 @@ export default async function ScholarshipApplicationPage(props: PageProps) {
                 'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold align-middle',
                 STATUS_COLOURS[application.status],
               )}
+              data-testid="application-status"
             >
               {STATUS_LABELS[application.status]}
             </span>
@@ -198,36 +200,28 @@ export default async function ScholarshipApplicationPage(props: PageProps) {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <label htmlFor="decision-comment" className="text-sm font-medium text-foreground">
-                  Comment (visible to school)
-                </label>
-                <Textarea
-                  id="decision-comment"
-                  rows={3}
-                  placeholder="Optional note for the school coordinator…"
-                  disabled={!canDecide}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="destructive" disabled={!canDecide}>
-                  <X className="me-1.5 h-4 w-4" aria-hidden="true" />
-                  Reject
-                </Button>
-                <Button disabled={!canDecide}>
-                  <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
-                  Approve
-                </Button>
-              </div>
               {canDecide ? (
-                <p className="text-xs text-muted-foreground">
-                  Verify supporting documents before approving — DBT fails if the account is not
-                  Aadhaar-seeded.
-                </p>
+                <ApplicationDecisionForm
+                  applicationId={application.id}
+                  awardLabel={
+                    program ? `${formatMoney(program.awardAmount, program.currency)} payment` : null
+                  }
+                />
               ) : (
-                <p className="text-xs text-muted-foreground">
-                  This application is already {STATUS_LABELS[application.status].toLowerCase()}.
-                </p>
+                <dl className="text-sm" data-testid="decision-record">
+                  <FactRow label="Decision" value={STATUS_LABELS[application.status]} />
+                  <FactRow
+                    label="Decided"
+                    value={application.reviewedAt ? formatDate(application.reviewedAt) : '—'}
+                  />
+                  <FactRow label="Reviewer" value={application.reviewerId ?? '—'} mono />
+                  <div className="grid grid-cols-[120px_1fr] gap-4 py-2">
+                    <dt className="text-muted-foreground">Note</dt>
+                    <dd className="whitespace-pre-wrap" data-testid="decision-note">
+                      {application.reviewNotes ?? '—'}
+                    </dd>
+                  </div>
+                </dl>
               )}
             </CardContent>
           </Card>
