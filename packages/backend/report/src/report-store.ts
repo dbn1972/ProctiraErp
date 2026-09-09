@@ -22,6 +22,7 @@ export interface ReportScheduleRecord {
   reportKey: CatalogueReportKey;
   format: CatalogueReportFormat;
   cadence: ScheduleCadence;
+  hour: number;
   nextRunAt: Date;
   recipients: string[];
   enabled: boolean;
@@ -40,6 +41,9 @@ export interface ReportRunRecord {
   format: CatalogueReportFormat;
   source: RunSource;
   status: RunStatus;
+  sha256: string | null;
+  objectKey: string | null;
+  sizeBytes: number | null;
   error: string | null;
   createdAt: Date;
   completedAt: Date | null;
@@ -57,16 +61,25 @@ export interface ReportStore {
     tenantId: string,
     id: string,
     patch: Partial<
-      Pick<ReportScheduleRecord, 'enabled' | 'nextRunAt' | 'lastRunAt' | 'recipients' | 'cadence' | 'format'>
+      Pick<
+        ReportScheduleRecord,
+        'enabled' | 'nextRunAt' | 'lastRunAt' | 'recipients' | 'cadence' | 'format' | 'hour'
+      >
     >,
   ): Promise<ReportScheduleRecord | null>;
+  deleteSchedule(tenantId: string, id: string): Promise<boolean>;
   listDueSchedules(now: Date): Promise<ReportScheduleRecord[]>;
 
   insertRun(record: ReportRunRecord): Promise<ReportRunRecord>;
   updateRun(
     tenantId: string,
     id: string,
-    patch: Partial<Pick<ReportRunRecord, 'status' | 'artifactId' | 'error' | 'completedAt'>>,
+    patch: Partial<
+      Pick<
+        ReportRunRecord,
+        'status' | 'artifactId' | 'error' | 'completedAt' | 'sha256' | 'objectKey' | 'sizeBytes'
+      >
+    >,
   ): Promise<ReportRunRecord | null>;
   listRuns(
     tenantId: string,
@@ -119,7 +132,10 @@ export class InMemoryReportStore implements ReportStore {
     tenantId: string,
     id: string,
     patch: Partial<
-      Pick<ReportScheduleRecord, 'enabled' | 'nextRunAt' | 'lastRunAt' | 'recipients' | 'cadence' | 'format'>
+      Pick<
+        ReportScheduleRecord,
+        'enabled' | 'nextRunAt' | 'lastRunAt' | 'recipients' | 'cadence' | 'format' | 'hour'
+      >
     >,
   ): Promise<ReportScheduleRecord | null> {
     const found = this.schedules.find((s) => s.id === id && s.tenantId === tenantId);
@@ -127,6 +143,13 @@ export class InMemoryReportStore implements ReportStore {
     Object.assign(found, patch, { updatedAt: new Date() });
     if (patch.recipients) found.recipients = [...patch.recipients];
     return { ...found, recipients: [...found.recipients] };
+  }
+
+  async deleteSchedule(tenantId: string, id: string): Promise<boolean> {
+    const idx = this.schedules.findIndex((s) => s.id === id && s.tenantId === tenantId);
+    if (idx < 0) return false;
+    this.schedules.splice(idx, 1);
+    return true;
   }
 
   async listDueSchedules(now: Date): Promise<ReportScheduleRecord[]> {
@@ -144,7 +167,12 @@ export class InMemoryReportStore implements ReportStore {
   async updateRun(
     tenantId: string,
     id: string,
-    patch: Partial<Pick<ReportRunRecord, 'status' | 'artifactId' | 'error' | 'completedAt'>>,
+    patch: Partial<
+      Pick<
+        ReportRunRecord,
+        'status' | 'artifactId' | 'error' | 'completedAt' | 'sha256' | 'objectKey' | 'sizeBytes'
+      >
+    >,
   ): Promise<ReportRunRecord | null> {
     const found = this.runs.find((r) => r.id === id && r.tenantId === tenantId);
     if (!found) return null;

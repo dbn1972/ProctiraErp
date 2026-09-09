@@ -19,6 +19,36 @@ async function relationExists(client: PgQueryable, name: string): Promise<boolea
 }
 
 function demoTable(key: CatalogueReportKey, tenantId: string): ReportTable {
+  if (key === 'students_roster') {
+    return {
+      columns: [
+        { name: 'studentId', label: 'Student ID' },
+        { name: 'firstName', label: 'First name' },
+        { name: 'lastName', label: 'Last name' },
+        { name: 'gender', label: 'Gender' },
+        { name: 'dateOfBirth', label: 'Date of birth' },
+        { name: 'tenantId', label: 'Tenant' },
+      ],
+      rows: [
+        {
+          studentId: 'demo-stu-1',
+          firstName: 'Asha',
+          lastName: 'Rao',
+          gender: 'female',
+          dateOfBirth: '2012-04-11',
+          tenantId,
+        },
+        {
+          studentId: 'demo-stu-2',
+          firstName: 'Vikram',
+          lastName: 'Singh',
+          gender: 'male',
+          dateOfBirth: '2011-09-02',
+          tenantId,
+        },
+      ],
+    };
+  }
   if (key === 'attendance_summary') {
     return {
       columns: [
@@ -86,6 +116,48 @@ function demoTable(key: CatalogueReportKey, tenantId: string): ReportTable {
       },
     ],
   };
+}
+
+async function loadStudentsRoster(client: PgQueryable, tenantId: string): Promise<ReportTable | null> {
+  if (!(await relationExists(client, 'students'))) return null;
+  try {
+    const { rows } = await client.query(
+      `SELECT id::text AS student_id, first_name, last_name, gender, date_of_birth::text AS date_of_birth
+         FROM students
+        WHERE deleted_at IS NULL
+        ORDER BY last_name, first_name
+        LIMIT 500`,
+    );
+    if (rows.length === 0) return null;
+    return {
+      columns: [
+        { name: 'studentId', label: 'Student ID' },
+        { name: 'firstName', label: 'First name' },
+        { name: 'lastName', label: 'Last name' },
+        { name: 'gender', label: 'Gender' },
+        { name: 'dateOfBirth', label: 'Date of birth' },
+        { name: 'tenantId', label: 'Tenant' },
+      ],
+      rows: (
+        rows as Array<{
+          student_id: string;
+          first_name: string;
+          last_name: string;
+          gender: string;
+          date_of_birth: string;
+        }>
+      ).map((r) => ({
+        studentId: r.student_id,
+        firstName: r.first_name,
+        lastName: r.last_name,
+        gender: r.gender,
+        dateOfBirth: r.date_of_birth,
+        tenantId,
+      })),
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function loadAttendance(client: PgQueryable, tenantId: string): Promise<ReportTable | null> {
@@ -239,6 +311,9 @@ export async function fetchCatalogueTable(
   if (!pool) return demoTable(key, tenantId);
   try {
     return await withPgTenant(pool, tenantId, async (client) => {
+      if (key === 'students_roster') {
+        return (await loadStudentsRoster(client, tenantId)) ?? demoTable(key, tenantId);
+      }
       if (key === 'attendance_summary') {
         return (await loadAttendance(client, tenantId)) ?? demoTable(key, tenantId);
       }

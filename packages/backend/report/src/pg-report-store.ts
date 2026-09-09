@@ -85,6 +85,7 @@ function mapSchedule(row: Record<string, unknown>): ReportScheduleRecord {
     reportKey: String(row.report_key) as CatalogueReportKey,
     format: String(row.format) as CatalogueReportFormat,
     cadence: String(row.cadence) as ScheduleCadence,
+    hour: Number(row.hour ?? 6),
     nextRunAt: asDate(row.next_run_at),
     recipients: parseRecipients(row.recipients),
     enabled: Boolean(row.enabled),
@@ -105,6 +106,9 @@ function mapRun(row: Record<string, unknown>): ReportRunRecord {
     format: String(row.format) as CatalogueReportFormat,
     source: String(row.source) as ReportRunRecord['source'],
     status: String(row.status) as ReportRunRecord['status'],
+    sha256: row.sha256 == null ? null : String(row.sha256),
+    objectKey: row.object_key == null ? null : String(row.object_key),
+    sizeBytes: row.size_bytes == null ? null : Number(row.size_bytes),
     error: row.error == null ? null : String(row.error),
     createdAt: asDate(row.created_at),
     completedAt: row.completed_at == null ? null : asDate(row.completed_at),
@@ -171,8 +175,8 @@ export class PgReportStore implements ReportStore {
     return this.tenant(record.tenantId, async (client) => {
       const { rows } = await client.query(
         `INSERT INTO report_schedules
-           (id, tenant_id, report_key, format, cadence, next_run_at, recipients, enabled, created_by, last_run_at, created_at, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12)
+           (id, tenant_id, report_key, format, cadence, hour, next_run_at, recipients, enabled, created_by, last_run_at, created_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13)
          RETURNING *`,
         [
           record.id,
@@ -180,6 +184,7 @@ export class PgReportStore implements ReportStore {
           record.reportKey,
           record.format,
           record.cadence,
+          record.hour,
           record.nextRunAt,
           JSON.stringify(record.recipients),
           record.enabled,
@@ -217,7 +222,10 @@ export class PgReportStore implements ReportStore {
     tenantId: string,
     id: string,
     patch: Partial<
-      Pick<ReportScheduleRecord, 'enabled' | 'nextRunAt' | 'lastRunAt' | 'recipients' | 'cadence' | 'format'>
+      Pick<
+        ReportScheduleRecord,
+        'enabled' | 'nextRunAt' | 'lastRunAt' | 'recipients' | 'cadence' | 'format' | 'hour'
+      >
     >,
   ): Promise<ReportScheduleRecord | null> {
     return this.tenant(tenantId, async (client) => {
@@ -248,6 +256,10 @@ export class PgReportStore implements ReportStore {
         sets.push(`format = $${i++}`);
         values.push(patch.format);
       }
+      if (patch.hour !== undefined) {
+        sets.push(`hour = $${i++}`);
+        values.push(patch.hour);
+      }
       values.push(tenantId, id);
       const { rows } = await client.query(
         `UPDATE report_schedules SET ${sets.join(', ')}
@@ -256,6 +268,16 @@ export class PgReportStore implements ReportStore {
         values,
       );
       return rows[0] ? mapSchedule(rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async deleteSchedule(tenantId: string, id: string): Promise<boolean> {
+    return this.tenant(tenantId, async (client) => {
+      const { rowCount } = await client.query(
+        `DELETE FROM report_schedules WHERE tenant_id = $1 AND id = $2`,
+        [tenantId, id],
+      );
+      return Number(rowCount ?? 0) > 0;
     });
   }
 
@@ -276,8 +298,8 @@ export class PgReportStore implements ReportStore {
     return this.tenant(record.tenantId, async (client) => {
       const { rows } = await client.query(
         `INSERT INTO report_runs
-           (id, tenant_id, schedule_id, artifact_id, report_key, format, source, status, error, created_at, completed_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           (id, tenant_id, schedule_id, artifact_id, report_key, format, source, status, sha256, object_key, size_bytes, error, created_at, completed_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
          RETURNING *`,
         [
           record.id,
@@ -288,6 +310,9 @@ export class PgReportStore implements ReportStore {
           record.format,
           record.source,
           record.status,
+          record.sha256,
+          record.objectKey,
+          record.sizeBytes,
           record.error,
           record.createdAt,
           record.completedAt,
@@ -300,7 +325,12 @@ export class PgReportStore implements ReportStore {
   async updateRun(
     tenantId: string,
     id: string,
-    patch: Partial<Pick<ReportRunRecord, 'status' | 'artifactId' | 'error' | 'completedAt'>>,
+    patch: Partial<
+      Pick<
+        ReportRunRecord,
+        'status' | 'artifactId' | 'error' | 'completedAt' | 'sha256' | 'objectKey' | 'sizeBytes'
+      >
+    >,
   ): Promise<ReportRunRecord | null> {
     return this.tenant(tenantId, async (client) => {
       const sets: string[] = [];
@@ -321,6 +351,18 @@ export class PgReportStore implements ReportStore {
       if (patch.completedAt !== undefined) {
         sets.push(`completed_at = $${i++}`);
         values.push(patch.completedAt);
+      }
+      if (patch.sha256 !== undefined) {
+        sets.push(`sha256 = $${i++}`);
+        values.push(patch.sha256);
+      }
+      if (patch.objectKey !== undefined) {
+        sets.push(`object_key = $${i++}`);
+        values.push(patch.objectKey);
+      }
+      if (patch.sizeBytes !== undefined) {
+        sets.push(`size_bytes = $${i++}`);
+        values.push(patch.sizeBytes);
       }
       if (sets.length === 0) {
         const existing = await client.query(

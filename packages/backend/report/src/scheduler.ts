@@ -4,8 +4,9 @@ export interface ScheduleTicker {
   tickDueSchedules(now: Date): Promise<{ due: number; completed: number; failed: number }>;
 }
 
-export function computeNextRunAt(cadence: ScheduleCadence, from: Date): Date {
+export function computeNextRunAt(cadence: ScheduleCadence, from: Date, hour?: number): Date {
   const next = new Date(from.getTime());
+  const safeHour = Math.min(23, Math.max(0, Math.trunc(hour ?? from.getUTCHours())));
   if (cadence === 'daily') {
     next.setUTCDate(next.getUTCDate() + 1);
   } else if (cadence === 'weekly') {
@@ -17,6 +18,7 @@ export function computeNextRunAt(cadence: ScheduleCadence, from: Date): Date {
       next.setUTCDate(0);
     }
   }
+  next.setUTCHours(safeHour, 0, 0, 0);
   return next;
 }
 

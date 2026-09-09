@@ -3,6 +3,7 @@
  * so existing `/reports/templates` clients keep working.
  */
 export const REPORT_KEYS = [
+  'students_roster',
   'attendance_summary',
   'fee_dues',
   'enrolment_by_grade',
@@ -16,6 +17,7 @@ export type CatalogueReportFormat = 'csv' | 'xlsx' | 'pdf';
 export const REPORT_FORMATS: readonly CatalogueReportFormat[] = ['csv', 'xlsx', 'pdf'];
 
 export const TEMPLATE_ALIASES: Record<string, CatalogueReportKey> = {
+  'tpl-students-roster': 'students_roster',
   'tpl-enrolment-summary': 'enrolment_by_grade',
   'tpl-attendance-daily': 'attendance_summary',
   'tpl-fee-dues': 'fee_dues',
@@ -39,6 +41,15 @@ export interface CatalogueEntry {
 }
 
 export const REPORT_CATALOGUE: readonly CatalogueEntry[] = [
+  {
+    id: 'tpl-students-roster',
+    reportKey: 'students_roster',
+    name: 'Students roster',
+    description: 'Active students with name, gender, and date of birth.',
+    module: 'students',
+    format: ['PDF', 'XLSX', 'CSV'],
+    filters: [],
+  },
   {
     id: 'tpl-attendance-daily',
     reportKey: 'attendance_summary',

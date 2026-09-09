@@ -21,6 +21,7 @@ export const CreateCatalogueScheduleSchema = Type.Object({
     Type.Literal('weekly'),
     Type.Literal('monthly'),
   ]),
+  hour: Type.Optional(Type.Integer({ minimum: 0, maximum: 23 })),
   recipients: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 320 }))),
   enabled: Type.Optional(Type.Boolean()),
 });

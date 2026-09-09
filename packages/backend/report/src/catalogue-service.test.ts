@@ -56,6 +56,7 @@ describe('G-909 scheduler next_run_at', () => {
   it('advances daily / weekly / monthly from a fixed instant', () => {
     const from = new Date('2026-01-31T08:00:00.000Z');
     expect(computeNextRunAt('daily', from).toISOString()).toBe('2026-02-01T08:00:00.000Z');
+    expect(computeNextRunAt('daily', from, 6).toISOString()).toBe('2026-02-01T06:00:00.000Z');
     expect(computeNextRunAt('weekly', from).toISOString()).toBe('2026-02-07T08:00:00.000Z');
     const monthly = computeNextRunAt('monthly', from);
     expect(monthly.getUTCMonth()).toBe(1);

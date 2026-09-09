@@ -1,9 +1,23 @@
 -- Reports catalogue persistence (Wave 9 / G-909).
--- Artifacts, cadence schedules, and run history for real CSV / XLSX / PDF
--- exports. Applied after 034 via tools/scripts/apply-sql.sh.
+-- Definitions, artifacts, cadence schedules, and run history for real CSV / XLSX / PDF
+-- exports. Applied after 036 via tools/scripts/apply-sql.sh.
 -- RLS: tenant_isolation on app.tenant_id, FORCE ROW LEVEL SECURITY (030 pattern).
 -- platform_admin SELECT lets the in-process scheduler list due rows across tenants
 -- then each run executes inside withPgTenant.
+
+CREATE TABLE IF NOT EXISTS report_definitions (
+  id UUID PRIMARY KEY,
+  tenant_id UUID NOT NULL,
+  name TEXT NOT NULL,
+  dataset TEXT NOT NULL,
+  format TEXT NOT NULL CHECK (format IN ('csv', 'xlsx', 'pdf')),
+  parameters JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS report_definitions_tenant_idx
+  ON report_definitions (tenant_id, dataset);
 
 CREATE TABLE IF NOT EXISTS report_artifacts (
   id UUID PRIMARY KEY,
@@ -27,6 +41,7 @@ CREATE TABLE IF NOT EXISTS report_schedules (
   report_key TEXT NOT NULL,
   format TEXT NOT NULL CHECK (format IN ('csv', 'xlsx', 'pdf')),
   cadence TEXT NOT NULL CHECK (cadence IN ('daily', 'weekly', 'monthly')),
+  hour SMALLINT NOT NULL DEFAULT 6 CHECK (hour >= 0 AND hour <= 23),
   next_run_at TIMESTAMPTZ NOT NULL,
   recipients JSONB NOT NULL DEFAULT '[]'::jsonb,
   enabled BOOLEAN NOT NULL DEFAULT true,
@@ -48,6 +63,9 @@ CREATE TABLE IF NOT EXISTS report_runs (
   format TEXT NOT NULL CHECK (format IN ('csv', 'xlsx', 'pdf')),
   source TEXT NOT NULL CHECK (source IN ('manual', 'schedule')),
   status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'completed', 'failed')),
+  sha256 TEXT,
+  object_key TEXT,
+  size_bytes INTEGER,
   error TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   completed_at TIMESTAMPTZ
@@ -60,6 +78,14 @@ CREATE INDEX IF NOT EXISTS report_runs_schedule_idx
 -- ---------------------------------------------------------------------------
 -- RLS (030 academic-calendar pattern)
 -- ---------------------------------------------------------------------------
+ALTER TABLE report_definitions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON report_definitions;
+CREATE POLICY tenant_isolation ON report_definitions
+  FOR ALL
+  USING (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''))
+  WITH CHECK (tenant_id::text = NULLIF(current_setting('app.tenant_id', true), ''));
+ALTER TABLE report_definitions FORCE ROW LEVEL SECURITY;
+
 ALTER TABLE report_artifacts ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS tenant_isolation ON report_artifacts;
 CREATE POLICY tenant_isolation ON report_artifacts

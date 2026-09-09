@@ -34,7 +34,7 @@ export const reportCataloguePlugin = fp(
     const service = new CatalogueService(store, blobStore);
     fastify.decorate('reportCatalogueService', service);
 
-    await registerCatalogueRoutes(fastify, {
+    registerCatalogueRoutes(fastify, {
       service,
       prefix: options.prefix ?? '/reports',
     });
@@ -50,9 +50,9 @@ export const reportCataloguePlugin = fp(
       });
       scheduler.start();
       fastify.decorate('reportScheduler', scheduler);
-  fastify.addHook('onClose', async () => {
-    scheduler.stop();
-  });
+      fastify.addHook('onClose', () => {
+        scheduler.stop();
+      });
     }
   },
   {

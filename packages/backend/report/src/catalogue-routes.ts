@@ -64,6 +64,7 @@ function formatSchedule(record: {
   reportKey: string;
   format: string;
   cadence: string;
+  hour: number;
   nextRunAt: Date;
   recipients: string[];
   enabled: boolean;
@@ -78,6 +79,7 @@ function formatSchedule(record: {
     reportKey: record.reportKey,
     format: record.format,
     cadence: record.cadence,
+    hour: record.hour,
     nextRunAt: record.nextRunAt.toISOString(),
     recipients: record.recipients,
     enabled: record.enabled,
@@ -91,7 +93,7 @@ function formatSchedule(record: {
 export function registerCatalogueRoutes(
   fastify: FastifyInstance,
   options: CatalogueRoutesOptions,
-): Promise<void> {
+): void {
   const { service } = options;
   const prefix = options.prefix ?? '/reports';
 
@@ -261,6 +263,39 @@ export function registerCatalogueRoutes(
     }
   });
 
+  fastify.post(`${prefix}/schedules/run-due`, async (request, reply) => {
+    const tenantId = resolveTenantId(request);
+    if (!tenantId) return tenantMissing(reply);
+    try {
+      const result = await service.runDue(new Date());
+      return reply.send(result);
+    } catch (error: unknown) {
+      return sendError(reply, error);
+    }
+  });
+
+  fastify.delete<{ Params: { scheduleId: string } }>(
+    `${prefix}/schedules/:scheduleId`,
+    async (request, reply) => {
+      const params = validate(ScheduleIdParamsSchema, request.params);
+      if (!params.success) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          statusCode: 400,
+        });
+      }
+      const tenantId = resolveTenantId(request);
+      if (!tenantId) return tenantMissing(reply);
+      try {
+        await service.deleteSchedule(tenantId, params.data.scheduleId);
+        return reply.status(204).send();
+      } catch (error: unknown) {
+        return sendError(reply, error);
+      }
+    },
+  );
+
   fastify.patch<{ Params: { scheduleId: string } }>(
     `${prefix}/schedules/:scheduleId`,
     async (request, reply) => {
@@ -335,6 +370,17 @@ export function registerCatalogueRoutes(
   fastify.get(`${prefix}/dashboard`, async (request, reply) => {
     const query = validate(DashboardQuerySchema, request.query ?? {});
     const role = query.success ? query.data.role : undefined;
-    return reply.send(service.dashboard(resolveRoles(request), role ?? null));
+    const tenantId = resolveTenantId(request);
+    if (!tenantId) return tenantMissing(reply);
+    try {
+      const dashboard = await service.dashboard(
+        tenantId,
+        resolveRoles(request),
+        role ?? null,
+      );
+      return reply.send(dashboard);
+    } catch (error: unknown) {
+      return sendError(reply, error);
+    }
   });
 }

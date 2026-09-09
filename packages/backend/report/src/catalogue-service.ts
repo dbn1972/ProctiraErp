@@ -11,7 +11,13 @@ import {
   resolveReportKey,
   type CatalogueReportFormat,
 } from './catalogue.js';
-import { buildRoleDashboard, inferDashboardRole, type DashboardRole, type RoleDashboard } from './dashboards.js';
+import {
+  buildRoleDashboard,
+  loadDashboardAggregates,
+  resolveDashboardRole,
+  valuesForRole,
+  type RoleDashboard,
+} from './dashboards.js';
 import { contentTypeFor, filenameFor, generateReportBytes, sha256Hex } from './generators.js';
 import { fetchCatalogueTable } from './providers.js';
 import type {
@@ -85,6 +91,9 @@ export class CatalogueService {
       format,
       source,
       status: 'running',
+      sha256: null,
+      objectKey: null,
+      sizeBytes: null,
       error: null,
       createdAt: now,
       completedAt: null,
@@ -110,6 +119,9 @@ export class CatalogueService {
       const run = await this.store.updateRun(tenantId, runId, {
         status: 'completed',
         artifactId,
+        sha256: digest,
+        objectKey,
+        sizeBytes: bytes.length,
         completedAt: new Date(),
       });
       const signed = createReportDownloadToken(tenantId, artifactId);
@@ -180,6 +192,7 @@ export class CatalogueService {
       reportKey: string;
       format: string;
       cadence: string;
+      hour?: number;
       recipients?: string[];
       enabled?: boolean;
     },
@@ -203,13 +216,15 @@ export class CatalogueService {
       ]);
     }
     const now = new Date();
+    const hour = Number.isFinite(input.hour) ? Math.min(23, Math.max(0, Math.trunc(input.hour!))) : 6;
     return this.store.insertSchedule({
       id: randomUUID(),
       tenantId,
       reportKey,
       format,
       cadence,
-      nextRunAt: computeNextRunAt(cadence, now),
+      hour,
+      nextRunAt: computeNextRunAt(cadence, now, hour),
       recipients: input.recipients ?? [],
       enabled: input.enabled ?? true,
       createdBy: actorId,
@@ -224,14 +239,31 @@ export class CatalogueService {
   }
 
   async setScheduleEnabled(tenantId: string, id: string, enabled: boolean) {
+    const existing = await this.store.getSchedule(tenantId, id);
+    if (!existing) throw new NotFoundError(`Schedule '${id}' not found`);
     const updated = await this.store.updateSchedule(tenantId, id, { enabled });
     if (!updated) throw new NotFoundError(`Schedule '${id}' not found`);
     return updated;
   }
 
-  dashboard(roles: Array<{ roleId?: string; roleName?: string }> | undefined, queryRole?: string | null): RoleDashboard {
-    const role: DashboardRole = inferDashboardRole(roles, queryRole);
-    return buildRoleDashboard(role);
+  async deleteSchedule(tenantId: string, id: string): Promise<void> {
+    const deleted = await this.store.deleteSchedule(tenantId, id);
+    if (!deleted) throw new NotFoundError(`Schedule '${id}' not found`);
+  }
+
+  async dashboard(
+    tenantId: string,
+    roles: Array<{ roleId?: string; roleName?: string }> | undefined,
+    queryRole?: string | null,
+  ): Promise<RoleDashboard> {
+    const role = resolveDashboardRole(roles, queryRole);
+    const agg = await loadDashboardAggregates(tenantId);
+    return buildRoleDashboard(role, valuesForRole(role, agg));
+  }
+
+  /** Job-runner entry: execute every enabled schedule whose next_run_at <= now. */
+  async runDue(now = new Date()): Promise<{ due: number; completed: number; failed: number }> {
+    return this.tickDueSchedules(now);
   }
 
   async tickDueSchedules(now = new Date()): Promise<{ due: number; completed: number; failed: number }> {
@@ -246,14 +278,14 @@ export class CatalogueService {
         }, { source: 'schedule', scheduleId: schedule.id });
         await this.store.updateSchedule(schedule.tenantId, schedule.id, {
           lastRunAt: now,
-          nextRunAt: computeNextRunAt(schedule.cadence, now),
+          nextRunAt: computeNextRunAt(schedule.cadence, now, schedule.hour),
         });
         completed += 1;
       } catch {
         failed += 1;
         await this.store.updateSchedule(schedule.tenantId, schedule.id, {
           lastRunAt: now,
-          nextRunAt: computeNextRunAt(schedule.cadence, now),
+          nextRunAt: computeNextRunAt(schedule.cadence, now, schedule.hour),
         });
       }
     }
@@ -274,6 +306,7 @@ export class CatalogueService {
       downloadUrl: result.downloadUrl,
       artifactId: result.artifact.id,
       sha256: result.artifact.sha256,
+      trigger: result.run.source,
     };
   }
 
@@ -303,7 +336,8 @@ export class CatalogueService {
         ? `/api/v1/reports/artifacts/${artifact.id}/download`
         : null,
       artifactId: artifact?.id ?? null,
-      sha256: artifact?.sha256 ?? null,
+      sha256: artifact?.sha256 ?? run.sha256 ?? null,
+      trigger: run.source,
     };
   }
 }
