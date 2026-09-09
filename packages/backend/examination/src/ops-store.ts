@@ -96,6 +96,7 @@ export interface ExamOpsAuditRecord {
 export interface ExamOpsStore {
   createSession(record: ExamSessionRecord): Promise<ExamSessionRecord>;
   listSessions(tenantId: string, examinationId: string): Promise<ExamSessionRecord[]>;
+  listSessionsByTenant(tenantId: string): Promise<ExamSessionRecord[]>;
   findSession(tenantId: string, sessionId: string): Promise<ExamSessionRecord | null>;
   deleteSession(tenantId: string, sessionId: string): Promise<boolean>;
 
@@ -105,6 +106,7 @@ export interface ExamOpsStore {
     tenantId: string,
     examinationId: string,
   ): Promise<ExamInvigilatorRecord[]>;
+  listInvigilatorsByTenant(tenantId: string): Promise<ExamInvigilatorRecord[]>;
   findInvigilator(tenantId: string, allocationId: string): Promise<ExamInvigilatorRecord | null>;
   deleteInvigilator(tenantId: string, allocationId: string): Promise<boolean>;
 
@@ -167,6 +169,10 @@ export class InMemoryExamOpsStore implements ExamOpsStore {
       .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
   }
 
+  async listSessionsByTenant(tenantId: string): Promise<ExamSessionRecord[]> {
+    return [...this.sessions.values()].filter((row) => row.tenantId === tenantId);
+  }
+
   async findSession(tenantId: string, sessionId: string): Promise<ExamSessionRecord | null> {
     const row = this.sessions.get(sessionId);
     return row && row.tenantId === tenantId ? clone(row) : null;
@@ -205,6 +211,10 @@ export class InMemoryExamOpsStore implements ExamOpsStore {
     return [...this.invigilators.values()].filter(
       (row) => row.tenantId === tenantId && sessionIds.has(row.sessionId),
     );
+  }
+
+  async listInvigilatorsByTenant(tenantId: string): Promise<ExamInvigilatorRecord[]> {
+    return [...this.invigilators.values()].filter((row) => row.tenantId === tenantId);
   }
 
   async findInvigilator(
@@ -563,6 +573,15 @@ export class PgExamOpsStore implements ExamOpsStore {
     });
   }
 
+  async listSessionsByTenant(tenantId: string): Promise<ExamSessionRecord[]> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(`SELECT * FROM exam_sessions WHERE tenant_id = $1`, [
+        tenantId,
+      ]);
+      return (rows as SessionRow[]).map(toSession);
+    });
+  }
+
   async findSession(tenantId: string, sessionId: string): Promise<ExamSessionRecord | null> {
     return this.run(tenantId, async (client) => {
       const { rows } = await client.query(
@@ -624,6 +643,15 @@ export class PgExamOpsStore implements ExamOpsStore {
           WHERE i.tenant_id = $1 AND s.examination_id = $2`,
         [tenantId, examinationId],
       );
+      return (rows as InvigilatorRow[]).map(toInvigilator);
+    });
+  }
+
+  async listInvigilatorsByTenant(tenantId: string): Promise<ExamInvigilatorRecord[]> {
+    return this.run(tenantId, async (client) => {
+      const { rows } = await client.query(`SELECT * FROM exam_invigilators WHERE tenant_id = $1`, [
+        tenantId,
+      ]);
       return (rows as InvigilatorRow[]).map(toInvigilator);
     });
   }

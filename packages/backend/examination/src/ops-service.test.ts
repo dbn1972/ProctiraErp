@@ -282,6 +282,54 @@ describe('ExamOpsService', () => {
     expect(complete?.details['published']).toBe(true);
   });
 
+  it('rejects staff overlap across two examinations in the same tenant', async () => {
+    const other = await exams.create(TENANT, examBody());
+    const a = await ops.createSession(
+      TENANT,
+      examId,
+      {
+        subjectId,
+        date: futureDate(8),
+        startTime: '09:00',
+        endTime: '11:00',
+        roomId: 'HALL-A',
+        centerId,
+      },
+      ACTOR,
+    );
+    const b = await ops.createSession(
+      TENANT,
+      other.id,
+      {
+        subjectId: other.subjects[0]!.id,
+        date: futureDate(8),
+        startTime: '10:00',
+        endTime: '12:00',
+        roomId: 'HALL-Z',
+        centerId: other.centers[0]!.id,
+      },
+      ACTOR,
+    );
+    expect(a.ok && b.ok).toBe(true);
+    if (!a.ok || !b.ok) return;
+    const first = await ops.allocateInvigilator(
+      TENANT,
+      examId,
+      a.session.id,
+      { staffId: STAFF_A },
+      ACTOR,
+    );
+    expect(first.ok).toBe(true);
+    const clash = await ops.allocateInvigilator(
+      TENANT,
+      other.id,
+      b.session.id,
+      { staffId: STAFF_A },
+      ACTOR,
+    );
+    expect(clash.ok).toBe(false);
+  });
+
   it('does not allocate the same staff twice on one session', async () => {
     const session = await ops.createSession(
       TENANT,

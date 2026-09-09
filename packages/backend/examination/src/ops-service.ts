@@ -218,7 +218,7 @@ export class ExamOpsService {
       createdAt: now,
       updatedAt: now,
     };
-    const existing = await this.store.listSessions(tenantId, examinationId);
+    const existing = await this.store.listSessionsByTenant(tenantId);
     const conflicts = findRoomClashes(toSlot(session), existing.map(toSlot));
     if (conflicts.length > 0) return { ok: false, conflicts };
 
@@ -270,9 +270,9 @@ export class ExamOpsService {
       throw new ConflictError(`Staff '${input.staffId}' is already allocated to this session`);
     }
 
-    const examSessions = await this.store.listSessions(tenantId, examinationId);
+    const examSessions = await this.store.listSessionsByTenant(tenantId);
     const sessionsById = new Map(examSessions.map((s) => [s.id, toSlot(s)] as const));
-    const assignments = await this.store.listInvigilatorsForExamination(tenantId, examinationId);
+    const assignments = await this.store.listInvigilatorsByTenant(tenantId);
     const conflicts = findStaffClashes(
       toSlot(session),
       input.staffId,
