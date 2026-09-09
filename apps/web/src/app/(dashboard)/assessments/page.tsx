@@ -88,6 +88,12 @@ export default async function AssessmentsPage(props: PageProps) {
             </Link>
           </Button>
           <Button asChild variant="outline" size="sm">
+            <Link href="/assessments/outcomes">Outcomes</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/assessments/report-cards">Report cards</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href="/assessments/results">Enter results</Link>
           </Button>
           <Button asChild size="sm">

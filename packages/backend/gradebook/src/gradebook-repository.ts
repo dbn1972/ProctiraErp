@@ -11,6 +11,7 @@ export type GradeEntryEntity = {
   enteredBy: string | null;
   enteredAt: string;
   lockedAt: string | null;
+  publishedAt: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;

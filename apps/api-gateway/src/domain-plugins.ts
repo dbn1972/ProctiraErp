@@ -64,6 +64,7 @@ import {
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
 import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
+import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import {
   assertPhiKeyConfigured,
@@ -252,6 +253,18 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(gradebookPlugin, {
         repository: createGradebookRepository(),
         prefix: '/gradebook',
+      });
+    },
+  },
+  {
+    name: 'curriculum',
+    proxyPrefixes: ['/curriculum'],
+    register: async (scope) => {
+      // Raw pg against 033_curriculum_schema.sql when DATABASE_URL is set;
+      // in-memory otherwise. No Prisma on this path.
+      await scope.register(curriculumPlugin, {
+        store: createCurriculumStore(),
+        prefix: '/curriculum',
       });
     },
   },

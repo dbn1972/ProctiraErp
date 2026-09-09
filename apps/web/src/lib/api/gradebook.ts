@@ -5,6 +5,22 @@
  */
 import { GatewayError, gatewayFetch } from './gateway';
 
+export type GradeWorkflowStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'LOCKED'
+  | 'PUBLISHED'
+  | 'REJECTED';
+
+export type GradeWorkflowAction =
+  | 'submit'
+  | 'approve'
+  | 'reject'
+  | 'lock'
+  | 'publish'
+  | 'reopen';
+
 export interface GradeEntry {
   id: string;
   tenantId: string;
@@ -16,9 +32,50 @@ export interface GradeEntry {
   enteredBy: string | null;
   enteredAt: string;
   lockedAt: string | null;
+  publishedAt: string | null;
   metadata: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CommentsBankItem {
+  id: string;
+  tenantId: string;
+  institutionId: string | null;
+  subjectId: string | null;
+  gradeBand: string | null;
+  label: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClassRankSnapshot {
+  id?: string;
+  studentId: string;
+  classRank: number;
+  tieCount: number;
+  weightedGpa: number | null;
+  unweightedGpa: number | null;
+  cgpa: number | null;
+  creditsEarned: number | null;
+}
+
+export function readGradeWorkflowStatus(entry: GradeEntry): GradeWorkflowStatus {
+  if (entry.publishedAt) return 'PUBLISHED';
+  const raw = entry.metadata?.workflowStatus;
+  if (
+    raw === 'DRAFT' ||
+    raw === 'SUBMITTED' ||
+    raw === 'APPROVED' ||
+    raw === 'LOCKED' ||
+    raw === 'PUBLISHED' ||
+    raw === 'REJECTED'
+  ) {
+    return raw;
+  }
+  if (entry.lockedAt) return 'LOCKED';
+  return 'DRAFT';
 }
 
 export interface SectionSummary {
@@ -161,6 +218,8 @@ export async function upsertGradeEntry(input: {
   numericScore?: number | null;
   letterGrade?: string | null;
   creditRuleCode?: string | null;
+  remark?: string | null;
+  commentBankId?: string | null;
 }): Promise<GradeEntry> {
   const result = await gatewayFetch<GradeEntry>('/gradebook/entries', {
     method: 'PUT',
@@ -386,6 +445,134 @@ export async function getBoardExportJob(id: string): Promise<GradebookLoadResult
       return { ok: false, error: 'Board export job not found', status: 404 };
     }
     return { ok: true, data: result.data };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function listPublishedGradeEntries(filters?: {
+  sectionId?: string;
+  studentId?: string;
+}): Promise<GradebookLoadResult<GradeEntry[]>> {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.sectionId) params.set('sectionId', filters.sectionId);
+    if (filters?.studentId) params.set('studentId', filters.studentId);
+    const qs = params.toString();
+    const result = await gatewayFetch<{ data: GradeEntry[] }>(
+      `/gradebook/published${qs ? `?${qs}` : ''}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function transitionGradeEntry(
+  id: string,
+  action: GradeWorkflowAction,
+): Promise<GradeEntry> {
+  const result = await gatewayFetch<GradeEntry>(`/gradebook/entries/${id}/transition`, {
+    method: 'POST',
+    json: { action },
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from grade transition',
+    });
+  }
+  return result.data;
+}
+
+export async function bulkTransitionGradeEntries(
+  ids: string[],
+  action: GradeWorkflowAction,
+): Promise<GradeEntry[]> {
+  const result = await gatewayFetch<{ data: GradeEntry[] }>('/gradebook/entries/bulk-transition', {
+    method: 'POST',
+    json: { ids, action },
+  });
+  return result.data?.data ?? [];
+}
+
+export async function listCommentsBank(filters?: {
+  subjectId?: string;
+  gradeBand?: string;
+  institutionId?: string;
+}): Promise<GradebookLoadResult<CommentsBankItem[]>> {
+  try {
+    const params = new URLSearchParams();
+    if (filters?.subjectId) params.set('subjectId', filters.subjectId);
+    if (filters?.gradeBand) params.set('gradeBand', filters.gradeBand);
+    if (filters?.institutionId) params.set('institutionId', filters.institutionId);
+    const qs = params.toString();
+    const result = await gatewayFetch<{ data: CommentsBankItem[] }>(
+      `/gradebook/comments-bank${qs ? `?${qs}` : ''}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
+  } catch (error) {
+    return { ok: false, ...mapError(error) };
+  }
+}
+
+export async function createCommentsBank(input: {
+  institutionId?: string | null;
+  subjectId?: string | null;
+  gradeBand?: string | null;
+  label: string;
+  body: string;
+}): Promise<CommentsBankItem> {
+  const result = await gatewayFetch<CommentsBankItem>('/gradebook/comments-bank', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from comments bank create',
+    });
+  }
+  return result.data;
+}
+
+export async function computeClassRank(input: {
+  sectionId: string;
+  academicPeriodId?: string | null;
+  boardId?: string | null;
+  persist?: boolean;
+}): Promise<{ batchId: string; computedAt: string; ranks: ClassRankSnapshot[] }> {
+  const result = await gatewayFetch<{
+    batchId: string;
+    computedAt: string;
+    ranks: ClassRankSnapshot[];
+  }>('/gradebook/rank/compute', {
+    method: 'POST',
+    json: input,
+  });
+  if (!result.data) {
+    throw new GatewayError({
+      status: result.status,
+      code: 'EMPTY_RESPONSE',
+      message: 'Empty response from class rank compute',
+    });
+  }
+  return result.data;
+}
+
+export async function listClassRanks(
+  sectionId: string,
+): Promise<GradebookLoadResult<ClassRankSnapshot[]>> {
+  try {
+    const result = await gatewayFetch<{ data: ClassRankSnapshot[] }>(
+      `/gradebook/rank?sectionId=${encodeURIComponent(sectionId)}`,
+      { next: { revalidate: 0 } },
+    );
+    return { ok: true, data: result.data?.data ?? [] };
   } catch (error) {
     return { ok: false, ...mapError(error) };
   }

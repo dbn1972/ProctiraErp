@@ -7,6 +7,8 @@ export const UpsertGradeEntrySchema = Type.Object({
   numericScore: Type.Optional(Type.Union([Type.Number({ minimum: 0, maximum: 100 }), Type.Null()])),
   letterGrade: Type.Optional(Type.Union([Type.String({ maxLength: 10 }), Type.Null()])),
   creditRuleCode: Type.Optional(Type.Union([Type.String({ maxLength: 50 }), Type.Null()])),
+  remark: Type.Optional(Type.Union([Type.String({ maxLength: 4000 }), Type.Null()])),
+  commentBankId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
   metadata: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
 });
 export type UpsertGradeEntryInput = Static<typeof UpsertGradeEntrySchema>;
@@ -64,7 +66,31 @@ export const TransitionGradeEntrySchema = Type.Object({
     Type.Literal('approve'),
     Type.Literal('reject'),
     Type.Literal('lock'),
+    Type.Literal('publish'),
     Type.Literal('reopen'),
   ]),
 });
 export type TransitionGradeEntryInput = Static<typeof TransitionGradeEntrySchema>;
+
+export const BulkTransitionGradeEntriesSchema = Type.Object({
+  ids: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 200 }),
+  action: TransitionGradeEntrySchema.properties.action,
+});
+export type BulkTransitionGradeEntriesInput = Static<typeof BulkTransitionGradeEntriesSchema>;
+
+export const ComputeClassRankSchema = Type.Object({
+  sectionId: Type.String({ minLength: 1 }),
+  academicPeriodId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  boardId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  persist: Type.Optional(Type.Boolean()),
+});
+export type ComputeClassRankInput = Static<typeof ComputeClassRankSchema>;
+
+export const UpsertCommentsBankSchema = Type.Object({
+  institutionId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  subjectId: Type.Optional(Type.Union([Type.String({ minLength: 1 }), Type.Null()])),
+  gradeBand: Type.Optional(Type.Union([Type.String({ maxLength: 20 }), Type.Null()])),
+  label: Type.String({ minLength: 1, maxLength: 200 }),
+  body: Type.String({ minLength: 1, maxLength: 4000 }),
+});
+export type UpsertCommentsBankInput = Static<typeof UpsertCommentsBankSchema>;

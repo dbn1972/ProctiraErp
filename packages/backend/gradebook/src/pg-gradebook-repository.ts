@@ -112,6 +112,7 @@ function mapEntry(row: Record<string, unknown>): GradeEntryEntity {
     enteredBy: row.entered_by == null ? null : String(row.entered_by),
     enteredAt: iso(row.entered_at),
     lockedAt: row.locked_at == null ? null : iso(row.locked_at),
+    publishedAt: row.published_at == null ? null : iso(row.published_at),
     metadata: jsonObj(row.metadata),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
@@ -297,10 +298,10 @@ export class PgGradebookRepository implements GradebookRepository {
         row.tenantId,
         `INSERT INTO grade_entries (
            id, tenant_id, section_id, student_id, assessment_code,
-           numeric_score, letter_grade, entered_by, entered_at, locked_at,
+           numeric_score, letter_grade, entered_by, entered_at, locked_at, published_at,
            metadata, created_at, updated_at
          ) VALUES (
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12,$13
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13,$14
          ) RETURNING *`,
         [
           row.id,
@@ -313,6 +314,7 @@ export class PgGradebookRepository implements GradebookRepository {
           row.enteredBy,
           row.enteredAt,
           row.lockedAt,
+          row.publishedAt,
           JSON.stringify(row.metadata ?? {}),
           row.createdAt,
           row.updatedAt,
@@ -337,8 +339,9 @@ export class PgGradebookRepository implements GradebookRepository {
            entered_by = $7,
            entered_at = $8,
            locked_at = $9,
-           metadata = $10::jsonb,
-           updated_at = $11
+           published_at = $10,
+           metadata = $11::jsonb,
+           updated_at = $12
          WHERE tenant_id = $1 AND id = $2
          RETURNING *`,
         [
@@ -351,6 +354,7 @@ export class PgGradebookRepository implements GradebookRepository {
           next.enteredBy,
           next.enteredAt,
           next.lockedAt,
+          next.publishedAt,
           JSON.stringify(next.metadata ?? {}),
           next.updatedAt ?? new Date().toISOString(),
         ],

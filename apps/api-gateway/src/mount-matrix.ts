@@ -48,6 +48,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'auth',
   'billing',
   'communication',
+  'curriculum',
   'developer-portal',
   'examination',
   'fees',
@@ -203,6 +204,16 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     rbacWired: false,
     notes: 'Raw pg (003/004) when DATABASE_URL set; else in-memory.',
     registrarName: 'gradebook',
+  },
+  {
+    package: 'curriculum',
+    mounted: true,
+    prefixes: ['/curriculum'],
+    persistence: 'raw-pg',
+    rbacWired: false,
+    notes:
+      'Raw pg (033_curriculum_schema.sql) when DATABASE_URL set; else in-memory. Syllabus units, lesson plans, outcomes, coverage % (G-923).',
+    registrarName: 'curriculum',
   },
   {
     package: 'lms',

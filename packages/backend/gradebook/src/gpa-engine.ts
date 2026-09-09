@@ -204,3 +204,78 @@ export function computeGpaSnapshot(
     courses: results,
   };
 }
+
+export type ClassRankInput = {
+  studentId: string;
+  /** Term / section GPA used for ranking (nulls sort last). */
+  weightedGpa: number | null;
+  unweightedGpa?: number | null;
+  /** Cumulative GPA across all periods for the student. */
+  cgpa: number | null;
+  creditsEarned?: number | null;
+};
+
+export type ClassRankRow = ClassRankInput & {
+  /**
+   * Competition rank (1224): equal weighted GPA share a rank; the next
+   * distinct GPA takes rank = previous position + 1 (not dense 1223).
+   * Ties do not change rank; studentId ASC is a stable display order only.
+   */
+  classRank: number;
+  tieCount: number;
+};
+
+function gpaKey(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return '';
+  return value.toFixed(4);
+}
+
+/**
+ * Rank students in a class by weighted GPA descending.
+ *
+ * Tie handling (deterministic):
+ * - Equal weighted GPA (4 d.p.) share the same `classRank`.
+ * - Next rank skips (competition / "1224"), so two students tied at 1 → next is 3.
+ * - Display order among ties is `studentId` ascending (does not affect rank).
+ * - Null GPA sorts last and shares a rank among other nulls.
+ */
+export function computeClassRanks(rows: ClassRankInput[]): ClassRankRow[] {
+  const sorted = [...rows].sort((a, b) => {
+    const aNull = a.weightedGpa == null || !Number.isFinite(a.weightedGpa);
+    const bNull = b.weightedGpa == null || !Number.isFinite(b.weightedGpa);
+    if (aNull && bNull) return a.studentId.localeCompare(b.studentId);
+    if (aNull) return 1;
+    if (bNull) return -1;
+    if (b.weightedGpa! !== a.weightedGpa!) return b.weightedGpa! - a.weightedGpa!;
+    return a.studentId.localeCompare(b.studentId);
+  });
+
+  const out: ClassRankRow[] = [];
+  let lastKey: string | null = null;
+  let lastRank = 0;
+  for (let i = 0; i < sorted.length; i += 1) {
+    const row = sorted[i]!;
+    const key = gpaKey(row.weightedGpa);
+    const rank = lastKey !== null && key === lastKey ? lastRank : i + 1;
+    lastKey = key;
+    lastRank = rank;
+    out.push({ ...row, classRank: rank, tieCount: 1 });
+  }
+  const counts = new Map<number, number>();
+  for (const row of out) {
+    counts.set(row.classRank, (counts.get(row.classRank) ?? 0) + 1);
+  }
+  for (const row of out) {
+    row.tieCount = counts.get(row.classRank) ?? 1;
+  }
+  return out;
+}
+
+/** CGPA is the GPA snapshot over every course attempt (all periods). */
+export function computeCgpa(
+  courses: CourseGradeInput[],
+  bands: GradeBand[],
+  policy: GpaPolicy = {},
+): GpaSnapshotResult {
+  return computeGpaSnapshot(courses, bands, policy);
+}
