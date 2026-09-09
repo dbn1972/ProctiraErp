@@ -2,8 +2,8 @@
  * Academic calendar — year → term hierarchy, calendar events, year-end
  * rollover (Wave 9 / G-905).
  *
- * Ungated: the periods list renders and the calendar page 404s for an
- * unknown id (no crash).
+ * Ungated: the periods list renders and the calendar page shows not-found
+ * for an unknown id (no crash).
  * Gated (E2E_BACKEND_READY): live API year/term chain with the hierarchy
  * rules enforced, the UI adds + lists a holiday, the rollover previews then
  * executes into the next year (sections cloned), and tenant B sees nothing.
@@ -82,11 +82,16 @@ test.describe('Academic calendar — pages render (ungated)', () => {
     await expect(page.getByTestId('new-period')).toBeVisible();
   });
 
-  test('/academic-periods/[id]/calendar 404s for an unknown period', async ({ page }) => {
-    const res = await page.goto('/academic-periods/00000000-0000-4000-8000-00000000dead/calendar', {
+  test('/academic-periods/[id]/calendar shows not-found for an unknown period', async ({
+    page,
+  }) => {
+    // The dashboard loading boundary streams before notFound() resolves, so
+    // assert on the rendered not-found page rather than the HTTP status.
+    await page.goto('/academic-periods/00000000-0000-4000-8000-00000000dead/calendar', {
       waitUntil: 'domcontentloaded',
     });
-    expect(res?.status()).toBe(404);
+    await expect(page.getByRole('heading', { name: /page not found/i })).toBeVisible();
+    await expect(page.getByTestId('calendar-period-name')).toHaveCount(0);
   });
 });
 
@@ -186,10 +191,10 @@ test.describe('Academic calendar — live chain (E2E_BACKEND_READY)', () => {
 
     await hydrated(page, 'calendar-event-form');
     const holidayName = `Founders Day ${stamp()}`;
-    await page.getByLabel(/^Name/).fill(holidayName);
-    await page.getByLabel(/^From/).fill('2032-11-10');
-    await page.getByLabel(/^To/).fill('2032-11-11');
-    await page.getByLabel('Notes').fill('School closed');
+    await page.locator('#ce-name').fill(holidayName);
+    await page.locator('#ce-start').fill('2032-11-10');
+    await page.locator('#ce-end').fill('2032-11-11');
+    await page.locator('#ce-notes').fill('School closed');
     await page.getByTestId('add-calendar-event').click();
 
     const row = page.locator('[data-testid="calendar-event-row"]', { hasText: holidayName });
@@ -205,13 +210,25 @@ test.describe('Academic calendar — live chain (E2E_BACKEND_READY)', () => {
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({ name: holidayName, kind: 'holiday', notes: 'School closed' });
 
-    // Outside the period → rejected, nothing added.
-    await page.getByLabel(/^Name/).fill('Too early');
-    await page.getByLabel(/^From/).fill('2032-01-01');
-    await page.getByLabel(/^To/).fill('2032-01-02');
+    // Outside the period → the date inputs are clamped to the period in the
+    // UI (min/max), and the API rejects it outright; nothing is added.
+    await page.locator('#ce-name').fill('Too early');
+    await page.locator('#ce-start').fill('2032-01-01');
+    await page.locator('#ce-end').fill('2032-01-02');
     await page.getByTestId('add-calendar-event').click();
-    await expect(page.getByTestId('calendar-error')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('calendar-event-row')).toHaveCount(1);
+    const outside = await request.post(
+      `${GATEWAY_URL}/api/v1/academic-periods/${year.id}/calendar`,
+      {
+        headers: headers(),
+        data: { kind: 'holiday', name: 'Too early', startDate: '2032-01-01', endDate: '2032-01-02' },
+      },
+    );
+    expect(outside.status()).toBe(400);
+    const still = await request.get(`${GATEWAY_URL}/api/v1/academic-periods/${year.id}/calendar`, {
+      headers: headers(),
+    });
+    expect((await still.json()).data).toHaveLength(1);
   });
 
   test('rollover previews then executes into the next year, cloning sections', async ({

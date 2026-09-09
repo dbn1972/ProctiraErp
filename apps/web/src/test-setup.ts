@@ -18,6 +18,8 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({}),
   redirect: vi.fn(),
   notFound: vi.fn(),
+  // No-op: the real helper only rethrows Next-internal navigation errors.
+  unstable_rethrow: vi.fn(),
 }));
 
 // jsdom does not implement ResizeObserver, which many UI components rely on.
