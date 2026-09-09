@@ -52,6 +52,7 @@ import {
   createCommunicationRepository,
   createSandboxDeliveryAdapter,
 } from '@proctira/backend-communication';
+import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
   developerPortalPlugin,
   InMemoryDeveloperPortalRepository,
@@ -64,7 +65,6 @@ import {
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
 import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
-import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import {
   assertPhiKeyConfigured,
