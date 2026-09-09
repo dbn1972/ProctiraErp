@@ -107,26 +107,13 @@ export function NewExaminationForm({ institutions }: NewExaminationFormProps) {
   const scheme = values.gradingSchemes[0]!;
 
   return (
-    <section aria-labelledby="new-exam-heading" className="space-y-6">
+    <section className="space-y-6">
       <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
         <Link href="/examinations">
           <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
           Back to examinations
         </Link>
       </Button>
-
-      <div>
-        <h1
-          id="new-exam-heading"
-          className="text-3xl font-extrabold tracking-tight text-foreground"
-        >
-          Schedule examination
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Creates via POST /examinations — name, code, academic period, window, subject, centre, and
-          grading scheme (Requirement 10.1 / 10.7).
-        </p>
-      </div>
 
       <Card className="max-w-[860px]">
         <CardHeader>

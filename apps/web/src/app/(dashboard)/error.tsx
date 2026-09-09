@@ -1,5 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
+
+import { Button } from '@proctira/ui/components';
+
 export default function DashboardError({
   error,
   reset,
@@ -7,17 +11,23 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    console.error('[dashboard] route error:', error);
+  }, [error]);
+
   return (
-    <div className="flex flex-col items-start gap-3 p-6" role="alert">
-      <h1 className="text-xl font-semibold">Something went wrong</h1>
-      <p className="text-sm text-muted-foreground">{error.message || 'Unexpected error'}</p>
-      <button
-        type="button"
-        className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
-        onClick={() => reset()}
-      >
+    <div
+      role="alert"
+      aria-live="assertive"
+      className="flex flex-col items-center justify-center gap-4 py-16 text-center"
+    >
+      <h2 className="text-lg font-semibold text-foreground">Something went wrong</h2>
+      <p className="max-w-md text-sm text-muted-foreground">
+        {error.message || 'An unexpected error occurred while loading this page.'}
+      </p>
+      <Button type="button" onClick={() => reset()}>
         Try again
-      </button>
+      </Button>
     </div>
   );
 }
