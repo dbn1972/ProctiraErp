@@ -16,6 +16,7 @@
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Check, Plus, Trash2, User } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -218,19 +219,27 @@ export function StudentForm({ mode, studentId, initialValues, customFields }: St
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold">Drop a passport-size photo here, or browse</p>
               <p className="text-xs text-muted-foreground">
-                JPG or PNG, up to 2 MB · plain background preferred · photo is saved after the
-                student record is created
+                JPG or PNG, up to 2 MB · plain background preferred
+                {mode === 'create'
+                  ? ' · upload the photo from the student profile after the record is created'
+                  : ' · manage the photo on the student profile'}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled
-              title="Photo upload is available from the student profile after the record is created"
-            >
-              Browse files
-            </Button>
+            {mode === 'edit' && studentId ? (
+              <Button asChild type="button" variant="outline" size="sm">
+                <Link href={`/students/${studentId}`}>Open profile to upload</Link>
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled
+                title="Photo upload is available from the student profile after the record is created"
+              >
+                Browse files
+              </Button>
+            )}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
