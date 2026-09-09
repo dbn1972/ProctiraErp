@@ -56,7 +56,7 @@ export default async function TimetableGeneratePage(props: PageProps) {
     <div className="space-y-4" data-testid="timetable-generate-page" data-hydrated="true">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-bold tracking-tight text-foreground">Generate timetable</h1>
+          <h2 className="text-lg font-bold tracking-tight text-foreground">Generate timetable</h2>
           <p className="text-sm text-muted-foreground">
             Constraint-based greedy assignment with a repair loop. Hard clashes stay at zero;
             leftover demand is left unassigned.

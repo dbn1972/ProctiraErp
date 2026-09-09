@@ -2,6 +2,7 @@
  * Class analytics (G-915).
  */
 import {
+  Button,
   Card,
   CardContent,
   CardHeader,
@@ -46,7 +47,10 @@ export default async function LmsAnalyticsPage({
   return (
     <section className="space-y-6" aria-labelledby="lms-analytics-heading">
       <div>
-        <h1 id="lms-analytics-heading" className="text-3xl font-extrabold tracking-tight">
+        <h1
+          id="lms-analytics-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
           Class analytics
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -62,11 +66,11 @@ export default async function LmsAnalyticsPage({
           id="analytics-class"
           name="classKey"
           defaultValue={classKey}
-          className="h-11 rounded-md border px-3"
+          className="h-11 min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground"
         />
-        <button type="submit" className="h-11 rounded-md border px-4 text-sm font-medium">
+        <Button type="submit" variant="outline" className="h-11 min-h-11">
           Load
-        </button>
+        </Button>
       </form>
       <div
         className="grid gap-4 sm:grid-cols-3"

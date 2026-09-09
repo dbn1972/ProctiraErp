@@ -118,6 +118,47 @@ const DASHBOARD_ROUTES = [
   { path: '/admin/roles', label: 'admin-roles' },
   { path: '/admin/permissions', label: 'admin-permissions' },
   { path: '/admin/tenant', label: 'admin-tenant' },
+  // Wave 9 batch 3 (G-909, G-915–G-922)
+  { path: '/reports/dashboard', label: 'reports-dashboard' },
+  { path: '/reports/schedules', label: 'reports-schedules' },
+  { path: '/reports/dashboards', label: 'reports-dashboards' },
+  { path: '/lms/bank', label: 'lms-bank' },
+  { path: '/lms/rubrics', label: 'lms-rubrics' },
+  { path: '/lms/discussions', label: 'lms-discussions' },
+  { path: '/lms/lessons', label: 'lms-lessons' },
+  { path: '/lms/content', label: 'lms-content' },
+  { path: '/lms/analytics', label: 'lms-analytics' },
+  { path: '/library/opac', label: 'library-opac' },
+  { path: '/library/holds', label: 'library-holds' },
+  { path: '/library/fines', label: 'library-fines' },
+  { path: '/hostel/mess', label: 'hostel-mess' },
+  { path: '/hostel/gate-passes', label: 'hostel-gate-passes' },
+  { path: '/hostel/fees', label: 'hostel-fees' },
+  { path: '/hostel/attendance', label: 'hostel-attendance' },
+  { path: '/attendance/ops', label: 'attendance-ops' },
+  { path: '/staff/attendance', label: 'staff-attendance' },
+  { path: '/staff/import', label: 'staff-import' },
+  { path: '/staff/payroll', label: 'staff-payroll' },
+  { path: '/staff/contracts', label: 'staff-contracts' },
+  { path: '/communication/circulars', label: 'communication-circulars' },
+  { path: '/communication/circulars/new', label: 'communication-circulars-new' },
+  { path: '/communication/delivery', label: 'communication-delivery' },
+  { path: '/transport/live', label: 'transport-live' },
+  { path: '/transport/attendance', label: 'transport-attendance' },
+  { path: '/transport/alerts', label: 'transport-alerts' },
+  { path: '/transport/fees', label: 'transport-fees' },
+] as const;
+
+/** Seeded by tools/e2e/seed-e2e-tenants.sql for tenant A (G-722). */
+const E2E_INSTITUTION_ID = process.env.E2E_INSTITUTION_ID ?? 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+
+/** Wave 9 batch 3 institution-scoped routes (G-917 timetable generation). */
+const WAVE9_BATCH3_INSTITUTION_ROUTES = [
+  { path: `/institutions/${E2E_INSTITUTION_ID}/timetable/generate`, label: 'timetable-generate' },
+  {
+    path: `/institutions/${E2E_INSTITUTION_ID}/timetable/substitutions`,
+    label: 'timetable-substitutions',
+  },
 ] as const;
 
 /**
@@ -144,28 +185,34 @@ async function setTheme(
   await page.waitForTimeout(100);
 }
 
+async function gotoDashboardRoute(
+  page: import('@playwright/test').Page,
+  path: string,
+): Promise<void> {
+  const target = path === '/reports/dashboards' ? '/reports/dashboard' : path;
+  await page.goto(target);
+  await page
+    .waitForSelector('[role="main"], main', {
+      state: 'visible',
+      timeout: 15_000,
+    })
+    .catch(() => {
+      // Some routes may not have a <main> landmark yet; proceed anyway.
+    });
+}
+
 test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
   test.skip(
     !BACKEND_READY,
     'E2E_BACKEND_READY is not set; skipping dark-mode parity scans. See e2e/README.md.',
   );
 
-  for (const route of DASHBOARD_ROUTES) {
+  for (const route of [...DASHBOARD_ROUTES, ...WAVE9_BATCH3_INSTITUTION_ROUTES]) {
     test(`${route.label} (${route.path}) — no WCAG 2.1 AA contrast violations in light mode`, async ({
       page,
     }) => {
       await loginAsTenantAdmin(page);
-      await page.goto(route.path);
-      // Wait for the main content area to be visible before scanning.
-      await page
-        .waitForSelector('[role="main"], main', {
-          state: 'visible',
-          timeout: 15_000,
-        })
-        .catch(() => {
-          // Some routes may not have a <main> landmark yet; proceed anyway.
-        });
-
+      await gotoDashboardRoute(page, route.path);
       await setTheme(page, 'light');
       await runAxe(page, {
         checkpointLabel: `${route.path} [light]`,
@@ -176,16 +223,7 @@ test.describe('Property F-2: Dark Mode Parity (E2E_BACKEND_READY=1)', () => {
       page,
     }) => {
       await loginAsTenantAdmin(page);
-      await page.goto(route.path);
-      await page
-        .waitForSelector('[role="main"], main', {
-          state: 'visible',
-          timeout: 15_000,
-        })
-        .catch(() => {
-          // Some routes may not have a <main> landmark yet; proceed anyway.
-        });
-
+      await gotoDashboardRoute(page, route.path);
       await setTheme(page, 'dark');
       await runAxe(page, {
         checkpointLabel: `${route.path} [dark]`,

@@ -50,7 +50,11 @@ export function ContentForm() {
       </div>
       <div className="space-y-1">
         <Label htmlFor="content-kind">Kind</Label>
-        <select id="content-kind" name="kind" className="h-11 w-full rounded-md border px-3">
+        <select
+          id="content-kind"
+          name="kind"
+          className="h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+        >
           <option value="text">Text</option>
           <option value="link">Link</option>
           <option value="file">File</option>
@@ -64,8 +68,12 @@ export function ContentForm() {
         <Label htmlFor="content-body">Body or URL</Label>
         <Textarea id="content-body" name="body" rows={3} />
       </div>
-      <label className="flex min-h-11 items-center gap-2 text-sm">
-        <input type="checkbox" name="published" />
+      <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm sm:col-span-2">
+        <input
+          type="checkbox"
+          name="published"
+          className="size-12 shrink-0 rounded border border-input"
+        />
         Publish for students
       </label>
       <Button type="submit" disabled={pending} aria-busy={pending}>

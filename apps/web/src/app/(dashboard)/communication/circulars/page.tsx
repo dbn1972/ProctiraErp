@@ -56,7 +56,7 @@ export default async function CommunicationCircularsPage() {
                 >
                   <Link
                     href={`/communication/circulars/${row.id}`}
-                    className="text-sm font-medium hover:underline"
+                    className="inline-flex min-h-11 items-center text-sm font-medium hover:underline"
                   >
                     {row.title}
                   </Link>

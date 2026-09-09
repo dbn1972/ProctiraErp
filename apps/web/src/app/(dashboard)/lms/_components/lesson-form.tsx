@@ -51,10 +51,18 @@ export function LessonForm() {
         <Label htmlFor="lesson-subject">Subject</Label>
         <Input id="lesson-subject" name="subject" className="h-11" />
       </div>
-      <div className="flex min-h-11 items-center gap-2">
-        <input id="lesson-published" name="published" type="checkbox" />
-        <Label htmlFor="lesson-published">Published</Label>
-      </div>
+      <label
+        htmlFor="lesson-published"
+        className="flex min-h-11 cursor-pointer items-center gap-2 sm:col-span-2"
+      >
+        <input
+          id="lesson-published"
+          name="published"
+          type="checkbox"
+          className="size-12 shrink-0 rounded border border-input"
+        />
+        <span className="text-sm font-medium">Published</span>
+      </label>
       <div className="sm:col-span-2 space-y-1">
         <Label htmlFor="lesson-body">Description</Label>
         <Textarea id="lesson-body" name="description" rows={3} />

@@ -129,7 +129,7 @@ export function AttendanceOpsForms({
           <select
             id="toStatus"
             name="toStatus"
-            className="h-10 w-full rounded-md border border-border bg-background px-3"
+            className="h-11 min-h-11 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
             defaultValue="PRESENT"
           >
             <option>PRESENT</option>

@@ -53,7 +53,9 @@ GATEWAY_URL="${E2E_GATEWAY_URL:-http://127.0.0.1:3000}"
 # Extract port from URL (default 3000); avoid python dependency on runners.
 GATEWAY_PORT="$(printf '%s' "$GATEWAY_URL" | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p')"
 GATEWAY_PORT="${GATEWAY_PORT:-3000}"
+WEB_PORT="${PORT:-3001}"
 export JWT_SECRET
+export E2E_HS256_SESSION="${E2E_HS256_SESSION:-1}"
 export E2E_BACKEND_READY=1
 export E2E_GATEWAY_URL="$GATEWAY_URL"
 export NEXT_PUBLIC_GATEWAY_URL="${NEXT_PUBLIC_GATEWAY_URL:-$GATEWAY_URL}"
@@ -166,7 +168,7 @@ SEED_DEMO_DATA="${SEED_DEMO_DATA:-1}" \
 DATABASE_URL="$DATABASE_URL" \
 REDIS_URL="${REDIS_URL:-}" \
 JWT_SECRET="$JWT_SECRET" \
-CORS_ORIGINS="http://localhost:3001,http://127.0.0.1:3001" \
+CORS_ORIGINS="http://localhost:${WEB_PORT},http://127.0.0.1:${WEB_PORT}" \
 RATE_LIMIT_MAX_REQUESTS="${RATE_LIMIT_MAX_REQUESTS:-10000}" \
 setsid pnpm --filter @proctira/api-gateway start >"$ROOT/.e2e-gateway.log" 2>&1 &
 GATEWAY_PID=$!
@@ -202,8 +204,14 @@ echo "==> Gateway ready. Running Playwright subset: ${SPECS}"
 #
 # continue-on-error: false equivalent — propagate Playwright exit code.
 set +e
+PW_WORKERS="${PLAYWRIGHT_WORKERS:-2}"
+PW_GREP="${PLAYWRIGHT_GREP:-}"
+PW_GREP_ARGS=()
+if [[ -n "$PW_GREP" ]]; then
+  PW_GREP_ARGS=(--grep "$PW_GREP")
+fi
 # shellcheck disable=SC2086
-pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium
+pnpm --filter @proctira/web exec playwright test ${SPECS} --project=chromium --workers="${PW_WORKERS}" "${PW_GREP_ARGS[@]}"
 PW_EXIT=$?
 set -e
 

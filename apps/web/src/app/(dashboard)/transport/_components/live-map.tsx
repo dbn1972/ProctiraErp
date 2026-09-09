@@ -56,23 +56,23 @@ export function LiveMapSvg({ vehicles, stops }: { vehicles: LiveVehicle[]; stops
       {stops.map((stop) => {
         const { x, y } = project(points, stop.latitude, stop.longitude);
         return (
-          <a key={stop.id} href={stop.osmUrl} target="_blank" rel="noreferrer">
+          <g key={stop.id} aria-hidden="true">
             <circle cx={x} cy={y} r={8} fill="hsl(var(--primary))" />
             <text x={x + 12} y={y + 4} fontSize="12" fill="currentColor">
               {stop.name}
             </text>
-          </a>
+          </g>
         );
       })}
       {vehicles.map((bus) => {
         const { x, y } = project(points, bus.latitude, bus.longitude);
         return (
-          <a key={bus.vehicleId} href={bus.osmUrl} target="_blank" rel="noreferrer">
+          <g key={bus.vehicleId} aria-hidden="true">
             <rect x={x - 7} y={y - 7} width={14} height={14} fill="hsl(var(--destructive))" />
             <text x={x + 12} y={y + 4} fontSize="12" fill="currentColor">
               {bus.registrationNumber ?? 'Bus'}
             </text>
-          </a>
+          </g>
         );
       })}
     </svg>

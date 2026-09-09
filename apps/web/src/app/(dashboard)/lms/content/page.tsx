@@ -16,7 +16,10 @@ export default async function LmsContentPage() {
   return (
     <section className="space-y-6" aria-labelledby="lms-content-heading">
       <div>
-        <h1 id="lms-content-heading" className="text-3xl font-extrabold tracking-tight">
+        <h1
+          id="lms-content-heading"
+          className="text-3xl font-extrabold tracking-tight text-foreground"
+        >
           Content library
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
