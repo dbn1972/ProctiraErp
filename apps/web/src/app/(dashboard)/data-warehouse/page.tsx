@@ -185,9 +185,7 @@ function KpiCard({ icon: Icon, iconBg, label, value, valueMuted, foot }: KpiCard
   );
 }
 
-/* ──────────────────────────────────────── Empty state ── */
-
-: { items: DwIndicator[] }) {
+function IndicatorsTable({ items }: { items: DwIndicator[] }) {
   return (
     <Table aria-label="Indicators">
       <TableHeader>

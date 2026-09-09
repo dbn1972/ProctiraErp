@@ -53,9 +53,7 @@ function formatDate(iso: string | null): string {
   return new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeZone: 'UTC' }).format(d);
 }
 
-export default async function TenantLifecyclePage(props: {
-  searchParams?: Promise<SearchParams>;
-}) {
+export default async function TenantLifecyclePage(props: { searchParams?: Promise<SearchParams> }) {
   const searchParams = await props.searchParams;
   const status = readParam(searchParams, 'status');
   const region = readParam(searchParams, 'region');
@@ -228,15 +226,5 @@ function TenantRow({ tenant }: { tenant: TenantSummary }) {
         {tenant.decommissionedAt ? formatDate(tenant.dataRetentionUntil) : '—'}
       </TableCell>
     </TableRow>
-  );
-}
-
-      </p>
-      <p className="text-sm text-muted-foreground">
-        {filtered
-          ? 'Clear the filters to see every tenant.'
-          : 'Tenants are provisioned through the install wizard or the tenant-lifecycle API.'}
-      </p>
-    </div>
   );
 }

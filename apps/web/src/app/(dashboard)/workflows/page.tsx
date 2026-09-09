@@ -89,7 +89,7 @@ export default async function WorkflowsPage() {
   );
 }
 
-: { items: WorkflowDefinition[] }) {
+function DefinitionsTable({ items }: { items: WorkflowDefinition[] }) {
   return (
     <Table aria-label="Workflow definitions">
       <TableHeader>

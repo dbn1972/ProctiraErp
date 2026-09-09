@@ -137,11 +137,7 @@ export default async function BillingPage(props: { searchParams?: Promise<Search
         <CardContent className="p-0">
           {plans.length === 0 ? (
             <EmptyState
-              title={
-                tier || status || search
-                  ? 'No plans match these filters'
-                  : 'No billing plans'
-              }
+              title={tier || status || search ? 'No plans match these filters' : 'No billing plans'}
               description={
                 tier || status || search
                   ? 'Clear the filters to see the full catalogue.'
@@ -238,14 +234,4 @@ function humanise(key: string): string {
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
     .replace(/^./, (c) => c.toUpperCase());
-}
-
-      </p>
-      <p className="text-sm text-muted-foreground">
-        {filtered
-          ? 'Clear the filters to see the full catalogue.'
-          : 'Plans are seeded by the platform team via the billing API; none are published yet.'}
-      </p>
-    </div>
-  );
 }

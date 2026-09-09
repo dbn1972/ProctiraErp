@@ -243,13 +243,3 @@ function EntryRow({ entry }: { entry: AuditLogEntry }) {
     </TableRow>
   );
 }
-
-      </p>
-      <p className="text-sm text-muted-foreground">
-        {filtered
-          ? 'Widen the date range or clear a filter.'
-          : 'Entries appear here as soon as records are created, updated or deleted.'}
-      </p>
-    </div>
-  );
-}

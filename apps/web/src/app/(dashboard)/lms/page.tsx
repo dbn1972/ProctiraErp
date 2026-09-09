@@ -262,20 +262,6 @@ function Filters({
   );
 }
 
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {filtered ? t('emptyFilteredBody') : t('emptyBody')}
-        </p>
-        <Button asChild className="mt-2">
-          <Link href={filtered ? '/lms' : '/lms/assignments/new'}>
-            {filtered ? t('clearFilters') : t('createFirst')}
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
 function WorkTable({ items, t }: { items: LmsAssignment[]; t: LmsT }) {
   return (
     <Table aria-label={t('title')}>

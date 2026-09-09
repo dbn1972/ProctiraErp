@@ -209,16 +209,6 @@ export default async function ScholarshipsPage() {
   );
 }
 
-</p>
-        <p className="text-sm text-muted-foreground">{t('emptyBody')}</p>
-        <Button asChild className="mt-2">
-          <Link href="/scholarships/programs/new">{t('createProgram')}</Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
 function ProgramsTable({ items, t }: { items: ScholarshipProgram[]; t: ScholarshipsT }) {
   return (
     <Table aria-label={t('title')}>
