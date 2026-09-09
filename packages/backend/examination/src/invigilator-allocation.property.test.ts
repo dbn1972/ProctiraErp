@@ -4,6 +4,7 @@
  */
 import { randomUUID } from 'node:crypto';
 
+import { ConflictError } from '@proctira/common';
 import * as fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
@@ -105,15 +106,19 @@ describe('Property: no invigilator is double-booked after allocation', () => {
             const sessionId = sessionIds[sessionIdx % sessionIds.length];
             const staffId = staffIds[staffIdx % staffIds.length];
             if (!sessionId || !staffId) continue;
-            const outcome = await ops.allocateInvigilator(
-              tenantId,
-              exam.id,
-              sessionId,
-              { staffId },
-              actor,
-            );
-            if (outcome.ok) {
-              accepted.push({ sessionId, staffId });
+            try {
+              const outcome = await ops.allocateInvigilator(
+                tenantId,
+                exam.id,
+                sessionId,
+                { staffId },
+                actor,
+              );
+              if (outcome.ok) {
+                accepted.push({ sessionId, staffId });
+              }
+            } catch (error) {
+              if (!(error instanceof ConflictError)) throw error;
             }
           }
 
