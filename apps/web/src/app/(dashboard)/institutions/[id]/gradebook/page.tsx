@@ -1,5 +1,5 @@
 /**
- * Institution gradebook — section grades, GPA, report-card trigger (WS3).
+ * Institution gradebook — section grades, workflow, rank/CGPA (G-907).
  *
  * Route: /institutions/[id]/gradebook
  */
@@ -8,15 +8,20 @@ import {
   GradeEntryForm,
   ReportCardTriggerForm,
 } from '@/components/gradebook/gradebook-forms';
+import { GradebookWorkflowPanel } from '@/components/gradebook/gradebook-workflow-panel';
 import { Card, CardContent } from '@proctira/ui/components';
+import { getSession } from '@/lib/auth/server';
 import { formatCodeNameLabel, formatPersonLabel, resolveEntityLabel } from '@/lib/entity-label';
 import { listStudents } from '@/lib/api/students';
 import {
+  listClassRanks,
+  listCommentsBank,
   listGradeEntries,
   listGradebookSections,
   listGradingScales,
   listReportCardJobs,
 } from '@/lib/api/gradebook';
+import { canModerateGrades, canSubmitGrades } from '@/lib/gradebook-roles';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,13 +34,19 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const params = await props.params;
   const searchParams = await props.searchParams;
   const institutionId = params.id;
+  const session = await getSession();
+  const roles = session?.user.roles ?? [];
+  const canSubmit = canSubmitGrades(roles);
+  const canModerate = canModerateGrades(roles);
 
-  const [sectionsResult, scalesResult, jobsResult, studentsResult] = await Promise.all([
-    listGradebookSections({ institutionId }),
-    listGradingScales(),
-    listReportCardJobs(),
-    listStudents({ pageSize: 100 }),
-  ]);
+  const [sectionsResult, scalesResult, jobsResult, studentsResult, commentsResult] =
+    await Promise.all([
+      listGradebookSections({ institutionId }),
+      listGradingScales(),
+      listReportCardJobs(),
+      listStudents({ pageSize: 100 }),
+      listCommentsBank({ institutionId }),
+    ]);
 
   const apiError = !sectionsResult.ok
     ? sectionsResult.error
@@ -46,6 +57,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
   const sections = sectionsResult.ok ? sectionsResult.data : [];
   const scales = scalesResult.ok ? scalesResult.data : [];
   const jobs = jobsResult.ok ? jobsResult.data : [];
+  const comments = commentsResult.ok ? commentsResult.data : [];
   const studentOptions = (studentsResult.data ?? []).map((s) => ({
     id: s.id,
     label: formatPersonLabel(s.firstName, s.lastName, s.nationalId),
@@ -63,6 +75,10 @@ export default async function InstitutionGradebookPage(props: PageProps) {
     : { ok: true as const, data: [] };
   const entries = entriesResult.ok ? entriesResult.data : [];
   const entryError = entriesResult.ok ? null : entriesResult.error;
+  const ranksResult = sectionId
+    ? await listClassRanks(sectionId)
+    : { ok: true as const, data: [] };
+  const ranks = ranksResult.ok ? ranksResult.data : [];
 
   const boardId = scales.find((s) => s.isDefault)?.boardId ?? scales[0]?.boardId ?? '';
   const defaultStudentId = entries[0]?.studentId ?? studentOptions[0]?.id ?? '';
@@ -73,8 +89,8 @@ export default async function InstitutionGradebookPage(props: PageProps) {
       <div>
         <h2 className="text-lg font-bold tracking-tight text-foreground">Gradebook</h2>
         <p className="text-sm text-muted-foreground">
-          Enter section grades, compute GPA snapshots, and queue term report cards. Board scales
-          drive letter bands.
+          Enter section grades, submit through approve / lock / publish, compute class rank and
+          CGPA, and queue term report cards. Board scales drive letter bands.
         </p>
       </div>
 
@@ -108,7 +124,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
             <CardContent className="space-y-4 p-6">
               <div>
                 <h3 className="text-base font-semibold">Section</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-sm text-muted-foreground" data-testid="gradebook-section-name">
                   {activeSection
                     ? formatCodeNameLabel(activeSection.code, activeSection.name)
                     : resolveEntityLabel(sectionId, new Map(), 'Section')}
@@ -119,6 +135,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                 sectionId={sectionId}
                 defaultStudentId={defaultStudentId}
                 studentOptions={studentOptions}
+                comments={comments}
               />
             </CardContent>
           </Card>
@@ -130,47 +147,19 @@ export default async function InstitutionGradebookPage(props: PageProps) {
                 <p className="text-sm text-destructive" role="alert">
                   {entryError}
                 </p>
-              ) : null}
-              {entries.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No grades entered for this section.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[40rem] text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-border text-muted-foreground">
-                        <th className="py-2 pr-3 font-medium">Student</th>
-                        <th className="py-2 pr-3 font-medium">Assessment</th>
-                        <th className="py-2 pr-3 font-medium">Score</th>
-                        <th className="py-2 pr-3 font-medium">Letter</th>
-                        <th className="py-2 pr-3 font-medium">Workflow</th>
-                        <th className="py-2 font-medium">Entered</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map((row) => (
-                        <tr key={row.id} className="border-b border-border/60">
-                          <td className="py-2 pr-3 text-sm">
-                            {resolveEntityLabel(row.studentId, studentLabel, 'Student')}
-                          </td>
-                          <td className="py-2 pr-3">{row.assessmentCode ?? '—'}</td>
-                          <td className="py-2 pr-3 tabular-nums">{row.numericScore ?? '—'}</td>
-                          <td className="py-2 pr-3">{row.letterGrade ?? '—'}</td>
-                          <td className="py-2 pr-3 text-xs">
-                            {row.lockedAt
-                              ? 'LOCKED'
-                              : String(
-                                  (row.metadata as { workflowStatus?: string } | undefined)
-                                    ?.workflowStatus ?? 'DRAFT',
-                                )}
-                          </td>
-                          <td className="py-2 text-muted-foreground">
-                            {new Date(row.enteredAt).toLocaleString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <GradebookWorkflowPanel
+                  institutionId={institutionId}
+                  sectionId={sectionId}
+                  academicPeriodId={activeSection?.academicPeriodId}
+                  boardId={boardId || undefined}
+                  entries={entries}
+                  ranks={ranks}
+                  comments={comments}
+                  studentLabel={studentLabel}
+                  canSubmit={canSubmit}
+                  canModerate={canModerate}
+                />
               )}
             </CardContent>
           </Card>

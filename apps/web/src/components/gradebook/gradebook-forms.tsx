@@ -7,8 +7,11 @@ import {
   createReportCardJobAction,
   upsertGradeEntryAction,
 } from '@/app/(dashboard)/gradebook-actions';
+import { CommentsBankPicker } from '@/components/gradebook/gradebook-workflow-panel';
 import { EntitySearchSelect } from '@/components/shared/entity-search-select';
-import { Button, Input, Label } from '@proctira/ui/components';
+import { Button, Input, Label, Textarea } from '@proctira/ui/components';
+import { useHydrated } from '@/hooks/useHydrated';
+import type { CommentsBankItem } from '@/lib/api/gradebook';
 import type { EntityLabelOption } from '@/lib/entity-label';
 
 export function GradeEntryForm({
@@ -16,19 +19,26 @@ export function GradeEntryForm({
   sectionId,
   defaultStudentId = '',
   studentOptions = [],
+  comments = [],
 }: {
   institutionId: string;
   sectionId: string;
   defaultStudentId?: string;
   studentOptions?: EntityLabelOption[];
+  comments?: CommentsBankItem[];
 }) {
+  const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [remark, setRemark] = useState('');
+  const [commentBankId, setCommentBankId] = useState<string | null>(null);
 
   return (
     <form
       className="space-y-3"
+      data-testid="grade-entry-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
       onSubmit={(event) => {
         event.preventDefault();
         const fd = new FormData(event.currentTarget);
@@ -47,6 +57,8 @@ export function GradeEntryForm({
             assessmentCode: assessmentCode || null,
             numericScore,
             creditRuleCode: creditRuleCode || 'CBSE-CORE',
+            remark: remark.trim() || null,
+            commentBankId,
           });
           if (!result.ok) {
             setError(
@@ -57,6 +69,8 @@ export function GradeEntryForm({
             return;
           }
           setMessage(`Saved grade entry ${result.id}`);
+          setRemark('');
+          setCommentBankId(null);
           event.currentTarget.reset();
         });
       }}
@@ -89,6 +103,29 @@ export function GradeEntryForm({
         <div className="space-y-1.5">
           <Label htmlFor="creditRuleCode">Credit rule code</Label>
           <Input id="creditRuleCode" name="creditRuleCode" defaultValue="CBSE-CORE" />
+        </div>
+        <CommentsBankPicker
+          comments={comments}
+          value={commentBankId ?? ''}
+          onChange={(body, id) => {
+            setRemark(body);
+            setCommentBankId(id);
+          }}
+        />
+        <div className="space-y-1.5">
+          <Label htmlFor="gradeRemark">Remark</Label>
+          <Textarea
+            id="gradeRemark"
+            name="remark"
+            value={remark}
+            onChange={(event) => {
+              setRemark(event.target.value);
+              setCommentBankId(null);
+            }}
+            rows={2}
+            maxLength={4000}
+            data-testid="grade-remark"
+          />
         </div>
       </div>
       <Button type="submit" disabled={pending}>
