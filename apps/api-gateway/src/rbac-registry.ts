@@ -280,6 +280,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       { resource: 'parent', action: 'read' },
       { resource: 'parent', action: 'list' },
       { resource: 'fees', action: 'read' },
+      { resource: 'library', action: 'read' },
     );
   }
 
@@ -310,6 +311,7 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       { resource: 'lms', action: 'read' },
       { resource: 'gradebook', action: 'read' },
       { resource: 'timetable', action: 'read' },
+      { resource: 'library', action: 'read' },
     ],
   });
 
