@@ -4,7 +4,7 @@
  * Validates: Requirement 13.1 — workflow definition browse and management.
  */
 import Link from 'next/link';
-import { Eye, GitBranch, ListChecks, Plus, ShieldCheck } from 'lucide-react';
+import { Eye, ListChecks, Plus, ShieldCheck } from 'lucide-react';
 
 import {
   Button,
@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { listWorkflowDefinitions, type WorkflowDefinition } from '@/lib/api/workflows';
+import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,7 +65,19 @@ export default async function WorkflowsPage() {
       </div>
 
       {definitions.length === 0 ? (
-        <EmptyState />
+        <Card className="overflow-hidden">
+          <CardContent>
+            <EmptyState
+              title="No workflows defined"
+              description="Define an approval flow to start routing requests."
+              action={
+                <Button asChild size="sm">
+                  <Link href="/workflows/definitions/new">Create definition</Link>
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -76,24 +89,7 @@ export default async function WorkflowsPage() {
   );
 }
 
-function EmptyState() {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-        <GitBranch className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-        <p className="text-base font-medium">No workflows defined</p>
-        <p className="text-sm text-muted-foreground">
-          Define an approval flow to start routing requests.
-        </p>
-        <Button asChild className="mt-2" size="sm">
-          <Link href="/workflows/definitions/new">Create definition</Link>
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
-function DefinitionsTable({ items }: { items: WorkflowDefinition[] }) {
+: { items: WorkflowDefinition[] }) {
   return (
     <Table aria-label="Workflow definitions">
       <TableHeader>

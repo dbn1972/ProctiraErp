@@ -7,8 +7,6 @@
  * one-click buttons here: they are break-glass operations that the platform
  * console performs with a reason and dual control.
  */
-import { Building2 } from 'lucide-react';
-
 import {
   Badge,
   Card,
@@ -30,6 +28,7 @@ import {
   type SearchParams,
 } from '@/components/platform/PlatformSurfaceState';
 import { listTenants, type TenantSummary } from '@/lib/api/platform.server';
+import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -156,7 +155,14 @@ export default async function TenantLifecyclePage(props: {
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           {tenants.length === 0 ? (
-            <EmptyState filtered={filtered} />
+            <EmptyState
+              title={filtered ? 'No tenants match these filters' : 'No tenants registered'}
+              description={
+                filtered
+                  ? 'Clear the filters to see every tenant.'
+                  : 'Tenants are provisioned through the install wizard or the tenant-lifecycle API.'
+              }
+            />
           ) : (
             <Table aria-label="Tenants">
               <TableHeader>
@@ -225,12 +231,6 @@ function TenantRow({ tenant }: { tenant: TenantSummary }) {
   );
 }
 
-function EmptyState({ filtered }: { filtered: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-      <Building2 className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-      <p className="text-base font-medium">
-        {filtered ? 'No tenants match these filters' : 'No tenants registered'}
       </p>
       <p className="text-sm text-muted-foreground">
         {filtered

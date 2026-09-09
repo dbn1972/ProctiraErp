@@ -5,8 +5,6 @@
  * usage are keyed by subscription id on the gateway, so the tenant-facing
  * surface is the catalogue plus quota/feature matrix.
  */
-import { CreditCard } from 'lucide-react';
-
 import {
   Badge,
   Card,
@@ -28,6 +26,7 @@ import {
   type SearchParams,
 } from '@/components/platform/PlatformSurfaceState';
 import { listBillingPlans, type BillingPlan } from '@/lib/api/platform.server';
+import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,7 +136,18 @@ export default async function BillingPage(props: { searchParams?: Promise<Search
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           {plans.length === 0 ? (
-            <EmptyState filtered={Boolean(tier ?? status ?? search)} />
+            <EmptyState
+              title={
+                tier || status || search
+                  ? 'No plans match these filters'
+                  : 'No billing plans'
+              }
+              description={
+                tier || status || search
+                  ? 'Clear the filters to see the full catalogue.'
+                  : 'Plans are seeded by the platform team via the billing API; none are published yet.'
+              }
+            />
           ) : (
             <Table aria-label="Billing plans">
               <TableHeader>
@@ -230,12 +240,6 @@ function humanise(key: string): string {
     .replace(/^./, (c) => c.toUpperCase());
 }
 
-function EmptyState({ filtered }: { filtered: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-      <CreditCard className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-      <p className="text-base font-medium">
-        {filtered ? 'No plans match these filters' : 'No billing plans'}
       </p>
       <p className="text-sm text-muted-foreground">
         {filtered

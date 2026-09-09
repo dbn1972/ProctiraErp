@@ -5,8 +5,6 @@
  * and date filters carried in the URL so views are shareable and the page is
  * fully server-rendered (no client fetch, works without JS).
  */
-import { ScrollText } from 'lucide-react';
-
 import {
   Badge,
   Card,
@@ -28,6 +26,7 @@ import {
   type SearchParams,
 } from '@/components/platform/PlatformSurfaceState';
 import { listAuditLogs, type AuditLogEntry } from '@/lib/api/platform.server';
+import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -171,7 +170,14 @@ export default async function AuditLogsPage(props: { searchParams?: Promise<Sear
       <Card className="overflow-hidden">
         <CardContent className="p-0">
           {entries.length === 0 ? (
-            <EmptyState filtered={filtered} />
+            <EmptyState
+              title={filtered ? 'No entries match these filters' : 'No audit entries yet'}
+              description={
+                filtered
+                  ? 'Widen the date range or clear a filter.'
+                  : 'Entries appear here as soon as records are created, updated or deleted.'
+              }
+            />
           ) : (
             <Table aria-label="Audit log entries">
               <TableHeader>
@@ -238,12 +244,6 @@ function EntryRow({ entry }: { entry: AuditLogEntry }) {
   );
 }
 
-function EmptyState({ filtered }: { filtered: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-      <ScrollText className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-      <p className="text-base font-medium">
-        {filtered ? 'No entries match these filters' : 'No audit entries yet'}
       </p>
       <p className="text-sm text-muted-foreground">
         {filtered

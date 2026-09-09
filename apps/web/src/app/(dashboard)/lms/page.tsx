@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 
 import { KindPill, ScopePill, StatusPill } from './_components/badges';
 import { KpiCard } from './_components/kpi-card';
+import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -166,7 +167,21 @@ export default async function LmsPage({
       <Filters t={t} kind={kind} status={status} />
 
       {items.length === 0 ? (
-        <EmptyState t={t} filtered={Boolean(kind || status)} />
+        <Card>
+          <CardContent>
+            <EmptyState
+              title={kind || status ? t('emptyFilteredTitle') : t('emptyTitle')}
+              description={kind || status ? t('emptyFilteredBody') : t('emptyBody')}
+              action={
+                <Button asChild>
+                  <Link href={kind || status ? '/lms' : '/lms/assignments/new'}>
+                    {kind || status ? t('clearFilters') : t('createFirst')}
+                  </Link>
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -247,13 +262,6 @@ function Filters({
   );
 }
 
-function EmptyState({ t, filtered }: { t: LmsT; filtered: boolean }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-        <BookOpenCheck className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-        <p className="text-base font-medium">
-          {filtered ? t('emptyFilteredTitle') : t('emptyTitle')}
         </p>
         <p className="text-sm text-muted-foreground">
           {filtered ? t('emptyFilteredBody') : t('emptyBody')}

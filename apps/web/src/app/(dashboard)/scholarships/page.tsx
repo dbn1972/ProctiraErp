@@ -40,6 +40,7 @@ import {
   type ScholarshipProgram,
 } from '@/lib/api/scholarships';
 import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
 
@@ -174,7 +175,19 @@ export default async function ScholarshipsPage() {
       </div>
 
       {programs.length === 0 ? (
-        <EmptyState t={t} />
+        <Card>
+          <CardContent>
+            <EmptyState
+              title={t('emptyTitle')}
+              description={t('emptyBody')}
+              action={
+                <Button asChild>
+                  <Link href="/scholarships/programs/new">{t('createProgram')}</Link>
+                </Button>
+              }
+            />
+          </CardContent>
+        </Card>
       ) : (
         <Card className="overflow-hidden">
           <CardContent className="p-0">
@@ -196,12 +209,7 @@ export default async function ScholarshipsPage() {
   );
 }
 
-function EmptyState({ t }: { t: ScholarshipsT }) {
-  return (
-    <Card>
-      <CardContent className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-        <Award className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
-        <p className="text-base font-medium">{t('emptyTitle')}</p>
+</p>
         <p className="text-sm text-muted-foreground">{t('emptyBody')}</p>
         <Button asChild className="mt-2">
           <Link href="/scholarships/programs/new">{t('createProgram')}</Link>
