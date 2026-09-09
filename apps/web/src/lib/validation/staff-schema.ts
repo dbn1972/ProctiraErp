@@ -66,3 +66,29 @@ export const appraisalFormSchema = z.object({
 });
 
 export type AppraisalFormValues = z.infer<typeof appraisalFormSchema>;
+
+export const contractFormSchema = z.object({
+  staffId: uuid,
+  contractType: z.enum(['permanent', 'probation', 'fixed_term', 'visiting', 'intern']),
+  startDate: isoDate,
+  endDate: isoDateOptional,
+  salaryBand: z.string().max(64).optional().or(z.literal('')),
+  notes: z.string().max(2000).optional().or(z.literal('')),
+});
+export type ContractFormValues = z.infer<typeof contractFormSchema>;
+
+export const qualificationFormSchema = z.object({
+  staffId: uuid,
+  degree: z.string().min(1).max(200),
+  institution: z.string().min(1).max(200),
+  year: z.number().int().min(1950).max(2100),
+  documentRef: z.string().max(512).optional().or(z.literal('')),
+});
+export type QualificationFormValues = z.infer<typeof qualificationFormSchema>;
+
+export const staffImportSchema = z.object({
+  csv: z.string().min(1, 'CSV is required').max(1_000_000),
+  filename: z.string().max(255).optional(),
+});
+
+

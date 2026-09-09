@@ -149,7 +149,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/staff'],
     persistence: 'prisma+rls',
     rbacWired: false,
-    notes: 'Staff + assignments; Prisma when DATABASE_URL set.',
+    notes: 'Staff + assignments + G-918 contracts/attendance/import/payroll; Prisma when DATABASE_URL set. HR ops raw SQL 043.',
     registrarName: 'staff',
   },
   {
@@ -272,7 +272,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'Raw pg (007) when DATABASE_URL; sandbox delivery adapter + send audit (G-604). Live Twilio/SES residual.',
+      'Raw pg (007+044) when DATABASE_URL; sandbox delivery + WhatsApp adapter (G-604/G-922). Live Twilio/SES/WhatsApp residual.',
     registrarName: 'communication',
   },
   {
