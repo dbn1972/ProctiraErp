@@ -87,7 +87,7 @@ import {
   createStaffRepository,
   staffPlugin,
 } from '@proctira/backend-staff';
-import { createStudentRepository, studentPlugin } from '@proctira/backend-student';
+import { bindAttendanceHeatmapSource, createStudentRepository, studentPlugin } from '@proctira/backend-student';
 import { createTimetableRepository, timetablePlugin } from '@proctira/backend-timetable';
 import { createTransportRepository, transportPlugin } from '@proctira/backend-transport';
 import { createWorkflowRepositories, workflowPlugin } from '@proctira/backend-workflow';
@@ -126,6 +126,8 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // Reads RLS-safely via withTenantTransaction using the request's tenantId.
       // G-701: studentPlugin also mounts /enrollments and /students/import
       // (Pg enrollment repository on db/sql/001 + 021 when DATABASE_URL set).
+      // G-914 360 routes share the /students prefix (photo, id-card, siblings,
+      // consents, discipline, attendance-heatmap).
       const repository = createStudentRepository();
       await scope.register(studentPlugin, { repository, prefix: '/students' });
     },
@@ -175,6 +177,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       await scope.register(attendancePlugin, {
         repository: createAttendanceRepository(),
         prefix: '/attendance',
+      });
+      bindAttendanceHeatmapSource({
+        listStudentAttendanceInRange: (tenantId, studentId, startDate, endDate) =>
+          scope.attendanceService.listStudentAttendanceInRange(
+            tenantId,
+            studentId,
+            startDate,
+            endDate,
+          ),
       });
     },
   },

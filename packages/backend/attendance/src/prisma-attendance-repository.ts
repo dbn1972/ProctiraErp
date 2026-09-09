@@ -224,6 +224,24 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     });
   }
 
+  async listStudentAttendanceByStudentDateRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]> {
+    return withTenantTransaction(this.prisma, tenantId, async (tx) => {
+      const rows = (await tx.studentAttendance.findMany({
+        where: {
+          tenantId,
+          studentId,
+          date: { gte: toDateOnly(startDate), lte: toDateOnly(endDate) },
+        },
+      })) as StudentAttendanceRow[];
+      return rows.map(toStudentEntity);
+    });
+  }
+
   async countStudentAbsences(
     tenantId: string,
     studentId: string,

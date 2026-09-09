@@ -54,6 +54,23 @@ export type {
 export { PgEnrollmentRepository } from './enrollment/pg-enrollment-repository.js';
 export { createEnrollmentRepository } from './enrollment/create-enrollment-repository.js';
 
+export {
+  Students360Service,
+  registerStudents360Routes,
+  InMemoryStudents360Store,
+  PgStudents360Store,
+  createStudents360Store,
+  InMemoryStudentBlobStore,
+  createStudentBlobStore,
+  aggregateAttendanceHeatmap,
+  bindAttendanceHeatmapSource,
+} from './students-360/index.js';
+export type {
+  AttendanceHeatmapSource,
+  Students360Store,
+  StudentBlobStore,
+} from './students-360/index.js';
+
 // Import module
 export {
   ImportService,

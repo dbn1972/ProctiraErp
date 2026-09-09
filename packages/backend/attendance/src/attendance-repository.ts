@@ -212,6 +212,14 @@ export interface AttendanceRepository {
     query: AttendancePercentageQuery,
   ): Promise<StudentAttendanceEntity[]>;
 
+  /** All of a student's attendance rows in a date range (heatmap; no class filter). */
+  listStudentAttendanceByStudentDateRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]>;
+
   // Count absences for a student within a date range (for threshold checking)
   countStudentAbsences(
     tenantId: string,

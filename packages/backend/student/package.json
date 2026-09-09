@@ -23,6 +23,8 @@
     "@proctira/events": "workspace:*",
     "@proctira/logging": "workspace:*",
     "@proctira/observability": "workspace:*",
+    "@proctira/pdf-lite": "workspace:*",
+    "@proctira/storage": "workspace:*",
     "@proctira/validation": "workspace:*",
     "@sinclair/typebox": "^0.32.0",
     "exceljs": "^4.4.0",

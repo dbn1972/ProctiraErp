@@ -79,6 +79,20 @@ export class CachedAttendanceRepository implements AttendanceRepository {
     return this.delegate.listStudentAttendanceByDateRange(tenantId, query);
   }
 
+  async listStudentAttendanceByStudentDateRange(
+    tenantId: string,
+    studentId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<StudentAttendanceEntity[]> {
+    return this.delegate.listStudentAttendanceByStudentDateRange(
+      tenantId,
+      studentId,
+      startDate,
+      endDate,
+    );
+  }
+
   async countStudentAbsences(
     tenantId: string,
     studentId: string,
