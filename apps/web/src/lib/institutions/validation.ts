@@ -73,3 +73,23 @@ export const academicPeriodFormSchema = z
 
 export type AcademicPeriodFormValues = z.input<typeof academicPeriodFormSchema>;
 export type AcademicPeriodFormParsed = z.output<typeof academicPeriodFormSchema>;
+
+// G-901 — grades and class sections (institution academics)
+export const gradeFormSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+  code: z.string().min(1, 'Code is required').max(50, 'Code must be 50 characters or fewer'),
+  order: z.coerce.number().int('Order must be a whole number').min(0).max(32767),
+});
+export type GradeFormValues = z.input<typeof gradeFormSchema>;
+
+export const classSectionFormSchema = z.object({
+  institutionId: z.string().uuid('Institution is required'),
+  gradeId: z.string().uuid('Grade is required'),
+  academicPeriodId: z.string().uuid('Academic period is required'),
+  name: z.string().min(1, 'Section name is required').max(100),
+  capacity: z
+    .union([z.literal(''), z.coerce.number().int().min(1).max(32767)])
+    .optional()
+    .transform((v) => (v === '' || v === undefined ? undefined : v)),
+});
+export type ClassSectionFormValues = z.input<typeof classSectionFormSchema>;

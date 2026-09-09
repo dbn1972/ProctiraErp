@@ -11,6 +11,8 @@ import { revalidatePath } from 'next/cache';
 import {
   ApiClientError,
   createAcademicPeriod,
+  createClassSection,
+  createGrade,
   createInstitution,
   deactivateInstitution,
   deleteAcademicPeriod,
@@ -19,8 +21,12 @@ import {
 } from './api';
 import {
   academicPeriodFormSchema,
+  classSectionFormSchema,
+  gradeFormSchema,
   institutionFormSchema,
   type AcademicPeriodFormValues,
+  type ClassSectionFormValues,
+  type GradeFormValues,
   type InstitutionFormValues,
 } from './validation';
 
@@ -177,6 +183,50 @@ export async function deleteAcademicPeriodAction(
     await deleteAcademicPeriod(id);
     revalidatePath('/academic-periods');
     return { success: true, data: { id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// G-901 — Grades & class sections
+// ---------------------------------------------------------------------------
+
+export async function createGradeAction(
+  values: GradeFormValues,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = gradeFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const grade = await createGrade(parsed.data);
+    revalidatePath('/institutions', 'layout');
+    return { success: true, data: { id: grade.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function createClassSectionAction(
+  values: ClassSectionFormValues,
+): Promise<ActionResult<{ id: string }>> {
+  const parsed = classSectionFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const section = await createClassSection(parsed.data);
+    revalidatePath(`/institutions/${parsed.data.institutionId}`, 'layout');
+    return { success: true, data: { id: section.id } };
   } catch (error) {
     return toActionError(error);
   }

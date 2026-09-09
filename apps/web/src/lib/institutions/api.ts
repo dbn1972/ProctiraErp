@@ -262,6 +262,46 @@ export async function listGrades(): Promise<Grade[]> {
   }
 }
 
+export interface CreateGradeInput {
+  name: string;
+  code: string;
+  order: number;
+}
+
+export async function createGrade(input: CreateGradeInput): Promise<Grade> {
+  try {
+    const result = await gatewayFetch<Grade>('/grades', {
+      method: 'POST',
+      json: input,
+      throwOnError: true,
+    });
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export interface CreateClassSectionInput {
+  institutionId: string;
+  gradeId: string;
+  academicPeriodId: string;
+  name: string;
+  capacity?: number;
+}
+
+export async function createClassSection(input: CreateClassSectionInput): Promise<ClassSection> {
+  try {
+    const result = await gatewayFetch<ClassSection>('/classes', {
+      method: 'POST',
+      json: input,
+      throwOnError: true,
+    });
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
 export async function listClassesByInstitution(
   institutionId: string,
   academicPeriodId?: string,
@@ -285,8 +325,9 @@ export async function getInfrastructureHierarchy(
   institutionId: string,
 ): Promise<InfrastructureHierarchy> {
   try {
+    // G-901: backend route is `/infrastructure/hierarchy/:institutionId`.
     const result = await gatewayFetch<InfrastructureHierarchy>(
-      `/institutions/${encodeURIComponent(institutionId)}/infrastructure/hierarchy`,
+      `/infrastructure/hierarchy/${encodeURIComponent(institutionId)}`,
       { method: 'GET', throwOnError: true },
     );
     return unwrap(result, { lands: [] });

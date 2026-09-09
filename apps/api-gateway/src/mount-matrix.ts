@@ -119,10 +119,19 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   {
     package: 'institution',
     mounted: true,
-    prefixes: ['/institutions'],
-    persistence: 'prisma+rls',
-    rbacWired: false,
-    notes: 'Prisma when DATABASE_URL set, else in-memory.',
+    prefixes: [
+      '/institutions',
+      '/academic-periods',
+      '/grades',
+      '/classes',
+      '/subjects',
+      '/institution-subjects',
+      '/infrastructure',
+    ],
+    persistence: 'mixed',
+    rbacWired: true,
+    notes:
+      'Prisma when DATABASE_URL set, else in-memory. G-901: academic periods / grades / classes / subjects (Prisma or in-memory look-alike) + infrastructure hierarchy (raw-pg on db/sql/027 with RLS, else tenant-partitioned in-memory) mounted by institutionPlugin.',
     registrarName: 'institution',
   },
   {

@@ -4,7 +4,7 @@
 > Gate: `apps/web/src/app/page-regression-matrix.test.ts` fails when any page lacks an e2e reference.
 
 - App Router pages: **123**
-- Playwright specs: **59**
+- Playwright specs: **60**
 - Pages without any e2e reference: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -29,7 +29,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 |---|---|---|
 | `/` | a11y, cls, dark, functional, rtl, smoke, touch, visual | _all authenticated specs_ |
 | `/__tests/error-boundary` | smoke | `09-error-boundary-recovery.spec.ts` |
-| `/academic-periods` | a11y, dark, touch | `a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/academic-periods` | a11y, dark, functional, touch | `27-academics-setup-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/academic-periods/[id]/bell-schedules` | smoke | `22-timetable-inventory-smoke.spec.ts` |
 | `/admin` | a11y, dark, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/notification-rules` | dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
@@ -37,7 +37,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/admin/roles` | a11y, dark, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/tenant` | a11y, dark, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/admin/users` | a11y, dark, smoke, touch | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/admissions` | a11y | `a11y-axe.spec.ts` |
+| `/admissions` | a11y, dark, touch | `a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/assessments` | a11y, dark, functional, smoke, touch | `09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/assessments/items` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/assessments/results` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
@@ -45,8 +45,8 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/assessments/schemes/new` | a11y, functional | `03-assessment-and-report-card.spec.ts`<br>`21-assessments-inventory-smoke.spec.ts`<br>`21b-assessments-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/attendance` | a11y, dark, functional, smoke, touch | `02-attendance.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`20-attendance-inventory-smoke.spec.ts`<br>`20b-attendance-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/attendance/reports` | a11y, functional | `02-attendance.spec.ts`<br>`20-attendance-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/audit-logs` | a11y, smoke | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/billing` | a11y, smoke | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/audit-logs` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/billing` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/communication` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/communication/campaigns` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/communication/campaigns/new` | a11y, functional, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`21c-campus-comms-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
@@ -62,7 +62,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/examinations/[id]/results` | smoke | `19-examinations-inventory-smoke.spec.ts` |
 | `/examinations/board-exports` | a11y, smoke | `09-route-permission-coupling.spec.ts`<br>`19-examinations-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/examinations/new` | a11y, smoke | `19-examinations-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/fees` | a11y, smoke | `09-route-permission-coupling.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/fees` | a11y, dark, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/fees/invoices` | a11y | `a11y-axe.spec.ts` |
 | `/fees/plans` | a11y | `a11y-axe.spec.ts` |
 | `/fees/receipts` | a11y | `a11y-axe.spec.ts` |
@@ -72,7 +72,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/health/counselling/new` | a11y, dark, functional, touch | `17-health-inventory-smoke.spec.ts`<br>`17b-health-counselling-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/screenings` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/health/special-needs` | a11y, dark, functional, touch | `11-health.spec.ts`<br>`17-health-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/help` | a11y, smoke | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/help` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/assignments` | a11y, dark, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/hostel/leaves` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
@@ -80,11 +80,11 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/hostel/visitors` | a11y, smoke, touch | `21-campus-comms-hostel-library-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions` | a11y, dark, functional, smoke, touch, visual | `01-login-and-create-student.spec.ts`<br>`09-error-boundary-recovery.spec.ts`<br>`09-route-permission-coupling.spec.ts`<br>`16-institutions-inventory-smoke.spec.ts`<br>`24-visual-regression.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/institutions/[id]` | a11y, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
-| `/institutions/[id]/classes` | smoke | `16-institutions-inventory-smoke.spec.ts` |
+| `/institutions/[id]/classes` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
 | `/institutions/[id]/edit` | smoke | `16-institutions-inventory-smoke.spec.ts` |
 | `/institutions/[id]/gradebook` | smoke | `23-gradebook-inventory-smoke.spec.ts` |
-| `/institutions/[id]/grades` | smoke | `16-institutions-inventory-smoke.spec.ts` |
-| `/institutions/[id]/infrastructure` | smoke | `16-institutions-inventory-smoke.spec.ts` |
+| `/institutions/[id]/grades` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
+| `/institutions/[id]/infrastructure` | functional, smoke | `16-institutions-inventory-smoke.spec.ts`<br>`27-academics-setup-write-smoke.spec.ts` |
 | `/institutions/[id]/overview` | smoke | `16-institutions-inventory-smoke.spec.ts` |
 | `/institutions/[id]/schedule` | smoke | `23-master-schedule-inventory-smoke.spec.ts` |
 | `/institutions/[id]/schedule/[sectionId]` | smoke | `23-master-schedule-inventory-smoke.spec.ts` |
@@ -123,7 +123,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/students/import` | a11y, functional, smoke | `05-bulk-import.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students/new` | a11y, functional, smoke | `01-login-and-create-student.spec.ts`<br>`15-overview-people-inventory-smoke.spec.ts`<br>`15d-student-write-validation-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
 | `/students/records` | smoke | `09-route-permission-coupling.spec.ts`<br>`23-gradebook-inventory-smoke.spec.ts` |
-| `/tenant-lifecycle` | a11y, smoke | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts` |
+| `/tenant-lifecycle` | a11y, dark, smoke, touch | `25-platform-surfaces-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport/assignments` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/transport/routes` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |

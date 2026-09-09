@@ -130,12 +130,25 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   },
   {
     name: 'institution',
-    proxyPrefixes: ['/institutions'],
+    // G-901: academics sub-domains (academic periods / grades / classes /
+    // subjects / infrastructure) are served by the same plugin.
+    proxyPrefixes: [
+      '/institutions',
+      '/academic-periods',
+      '/grades',
+      '/classes',
+      '/subjects',
+      '/institution-subjects',
+      '/infrastructure',
+    ],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
+      // G-901: academics = Prisma (+ raw-pg infrastructure on db/sql/027) when
+      // DATABASE_URL is set, else in-memory Prisma look-alike.
       await scope.register(institutionPlugin, {
         repository: createInstitutionRepository(),
         prefix: '/institutions',
+        academics: true,
       });
     },
   },

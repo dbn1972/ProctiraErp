@@ -11,17 +11,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { InMemoryInstitutionRepository } from './in-memory-repository.js';
 import { PrismaInstitutionRepository } from './prisma-institution-repository.js';
-import {
-  createInstitutionRepository,
-  isPgInstitutionEnabled,
-} from './repository-factory.js';
+import { createInstitutionRepository, isPgInstitutionEnabled } from './repository-factory.js';
 
 const created: Array<{ id: string; tenantId: string; areaId: string }> = [];
 
-async function seedTenantAndArea(
-  tenantId: string,
-  areaId: string,
-): Promise<void> {
+async function seedTenantAndArea(tenantId: string, areaId: string): Promise<void> {
   const pool = getSharedPgPool();
   expect(pool).not.toBeNull();
   await withPgTenant(pool!, tenantId, async (client) => {
@@ -95,10 +89,7 @@ describe('PgInstitutionRepository', () => {
       const tenantB = randomUUID();
       const areaA = randomUUID();
       const areaB = randomUUID();
-      await Promise.all([
-        seedTenantAndArea(tenantA, areaA),
-        seedTenantAndArea(tenantB, areaB),
-      ]);
+      await Promise.all([seedTenantAndArea(tenantA, areaA), seedTenantAndArea(tenantB, areaB)]);
 
       const institutionId = randomUUID();
       const createdInst = await repo.create({

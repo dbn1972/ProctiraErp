@@ -65,6 +65,13 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   outcomes: 'assessment',
   results: 'assessment',
   'report-cards': 'assessment',
+  // G-901: institution academics sub-domains mounted by institutionPlugin
+  'academic-periods': 'institution',
+  grades: 'institution',
+  classes: 'institution',
+  subjects: 'institution',
+  'institution-subjects': 'institution',
+  infrastructure: 'institution',
   reports: 'report',
   'data-warehouse': 'report',
   'workflow-engine': 'workflow',

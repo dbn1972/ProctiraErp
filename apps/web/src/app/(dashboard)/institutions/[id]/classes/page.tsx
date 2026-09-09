@@ -7,7 +7,8 @@
  * in section customData. Sections are scoped to an academic period
  * (Requirement 5.5).
  */
-import { Download, Eye, MoreVertical, Pencil, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { Eye } from 'lucide-react';
 
 import {
   Button,
@@ -21,8 +22,14 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
-import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
-import type { ClassSection, Grade } from '@/lib/institutions/types';
+import { AddClassSectionDialog } from '@/components/institutions/academics-create-dialogs';
+import {
+  ApiClientError,
+  listAcademicPeriods,
+  listClassesByInstitution,
+  listGrades,
+} from '@/lib/institutions/api';
+import type { AcademicPeriod, ClassSection, Grade } from '@/lib/institutions/types';
 
 interface ClassesPageProps {
   params: Promise<{ id: string }>;
@@ -31,6 +38,7 @@ interface ClassesPageProps {
 interface ClassesData {
   classes: ClassSection[];
   grades: Grade[];
+  periods: AcademicPeriod[];
   error: string | null;
 }
 
@@ -57,14 +65,11 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" disabled>
-            <Download className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Export roster
-          </Button>
-          <Button size="sm" disabled>
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            Add section
-          </Button>
+          <AddClassSectionDialog
+            institutionId={params.id}
+            grades={data.grades}
+            periods={data.periods}
+          />
         </div>
       </div>
 
@@ -131,29 +136,13 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
                       <TableCell className="text-sm text-muted-foreground">{room || '—'}</TableCell>
                       <TableCell className="text-end">
                         <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 p-0"
-                            aria-label="View section"
-                          >
-                            <Eye className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 p-0"
-                            aria-label="Edit section"
-                          >
-                            <Pencil className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 p-0"
-                            aria-label="More actions"
-                          >
-                            <MoreVertical className="h-4 w-4" aria-hidden="true" />
+                          <Button asChild variant="ghost" size="icon" className="h-8 w-8 p-0">
+                            <Link
+                              href={`/attendance?institutionId=${params.id}&classId=${section.id}`}
+                              aria-label={`Open roster for ${chip}`}
+                            >
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                            </Link>
                           </Button>
                         </div>
                       </TableCell>
@@ -171,15 +160,17 @@ export default async function InstitutionClassesPage(props: ClassesPageProps) {
 
 async function loadClasses(institutionId: string): Promise<ClassesData> {
   try {
-    const [classes, grades] = await Promise.all([
+    const [classes, grades, periods] = await Promise.all([
       listClassesByInstitution(institutionId),
       listGrades().catch(() => [] as Grade[]),
+      listAcademicPeriods().catch(() => [] as AcademicPeriod[]),
     ]);
-    return { classes, grades, error: null };
+    return { classes, grades, periods, error: null };
   } catch (error) {
     return {
       classes: [],
       grades: [],
+      periods: [],
       error:
         error instanceof ApiClientError
           ? error.message

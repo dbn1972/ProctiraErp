@@ -6,7 +6,8 @@
  * class sections. Utilization shows only when both capacity and enrollment
  * are known (enrollment is read from grade customData when present).
  */
-import { MoreVertical, Pencil, Plus } from 'lucide-react';
+
+import Link from 'next/link';
 
 import {
   Button,
@@ -20,6 +21,7 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
+import { AddGradeDialog } from '@/components/institutions/academics-create-dialogs';
 import { ApiClientError, listClassesByInstitution, listGrades } from '@/lib/institutions/api';
 import type { ClassSection, Grade } from '@/lib/institutions/types';
 
@@ -90,10 +92,7 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
               : `${offered.length} ${offered.length === 1 ? 'grade' : 'grades'} · section capacity per grade`}
           </p>
         </div>
-        <Button size="sm" disabled>
-          <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-          Add grade
-        </Button>
+        <AddGradeDialog />
       </div>
 
       {/* ── Table card ── */}
@@ -116,7 +115,7 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
                   <TableHead className="text-end font-semibold">Sections</TableHead>
                   <TableHead className="text-end font-semibold">Capacity</TableHead>
                   <TableHead className="font-semibold">Utilization</TableHead>
-                  <TableHead className="text-end font-semibold">Actions</TableHead>
+                  <TableHead className="text-end font-semibold">Sections</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -167,24 +166,14 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
                           )}
                         </TableCell>
                         <TableCell className="text-end">
-                          <div className="flex items-center justify-end gap-0.5 opacity-60 group-hover:opacity-100">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 p-0"
-                              aria-label={`Edit ${grade.name}`}
+                          <Button asChild variant="ghost" size="sm">
+                            <Link
+                              href={`/institutions/${params.id}/classes`}
+                              aria-label={`View sections for ${grade.name}`}
                             >
-                              <Pencil className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 p-0"
-                              aria-label="More actions"
-                            >
-                              <MoreVertical className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          </div>
+                              {agg.sections} {agg.sections === 1 ? 'section' : 'sections'}
+                            </Link>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     );

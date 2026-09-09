@@ -155,19 +155,49 @@ describe('Wave 8 LMS raw-SQL RLS (026_lms_schema.sql)', () => {
     const policies = sql.match(/CREATE POLICY tenant_isolation ON lms_[a-z_]+[\s\S]*?;/g) ?? [];
     expect(policies).toHaveLength(LMS_TABLES_WITH_RLS.length);
     for (const policy of policies) {
-      expect(policy).toMatch(/USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/);
-      expect(policy).toMatch(/WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/);
+      expect(policy).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
+      expect(policy).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app.tenant_id', true\), ''\)\)/,
+      );
     }
   });
 
   it('every LMS table carries tenant_id and scoped tables carry the board|school target check', () => {
     for (const table of LMS_TABLES_WITH_RLS) {
-      const ddl = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`));
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
       expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
       expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
     }
     for (const scoped of ['lms_skills', 'lms_assignments']) {
       expect(sql).toMatch(new RegExp(`CONSTRAINT ${scoped}_scope_target CHECK`));
+    }
+  });
+});
+
+describe('Wave 9 institution infrastructure raw-SQL RLS (027_institution_infrastructure_schema.sql)', () => {
+  const sql = loadSql('027_institution_infrastructure_schema.sql');
+  const tables = ['institution_infrastructure', 'institution_condition_options'];
+
+  it('every infrastructure table enables + forces RLS with the tenant_isolation policy', () => {
+    for (const table of tables) {
+      expect(sql, `missing ENABLE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing FORCE RLS for ${table}`).toMatch(
+        new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`),
+      );
+      expect(sql, `missing tenant_isolation policy for ${table}`).toMatch(
+        new RegExp(`CREATE POLICY tenant_isolation ON ${table}`),
+      );
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
     }
   });
 });

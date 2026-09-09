@@ -2,13 +2,36 @@
  * G-805 — School (institution) scope gate.
  */
 const BOARD_TENANT_ADMIN_ROLES = new Set([
-  'admin', 'board_admin', 'tenant-admin', 'tenant_admin',
-  'platform_admin', 'super-admin', 'super_admin', 'administrator',
+  'admin',
+  'board_admin',
+  'tenant-admin',
+  'tenant_admin',
+  'platform_admin',
+  'super-admin',
+  'super_admin',
+  'administrator',
 ]);
 
 export const INSTITUTION_SCOPED_SEGMENTS = new Set([
-  'students','enrollments','staff','fees','health','library','hostel','transport',
-  'scholarships','timetable','gradebook','lms','attendance','assessments','examinations',
+  'students',
+  'enrollments',
+  'staff',
+  'fees',
+  'health',
+  'library',
+  'hostel',
+  'transport',
+  'scholarships',
+  'timetable',
+  'gradebook',
+  'lms',
+  'attendance',
+  'assessments',
+  'examinations',
+  // G-901
+  'classes',
+  'infrastructure',
+  'institution-subjects',
 ]);
 
 export type InstitutionScopeUser = {
@@ -35,7 +58,9 @@ export function allowedInstitutions(user: InstitutionScopeUser | null | undefine
 }
 
 export function extractInstitutionId(input: {
-  query?: unknown; params?: unknown; body?: unknown;
+  query?: unknown;
+  params?: unknown;
+  body?: unknown;
 }): string | undefined {
   for (const source of [input.query, input.params, input.body]) {
     if (!source || typeof source !== 'object') continue;
