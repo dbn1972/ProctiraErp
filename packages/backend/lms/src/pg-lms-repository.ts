@@ -12,17 +12,30 @@ import type { PaginatedResult, PaginationOptions } from '@proctira/common';
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
+import type { QuestionType } from './grading-engine.js';
 import type {
   AssignmentEntity,
+  AssignmentFileEntity,
   AssignmentFilter,
   AssignmentKind,
   AssignmentStatus,
   AttemptSource,
+  BankQuestionEntity,
+  BankQuestionFilter,
+  ContentItemEntity,
+  DiscussionEntity,
+  DiscussionPostEntity,
+  LessonEntity,
+  LessonResourceEntity,
   LmsRepository,
   LmsScope,
   MasteryFilter,
   PracticeAttemptEntity,
   QuizQuestionEntity,
+  RubricCriterionEntity,
+  RubricEntity,
+  RubricLevel,
+  RubricScoreEntity,
   ScopeFilter,
   SkillEntity,
   SkillFilter,
@@ -54,12 +67,12 @@ export function getSharedLmsPool(): pg.Pool | null {
   return sharedPool;
 }
 
-function schemaSqlPath(): string {
+function schemaSqlPath(file: string): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    join(here, '../../../../db/sql/026_lms_schema.sql'),
-    join(process.cwd(), 'db/sql/026_lms_schema.sql'),
-    join(process.cwd(), '../../db/sql/026_lms_schema.sql'),
+    join(here, `../../../../db/sql/${file}`),
+    join(process.cwd(), `db/sql/${file}`),
+    join(process.cwd(), `../../db/sql/${file}`),
   ];
   for (const path of candidates) {
     try {
@@ -76,8 +89,8 @@ export async function ensureLmsSchema(pool: PgPoolLike = getSharedLmsPool()!): P
   if (!pool) throw new Error('DATABASE_URL is required for LMS schema ensure');
   if (!schemaReady) {
     schemaReady = (async () => {
-      const sql = readFileSync(schemaSqlPath(), 'utf8');
-      await pool.query(sql);
+      await pool.query(readFileSync(schemaSqlPath('026_lms_schema.sql'), 'utf8'));
+      await pool.query(readFileSync(schemaSqlPath('038_lms_depth_schema.sql'), 'utf8'));
     })();
   }
   await schemaReady;
@@ -160,11 +173,14 @@ function mapQuestion(row: Record<string, unknown>): QuizQuestionEntity {
     position: Number(row.position),
     prompt: String(row.prompt),
     options: parseJson<string[]>(row.options, []),
-    correctOptionIndex: Number(row.correct_option_index),
+    correctOptionIndex: row.correct_option_index == null ? -1 : Number(row.correct_option_index),
     points: Number(row.points),
     skillId: str(row.skill_id),
     explanation: str(row.explanation),
     createdAt: toDate(row.created_at),
+    questionType: (str(row.question_type) as QuestionType | null) ?? 'mcq',
+    bankId: str(row.bank_item_id) ?? str(row.bank_id),
+    payload: parseJson<Record<string, unknown>>(row.payload, {}),
   };
 }
 
@@ -221,6 +237,171 @@ function mapAttempt(row: Record<string, unknown>): PracticeAttemptEntity {
     responseTimeMs: row.response_time_ms == null ? null : Number(row.response_time_ms),
     masteryAfter: Number(row.mastery_after),
     createdAt: toDate(row.created_at),
+  };
+}
+
+function mapBank(row: Record<string, unknown>): BankQuestionEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    scope: String(row.scope) as LmsScope,
+    boardId: str(row.board_id),
+    institutionId: str(row.institution_id),
+    subject: String(row.subject),
+    gradeLevel: str(row.grade_level),
+    tags: parseJson<string[]>(row.tags, []),
+    questionType: String(row.question_type) as QuestionType,
+    prompt: String(row.prompt),
+    payload: parseJson<Record<string, unknown>>(row.payload, {}),
+    points: Number(row.points),
+    skillId: str(row.skill_id),
+    rubricId: str(row.rubric_id),
+    difficulty: (str(row.difficulty) as BankQuestionEntity['difficulty'] | null) ?? 'medium',
+    createdBy: str(row.created_by),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapRubric(row: Record<string, unknown>): RubricEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    scope: String(row.scope) as LmsScope,
+    boardId: str(row.board_id),
+    institutionId: str(row.institution_id),
+    name: String(row.name),
+    subject: str(row.subject),
+    gradeLevel: str(row.grade_level),
+    createdBy: str(row.created_by),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapCriterion(row: Record<string, unknown>): RubricCriterionEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    rubricId: String(row.rubric_id),
+    position: Number(row.position),
+    name: String(row.name),
+    description: str(row.description),
+    maxPoints: Number(row.max_points),
+    levels: parseJson<RubricLevel[]>(row.levels, []),
+  };
+}
+
+function mapRubricScore(row: Record<string, unknown>): RubricScoreEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    submissionId: String(row.submission_id),
+    criterionId: String(row.criterion_id),
+    questionId: str(row.question_id),
+    levelIndex: Number(row.level_index),
+    points: Number(row.points),
+    comment: str(row.comment),
+    scoredBy: str(row.scored_by),
+    scoredAt: toDate(row.scored_at),
+  };
+}
+
+function mapFile(row: Record<string, unknown>): AssignmentFileEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    assignmentId: String(row.assignment_id),
+    submissionId: str(row.submission_id),
+    filename: String(row.filename),
+    mimeType: String(row.mime_type),
+    byteSize: Number(row.byte_size),
+    storageKey: String(row.object_key ?? row.storage_key),
+    createdBy: str(row.created_by),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapDiscussion(row: Record<string, unknown>): DiscussionEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    institutionId: str(row.institution_id),
+    classKey: String(row.class_key),
+    title: String(row.title),
+    locked: Boolean(row.locked),
+    createdBy: str(row.created_by),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapPost(row: Record<string, unknown>): DiscussionPostEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    discussionId: String(row.thread_id ?? row.discussion_id),
+    parentId: str(row.parent_id),
+    body: String(row.body),
+    pinned: Boolean(row.pinned),
+    hidden: Boolean(row.hidden),
+    createdBy: str(row.created_by),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapLesson(row: Record<string, unknown>): LessonEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    scope: String(row.scope) as LmsScope,
+    boardId: str(row.board_id),
+    institutionId: str(row.institution_id),
+    title: String(row.title),
+    subject: str(row.subject),
+    gradeLevel: str(row.grade_level),
+    description: str(row.description),
+    published: Boolean(row.published),
+    createdBy: str(row.created_by),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
+  };
+}
+
+function mapLessonResource(row: Record<string, unknown>): LessonResourceEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    lessonId: String(row.lesson_id),
+    kind: String(row.kind) as LessonResourceEntity['kind'],
+    title: String(row.title),
+    url: str(row.url),
+    storageKey: str(row.storage_key),
+    mimeType: str(row.mime_type),
+    position: Number(row.position),
+    createdAt: toDate(row.created_at),
+  };
+}
+
+function mapContent(row: Record<string, unknown>): ContentItemEntity {
+  return {
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    scope: String(row.scope) as LmsScope,
+    boardId: str(row.board_id),
+    institutionId: str(row.institution_id),
+    title: String(row.title),
+    kind: String(row.kind) as ContentItemEntity['kind'],
+    body: str(row.body),
+    tags: parseJson<string[]>(row.tags, []),
+    classKey: str(row.class_key),
+    subject: str(row.subject),
+    objectKey: str(row.object_key),
+    mimeType: str(row.mime_type),
+    published: Boolean(row.published),
+    createdBy: str(row.created_by),
+    createdAt: toDate(row.created_at),
+    updatedAt: toDate(row.updated_at),
   };
 }
 
@@ -548,8 +729,9 @@ export class PgLmsRepository implements LmsRepository {
         const result = await client.query(
           `INSERT INTO lms_quiz_questions (
              id, tenant_id, assignment_id, position, prompt, options,
-             correct_option_index, points, skill_id, explanation
-           ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10) RETURNING *`,
+             correct_option_index, points, skill_id, explanation,
+             question_type, bank_item_id, payload
+           ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb) RETURNING *`,
           [
             q.id,
             tenantId,
@@ -557,10 +739,13 @@ export class PgLmsRepository implements LmsRepository {
             q.position,
             q.prompt,
             JSON.stringify(q.options),
-            q.correctOptionIndex,
+            q.correctOptionIndex < 0 ? null : q.correctOptionIndex,
             q.points,
             q.skillId,
             q.explanation,
+            q.questionType ?? 'mcq',
+            q.bankId ?? null,
+            JSON.stringify(q.payload ?? {}),
           ],
         );
         rows.push(mapQuestion(result.rows[0] as Record<string, unknown>));
@@ -839,6 +1024,731 @@ export class PgLmsRepository implements LmsRepository {
       );
       return {
         data: result.rows.map((row) => mapAttempt(row as Record<string, unknown>)),
+        meta: paginateMeta(totalItems, pagination),
+      };
+    });
+  }
+
+  async createBankQuestion(
+    data: Omit<BankQuestionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<BankQuestionEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_question_bank (
+           id, tenant_id, scope, board_id, institution_id, subject, grade_level, tags,
+           question_type, difficulty, prompt, payload, points, skill_id, rubric_id, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12::jsonb,$13,$14,$15,$16) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.scope,
+          data.boardId,
+          data.institutionId,
+          data.subject,
+          data.gradeLevel,
+          JSON.stringify(data.tags),
+          data.questionType,
+          data.difficulty,
+          data.prompt,
+          JSON.stringify(data.payload),
+          data.points,
+          data.skillId,
+          data.rubricId,
+          data.createdBy,
+        ],
+      );
+      return mapBank(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async updateBankQuestion(
+    tenantId: string,
+    id: string,
+    patch: Parameters<LmsRepository['updateBankQuestion']>[2],
+  ): Promise<BankQuestionEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const existing = await this.findBankQuestion(tenantId, id);
+      if (!existing) return null;
+      const next = { ...existing, ...patch };
+      const result = await client.query(
+        `UPDATE lms_question_bank SET
+           subject=$3, grade_level=$4, tags=$5::jsonb, question_type=$6, prompt=$7,
+           payload=$8::jsonb, points=$9, skill_id=$10, rubric_id=$11, updated_at=now()
+         WHERE tenant_id=$1 AND id=$2 RETURNING *`,
+        [
+          tenantId,
+          id,
+          next.subject,
+          next.gradeLevel,
+          JSON.stringify(next.tags),
+          next.questionType,
+          next.prompt,
+          JSON.stringify(next.payload),
+          next.points,
+          next.skillId,
+          next.rubricId,
+        ],
+      );
+      return result.rows[0] ? mapBank(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async findBankQuestion(tenantId: string, id: string): Promise<BankQuestionEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'SELECT * FROM lms_question_bank WHERE tenant_id=$1 AND id=$2',
+        [tenantId, id],
+      );
+      return result.rows[0] ? mapBank(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async findBankQuestionsByIds(tenantId: string, ids: string[]): Promise<BankQuestionEntity[]> {
+    if (ids.length === 0) return [];
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'SELECT * FROM lms_question_bank WHERE tenant_id=$1 AND id = ANY($2::uuid[])',
+        [tenantId, ids],
+      );
+      return result.rows.map((row) => mapBank(row as Record<string, unknown>));
+    });
+  }
+
+  async listBankQuestions(
+    tenantId: string,
+    filter: BankQuestionFilter,
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<BankQuestionEntity>> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const params: unknown[] = [tenantId];
+      const conditions = ['tenant_id = $1', ...scopeConditions(filter, params)];
+      if (filter.subject) {
+        params.push(filter.subject);
+        conditions.push(`subject = $${params.length}`);
+      }
+      if (filter.gradeLevel) {
+        params.push(filter.gradeLevel);
+        conditions.push(`grade_level = $${params.length}`);
+      }
+      if (filter.questionType) {
+        params.push(filter.questionType);
+        conditions.push(`question_type = $${params.length}`);
+      }
+      if (filter.tags && filter.tags.length > 0) {
+        params.push(filter.tags);
+        conditions.push(
+          `EXISTS (SELECT 1 FROM jsonb_array_elements_text(tags) AS t(tag) WHERE t.tag = ANY($${params.length}::text[]))`,
+        );
+      }
+      if (filter.search) {
+        params.push(`%${filter.search.toLowerCase()}%`);
+        conditions.push(`(lower(prompt) LIKE $${params.length})`);
+      }
+      const where = conditions.join(' AND ');
+      const count = await client.query(
+        `SELECT count(*)::int AS c FROM lms_question_bank WHERE ${where}`,
+        params,
+      );
+      const totalItems = Number((count.rows[0] as { c: number }).c);
+      params.push(pagination.pageSize, (pagination.page - 1) * pagination.pageSize);
+      const result = await client.query(
+        `SELECT * FROM lms_question_bank WHERE ${where}
+         ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params,
+      );
+      return {
+        data: result.rows.map((row) => mapBank(row as Record<string, unknown>)),
+        meta: paginateMeta(totalItems, pagination),
+      };
+    });
+  }
+
+  async deleteBankQuestion(tenantId: string, id: string): Promise<boolean> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'DELETE FROM lms_question_bank WHERE tenant_id=$1 AND id=$2',
+        [tenantId, id],
+      );
+      return Number((result as { rowCount?: number | null }).rowCount ?? 0) > 0;
+    });
+  }
+
+  async createRubric(data: Omit<RubricEntity, 'createdAt' | 'updatedAt'>): Promise<RubricEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_rubrics (
+           id, tenant_id, scope, board_id, institution_id, name, subject, grade_level, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.scope,
+          data.boardId,
+          data.institutionId,
+          data.name,
+          data.subject,
+          data.gradeLevel,
+          data.createdBy,
+        ],
+      );
+      return mapRubric(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async findRubric(tenantId: string, id: string): Promise<RubricEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query('SELECT * FROM lms_rubrics WHERE tenant_id=$1 AND id=$2', [
+        tenantId,
+        id,
+      ]);
+      return result.rows[0] ? mapRubric(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listRubrics(
+    tenantId: string,
+    filter: ScopeFilter & { subject?: string },
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<RubricEntity>> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const params: unknown[] = [tenantId];
+      const conditions = ['tenant_id = $1', ...scopeConditions(filter, params)];
+      if (filter.subject) {
+        params.push(filter.subject);
+        conditions.push(`subject = $${params.length}`);
+      }
+      const where = conditions.join(' AND ');
+      const count = await client.query(
+        `SELECT count(*)::int AS c FROM lms_rubrics WHERE ${where}`,
+        params,
+      );
+      const totalItems = Number((count.rows[0] as { c: number }).c);
+      params.push(pagination.pageSize, (pagination.page - 1) * pagination.pageSize);
+      const result = await client.query(
+        `SELECT * FROM lms_rubrics WHERE ${where}
+         ORDER BY name LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params,
+      );
+      return {
+        data: result.rows.map((row) => mapRubric(row as Record<string, unknown>)),
+        meta: paginateMeta(totalItems, pagination),
+      };
+    });
+  }
+
+  async replaceRubricCriteria(
+    tenantId: string,
+    rubricId: string,
+    criteria: Omit<RubricCriterionEntity, 'createdAt'>[],
+  ): Promise<RubricCriterionEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      await client.query('DELETE FROM lms_rubric_criteria WHERE tenant_id=$1 AND rubric_id=$2', [
+        tenantId,
+        rubricId,
+      ]);
+      const rows: RubricCriterionEntity[] = [];
+      for (const c of criteria) {
+        const result = await client.query(
+          `INSERT INTO lms_rubric_criteria (
+             id, tenant_id, rubric_id, position, name, description, max_points, levels
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) RETURNING *`,
+          [
+            c.id,
+            tenantId,
+            rubricId,
+            c.position,
+            c.name,
+            c.description,
+            c.maxPoints,
+            JSON.stringify(c.levels),
+          ],
+        );
+        rows.push(mapCriterion(result.rows[0] as Record<string, unknown>));
+      }
+      return rows;
+    });
+  }
+
+  async listRubricCriteria(tenantId: string, rubricId: string): Promise<RubricCriterionEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM lms_rubric_criteria WHERE tenant_id=$1 AND rubric_id=$2 ORDER BY position`,
+        [tenantId, rubricId],
+      );
+      return result.rows.map((row) => mapCriterion(row as Record<string, unknown>));
+    });
+  }
+
+  async replaceRubricScores(
+    tenantId: string,
+    submissionId: string,
+    scores: Omit<RubricScoreEntity, 'scoredAt'>[],
+  ): Promise<RubricScoreEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      await client.query(
+        'DELETE FROM lms_rubric_scores WHERE tenant_id=$1 AND submission_id=$2',
+        [tenantId, submissionId],
+      );
+      const rows: RubricScoreEntity[] = [];
+      for (const s of scores) {
+        const result = await client.query(
+          `INSERT INTO lms_rubric_scores (
+             id, tenant_id, submission_id, criterion_id, question_id, level_index, points, comment, scored_by
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+          [
+            s.id,
+            tenantId,
+            submissionId,
+            s.criterionId,
+            s.questionId,
+            s.levelIndex,
+            s.points,
+            s.comment,
+            s.scoredBy,
+          ],
+        );
+        rows.push(mapRubricScore(result.rows[0] as Record<string, unknown>));
+      }
+      return rows;
+    });
+  }
+
+  async listRubricScores(tenantId: string, submissionId: string): Promise<RubricScoreEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'SELECT * FROM lms_rubric_scores WHERE tenant_id=$1 AND submission_id=$2',
+        [tenantId, submissionId],
+      );
+      return result.rows.map((row) => mapRubricScore(row as Record<string, unknown>));
+    });
+  }
+
+  async createAssignmentFile(
+    data: Omit<AssignmentFileEntity, 'createdAt'>,
+  ): Promise<AssignmentFileEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_assignment_files (
+           id, tenant_id, assignment_id, submission_id, filename, mime_type, byte_size, storage_key, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.assignmentId,
+          data.submissionId,
+          data.filename,
+          data.mimeType,
+          data.byteSize,
+          data.storageKey,
+          data.createdBy,
+        ],
+      );
+      return mapFile(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async findAssignmentFile(tenantId: string, id: string): Promise<AssignmentFileEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'SELECT * FROM lms_assignment_files WHERE tenant_id=$1 AND id=$2',
+        [tenantId, id],
+      );
+      return result.rows[0] ? mapFile(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listAssignmentFiles(
+    tenantId: string,
+    assignmentId: string,
+    submissionId?: string | null,
+  ): Promise<AssignmentFileEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const params: unknown[] = [tenantId, assignmentId];
+      let extra = '';
+      if (submissionId === null) extra = ' AND submission_id IS NULL';
+      else if (submissionId !== undefined) {
+        params.push(submissionId);
+        extra = ` AND submission_id = $${params.length}`;
+      }
+      const result = await client.query(
+        `SELECT * FROM lms_assignment_files WHERE tenant_id=$1 AND assignment_id=$2${extra}
+         ORDER BY created_at`,
+        params,
+      );
+      return result.rows.map((row) => mapFile(row as Record<string, unknown>));
+    });
+  }
+
+  async createDiscussion(
+    data: Omit<DiscussionEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<DiscussionEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_discussions (
+           id, tenant_id, institution_id, class_key, title, locked, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.institutionId,
+          data.classKey,
+          data.title,
+          data.locked,
+          data.createdBy,
+        ],
+      );
+      return mapDiscussion(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async findDiscussion(tenantId: string, id: string): Promise<DiscussionEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'SELECT * FROM lms_discussions WHERE tenant_id=$1 AND id=$2',
+        [tenantId, id],
+      );
+      return result.rows[0] ? mapDiscussion(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listDiscussions(
+    tenantId: string,
+    filter: { institutionId?: string; classKey?: string },
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<DiscussionEntity>> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const params: unknown[] = [tenantId];
+      const conditions = ['tenant_id = $1'];
+      if (filter.institutionId) {
+        params.push(filter.institutionId);
+        conditions.push(`institution_id = $${params.length}`);
+      }
+      if (filter.classKey) {
+        params.push(filter.classKey);
+        conditions.push(`class_key = $${params.length}`);
+      }
+      const where = conditions.join(' AND ');
+      const count = await client.query(
+        `SELECT count(*)::int AS c FROM lms_discussions WHERE ${where}`,
+        params,
+      );
+      const totalItems = Number((count.rows[0] as { c: number }).c);
+      params.push(pagination.pageSize, (pagination.page - 1) * pagination.pageSize);
+      const result = await client.query(
+        `SELECT * FROM lms_discussions WHERE ${where}
+         ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params,
+      );
+      return {
+        data: result.rows.map((row) => mapDiscussion(row as Record<string, unknown>)),
+        meta: paginateMeta(totalItems, pagination),
+      };
+    });
+  }
+
+  async setDiscussionLocked(
+    tenantId: string,
+    id: string,
+    locked: boolean,
+  ): Promise<DiscussionEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE lms_discussions SET locked=$3, updated_at=now()
+         WHERE tenant_id=$1 AND id=$2 RETURNING *`,
+        [tenantId, id, locked],
+      );
+      return result.rows[0] ? mapDiscussion(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async createDiscussionPost(
+    data: Omit<DiscussionPostEntity, 'createdAt'>,
+  ): Promise<DiscussionPostEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_discussion_posts (
+           id, tenant_id, discussion_id, parent_id, body, hidden, pinned, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.discussionId,
+          data.parentId,
+          data.body,
+          data.hidden,
+          data.pinned,
+          data.createdBy,
+        ],
+      );
+      return mapPost(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async findDiscussionPost(tenantId: string, id: string): Promise<DiscussionPostEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'SELECT * FROM lms_discussion_posts WHERE tenant_id=$1 AND id=$2',
+        [tenantId, id],
+      );
+      return result.rows[0] ? mapPost(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listDiscussionPosts(
+    tenantId: string,
+    discussionId: string,
+  ): Promise<DiscussionPostEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM lms_discussion_posts WHERE tenant_id=$1 AND discussion_id=$2
+         ORDER BY pinned DESC, created_at ASC`,
+        [tenantId, discussionId],
+      );
+      return result.rows.map((row) => mapPost(row as Record<string, unknown>));
+    });
+  }
+
+  async setPostPinned(
+    tenantId: string,
+    postId: string,
+    pinned: boolean,
+  ): Promise<DiscussionPostEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE lms_discussion_posts SET pinned=$3 WHERE tenant_id=$1 AND id=$2 RETURNING *`,
+        [tenantId, postId, pinned],
+      );
+      return result.rows[0] ? mapPost(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async setPostHidden(
+    tenantId: string,
+    postId: string,
+    hidden: boolean,
+  ): Promise<DiscussionPostEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `UPDATE lms_discussion_posts SET hidden=$3 WHERE tenant_id=$1 AND id=$2 RETURNING *`,
+        [tenantId, postId, hidden],
+      );
+      return result.rows[0] ? mapPost(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async createLesson(data: Omit<LessonEntity, 'createdAt' | 'updatedAt'>): Promise<LessonEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_lessons (
+           id, tenant_id, scope, board_id, institution_id, title, subject, grade_level,
+           description, published, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.scope,
+          data.boardId,
+          data.institutionId,
+          data.title,
+          data.subject,
+          data.gradeLevel,
+          data.description,
+          data.published,
+          data.createdBy,
+        ],
+      );
+      return mapLesson(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async findLesson(tenantId: string, id: string): Promise<LessonEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query('SELECT * FROM lms_lessons WHERE tenant_id=$1 AND id=$2', [
+        tenantId,
+        id,
+      ]);
+      return result.rows[0] ? mapLesson(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listLessons(
+    tenantId: string,
+    filter: ScopeFilter & { subject?: string; published?: boolean },
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<LessonEntity>> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const params: unknown[] = [tenantId];
+      const conditions = ['tenant_id = $1', ...scopeConditions(filter, params)];
+      if (filter.subject) {
+        params.push(filter.subject);
+        conditions.push(`subject = $${params.length}`);
+      }
+      if (filter.published !== undefined) {
+        params.push(filter.published);
+        conditions.push(`published = $${params.length}`);
+      }
+      const where = conditions.join(' AND ');
+      const count = await client.query(
+        `SELECT count(*)::int AS c FROM lms_lessons WHERE ${where}`,
+        params,
+      );
+      const totalItems = Number((count.rows[0] as { c: number }).c);
+      params.push(pagination.pageSize, (pagination.page - 1) * pagination.pageSize);
+      const result = await client.query(
+        `SELECT * FROM lms_lessons WHERE ${where}
+         ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params,
+      );
+      return {
+        data: result.rows.map((row) => mapLesson(row as Record<string, unknown>)),
+        meta: paginateMeta(totalItems, pagination),
+      };
+    });
+  }
+
+  async createLessonResource(
+    data: Omit<LessonResourceEntity, 'createdAt'>,
+  ): Promise<LessonResourceEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_lesson_resources (
+           id, tenant_id, lesson_id, kind, title, url, storage_key, mime_type, position
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.lessonId,
+          data.kind,
+          data.title,
+          data.url,
+          data.storageKey,
+          data.mimeType,
+          data.position,
+        ],
+      );
+      return mapLessonResource(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async listLessonResources(tenantId: string, lessonId: string): Promise<LessonResourceEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM lms_lesson_resources WHERE tenant_id=$1 AND lesson_id=$2
+         ORDER BY position`,
+        [tenantId, lessonId],
+      );
+      return result.rows.map((row) => mapLessonResource(row as Record<string, unknown>));
+    });
+  }
+
+  async createContentItem(
+    data: Omit<ContentItemEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<ContentItemEntity> {
+    await this.ensureSchema();
+    return this.withTenant(data.tenantId, async (client) => {
+      const result = await client.query(
+        `INSERT INTO lms_content_items (
+           id, tenant_id, scope, board_id, institution_id, title, kind, body, tags,
+           class_key, subject, object_key, mime_type, published, created_by
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15) RETURNING *`,
+        [
+          data.id,
+          data.tenantId,
+          data.scope,
+          data.boardId,
+          data.institutionId,
+          data.title,
+          data.kind,
+          data.body,
+          JSON.stringify(data.tags),
+          data.classKey,
+          data.subject,
+          data.objectKey,
+          data.mimeType,
+          data.published,
+          data.createdBy,
+        ],
+      );
+      return mapContent(result.rows[0] as Record<string, unknown>);
+    });
+  }
+
+  async findContentItem(tenantId: string, id: string): Promise<ContentItemEntity | null> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        'SELECT * FROM lms_content_items WHERE tenant_id=$1 AND id=$2',
+        [tenantId, id],
+      );
+      return result.rows[0] ? mapContent(result.rows[0] as Record<string, unknown>) : null;
+    });
+  }
+
+  async listContentItems(
+    tenantId: string,
+    filter: ScopeFilter & { subject?: string; published?: boolean; classKey?: string },
+    pagination: PaginationOptions,
+  ): Promise<PaginatedResult<ContentItemEntity>> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const params: unknown[] = [tenantId];
+      const conditions = ['tenant_id = $1', ...scopeConditions(filter, params)];
+      if (filter.subject) {
+        params.push(filter.subject);
+        conditions.push(`subject = $${params.length}`);
+      }
+      if (filter.classKey) {
+        params.push(filter.classKey);
+        conditions.push(`class_key = $${params.length}`);
+      }
+      if (filter.published !== undefined) {
+        params.push(filter.published);
+        conditions.push(`published = $${params.length}`);
+      }
+      const where = conditions.join(' AND ');
+      const count = await client.query(
+        `SELECT count(*)::int AS c FROM lms_content_items WHERE ${where}`,
+        params,
+      );
+      const totalItems = Number((count.rows[0] as { c: number }).c);
+      params.push(pagination.pageSize, (pagination.page - 1) * pagination.pageSize);
+      const result = await client.query(
+        `SELECT * FROM lms_content_items WHERE ${where}
+         ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params,
+      );
+      return {
+        data: result.rows.map((row) => mapContent(row as Record<string, unknown>)),
         meta: paginateMeta(totalItems, pagination),
       };
     });

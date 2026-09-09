@@ -86,6 +86,9 @@ describe('PgLmsRepository', () => {
           points: 2,
           skillId: skill.id,
           explanation: null,
+          questionType: 'mcq',
+          bankId: null,
+          payload: {},
         },
       ]);
       expect(questions).toHaveLength(1);
