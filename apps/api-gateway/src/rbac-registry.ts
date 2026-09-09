@@ -78,6 +78,8 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   // G-910: tenant admin console (roles / users / settings) — tenant `admin`
   // holds `user: manage`, so no platform-admin rights needed.
   tenant: 'user',
+  // G-924: SCIM 2.0 provisioning writes the same tenant directory.
+  scim: 'user',
   // Platform control plane (billing / tenant lifecycle / audit log API)
   billing: 'platform',
   'tenant-lifecycle': 'platform',

@@ -18,6 +18,10 @@
  *   GET    /tenant/users                     POST /tenant/users (invite)
  *   PATCH  /tenant/users/:userId/roles       PATCH /tenant/users/:userId/status
  *   GET/PUT /tenant/settings
+ *
+ * G-924: the same RolesService also backs SCIM 2.0 provisioning at
+ * `/scim/v2/{Users,Groups}` (see scim-plugin.ts) so IdP pushes are audited
+ * exactly like console edits.
  */
 import { DEFAULT_ROLES } from '@proctira/backend-auth';
 import {
@@ -35,11 +39,15 @@ import { getSharedPgPool } from '@proctira/database';
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { scimPlugin } from './scim-plugin.js';
+
 export interface TenantAdminPluginOptions {
   /** Default `/tenant`; the gateway mounts `/api/v1` above. */
   prefix?: string;
   /** Receives every role/user mutation (wired to the audit service). */
   onAudit?: (event: RolesAuditEvent & { actorId: string | null }) => Promise<void> | void;
+  /** G-924: SCIM 2.0 base path; default `/scim/v2`. Set `false` to disable. */
+  scimPrefix?: string | false;
 }
 
 export const tenantAdminPlugin = fp(
@@ -72,6 +80,12 @@ export const tenantAdminPlugin = fp(
 
     await registerRolesRoutes(fastify, { rolesService, prefix });
     await registerTenantSettingsRoutes(fastify, { store: settingsStore, prefix });
+    if (options.scimPrefix !== false) {
+      await fastify.register(scimPlugin, {
+        rolesService,
+        prefix: options.scimPrefix ?? '/scim/v2',
+      });
+    }
   },
   { name: 'tenant-admin-plugin' },
 );

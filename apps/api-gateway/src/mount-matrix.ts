@@ -88,14 +88,22 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
 ] as const;
 
 /**
- * G-605 — formally PARKED packages (subset of EXPECTED_UNMOUNTED).
+ * G-605 / G-924 — formally PARKED packages (equals EXPECTED_UNMOUNTED: every
+ * unmounted package carries a decision + rationale; no "undecided" rows).
  * Decision: packages exist but are not composed onto the gateway until
  * product UI + durable persistence are ready; theme prefix conflicts with
  * platform-admin stub; dashboards needs AreaHierarchyResolver product wiring.
  */
 export const EXPECTED_PARKED: readonly string[] = [
+  'admin-dashboard',
   'custom-field',
   'dashboards',
+  'data-warehouse',
+  'etl',
+  'install',
+  'plugin',
+  'policy',
+  'report',
   'survey',
   'theme',
 ] as const;
@@ -346,11 +354,11 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'tenant',
     registrarName: 'tenant-admin',
     mounted: true,
-    prefixes: ['/tenant-lifecycle', '/tenant'],
+    prefixes: ['/tenant-lifecycle', '/tenant', '/scim'],
     persistence: 'mixed',
     rbacWired: true,
     notes:
-      'tenantLifecyclePlugin at `/tenant-lifecycle` (G-106); platform-admin UI still owns `/tenants`. Suspend gate wired on mutating routes. G-910: `/tenant/{roles,permissions,users,settings}` admin console via tenantAdminPlugin (control_plane_documents on db/sql/022 when DATABASE_URL, RLS; else in-memory), RBAC `tenant` → `user`.',
+      'tenantLifecyclePlugin at `/tenant-lifecycle` (G-106); platform-admin UI still owns `/tenants`. Suspend gate wired on mutating routes. G-910: `/tenant/{roles,permissions,users,settings}` admin console via tenantAdminPlugin (control_plane_documents on db/sql/022 when DATABASE_URL, RLS; else in-memory), RBAC `tenant` → `user`. G-924: SCIM 2.0 `/scim/v2/{Users,Groups,ServiceProviderConfig,ResourceTypes,Schemas}` over the same directory (RBAC `scim` → `user`).',
   },
 
   // —— Gateway UI-only registrars (no packages/backend package) ——
@@ -392,6 +400,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/admin/scalability'],
     persistence: 'n/a',
     rbacWired: false,
+    parked: true,
+    parkedReason:
+      'G-924 PARKED (superseded) — platform-admin UI + insights own every dashboard surface; package kept only for its aggregation helpers. Retire when no importer remains.',
     notes: 'Plugin exists; not registered on gateway.',
   },
   {
@@ -422,6 +433,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/warehouses'],
     persistence: 'n/a',
     rbacWired: false,
+    parked: true,
+    parkedReason:
+      "G-924 PARKED (superseded) — `/data-warehouse` served by insights UI with PG store (G-209); warehouse package's connector model needs an ETL runtime that is not funded this wave.",
     notes: 'Unmounted; insights UI owns `/data-warehouse` (G-209).',
   },
   {
@@ -430,6 +444,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/pipelines'],
     persistence: 'n/a',
     rbacWired: false,
+    parked: true,
+    parkedReason:
+      'G-924 PARKED (deferred) — pipeline runtime has no product surface; scheduled report runs (G-909) cover the operational need. Mount with data-warehouse when BI pipelines are funded.',
     notes: 'Unmounted (G-209).',
   },
   {
@@ -438,6 +455,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/install'],
     persistence: 'n/a',
     rbacWired: false,
+    parked: true,
+    parkedReason:
+      'G-924 PARKED (out of scope for gateway) — install wizard is portal/demo scoped and must never be reachable on a live tenant gateway.',
     notes: 'Unmounted; install wizard is portal/demo scoped.',
   },
   {
@@ -446,6 +466,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/plugins'],
     persistence: 'n/a',
     rbacWired: false,
+    parked: true,
+    parkedReason:
+      'G-924 PARKED (superseded) — `/plugins` served by platform-admin UI; marketplace runtime deferred.',
     notes: 'Unmounted; `/plugins` served by platform-admin UI stub.',
   },
   {
@@ -454,6 +477,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/policies'],
     persistence: 'n/a',
     rbacWired: false,
+    parked: true,
+    parkedReason:
+      "G-924 PARKED (superseded) — retention is enforced at runtime by the audit RetentionScheduler (G-913); policy package's generic engine has no other consumer.",
     notes: 'Unmounted (G-106).',
   },
   {
@@ -462,6 +488,9 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/reports'],
     persistence: 'n/a',
     rbacWired: false,
+    parked: true,
+    parkedReason:
+      'G-924 decision: MOUNT via G-909 (this wave) — real CSV/XLSX/PDF generation + schedules replace insights-ui synthetic downloads; until that lands insights UI owns `/reports`.',
     notes: 'Unmounted; insights UI owns `/reports` (G-209).',
   },
   {

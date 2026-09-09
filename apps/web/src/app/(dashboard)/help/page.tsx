@@ -7,10 +7,18 @@
  * duplicating it.
  */
 import Link from 'next/link';
-import { BookOpen, Keyboard, LifeBuoy, ShieldCheck } from 'lucide-react';
+import { BookOpen, ExternalLink, Keyboard, LifeBuoy, ShieldCheck } from 'lucide-react';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@proctira/ui/components';
 import { DocumentTitle } from '@/components/DocumentTitle';
+import { resolveSupportTicketHref } from '@/lib/support';
 
 const MODULE_GUIDES: ReadonlyArray<{ href: string; title: string; summary: string }> = [
   {
@@ -90,6 +98,7 @@ const RUNBOOKS: ReadonlyArray<{ file: string; title: string }> = [
 ];
 
 export default function HelpPage() {
+  const ticketHref = resolveSupportTicketHref();
   return (
     <section aria-labelledby="help-heading" className="space-y-8" data-testid="help-page">
       <DocumentTitle pageTitle="Help" />
@@ -207,6 +216,24 @@ export default function HelpPage() {
             before escalating to the platform team. Security concerns should go straight to your
             platform administrator and be marked as such.
           </p>
+          {ticketHref ? (
+            <Button asChild size="sm" className="w-fit">
+              <a
+                href={ticketHref}
+                target={ticketHref.startsWith('mailto:') ? undefined : '_blank'}
+                rel="noopener noreferrer"
+                data-testid="raise-support-ticket"
+              >
+                <ExternalLink className="me-1.5 h-4 w-4" aria-hidden="true" />
+                Raise a support ticket
+              </a>
+            </Button>
+          ) : (
+            <p className="text-xs" data-testid="support-ticket-unconfigured">
+              Ticket link not configured for this deployment — set{' '}
+              <code>NEXT_PUBLIC_SUPPORT_TICKET_URL</code> or <code>NEXT_PUBLIC_SUPPORT_EMAIL</code>.
+            </p>
+          )}
         </CardContent>
       </Card>
     </section>

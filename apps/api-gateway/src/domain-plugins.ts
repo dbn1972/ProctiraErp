@@ -346,7 +346,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   },
   {
     name: 'tenant-admin',
-    proxyPrefixes: ['/tenant'],
+    proxyPrefixes: ['/tenant', '/scim'],
     register: async (scope) => {
       // G-910: tenant-scoped roles/users/settings for the web /admin console.
       // Postgres (control_plane_documents, RLS) when DATABASE_URL, else in-memory.

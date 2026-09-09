@@ -101,9 +101,19 @@ describe('G-003 gateway mount matrix', () => {
       expect(row, `PARKED package missing from matrix: ${pkg}`).toBeDefined();
       expect(row!.mounted).toBe(false);
       expect(row!.parked, `${pkg} should have parked: true`).toBe(true);
-      expect(row!.parkedReason, `${pkg} needs parkedReason`).toMatch(/G-605|PARKED/i);
+      expect(row!.parkedReason, `${pkg} needs parkedReason`).toMatch(
+        /G-605|G-924|PARKED|MOUNT via/i,
+      );
       expect(EXPECTED_UNMOUNTED).toContain(pkg);
     }
+  });
+
+  it('G-924: every unmounted matrix row carries a decision (no unmounted-undecided rows)', () => {
+    const undecided = MOUNT_MATRIX.filter(
+      (row) => !row.mounted && !(row.parked && row.parkedReason && row.parkedReason.length > 20),
+    ).map((row) => row.package);
+    expect(undecided, `Unmounted rows without a decision: ${undecided.join(', ')}`).toEqual([]);
+    expect([...EXPECTED_PARKED].sort()).toEqual([...EXPECTED_UNMOUNTED].sort());
   });
 
   it('keeps EXPECTED_MOUNTED and EXPECTED_UNMOUNTED disjoint and complete vs matrix packages', () => {
