@@ -2,6 +2,7 @@
  * Postgres-backed gradebook store (raw `pg` — no Prisma).
  * Aligns with db/sql/003_sis_timetable_schedule_schema.sql (+ 004 indexes).
  */
+import { ValidationError } from '@proctira/common';
 import { withPgTenant } from '@proctira/database';
 import pg from 'pg';
 
@@ -61,12 +62,37 @@ function isUndefinedTable(error: unknown): boolean {
   );
 }
 
+function isForeignKeyViolation(
+  error: unknown,
+): error is { code: '23503'; constraint?: string; detail?: string } {
+  return (
+    typeof error === 'object' && error !== null && (error as { code?: string }).code === '23503'
+  );
+}
+
+/** `grade_entries_student_id_fkey` → `student_id`. */
+function fkColumn(constraint: string | undefined): string {
+  return (
+    (constraint ?? '')
+      .replace(/^grade_entries_|^gpa_snapshots_|^transcripts_/, '')
+      .replace(/_fkey$/, '') || 'reference'
+  );
+}
+
 async function withSchemaCheck<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (error) {
     if (isUndefinedTable(error)) {
       throw new GradebookSchemaMissingError();
+    }
+    if (isForeignKeyViolation(error)) {
+      // A caller-supplied id (student, section, subject…) does not exist in
+      // this tenant: a 400 with the offending column, not an opaque 500.
+      const column = fkColumn(error.constraint);
+      throw new ValidationError(`Referenced ${column.replace(/_id$/, '')} does not exist`, [
+        { field: column, message: 'Unknown reference', rule: 'exists' },
+      ]);
     }
     throw error;
   }
@@ -102,8 +128,7 @@ function jsonObj(value: unknown): Record<string, unknown> {
 
 function mapEntry(row: Record<string, unknown>): GradeEntryEntity {
   const metadata = jsonObj(row.metadata);
-  const enteredByRef =
-    typeof metadata.enteredByRef === 'string' ? (metadata.enteredByRef as string) : null;
+  const enteredByRef = typeof metadata.enteredByRef === 'string' ? metadata.enteredByRef : null;
   return {
     id: String(row.id),
     tenantId: String(row.tenant_id),
