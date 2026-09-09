@@ -65,5 +65,5 @@ export type { IsbnLookup, IsbnLookupResult } from './isbn-lookup.js';
 
 export { computeFineCents, overdueDaysSince, HOLD_READY_MS } from './library-ops.js';
 
-export { registerLibraryRoutes } from './routes.js';
+export { registerLibraryRoutes, type PatronBinding } from './routes.js';
 export type { LibraryRoutesOptions } from './routes.js';

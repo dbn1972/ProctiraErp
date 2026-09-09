@@ -18,8 +18,11 @@ export default async function StudentLibraryPage({
   const q = firstSearchParam(params.q) ?? '';
   const [items, loans, holds] = await Promise.all([
     searchLibraryOpac(q),
-    listLibraryLoans({ patronUserId: session.user.sub }),
-    listLibraryHolds({ patronUserId: session.user.sub }),
+    // The gateway pins student reads to the JWT subject (G-916 patron binding);
+    // student loans/holds are keyed by students.id, which /student-portal/me also
+    // resolves from the subject.
+    listLibraryLoans({ studentId: session.user.sub }),
+    listLibraryHolds({ studentId: session.user.sub }),
   ]);
 
   return (

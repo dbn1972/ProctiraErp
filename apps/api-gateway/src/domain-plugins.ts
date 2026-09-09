@@ -572,8 +572,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
       // G-603: fines post to fees ledger via shared createFeesRepository().
       const repository = createLibraryRepository();
       const feesService = new FeesService(createFeesRepository());
+      // G-916: parent/guardian OPAC reads of loans/holds are bound to linked children;
+      // students are pinned to their JWT subject. Staff principals are unaffected.
+      const libraryParentRepo = createParentPortalRepository();
       await scope.register(libraryPlugin, {
         repository,
+        patronBinding: {
+          isLinked: (tenantId, parentUserId, studentId) =>
+            libraryParentRepo.hasActiveLink(tenantId, parentUserId, studentId),
+        },
         feesLedger: {
           postFineInvoice: async (tenantId, actorId, input) => {
             const invoice = await feesService.createInvoice(tenantId, actorId, {

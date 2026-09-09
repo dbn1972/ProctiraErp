@@ -40,13 +40,107 @@ import {
   type ReturnInput,
 } from './schemas.js';
 
+/**
+ * Parent/guardian → child linkage used to bind portal reads of loans and holds
+ * to the caller's own children (G-916). Staff principals are never bound.
+ */
+export interface PatronBinding {
+  isLinked(tenantId: string, parentUserId: string, studentId: string): Promise<boolean>;
+}
+
 export interface LibraryRoutesOptions {
   libraryService: LibraryService;
   prefix?: string;
+  patronBinding?: PatronBinding | null;
 }
 
 function getTenantId(request: FastifyRequest): string | null {
   return (request as FastifyRequest & { tenantId?: string }).tenantId ?? null;
+}
+
+interface JwtUserLike {
+  sub?: string;
+  userId?: string;
+  roles?: Array<{ roleId?: string; roleName?: string } | string>;
+}
+
+const PORTAL_PARENT_ROLES = new Set(['parent', 'guardian']);
+const PORTAL_STUDENT_ROLES = new Set(['student']);
+
+function roleIds(request: FastifyRequest): string[] {
+  const user = (request as FastifyRequest & { user?: JwtUserLike }).user;
+  return (user?.roles ?? [])
+    .map((role) => (typeof role === 'string' ? role : (role.roleId ?? role.roleName ?? '')))
+    .filter(Boolean)
+    .map((role) => role.toLowerCase());
+}
+
+type PortalScope =
+  | { kind: 'staff' }
+  | { kind: 'student'; subject: string }
+  | { kind: 'parent'; subject: string };
+
+/** Portal-only principals (no staff role) are bound; anyone holding a staff role is not. */
+function portalScope(request: FastifyRequest): PortalScope {
+  const roles = roleIds(request);
+  const user = (request as FastifyRequest & { user?: JwtUserLike }).user;
+  const subject = user?.sub ?? user?.userId ?? '';
+  const hasStaffRole = roles.some(
+    (role) => !PORTAL_PARENT_ROLES.has(role) && !PORTAL_STUDENT_ROLES.has(role),
+  );
+  if (hasStaffRole || roles.length === 0 || !subject) return { kind: 'staff' };
+  if (roles.some((role) => PORTAL_PARENT_ROLES.has(role))) return { kind: 'parent', subject };
+  return { kind: 'student', subject };
+}
+
+/**
+ * Resolves the `studentId` a portal caller may read. Returns `{ studentId }` on
+ * success or a reply-ready error. Students are pinned to their JWT subject;
+ * parents must name a linked child.
+ */
+async function bindPatronStudent(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  tenantId: string,
+  requested: string | undefined,
+  binding: PatronBinding | null,
+): Promise<{ studentId: string | undefined } | FastifyReply> {
+  const scope = portalScope(request);
+  if (scope.kind === 'staff') return { studentId: requested };
+  if (scope.kind === 'student') {
+    if (requested && requested !== scope.subject) {
+      return reply.status(403).send({
+        code: 'FORBIDDEN',
+        message: 'Students may only read their own loans and holds',
+        statusCode: 403,
+      });
+    }
+    return { studentId: scope.subject };
+  }
+  if (!requested) {
+    return reply.status(400).send({
+      code: 'VALIDATION_ERROR',
+      message: 'studentId is required for parent reads',
+      statusCode: 400,
+    });
+  }
+  if (!binding) {
+    return reply.status(403).send({
+      code: 'FORBIDDEN',
+      message: 'Parent library reads are not enabled',
+      statusCode: 403,
+    });
+  }
+  const linked = await binding.isLinked(tenantId, scope.subject, requested);
+  if (!linked) {
+    // 404 (not 403) so an unlinked parent cannot probe which student ids exist.
+    return reply.status(404).send({
+      code: 'NOT_FOUND',
+      message: 'Student not found',
+      statusCode: 404,
+    });
+  }
+  return { studentId: requested };
 }
 
 function formatItem(entity: {
@@ -197,7 +291,7 @@ export async function registerLibraryRoutes(
   fastify: FastifyInstance,
   options: LibraryRoutesOptions,
 ): Promise<void> {
-  const { libraryService, prefix = '/library' } = options;
+  const { libraryService, prefix = '/library', patronBinding = null } = options;
 
   fastify.get(
     `${prefix}/items`,
@@ -414,7 +508,9 @@ export async function registerLibraryRoutes(
         typeof (request.query as { patronUserId?: string }).patronUserId === 'string'
           ? (request.query as { patronUserId?: string }).patronUserId
           : undefined;
-      let loans = await libraryService.listLoans(tenantId, studentId);
+      const bound = await bindPatronStudent(request, reply, tenantId, studentId, patronBinding);
+      if (!('studentId' in bound)) return bound;
+      let loans = await libraryService.listLoans(tenantId, bound.studentId);
       if (patronUserId) {
         loans = loans.filter((loan) => loan.patronUserId === patronUserId);
       }
@@ -913,9 +1009,12 @@ export async function registerLibraryRoutes(
         typeof (request.query as { patronUserId?: string }).patronUserId === 'string'
           ? (request.query as { patronUserId?: string }).patronUserId
           : undefined;
+      const bound = await bindPatronStudent(request, reply, tenantId, studentId, patronBinding);
+      if (!('studentId' in bound)) return bound;
       let holds = await libraryService.listHolds(tenantId, itemId);
-      if (studentId) {
-        holds = holds.filter((h) => h.studentId === studentId);
+      if (bound.studentId) {
+        const boundStudentId = bound.studentId;
+        holds = holds.filter((h) => h.studentId === boundStudentId);
       }
       if (patronUserId) {
         holds = holds.filter((h) => h.patronUserId === patronUserId);
