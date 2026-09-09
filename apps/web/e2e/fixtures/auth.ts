@@ -1,5 +1,7 @@
 import type { Page } from '@playwright/test';
 
+import { setupGatewayTenantSession } from './fake-session';
+
 export interface LoginCredentials {
   /**
    * Tenant subdomain (e.g. `tenant-a`). Used to set the `X-Tenant` cookie or
@@ -59,6 +61,16 @@ export async function loginAsTenantAdmin(
   page: Page,
   overrides: Partial<LoginCredentials> = {},
 ): Promise<void> {
+  // Hosts without seeded password users (the backend-ready harness, cloud
+  // agents) can opt into the HS256 gateway cookie the axe matrix already uses.
+  // Tenant A only: tenant-B / isolation specs keep the real login.
+  if (process.env.E2E_HS256_SESSION === '1' && !overrides.tenantSubdomain) {
+    await setupGatewayTenantSession(page, {
+      email: overrides.email ?? TENANT_A_ADMIN.email,
+      tenantId: process.env.E2E_TENANT_A_ID ?? '00000000-0000-4000-8000-000000000001',
+    });
+    return;
+  }
   await login(page, { ...TENANT_A_ADMIN, ...overrides });
 }
 
