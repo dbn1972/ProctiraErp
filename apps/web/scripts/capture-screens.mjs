@@ -10,6 +10,7 @@
  * it does not verify the signature). With no backend, data fetches fail and the
  * pages render their loading/empty/error states — which is still the real screen.
  */
+import { createHmac } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,8 +45,12 @@ const MODULE_FILTER = (process.env.CAPTURE_MODULES ?? '')
   .map((s) => s.trim())
   .filter(Boolean);
 
-// A far-future, unsigned JWT (alg=none). The middleware/requireSession only
-// base64-decode the payload to read `exp`/`tenantId`; they never verify it.
+// Session token for the captures. Without JWT_SECRET this is a far-future,
+// unsigned JWT (alg=none): the middleware/requireSession only base64-decode the
+// payload to read `exp`/`tenantId`, so shells render but gateway reads fail
+// closed (empty/error states). With JWT_SECRET set (the same value the local
+// gateway runs with) the token is HS256-signed so captures show live data —
+// pair with CAPTURE_TENANT_ID for the seeded E2E tenant.
 // CAPTURE_ROLE=parent|guardian|student|admin (default admin) for shell-accurate demos.
 function mintToken() {
   const roleKey = (process.env.CAPTURE_ROLE ?? 'admin').toLowerCase();
@@ -73,16 +78,24 @@ function mintToken() {
   };
   const identity = roleMap[roleKey] ?? roleMap.admin;
   const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-  const header = b64({ alg: 'none', typ: 'JWT' });
+  const secret = process.env.JWT_SECRET?.trim();
+  const now = Math.floor(Date.now() / 1000);
+  const header = b64({ alg: secret ? 'HS256' : 'none', typ: 'JWT' });
   const payload = b64({
-    sub: '00000000-0000-4000-8000-000000000001',
-    tenantId: '00000000-0000-4000-8000-0000000000aa',
+    iss: process.env.JWT_ISSUER ?? 'proctira-platform',
+    aud: process.env.JWT_AUDIENCE ?? 'proctira-api',
+    iat: now,
+    sub: process.env.CAPTURE_SUB ?? '00000000-0000-4000-8000-000000000001',
+    tenantId: process.env.CAPTURE_TENANT_ID ?? '00000000-0000-4000-8000-0000000000aa',
     email: identity.email,
     displayName: identity.displayName,
     roles: identity.roles,
-    exp: Math.floor(Date.now() / 1000) + 86_400,
+    exp: now + 86_400,
   });
-  return `${header}.${payload}.sig`;
+  const signature = secret
+    ? createHmac('sha256', secret).update(`${header}.${payload}`).digest('base64url')
+    : 'sig';
+  return `${header}.${payload}.${signature}`;
 }
 
 // module -> [ [screenName, path], ... ]
