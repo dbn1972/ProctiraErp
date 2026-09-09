@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { isPdfBuffer } from '@proctira/pdf-lite';
 import Fastify from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
@@ -10,7 +11,6 @@ import { buildRoleDashboard, inferDashboardRole, resolveDashboardRole } from './
 import { generateCsv, generateReportBytes, sha256Hex } from './generators.js';
 import { InMemoryReportStore } from './report-store.js';
 import { computeNextRunAt, createReportScheduler } from './scheduler.js';
-import { isPdfBuffer } from '@proctira/pdf-lite';
 
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
