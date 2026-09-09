@@ -266,7 +266,7 @@ Production bug: `CacheClient.getOrSet` JSON-round-trips entities so `createdAt`/
 
 Integration review tightened the helper: the stream's first version revived **every** ISO-looking string recursively, which would also have turned timestamps inside opaque JSON (`metadata`, `customData`, workflow definitions) into `Date`s on cache hits — a type drift in the other direction. `reviveDates(value, keys = ['createdAt', 'updatedAt'])` now revives only the named top-level entity keys (arrays are mapped; `PaginatedResult.data` is revived explicitly in the institution `list`). Suites after the change: cache 25 · student 224 · institution 259 · workflow 107 · scholarship 46 · examination 133 passed.
 
-### 8.5 Batch-3 accessibility / dark mode / touch targets
+### 8.7 Batch-3 accessibility / dark mode / touch targets
 
 Branch **`cursor/w9-a11y-56c3`** (`346ce1a`…`4d936f7`). Extends the three enterprise a11y gates to every static Wave 9 batch-3 page plus institution timetable generation/substitution (G-917).
 
@@ -276,16 +276,16 @@ Branch **`cursor/w9-a11y-56c3`** (`346ce1a`…`4d936f7`). Extends the three ente
 | `apps/web/e2e/dark-mode-parity.spec.ts`     | 28 entries in `DASHBOARD_ROUTES` + `WAVE9_BATCH3_INSTITUTION_ROUTES` (2)                                                                    | 60 passed (light + dark per route)               |
 | `apps/web/e2e/touch-target-minimum.spec.ts` | `WAVE9_BATCH3_ROUTES` (28) + `WAVE9_BATCH3_INSTITUTION_ROUTES` (2) merged into `WAVE9_ALL_ROUTES`                                           | 60 passed (desktop 44px + mobile 48px per route) |
 
-**Live run:** `tools/scripts/run-a11y-b3-batch.sh` (gateway :3040, web :3041, `PLAYWRIGHT_WORKERS=1`, `PLAYWRIGHT_GREP` limited to batch-3 paths) against `DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/w9_check3`. **150 passed / 0 failed** in 7.7m — log **`/tmp/a11y-b3-final.log`**. Targeted rerun of last failures: **`/tmp/a11y-b3-rerun.log`** (8 passed). Static gates after fixes: `page-h1-presence.test.ts` 153/153, `no-inert-primary-cta.test.ts` 1/1.
+**Live run:** gateway :3040, web :3041, `PLAYWRIGHT_WORKERS=1`, `PLAYWRIGHT_GREP` limited to batch-3 paths (the stream used a one-off runner script; integration folded its knobs into `run-e2e-backend-ready.sh` — `PORT`, `E2E_GATEWAY_URL`, `PLAYWRIGHT_WORKERS`, `PLAYWRIGHT_GREP` — and dropped the script) against `DATABASE_URL=postgresql://proctira:proctira_test@localhost:5432/w9_check3`. **150 passed / 0 failed** in 7.7m — log **`/tmp/a11y-b3-final.log`**. Targeted rerun of last failures: **`/tmp/a11y-b3-rerun.log`** (8 passed). Static gates after fixes: `page-h1-presence.test.ts` 153/153, `no-inert-primary-cta.test.ts` 1/1.
 
 **Harness / port fixes (required for a green run on non-default ports):**
 
-| Change                                       | File                                        | Reason                                                                                       |
-| -------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Derive `CORS_ORIGINS` from `PORT`            | `tools/scripts/run-e2e-backend-ready.sh`    | Script hard-coded `:3001`; blocked api-gateway CORS on :3031/:3041                           |
-| Honour `PORT` for `next dev`                 | `apps/web/playwright.config.ts` (`e83bfca`) | webServer used fixed `--port 3001` → `EADDRINUSE` when another agent held 3001               |
-| `E2E_HS256_SESSION=1` in harness             | `run-e2e-backend-ready.sh`                  | Dark/touch specs use `loginAsTenantAdmin` (HS256 cookie); without the flag, logins timed out |
-| `PLAYWRIGHT_WORKERS` / `PLAYWRIGHT_GREP` env | harness + `run-a11y-b3-batch.sh`            | Parallel workers crashed `next dev` under load; grep scopes reruns to batch-3                |
+| Change                                       | File                                        | Reason                                                                                                                                                                                                                             |
+| -------------------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Derive `CORS_ORIGINS` from `PORT`            | `tools/scripts/run-e2e-backend-ready.sh`    | Script hard-coded `:3001`; blocked api-gateway CORS on :3031/:3041                                                                                                                                                                 |
+| Honour `PORT` for `next dev`                 | `apps/web/playwright.config.ts` (`e83bfca`) | webServer used fixed `--port 3001` → `EADDRINUSE` when another agent held 3001                                                                                                                                                     |
+| `E2E_HS256_SESSION=1` for the local run      | `run-e2e-backend-ready.sh` (opt-in)         | Dark/touch specs use `loginAsTenantAdmin`; the local DB has no seeded password users, so logins timed out. The stream defaulted the flag on in the harness; integration made it opt-in again so CI keeps exercising the real login |
+| `PLAYWRIGHT_WORKERS` / `PLAYWRIGHT_GREP` env | harness                                     | Parallel workers crashed `next dev` under load; grep scopes reruns to batch-3                                                                                                                                                      |
 
 **Violations found in batch-3 live runs and fixes:**
 

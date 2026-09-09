@@ -55,7 +55,9 @@ GATEWAY_PORT="$(printf '%s' "$GATEWAY_URL" | sed -n 's/.*:\([0-9][0-9]*\)$/\1/p'
 GATEWAY_PORT="${GATEWAY_PORT:-3000}"
 WEB_PORT="${PORT:-3001}"
 export JWT_SECRET
-export E2E_HS256_SESSION="${E2E_HS256_SESSION:-1}"
+# Opt-in only: CI keeps the real password login for loginAsTenantAdmin; hosts
+# without seeded password users set E2E_HS256_SESSION=1 to use the HS256 cookie.
+export E2E_HS256_SESSION="${E2E_HS256_SESSION:-}"
 export E2E_BACKEND_READY=1
 export E2E_GATEWAY_URL="$GATEWAY_URL"
 export NEXT_PUBLIC_GATEWAY_URL="${NEXT_PUBLIC_GATEWAY_URL:-$GATEWAY_URL}"
