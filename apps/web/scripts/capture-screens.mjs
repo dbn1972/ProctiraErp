@@ -269,6 +269,38 @@ const SCREENS = {
     ['permissions', '/admin/permissions'],
     ['tenant', '/admin/tenant'],
   ],
+  // Wave 9 gap-closure slice (G-903/904/906/907/908/914/923)
+  wave9: [
+    ['fees-structures', '/fees/structures'],
+    ['fees-reports', '/fees/reports'],
+    ['admissions-enquiries', '/admissions/enquiries'],
+    ['admissions-seat-matrix', '/admissions/seat-matrix'],
+    ['admissions-merit', '/admissions/merit'],
+    ['assessments-outcomes', '/assessments/outcomes'],
+    ['assessments-report-cards', '/assessments/report-cards'],
+    [
+      'institution-gradebook',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/gradebook`,
+    ],
+    [
+      'institution-curriculum',
+      `/institutions/${process.env.INSTITUTION_ID ?? '11111111-1111-4111-8111-111111111111'}/curriculum`,
+    ],
+    ['parent-attendance', '/parent/attendance'],
+    ['parent-grades', '/parent/grades'],
+    ['parent-timetable', '/parent/timetable'],
+    ['parent-homework', '/parent/homework'],
+    ['parent-calendar', '/parent/calendar'],
+    ['parent-notices', '/parent/notices'],
+    ['student-home', '/student'],
+    ['student-attendance', '/student/attendance'],
+    ['student-grades', '/student/grades'],
+    ['student-timetable', '/student/timetable'],
+    ['student-homework', '/student/homework'],
+    ['student-calendar', '/student/calendar'],
+    ['student-notices', '/student/notices'],
+    ['student-pal', '/student/pal'],
+  ],
   track: [['public-track', '/track']],
 };
 
