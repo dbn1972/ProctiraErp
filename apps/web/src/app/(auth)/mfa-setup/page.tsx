@@ -1,10 +1,6 @@
 import { Suspense } from 'react';
-import dynamic from 'next/dynamic';
 
-const MfaSetupClient = dynamic(
-  () => import('./mfa-setup-client').then((mod) => mod.MfaSetupClient),
-  { ssr: false },
-);
+import { MfaSetupLoader } from './mfa-setup-loader';
 
 /**
  * MFA enrolment page (Server Component). Renders the federated
@@ -13,7 +9,7 @@ const MfaSetupClient = dynamic(
 export default function MfaSetupPage(): JSX.Element {
   return (
     <Suspense fallback={null}>
-      <MfaSetupClient />
+      <MfaSetupLoader />
     </Suspense>
   );
 }
