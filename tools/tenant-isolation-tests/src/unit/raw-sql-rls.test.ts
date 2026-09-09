@@ -223,3 +223,19 @@ describe('Wave 9 audit hash chain raw-SQL RLS (028_audit_hash_chain.sql)', () =>
     expect(sql).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS audit_log_entries_tenant_chain_seq_idx/);
   });
 });
+
+describe('Wave 9 classes / subjects raw-SQL RLS (029_academics_classes_subjects_schema.sql)', () => {
+  const sql = loadSql('029_academics_classes_subjects_schema.sql');
+
+  it('creates the three Prisma-mapped tables with tenant_id and forces RLS on each', () => {
+    for (const table of ['classes', 'subjects', 'institution_subjects']) {
+      const ddl = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`));
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id\s+UUID NOT NULL REFERENCES tenants\(id\)/);
+      expect(sql).toMatch(new RegExp(`'${table}'`));
+    }
+    expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
+    expect(sql).toMatch(/FORCE ROW LEVEL SECURITY/);
+    expect(sql).toMatch(/CREATE POLICY tenant_isolation ON %I/);
+  });
+});

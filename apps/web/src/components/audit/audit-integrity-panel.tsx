@@ -15,10 +15,12 @@ import {
   saveRetentionAction,
   type AuditActionState,
 } from '@/app/(dashboard)/audit-logs/actions';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { AuditRetentionConfig } from '@/lib/api/platform.server';
 
 export function RetentionPolicyForm({ config }: { config: AuditRetentionConfig | null }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [state, setState] = useState<AuditActionState | null>(null);
   const [archivalEnabled, setArchivalEnabled] = useState(config?.archivalEnabled ?? false);
   const [isPending, startTransition] = useTransition();
@@ -45,7 +47,12 @@ export function RetentionPolicyForm({ config }: { config: AuditRetentionConfig |
   };
 
   return (
-    <form action={onSubmit} className="space-y-4" data-hydrated="true">
+    <form
+      action={onSubmit}
+      className="space-y-4"
+      data-testid="retention-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       {state && state.status !== 'idle' ? (
         <p
           role={state.status === 'error' ? 'alert' : 'status'}

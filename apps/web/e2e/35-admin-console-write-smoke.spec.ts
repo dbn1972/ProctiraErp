@@ -10,7 +10,7 @@
  * Gated (E2E_BACKEND_READY): invite → suspend → role create → settings save
  * through the UI, plus cross-tenant isolation on `/tenant/users`.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
@@ -34,6 +34,12 @@ function headers(tenantId = TENANT_A) {
     'Content-Type': 'application/json',
     'X-Tenant-ID': tenantId,
   };
+}
+
+async function hydrated(page: Page, testId: string) {
+  const el = page.getByTestId(testId);
+  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  return el;
 }
 
 test.describe('Admin console — pages render (ungated)', () => {
@@ -66,7 +72,7 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     const email = `ui-${stamp}@tenant-a.test`;
 
     await page.goto('/admin/users', { waitUntil: 'domcontentloaded' });
-    await page.getByTestId('invite-user').click();
+    await (await hydrated(page, 'invite-user')).click();
     await page.getByLabel('E-mail').fill(email);
     await page.getByLabel('Full name').fill(`UI Invitee ${stamp}`);
     await page.getByRole('button', { name: /send invite/i }).click();
@@ -76,7 +82,7 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     await expect(row.getByTestId('user-status')).toHaveText('Invited');
 
     page.once('dialog', (d) => d.accept());
-    await page.getByTestId(`toggle-status-${email}`).click();
+    await (await hydrated(page, `toggle-status-${email}`)).click();
     await expect(row.getByTestId('user-status')).toHaveText('Suspended', { timeout: 15_000 });
 
     await page.getByTestId(`toggle-status-${email}`).click();
@@ -87,7 +93,7 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     const name = `Clerk ${Date.now().toString(36).toUpperCase()}`;
 
     await page.goto('/admin/roles', { waitUntil: 'domcontentloaded' });
-    await page.getByTestId('create-role').click();
+    await (await hydrated(page, 'create-role')).click();
     await page.getByLabel('Role name').fill(name);
     await page.getByLabel('Description').fill('E2E custom role');
     await page.getByRole('checkbox', { name: 'All student permissions' }).click();
@@ -100,7 +106,7 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
 
     await page.goto('/admin/roles', { waitUntil: 'domcontentloaded' });
     page.once('dialog', (d) => d.accept());
-    await page.getByTestId(`delete-role-${name}`).click();
+    await (await hydrated(page, `delete-role-${name}`)).click();
     await expect(page.getByTestId(`role-card-${name}`)).toHaveCount(0, { timeout: 15_000 });
   });
 
@@ -108,6 +114,9 @@ test.describe('Admin console — live chain (E2E_BACKEND_READY)', () => {
     const displayName = `Tenant A ${Date.now().toString(36)}`;
 
     await page.goto('/admin/tenant', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#tenant-config-form')).toHaveAttribute('data-hydrated', 'true', {
+      timeout: 20_000,
+    });
     await page.getByLabel('Display name').fill(displayName);
     await page.getByLabel('Timezone').fill('Asia/Kolkata');
     await page.getByLabel('Academic year starts in month').fill('6');

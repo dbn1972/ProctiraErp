@@ -32,6 +32,8 @@ export interface EnrollmentEntity {
  */
 export interface EnrollmentHistoryEntity {
   id: string;
+  /** Tenant of the parent enrollment — bound for RLS before the history insert (G-901 fix). */
+  tenantId: string;
   enrollmentId: string;
   previousStatus: string | null;
   newStatus: string;

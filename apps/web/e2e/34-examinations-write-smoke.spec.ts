@@ -11,7 +11,7 @@
  * the tabs reflecting the rows, download streaming a PDF, and cross-tenant
  * isolation on the exam.
  */
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
@@ -156,6 +156,12 @@ async function buildExam(request: APIRequestContext): Promise<ExamFixture> {
   };
 }
 
+async function hydrated(page: Page, testId: string) {
+  const el = page.getByTestId(testId);
+  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  return el;
+}
+
 test.describe('Examinations ops — tabs render (ungated)', () => {
   test.beforeEach(async ({ page }) => {
     await setupGatewayTenantSession(page);
@@ -233,7 +239,7 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
     });
     expect(moved.status(), await moved.text()).toBe(200);
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.getByTestId('publish-results').click();
+    await (await hydrated(page, 'publish-results')).click();
     await expect(page.getByText('PUBLISHED').first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('A', { exact: true }).first()).toBeVisible();
 
@@ -255,7 +261,7 @@ test.describe('Examinations ops — live chain (E2E_BACKEND_READY)', () => {
     // and download the PDF through the web proxy.
     await page.goto(`/examinations/${fx.examId}/documents`, { waitUntil: 'domcontentloaded' });
     await expect(page.getByText(/admit cards/i).first()).toBeVisible();
-    await page.getByTestId('generate-result_certificate').click();
+    await (await hydrated(page, 'generate-result_certificate')).click();
     await expect(page.getByText(/result certificates/i).first()).toBeVisible({ timeout: 15_000 });
 
     const jobs = await request.get(

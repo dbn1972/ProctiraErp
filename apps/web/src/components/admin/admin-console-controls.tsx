@@ -32,12 +32,8 @@ import {
   updateRoleAction,
   type AdminActionState,
 } from '@/app/(dashboard)/admin/actions';
-import type {
-  PermissionRef,
-  TenantRole,
-  TenantSettings,
-  TenantUser,
-} from '@/lib/api/admin.server';
+import { useHydrated } from '@/hooks/useHydrated';
+import type { PermissionRef, TenantRole, TenantSettings, TenantUser } from '@/lib/api/admin.server';
 
 function Feedback({ state }: { state: AdminActionState | null }) {
   if (!state || state.status === 'idle') return null;
@@ -83,14 +79,14 @@ function RoleChecklist({
               <Checkbox
                 checked={checked}
                 onCheckedChange={(value) =>
-                  onChange(
-                    value ? [...selected, role.id] : selected.filter((id) => id !== role.id),
-                  )
+                  onChange(value ? [...selected, role.id] : selected.filter((id) => id !== role.id))
                 }
                 aria-label={role.name}
               />
               {role.name}
-              {role.builtIn ? <span className="text-xs text-muted-foreground">(built-in)</span> : null}
+              {role.builtIn ? (
+                <span className="text-xs text-muted-foreground">(built-in)</span>
+              ) : null}
             </label>
           );
         })
@@ -103,6 +99,7 @@ function RoleChecklist({
 
 export function InviteUserDialog({ roles }: { roles: TenantRole[] }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<AdminActionState | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -126,7 +123,12 @@ export function InviteUserDialog({ roles }: { roles: TenantRole[] }) {
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)} data-testid="invite-user">
+      <Button
+        size="sm"
+        onClick={() => setOpen(true)}
+        data-testid="invite-user"
+        data-hydrated={hydrated ? 'true' : 'false'}
+      >
         <UserPlus className="me-1.5 h-4 w-4" aria-hidden="true" />
         Invite user
       </Button>
@@ -167,6 +169,7 @@ export function InviteUserDialog({ roles }: { roles: TenantRole[] }) {
 
 export function UserRowActions({ user, roles }: { user: TenantUser; roles: TenantRole[] }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<AdminActionState | null>(null);
   const [selected, setSelected] = useState<string[]>(user.roleIds);
@@ -217,6 +220,7 @@ export function UserRowActions({ user, roles }: { user: TenantUser; roles: Tenan
         disabled={isPending}
         aria-label={`${user.status === 'SUSPENDED' ? 'Reactivate' : 'Suspend'} ${user.email}`}
         data-testid={`toggle-status-${user.email}`}
+        data-hydrated={hydrated ? 'true' : 'false'}
       >
         {user.status === 'SUSPENDED' ? (
           <>
@@ -276,6 +280,7 @@ export function RoleEditorDialog({
   triggerVariant = 'default',
 }: RoleEditorDialogProps) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<AdminActionState | null>(null);
   const [granted, setGranted] = useState<Set<string>>(
@@ -342,7 +347,14 @@ export function RoleEditorDialog({
         onClick={() => setOpen(true)}
         disabled={role?.builtIn}
         title={role?.builtIn ? 'Built-in roles cannot be edited' : undefined}
-        data-testid={isEdit ? `edit-role-${role!.name}` : 'create-role'}
+        data-testid={
+          isEdit
+            ? `edit-role-${role!.name}`
+            : triggerLabel
+              ? 'create-role-secondary'
+              : 'create-role'
+        }
+        data-hydrated={hydrated ? 'true' : 'false'}
       >
         {isEdit ? (
           <Pencil className="me-1.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -355,7 +367,9 @@ export function RoleEditorDialog({
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl" data-hydrated="true">
           <form action={onSubmit} className="space-y-4">
             <DialogHeader>
-              <DialogTitle>{isEdit ? `Edit role: ${role!.name}` : 'Create custom role'}</DialogTitle>
+              <DialogTitle>
+                {isEdit ? `Edit role: ${role!.name}` : 'Create custom role'}
+              </DialogTitle>
               <DialogDescription>
                 Grant permissions per module. Users holding this role get the union of all their
                 roles.
@@ -385,8 +399,7 @@ export function RoleEditorDialog({
             </div>
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium">
-                Permissions{' '}
-                <span className="text-muted-foreground">({granted.size} granted)</span>
+                Permissions <span className="text-muted-foreground">({granted.size} granted)</span>
               </legend>
               {byResource.length === 0 ? (
                 <p className="text-xs text-muted-foreground">Permission catalog unavailable.</p>
@@ -443,6 +456,7 @@ export function RoleEditorDialog({
 
 export function DeleteRoleButton({ role }: { role: TenantRole }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [state, setState] = useState<AdminActionState | null>(null);
   const [isPending, startTransition] = useTransition();
   if (role.builtIn) return null;
@@ -467,6 +481,7 @@ export function DeleteRoleButton({ role }: { role: TenantRole }) {
         disabled={isPending}
         aria-label={`Delete role ${role.name}`}
         data-testid={`delete-role-${role.name}`}
+        data-hydrated={hydrated ? 'true' : 'false'}
       >
         <Trash2 className="me-1.5 h-3.5 w-3.5" aria-hidden="true" />
         Delete
@@ -489,6 +504,7 @@ function optional(value: FormDataEntryValue | null): string | null {
 
 export function TenantSettingsForm({ settings }: { settings: TenantSettings }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [state, setState] = useState<AdminActionState | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -532,20 +548,32 @@ export function TenantSettingsForm({ settings }: { settings: TenantSettings }) {
   );
 
   return (
-    <form id="tenant-config-form" action={onSubmit} className="space-y-6" data-hydrated="true">
+    <form
+      id="tenant-config-form"
+      action={onSubmit}
+      className="space-y-6"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <Feedback state={state} />
       <section className="max-w-[860px] space-y-4 rounded-xl border bg-card p-5">
         <div>
           <h2 className="text-base font-semibold">Identity</h2>
           <p className="text-xs text-muted-foreground">
             Tenant ID <code className="rounded bg-muted px-1.5 py-0.5">{settings.tenantId}</code>
-            {settings.updatedAt ? ` · last saved ${new Date(settings.updatedAt).toLocaleString()}` : ''}
+            {settings.updatedAt
+              ? ` · last saved ${new Date(settings.updatedAt).toLocaleString()}`
+              : ''}
           </p>
         </div>
         {field(
           'displayName',
           'Display name',
-          <Input id="displayName" name="displayName" required defaultValue={settings.displayName} />,
+          <Input
+            id="displayName"
+            name="displayName"
+            required
+            defaultValue={settings.displayName}
+          />,
         )}
         <div className="grid gap-4 sm:grid-cols-2">
           {field(
@@ -657,7 +685,11 @@ export function TenantSettingsForm({ settings }: { settings: TenantSettings }) {
           {field(
             'contactPhone',
             'Phone',
-            <Input id="contactPhone" name="contactPhone" defaultValue={settings.contact.phone ?? ''} />,
+            <Input
+              id="contactPhone"
+              name="contactPhone"
+              defaultValue={settings.contact.phone ?? ''}
+            />,
           )}
         </div>
       </section>

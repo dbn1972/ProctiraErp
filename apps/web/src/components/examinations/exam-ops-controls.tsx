@@ -34,6 +34,7 @@ import type {
   ExaminationDocumentType,
   ExaminationSubject,
 } from '@/lib/api/examinations';
+import { useHydrated } from '@/hooks/useHydrated';
 import { marksCsvTemplate, parseMarksCsv } from '@/lib/examinations/marks-csv';
 
 function Feedback({ state }: { state: ActionState | null }) {
@@ -52,6 +53,7 @@ const REGISTRABLE: ReadonlySet<Examination['status']> = new Set(['DRAFT', 'SCHED
 
 export function RegisterCandidateDialog({ examination }: { examination: Examination }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<ActionState | null>(null);
   const [selected, setSelected] = useState<string[]>(examination.subjects.map((s) => s.id));
@@ -82,6 +84,7 @@ export function RegisterCandidateDialog({ examination }: { examination: Examinat
         disabled={disabled}
         title={disabled ? `Registration closed (${examination.status})` : undefined}
         data-testid="register-candidate"
+        data-hydrated={hydrated ? 'true' : 'false'}
       >
         <Plus className="me-2 h-4 w-4" aria-hidden="true" />
         Register candidate
@@ -173,6 +176,7 @@ export interface ResultsControlsProps {
 
 export function ResultsControls({ examination, published, subjects, csv }: ResultsControlsProps) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [state, setState] = useState<ActionState | null>(null);
@@ -217,6 +221,7 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
           disabled={published}
           title={published ? 'Marks are locked after publication' : undefined}
           data-testid="upload-marks"
+          data-hydrated={hydrated ? 'true' : 'false'}
         >
           <Upload className="me-2 h-4 w-4" aria-hidden="true" />
           Upload marks
@@ -243,6 +248,7 @@ export function ResultsControls({ examination, published, subjects, csv }: Resul
                 : 'Examination must be IN_PROGRESS or COMPLETED to publish'
           }
           data-testid="publish-results"
+          data-hydrated={hydrated ? 'true' : 'false'}
         >
           {isPending ? (
             <Loader2 className="me-2 h-4 w-4 animate-spin" aria-hidden="true" />
@@ -313,6 +319,7 @@ const DOCUMENT_LABELS: Record<ExaminationDocumentType, { title: string; hint: st
 
 export function GenerateDocumentButtons({ examinationId }: { examinationId: string }) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [state, setState] = useState<ActionState | null>(null);
   const [active, setActive] = useState<ExaminationDocumentType | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -338,6 +345,7 @@ export function GenerateDocumentButtons({ examinationId }: { examinationId: stri
             onClick={() => generate(type)}
             disabled={isPending}
             data-testid={`generate-${type}`}
+            data-hydrated={hydrated ? 'true' : 'false'}
           >
             {active === type ? (
               <Loader2 className="mb-2 h-4 w-4 animate-spin" aria-hidden="true" />

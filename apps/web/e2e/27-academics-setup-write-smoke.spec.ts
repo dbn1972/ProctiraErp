@@ -10,7 +10,7 @@
  * Gated (E2E_BACKEND_READY): live API create chain + the pages show the rows,
  * plus cross-tenant isolation on the new prefixes.
  */
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 
@@ -56,6 +56,12 @@ async function ensureGrade(request: APIRequestContext): Promise<{ id: string; co
   });
   expect(res.status(), await res.text()).toBe(201);
   return { id: (await res.json()).id as string, code };
+}
+
+async function hydrated(page: Page, testId: string) {
+  const el = page.getByTestId(testId);
+  await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
+  return el;
 }
 
 test.describe('Academics setup — pages render (ungated)', () => {
@@ -113,7 +119,7 @@ test.describe('Academics setup — live chain (E2E_BACKEND_READY)', () => {
 
   test('Add grade dialog creates a grade from the UI', async ({ page }) => {
     await page.goto(`/institutions/${INSTITUTION_A}/grades`, { waitUntil: 'domcontentloaded' });
-    await page.getByTestId('add-grade').click();
+    await (await hydrated(page, 'add-grade')).click();
     const code = `UI${Date.now().toString(36).slice(-4).toUpperCase()}`;
     await page.getByLabel('Name').fill(`Grade ${code}`);
     await page.getByLabel('Code').fill(code);

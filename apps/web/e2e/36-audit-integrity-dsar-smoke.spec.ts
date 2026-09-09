@@ -14,6 +14,11 @@ const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 const GATEWAY_URL =
   process.env.E2E_GATEWAY_URL ?? process.env.NEXT_PUBLIC_GATEWAY_URL ?? 'http://127.0.0.1:3000';
 const TENANT_A = '00000000-0000-4000-8000-000000000001';
+/** `/audit-logs` maps to the synthetic `platform` resource (G-727). */
+const PLATFORM_ROLES = [
+  { roleId: 'platform_admin', roleName: 'Platform Admin', areaId: null },
+  { roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null },
+];
 
 function headers(tenantId = TENANT_A) {
   const token = createSignedJwt({
@@ -21,7 +26,7 @@ function headers(tenantId = TENANT_A) {
     email: 'admin@tenant-a.test',
     displayName: 'E2E Admin',
     tenantId,
-    roles: [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }],
+    roles: PLATFORM_ROLES,
     institutions: [],
   });
   return {
@@ -33,7 +38,7 @@ function headers(tenantId = TENANT_A) {
 
 test.describe('Audit integrity — pages render (ungated)', () => {
   test.beforeEach(async ({ page }) => {
-    await setupGatewayTenantSession(page);
+    await setupGatewayTenantSession(page, { roles: PLATFORM_ROLES });
   });
 
   test('/audit-logs renders with the DSAR link', async ({ page }) => {
@@ -53,7 +58,7 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1 and a live gateway + Postgres');
 
   test.beforeEach(async ({ page }) => {
-    await setupGatewayTenantSession(page);
+    await setupGatewayTenantSession(page, { roles: PLATFORM_ROLES });
   });
 
   test('a recorded entry extends the chain and verification stays valid', async ({
@@ -121,6 +126,9 @@ test.describe('Audit integrity — live (E2E_BACKEND_READY)', () => {
 
   test('retention policy saves from the UI and is readable via API', async ({ page, request }) => {
     await page.goto('/audit-logs', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('retention-form')).toHaveAttribute('data-hydrated', 'true', {
+      timeout: 20_000,
+    });
     await page.getByLabel('Retain for (months)').fill('36');
     await page.getByTestId('save-retention').click();
     await expect(page.getByTestId('retention-feedback')).toHaveText(/saved/i, { timeout: 15_000 });

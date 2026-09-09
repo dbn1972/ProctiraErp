@@ -42,6 +42,7 @@ function mapEnrollment(row: Record<string, unknown>): EnrollmentEntity {
 function mapHistory(row: Record<string, unknown>): EnrollmentHistoryEntity {
   return {
     id: String(row.id),
+    tenantId: String(row.tenant_id),
     enrollmentId: String(row.enrollment_id),
     previousStatus: row.previous_status == null ? null : String(row.previous_status),
     newStatus: String(row.new_status),
@@ -196,17 +197,17 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
   async createHistoryEntry(
     data: Omit<EnrollmentHistoryEntity, 'createdAt'>,
   ): Promise<EnrollmentHistoryEntity> {
-    // History rows are tenant-scoped through the parent enrollment; look up the
-    // tenant so RLS is bound before the insert.
-    const tenantRow = await this.pool.query(
-      `SELECT tenant_id FROM enrollments WHERE id = $1 LIMIT 1`,
-      [data.enrollmentId],
-    );
-    const tenantId = String(
-      (tenantRow.rows[0] as { tenant_id?: unknown } | undefined)?.tenant_id ?? '',
-    );
-    if (!tenantId) throw new Error(`Enrollment ${data.enrollmentId} not found for history entry`);
-    return this.withTenant(tenantId, async (client) => {
+    // The caller supplies the tenant so RLS is bound for both the parent
+    // lookup and the insert. (Previously this looked the tenant up with an
+    // unbound query, which FORCE RLS turns into "enrollment not found".)
+    return this.withTenant(data.tenantId, async (client) => {
+      const parent = await client.query(
+        `SELECT 1 FROM enrollments WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+        [data.enrollmentId, data.tenantId],
+      );
+      if (parent.rows.length === 0) {
+        throw new Error(`Enrollment ${data.enrollmentId} not found for history entry`);
+      }
       const result = await client.query(
         `INSERT INTO enrollment_history (
            id, tenant_id, enrollment_id, previous_status, new_status, effective_date,
@@ -214,7 +215,7 @@ export class PgEnrollmentRepository implements EnrollmentRepository {
          ) VALUES ($1,$2,$3,$4,$5,$6::date,$7,$8,$9) RETURNING *`,
         [
           data.id,
-          tenantId,
+          data.tenantId,
           data.enrollmentId,
           data.previousStatus,
           data.newStatus,

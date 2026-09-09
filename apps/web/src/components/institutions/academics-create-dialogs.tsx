@@ -25,6 +25,7 @@ import {
   createGradeAction,
   type ActionResult,
 } from '@/lib/institutions/actions';
+import { useHydrated } from '@/hooks/useHydrated';
 import type { AcademicPeriod, Grade } from '@/lib/institutions/types';
 
 function fieldError(result: ActionResult<unknown> | null, field: string): string | undefined {
@@ -34,6 +35,7 @@ function fieldError(result: ActionResult<unknown> | null, field: string): string
 
 export function AddGradeDialog() {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ActionResult<{ id: string }> | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -55,7 +57,12 @@ export function AddGradeDialog() {
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)} data-testid="add-grade">
+      <Button
+        size="sm"
+        onClick={() => setOpen(true)}
+        data-testid="add-grade"
+        data-hydrated={hydrated ? 'true' : 'false'}
+      >
         <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
         Add grade
       </Button>
@@ -131,6 +138,7 @@ export function AddClassSectionDialog({
   periods,
 }: AddClassSectionDialogProps) {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
   const [result, setResult] = useState<ActionResult<{ id: string }> | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -161,6 +169,7 @@ export function AddClassSectionDialog({
         size="sm"
         onClick={() => setOpen(true)}
         data-testid="add-section"
+        data-hydrated={hydrated ? 'true' : 'false'}
         disabled={blocked}
         title={blocked ? 'Define at least one grade and one academic period first' : undefined}
       >
