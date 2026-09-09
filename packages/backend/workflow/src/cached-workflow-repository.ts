@@ -7,7 +7,7 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey } from '@proctira/cache';
+import { tenantKey, reviveDates } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type {
@@ -42,11 +42,12 @@ export class CachedWorkflowRepository implements WorkflowRepository {
     }
 
     const key = tenantKey(tenantId, 'workflow-definition', id);
-    return this.cache.getOrSet(
+    const cached = await this.cache.getOrSet(
       key,
       () => this.delegate.findDefinitionById(id, tenantId),
       DEFINITION_TTL_SECONDS,
     );
+    return reviveDates(cached);
   }
 
   async updateDefinition(
