@@ -73,6 +73,7 @@ import {
 import { createHostelRepository, hostelPlugin } from '@proctira/backend-hostel';
 import { createInstitutionRepository, institutionPlugin } from '@proctira/backend-institution';
 import { createLibraryRepository, libraryPlugin } from '@proctira/backend-library';
+import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import { createNotificationStack, notificationPlugin } from '@proctira/backend-notification';
 import { createParentPortalRepository, parentPortalPlugin } from '@proctira/backend-parent-portal';
 import {
@@ -80,7 +81,6 @@ import {
   createRegistrationRepository,
   registrationPlugin,
 } from '@proctira/backend-registration';
-import { createLmsRepository, lmsPlugin } from '@proctira/backend-lms';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
