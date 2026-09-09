@@ -257,3 +257,30 @@ describe('Wave 9 academic calendar raw-SQL RLS (030_academic_calendar_schema.sql
     );
   });
 });
+
+describe('Wave 9 students 360 raw-SQL RLS (035_students_360_schema.sql)', () => {
+  const sql = loadSql('035_students_360_schema.sql');
+  const tables = [
+    'student_photos',
+    'student_siblings',
+    'student_consents',
+    'student_discipline_incidents',
+  ] as const;
+
+  it('creates the four 360 tables with tenant_id and forces RLS on each', () => {
+    for (const table of tables) {
+      const ddl = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`));
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`CREATE POLICY tenant_isolation ON ${table}`));
+      expect(sql).toMatch(
+        /USING \(tenant_id::text = NULLIF\(current_setting\('app\.tenant_id', true\), ''\)\)/,
+      );
+      expect(sql).toMatch(
+        /WITH CHECK \(tenant_id::text = NULLIF\(current_setting\('app\.tenant_id', true\), ''\)\)/,
+      );
+    }
+  });
+});
