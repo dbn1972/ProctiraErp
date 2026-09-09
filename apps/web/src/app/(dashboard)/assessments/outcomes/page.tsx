@@ -6,11 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 
 import { OutcomeCreateForm } from '../_components/outcome-create-form';
-import {
-  Button,
-  Card,
-  CardContent,
-} from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 import { listOutcomes } from '@/lib/api/assessments';
 import { listSubjects, type SubjectSummary } from '@/lib/institutions/api';
 

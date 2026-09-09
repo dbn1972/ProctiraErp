@@ -20,7 +20,10 @@ interface ApplicationDecisionFormProps {
   awardLabel: string | null;
 }
 
-export function ApplicationDecisionForm({ applicationId, awardLabel }: ApplicationDecisionFormProps) {
+export function ApplicationDecisionForm({
+  applicationId,
+  awardLabel,
+}: ApplicationDecisionFormProps) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [comment, setComment] = useState('');

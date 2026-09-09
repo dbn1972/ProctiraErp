@@ -68,14 +68,27 @@ export function ConcessionDialog({
         Concession
       </Button>
       <DialogContent>
-        <form onSubmit={onSubmit} data-testid="concession-form" data-hydrated={hydrated ? 'true' : 'false'}>
+        <form
+          onSubmit={onSubmit}
+          data-testid="concession-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
+        >
           <DialogHeader>
             <DialogTitle>Apply concession</DialogTitle>
-            <DialogDescription>Percent discount recomputes open dues on this invoice.</DialogDescription>
+            <DialogDescription>
+              Percent discount recomputes open dues on this invoice.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-3">
             <FormField id="concession-percent" label="Percent" required>
-              <Input id="concession-percent" name="percent" type="number" min="0" max="100" defaultValue="10" />
+              <Input
+                id="concession-percent"
+                name="percent"
+                type="number"
+                min="0"
+                max="100"
+                defaultValue="10"
+              />
             </FormField>
             <FormField id="concession-reason" label="Reason" required>
               <Input id="concession-reason" name="reason" required />

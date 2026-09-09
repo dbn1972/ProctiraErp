@@ -4,10 +4,21 @@
 export type FeatureMap = Record<string, boolean>;
 
 export const PREFIX_FEATURE_MAP: Record<string, string> = {
-  lms: 'lms', hostel: 'hostel', transport: 'transport', library: 'library',
-  fees: 'fees', billing: 'fees', health: 'health', scholarships: 'scholarship',
-  'parent-portal': 'parent', 'student-portal': 'parent', registrations: 'registration', workflows: 'workflow',
-  'workflow-engine': 'workflow', communication: 'communication', notifications: 'communication',
+  lms: 'lms',
+  hostel: 'hostel',
+  transport: 'transport',
+  library: 'library',
+  fees: 'fees',
+  billing: 'fees',
+  health: 'health',
+  scholarships: 'scholarship',
+  'parent-portal': 'parent',
+  'student-portal': 'parent',
+  registrations: 'registration',
+  workflows: 'workflow',
+  'workflow-engine': 'workflow',
+  communication: 'communication',
+  notifications: 'communication',
 };
 
 const featuresByTenant = new Map<string, FeatureMap>();

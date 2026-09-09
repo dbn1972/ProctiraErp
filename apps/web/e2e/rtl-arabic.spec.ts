@@ -137,7 +137,10 @@ test.describe('Task 48.5 — Arabic locale pilot end-to-end RTL behaviour', () =
     const languageTrigger = page.getByRole('button', { name: /select language/i });
     await expect(languageTrigger).toBeVisible();
     await languageTrigger.click();
-    await page.getByRole('menuitemradio', { name: /العربية|arabic/i }).first().click();
+    await page
+      .getByRole('menuitemradio', { name: /العربية|arabic/i })
+      .first()
+      .click();
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl', { timeout: 10_000 });
 
     for (const path of PORTAL_RTL_ROUTES) {

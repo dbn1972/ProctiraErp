@@ -53,10 +53,8 @@ export default async function ParentAttendancePage({
       <div className="space-y-4">
         {summary ? (
           <p className="text-sm text-foreground">
-            {summary.percentage == null
-              ? 'No percentage yet.'
-              : `${summary.percentage}% present`}{' '}
-            · {summary.present} present · {summary.absent} absent · {summary.late} late
+            {summary.percentage == null ? 'No percentage yet.' : `${summary.percentage}% present`} ·{' '}
+            {summary.present} present · {summary.absent} absent · {summary.late} late
           </p>
         ) : null}
         <ul className="divide-y divide-border" role="list">

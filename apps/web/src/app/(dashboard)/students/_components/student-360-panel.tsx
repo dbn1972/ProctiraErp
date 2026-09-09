@@ -77,7 +77,11 @@ export function Student360Panel({
 }: Student360PanelProps) {
   const hydrated = useHydrated();
   return (
-    <div className="space-y-4" data-testid="student-360" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-4"
+      data-testid="student-360"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <PhotoAndIdCard studentId={studentId} hasPhoto={hasPhoto} />
       <ConsentsCard studentId={studentId} consents={consents} />
       <SiblingsCard studentId={studentId} siblings={siblings} />
@@ -205,7 +209,11 @@ function ConsentsCard({ studentId, consents }: { studentId: string; consents: St
           Photo, medical, trips, and data-sharing flags with timestamp and actor.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3" data-testid="student-consents" data-hydrated={hydrated ? 'true' : 'false'}>
+      <CardContent
+        className="space-y-3"
+        data-testid="student-consents"
+        data-hydrated={hydrated ? 'true' : 'false'}
+      >
         {CONSENT_ORDER.map((kind) => {
           const row = byKind.get(kind);
           const granted = row?.granted ?? false;
@@ -293,7 +301,12 @@ function SiblingsCard({ studentId, siblings }: { studentId: string; siblings: St
             aria-label="Sibling student ID"
             data-testid="sibling-id"
           />
-          <Button type="submit" size="sm" disabled={isPending} title={isPending ? 'Linking sibling' : undefined}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isPending}
+            title={isPending ? 'Linking sibling' : undefined}
+          >
             {isPending && <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
             Link sibling
           </Button>
@@ -424,11 +437,22 @@ function DisciplineCard({
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="di-date">Date</Label>
-                <Input id="di-date" name="incidentDate" type="date" required data-testid="discipline-date" />
+                <Input
+                  id="di-date"
+                  name="incidentDate"
+                  type="date"
+                  required
+                  data-testid="discipline-date"
+                />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="di-desc">Description</Label>
-                <Textarea id="di-desc" name="description" required data-testid="discipline-description" />
+                <Textarea
+                  id="di-desc"
+                  name="description"
+                  required
+                  data-testid="discipline-description"
+                />
               </div>
               <div className="grid gap-1.5">
                 <Label htmlFor="di-action">Action taken</Label>
@@ -449,8 +473,15 @@ function DisciplineCard({
               )}
             </div>
             <DialogFooter>
-              <Button type="submit" size="sm" disabled={isPending} title={isPending ? 'Saving incident' : undefined}>
-                {isPending && <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isPending}
+                title={isPending ? 'Saving incident' : undefined}
+              >
+                {isPending && (
+                  <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                )}
                 Save incident
               </Button>
             </DialogFooter>

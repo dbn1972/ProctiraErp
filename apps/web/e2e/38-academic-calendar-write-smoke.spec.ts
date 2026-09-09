@@ -221,7 +221,12 @@ test.describe('Academic calendar — live chain (E2E_BACKEND_READY)', () => {
       `${GATEWAY_URL}/api/v1/academic-periods/${year.id}/calendar`,
       {
         headers: headers(),
-        data: { kind: 'holiday', name: 'Too early', startDate: '2032-01-01', endDate: '2032-01-02' },
+        data: {
+          kind: 'holiday',
+          name: 'Too early',
+          startDate: '2032-01-01',
+          endDate: '2032-01-02',
+        },
       },
     );
     expect(outside.status()).toBe(400);
@@ -304,10 +309,13 @@ test.describe('Academic calendar — live chain (E2E_BACKEND_READY)', () => {
     expect(cloned[0]).toMatchObject({ name: sectionName, gradeId });
 
     // Re-running is idempotent.
-    const again = await request.post(`${GATEWAY_URL}/api/v1/academic-periods/${source.id}/rollover`, {
-      headers: headers(),
-      data: { targetPeriodId: target.id, dryRun: false },
-    });
+    const again = await request.post(
+      `${GATEWAY_URL}/api/v1/academic-periods/${source.id}/rollover`,
+      {
+        headers: headers(),
+        data: { targetPeriodId: target.id, dryRun: false },
+      },
+    );
     expect(again.status(), await again.text()).toBe(200);
     expect(await again.json()).toMatchObject({ classes: { toCreate: 0, existing: 1, created: 0 } });
   });
@@ -318,13 +326,10 @@ test.describe('Academic calendar — live chain (E2E_BACKEND_READY)', () => {
       startDate: '2036-04-01',
       endDate: '2037-03-31',
     });
-    const added = await request.post(
-      `${GATEWAY_URL}/api/v1/academic-periods/${year.id}/calendar`,
-      {
-        headers: headers(),
-        data: { kind: 'break', name: 'Winter break', startDate: '2036-12-24', endDate: '2037-01-02' },
-      },
-    );
+    const added = await request.post(`${GATEWAY_URL}/api/v1/academic-periods/${year.id}/calendar`, {
+      headers: headers(),
+      data: { kind: 'break', name: 'Winter break', startDate: '2036-12-24', endDate: '2037-01-02' },
+    });
     expect(added.status(), await added.text()).toBe(201);
 
     const foreignList = await request.get(

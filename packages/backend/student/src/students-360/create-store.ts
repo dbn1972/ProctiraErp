@@ -17,9 +17,7 @@ export interface Students360StoreConfig {
   databaseUrl?: string;
 }
 
-export function createStudents360Store(
-  config: Students360StoreConfig = {},
-): Students360Store {
+export function createStudents360Store(config: Students360StoreConfig = {}): Students360Store {
   const databaseUrl = config.databaseUrl ?? process.env['DATABASE_URL'];
   if (!databaseUrl || databaseUrl.trim().length === 0) {
     assertInMemoryFallbackAllowed('student.students360');

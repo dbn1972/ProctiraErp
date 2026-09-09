@@ -218,11 +218,12 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     const offer = (await jsonStatus(offerRes, 201)) as { id: string; status: string };
     expect(offer.status).toBe('draft');
 
-    const sendRes = await request.post(
-      `${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/send`,
-      { headers: headers() },
-    );
-    expect((await jsonStatus(sendRes, 200)) as { status: string }).toMatchObject({ status: 'sent' });
+    const sendRes = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/send`, {
+      headers: headers(),
+    });
+    expect((await jsonStatus(sendRes, 200)) as { status: string }).toMatchObject({
+      status: 'sent',
+    });
 
     const acceptRes = await request.post(
       `${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/accept`,
@@ -237,10 +238,10 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
     expect(accepted.paymentRef).toBe('SANDBOX-PAY');
     expect(accepted.enrolledStudentId).toBeTruthy();
 
-    const again = await request.post(
-      `${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/accept`,
-      { headers: headers(), data: { paymentRef: 'SANDBOX-PAY' } },
-    );
+    const again = await request.post(`${GATEWAY_URL}/api/v1/admissions/offers/${offer.id}/accept`, {
+      headers: headers(),
+      data: { paymentRef: 'SANDBOX-PAY' },
+    });
     const idempotent = (await jsonStatus(again, 200)) as { enrolledStudentId: string | null };
     expect(idempotent.enrolledStudentId).toBe(accepted.enrolledStudentId);
 
@@ -317,9 +318,8 @@ test.describe('Admissions CRM — live chain (E2E_BACKEND_READY)', () => {
       `${GATEWAY_URL}/api/v1/admissions/enquiries/${enquiry.id}/convert`,
       { headers: headers() },
     );
-    const applicationId = (
-      (await jsonStatus(converted, 201)) as { application: { id: string } }
-    ).application.id;
+    const applicationId = ((await jsonStatus(converted, 201)) as { application: { id: string } })
+      .application.id;
 
     const foreignList = await request.get(`${GATEWAY_URL}/api/v1/admissions/enquiries`, {
       headers: headers(TENANT_B),

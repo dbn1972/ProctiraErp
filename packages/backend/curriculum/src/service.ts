@@ -141,7 +141,12 @@ export class CurriculumService {
    */
   async coverage(
     tenantId: string,
-    filter: { subjectId: string; gradeId: string; academicPeriodId: string; institutionId?: string },
+    filter: {
+      subjectId: string;
+      gradeId: string;
+      academicPeriodId: string;
+      institutionId?: string;
+    },
   ): Promise<CoverageSummary> {
     if (!filter.subjectId || !filter.gradeId || !filter.academicPeriodId) {
       throw new ValidationError('subjectId, gradeId and academicPeriodId are required');

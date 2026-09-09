@@ -56,7 +56,8 @@ export default async function ParentGradesPage({
             {grades.map((grade) => (
               <li key={grade.id} className="py-3 first:pt-0 last:pb-0">
                 <p className="text-sm font-medium text-foreground">
-                  {grade.assessmentCode ?? 'Assessment'} · {grade.letterGrade ?? grade.numericScore ?? '—'}
+                  {grade.assessmentCode ?? 'Assessment'} ·{' '}
+                  {grade.letterGrade ?? grade.numericScore ?? '—'}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">{grade.workflowStatus}</p>
               </li>

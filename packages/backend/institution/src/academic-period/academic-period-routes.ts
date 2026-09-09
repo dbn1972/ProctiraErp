@@ -84,7 +84,9 @@ export async function registerAcademicPeriodRoutes(
   fastify.get(
     prefix,
     async function listHandler(
-      request: FastifyRequest<{ Querystring: { status?: string; parentId?: string; kind?: string } }>,
+      request: FastifyRequest<{
+        Querystring: { status?: string; parentId?: string; kind?: string };
+      }>,
       reply: FastifyReply,
     ) {
       const tenantId = (request as FastifyRequest & { tenantId?: string }).tenantId;

@@ -167,7 +167,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/examinations'],
     persistence: 'prisma+rls',
     rbacWired: false,
-    notes: 'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set.',
+    notes:
+      'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set.',
     registrarName: 'examination',
   },
   {

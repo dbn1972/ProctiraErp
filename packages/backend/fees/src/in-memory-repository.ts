@@ -189,9 +189,7 @@ export class InMemoryFeesRepository implements FeesRepository {
     tenantId: string,
     scope: { classId?: string | null; gradeId?: string | null },
   ): Promise<string[]> {
-    return (
-      this.classRoster.get(`${tenantId}:${scope.classId ?? ''}:${scope.gradeId ?? ''}`) ?? []
-    );
+    return this.classRoster.get(`${tenantId}:${scope.classId ?? ''}:${scope.gradeId ?? ''}`) ?? [];
   }
 
   async createFeeStructure(
@@ -257,7 +255,9 @@ export class InMemoryFeesRepository implements FeesRepository {
     );
   }
 
-  async createConcession(data: Omit<FeeConcessionEntity, 'createdAt'>): Promise<FeeConcessionEntity> {
+  async createConcession(
+    data: Omit<FeeConcessionEntity, 'createdAt'>,
+  ): Promise<FeeConcessionEntity> {
     const entity: FeeConcessionEntity = { ...data, createdAt: new Date() };
     this.concessions.push(entity);
     return entity;

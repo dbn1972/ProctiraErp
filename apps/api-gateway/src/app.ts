@@ -76,10 +76,7 @@ import {
   extractInstitutionId,
   type InstitutionScopeUser,
 } from './institution-scope.js';
-import {
-  missingFeatureForRequest,
-  type FeaturesUser,
-} from './tenant-features.js';
+import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 
 export interface BuildAppOptions {
@@ -523,7 +520,6 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     }
   });
 
-
   // 8a-bis. G-810 — Feature entitlements (optional modules). Absent feature maps allow.
   app.addHook('onRequest', async (request, reply) => {
     const url = request.url.split('?')[0]!;
@@ -620,7 +616,8 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
   // 8d'. G-913 — enforce per-tenant retention at runtime. Opt out with
   // AUDIT_RETENTION_SCHEDULER=0 (tests / one-off tooling); interval override in ms.
   if (process.env.AUDIT_RETENTION_SCHEDULER !== '0' && process.env.NODE_ENV !== 'test') {
-    const intervalMs = Number(process.env.AUDIT_RETENTION_INTERVAL_MS) || DEFAULT_RETENTION_INTERVAL_MS;
+    const intervalMs =
+      Number(process.env.AUDIT_RETENTION_INTERVAL_MS) || DEFAULT_RETENTION_INTERVAL_MS;
     const retentionScheduler = createRetentionScheduler({
       service: app.auditService,
       intervalMs,

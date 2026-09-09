@@ -20,9 +20,7 @@ export async function loadAdmissionsLookups(): Promise<{
   grades: LookupOption[];
 }> {
   const [institutions, periods, grades] = await Promise.all([
-    safeList(async () =>
-      (await listInstitutions()).map((row) => ({ id: row.id, name: row.name })),
-    ),
+    safeList(async () => (await listInstitutions()).map((row) => ({ id: row.id, name: row.name }))),
     safeList(async () =>
       (await listAcademicPeriods()).map((row) => ({ id: row.id, name: row.name })),
     ),

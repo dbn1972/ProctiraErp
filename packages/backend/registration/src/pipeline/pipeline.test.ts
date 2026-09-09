@@ -24,8 +24,18 @@ function ids() {
 
 describe('merit ranking determinism', () => {
   it('orders by composite score then test, interview, submission, id', () => {
-    const a = { ...ids(), applicationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', interviewScore: 80, testScore: 80 };
-    const b = { ...ids(), applicationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', interviewScore: 90, testScore: 70 };
+    const a = {
+      ...ids(),
+      applicationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      interviewScore: 80,
+      testScore: 80,
+    };
+    const b = {
+      ...ids(),
+      applicationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      interviewScore: 90,
+      testScore: 70,
+    };
     const c = {
       applicationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       interviewScore: 80,

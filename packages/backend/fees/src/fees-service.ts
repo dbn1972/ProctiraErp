@@ -651,7 +651,9 @@ export class FeesService {
   async listOverdueForReminder(tenantId: string, asOf: Date) {
     const invoices = await this.repository.listInvoicesForTenant(tenantId);
     return invoices
-      .filter((invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf)
+      .filter(
+        (invoice) => invoice.status === 'open' && invoice.dueAt != null && invoice.dueAt < asOf,
+      )
       .map((invoice) => ({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
@@ -671,7 +673,13 @@ export class FeesService {
     const invoices = await this.repository.listInvoicesForTenant(tenantId);
     const byClass = new Map<
       string,
-      { classId: string; openCount: number; overdueCount: number; openCents: number; overdueCents: number }
+      {
+        classId: string;
+        openCount: number;
+        overdueCount: number;
+        openCents: number;
+        overdueCents: number;
+      }
     >();
     const byStatus = new Map<string, { status: string; count: number; amountCents: number }>();
     const overdue: Array<{

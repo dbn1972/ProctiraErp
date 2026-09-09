@@ -88,6 +88,8 @@ describe('G-810 feature entitlements', () => {
   });
 
   it('closed-world: missing key in a declared map is denied', () => {
-    expect(missingFeatureForRequest('t1', { features: { hostel: true } }, '/api/v1/lms')).toBe('lms');
+    expect(missingFeatureForRequest('t1', { features: { hostel: true } }, '/api/v1/lms')).toBe(
+      'lms',
+    );
   });
 });

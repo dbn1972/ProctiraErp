@@ -89,9 +89,7 @@ export async function bookInterviewAction(input: {
   }
 }
 
-export async function createEnquiryAction(
-  input: unknown,
-): Promise<AdmissionsActionState> {
+export async function createEnquiryAction(input: unknown): Promise<AdmissionsActionState> {
   const parsed = createEnquiryFormSchema.safeParse(input);
   if (!parsed.success) {
     return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid enquiry' };
@@ -106,9 +104,7 @@ export async function createEnquiryAction(
   }
 }
 
-export async function updateEnquiryStageAction(
-  input: unknown,
-): Promise<AdmissionsActionState> {
+export async function updateEnquiryStageAction(input: unknown): Promise<AdmissionsActionState> {
   const parsed = updateEnquiryStageSchema.safeParse(input);
   if (!parsed.success) {
     return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid stage' };
@@ -198,7 +194,10 @@ export async function createOfferAction(input: unknown): Promise<AdmissionsActio
   }
 }
 
-export async function sendOfferAction(offerId: string, applicationId: string): Promise<AdmissionsActionState> {
+export async function sendOfferAction(
+  offerId: string,
+  applicationId: string,
+): Promise<AdmissionsActionState> {
   try {
     const offer = await sendAdmissionOffer(offerId);
     revalidatePath(`/admissions/${applicationId}`);
@@ -220,7 +219,11 @@ export async function acceptOfferAction(input: unknown): Promise<AdmissionsActio
     });
     revalidatePath(`/admissions/${offer.applicationId}`);
     if (offer.enrolledStudentId) revalidatePath(`/students/${offer.enrolledStudentId}`);
-    return { status: 'success', message: 'Offer accepted.', id: offer.enrolledStudentId ?? offer.id };
+    return {
+      status: 'success',
+      message: 'Offer accepted.',
+      id: offer.enrolledStudentId ?? offer.id,
+    };
   } catch (error) {
     return fail(error, 'Failed to accept offer');
   }

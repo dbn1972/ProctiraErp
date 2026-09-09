@@ -306,7 +306,10 @@ describe('healthUiPlugin', () => {
       const res = await app.inject({ method: 'GET', url: '/health/screenings' });
       const body = res.json() as { data: Array<{ id: string; name: string }> };
       expect(body.data).toEqual([
-        expect.objectContaining({ id: 'f1f1f1f1-0000-4000-8000-000000000001', name: 'Grade 6 dental' }),
+        expect.objectContaining({
+          id: 'f1f1f1f1-0000-4000-8000-000000000001',
+          name: 'Grade 6 dental',
+        }),
       ]);
     });
 
@@ -323,6 +326,5 @@ describe('healthUiPlugin', () => {
         expect((res.json() as { data: unknown[] }).data).toEqual([]);
       }
     });
-
   });
 });

@@ -10,7 +10,12 @@ import {
   markUnitTaughtAction,
 } from '@/app/(dashboard)/institutions/[id]/curriculum/actions';
 import { useHydrated } from '@/hooks/useHydrated';
-import type { CoverageSummary, LearningOutcome, LessonPlan, SyllabusUnit } from '@/lib/api/curriculum';
+import type {
+  CoverageSummary,
+  LearningOutcome,
+  LessonPlan,
+  SyllabusUnit,
+} from '@/lib/api/curriculum';
 import type { AcademicPeriod, Grade } from '@/lib/institutions/types';
 import type { SubjectSummary } from '@/lib/institutions/api';
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
@@ -66,7 +71,11 @@ export function CurriculumPanel({
   const percent = coverage?.percent ?? 0;
 
   return (
-    <div className="space-y-6" data-testid="curriculum-panel" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-6"
+      data-testid="curriculum-panel"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <div className="grid gap-3 sm:grid-cols-4">
         <label className="space-y-1.5 text-sm">
           <span className="font-medium">Subject</span>
@@ -117,7 +126,12 @@ export function CurriculumPanel({
           </select>
         </label>
         <div className="flex items-end">
-          <Button type="button" variant="secondary" data-testid="curriculum-apply-scope" onClick={applyScope}>
+          <Button
+            type="button"
+            variant="secondary"
+            data-testid="curriculum-apply-scope"
+            onClick={applyScope}
+          >
             Apply scope
           </Button>
         </div>
@@ -131,7 +145,9 @@ export function CurriculumPanel({
         <div className="flex items-center justify-between text-sm">
           <span className="font-semibold">Coverage</span>
           <span className="tabular-nums" data-testid="coverage-percent">
-            {coverage ? `${coverage.taught} / ${coverage.planned} · ${percent}%` : 'Select subject, grade, and period'}
+            {coverage
+              ? `${coverage.taught} / ${coverage.planned} · ${percent}%`
+              : 'Select subject, grade, and period'}
           </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-muted">
@@ -238,7 +254,9 @@ export function CurriculumPanel({
                     onClick={() => {
                       setError(null);
                       startTransition(async () => {
-                        const result = await markUnitTaughtAction(institutionId, { unitId: unit.id });
+                        const result = await markUnitTaughtAction(institutionId, {
+                          unitId: unit.id,
+                        });
                         if (!result.ok) {
                           setError(result.error);
                           return;
@@ -292,7 +310,13 @@ export function CurriculumPanel({
                     <Label htmlFor={`lp-date-${unit.id}`}>Planned date</Label>
                     <Input id={`lp-date-${unit.id}`} name="plannedDate" type="date" />
                   </div>
-                  <Button type="submit" size="sm" variant="outline" disabled={pending} data-testid={`add-lesson-${unit.id}`}>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    data-testid={`add-lesson-${unit.id}`}
+                  >
                     Add lesson
                   </Button>
                 </form>
@@ -334,7 +358,12 @@ export function CurriculumPanel({
           <Label htmlFor="lo-statement">Statement</Label>
           <Textarea id="lo-statement" name="statement" required rows={2} maxLength={2000} />
         </div>
-        <Button type="submit" size="sm" disabled={pending || !scope.subjectId} data-testid="add-learning-outcome">
+        <Button
+          type="submit"
+          size="sm"
+          disabled={pending || !scope.subjectId}
+          data-testid="add-learning-outcome"
+        >
           Add outcome
         </Button>
       </form>

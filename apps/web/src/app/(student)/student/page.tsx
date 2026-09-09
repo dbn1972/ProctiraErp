@@ -1,13 +1,33 @@
 import Link from 'next/link';
-import { Bell, BookOpen, Brain, CalendarDays, ClipboardList, Clock, GraduationCap } from 'lucide-react';
+import {
+  Bell,
+  BookOpen,
+  Brain,
+  CalendarDays,
+  ClipboardList,
+  Clock,
+  GraduationCap,
+} from 'lucide-react';
 
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@proctira/ui/components';
 import { requireSession } from '@/lib/auth/server';
 
 export const dynamic = 'force-dynamic';
 
 const LINKS = [
-  { href: '/student/attendance', label: 'Attendance', Icon: ClipboardList, hint: 'Your recent days' },
+  {
+    href: '/student/attendance',
+    label: 'Attendance',
+    Icon: ClipboardList,
+    hint: 'Your recent days',
+  },
   { href: '/student/grades', label: 'Grades', Icon: GraduationCap, hint: 'Published marks' },
   { href: '/student/timetable', label: 'Timetable', Icon: Clock, hint: 'Class meetings' },
   { href: '/student/homework', label: 'Homework', Icon: BookOpen, hint: 'Work that is due' },

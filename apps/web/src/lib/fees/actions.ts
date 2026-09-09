@@ -34,7 +34,9 @@ export type ActionResult<T = unknown> =
   | { success: true; data: T }
   | { success: false; error: string; fieldErrors?: FieldError[] };
 
-function flattenZod(error: { flatten: () => { fieldErrors: Record<string, string[] | undefined> } }): FieldError[] {
+function flattenZod(error: {
+  flatten: () => { fieldErrors: Record<string, string[] | undefined> };
+}): FieldError[] {
   return Object.entries(error.flatten().fieldErrors).flatMap(([field, messages]) =>
     (messages ?? []).map((message) => ({ field, message })),
   );

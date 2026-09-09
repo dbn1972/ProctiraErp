@@ -20,11 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import {
-  listPermissionCatalog,
-  listTenantRoles,
-  type PermissionRef,
-} from '@/lib/api/admin.server';
+import { listPermissionCatalog, listTenantRoles, type PermissionRef } from '@/lib/api/admin.server';
 import { cn } from '@/lib/utils';
 import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 

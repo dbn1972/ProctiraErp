@@ -20,12 +20,7 @@ export type AcademicPeriodStatusType = Static<typeof AcademicPeriodStatus>;
  * year via `parentId` and must fall inside its date range.
  */
 export const AcademicPeriodKind = Type.Union(
-  [
-    Type.Literal('year'),
-    Type.Literal('semester'),
-    Type.Literal('term'),
-    Type.Literal('quarter'),
-  ],
+  [Type.Literal('year'), Type.Literal('semester'), Type.Literal('term'), Type.Literal('quarter')],
   { description: 'Academic period kind' },
 );
 export type AcademicPeriodKindType = Static<typeof AcademicPeriodKind>;

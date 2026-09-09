@@ -133,7 +133,10 @@ export function CalendarEventsCard({
   };
 
   const onDelete = (evt: CalendarEvent) => {
-    if (typeof window !== 'undefined' && !window.confirm(`Remove "${evt.name}" from the calendar?`)) {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm(`Remove "${evt.name}" from the calendar?`)
+    ) {
       return;
     }
     setError(null);
@@ -281,7 +284,10 @@ export function CalendarEventsCard({
         )}
 
         {events.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground" data-testid="calendar-empty">
+          <p
+            className="py-6 text-center text-sm text-muted-foreground"
+            data-testid="calendar-empty"
+          >
             No calendar entries yet for {period.name}.
           </p>
         ) : (
@@ -402,8 +408,8 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
       <CardHeader>
         <CardTitle className="text-base">Year-end rollover</CardTitle>
         <CardDescription>
-          Clone {source.name}&apos;s class sections into the next academic year and promote
-          enrolled students one grade up. Preview first — nothing is written until you execute.
+          Clone {source.name}&apos;s class sections into the next academic year and promote enrolled
+          students one grade up. Preview first — nothing is written until you execute.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4" data-hydrated={hydrated ? 'true' : 'false'}>
@@ -427,7 +433,11 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="ro-target">Target year</Label>
-                <Select value={targetPeriodId} onValueChange={setTargetPeriodId} disabled={isPending}>
+                <Select
+                  value={targetPeriodId}
+                  onValueChange={setTargetPeriodId}
+                  disabled={isPending}
+                >
                   <SelectTrigger id="ro-target" data-testid="rollover-target">
                     <SelectValue placeholder="Select the next academic year" />
                   </SelectTrigger>
@@ -467,8 +477,8 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 data-testid="rollover-promote"
               />
               <Label htmlFor="ro-promote" className="font-normal">
-                Promote enrolled students to the next grade (graduating grade is left for
-                graduation handling)
+                Promote enrolled students to the next grade (graduating grade is left for graduation
+                handling)
               </Label>
             </div>
 
@@ -480,7 +490,9 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 disabled={isPending || !targetPeriodId}
                 data-testid="rollover-preview"
               >
-                {isPending && <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
+                {isPending && (
+                  <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                )}
                 Preview
               </Button>
               <Button
@@ -502,7 +514,8 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
               >
                 <div className="sm:col-span-2">
                   <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {summary.dryRun ? 'Preview' : 'Executed'} → {targetName ?? summary.targetPeriodId}
+                    {summary.dryRun ? 'Preview' : 'Executed'} →{' '}
+                    {targetName ?? summary.targetPeriodId}
                   </dt>
                 </div>
                 <Stat
@@ -514,7 +527,9 @@ export function RolloverCard({ source, targets, institutions }: RolloverCardProp
                 <Stat label="Students considered" value={summary.enrollments.considered} />
                 <Stat
                   label={summary.dryRun ? 'Students to promote' : 'Students promoted'}
-                  value={summary.dryRun ? summary.enrollments.toPromote : summary.enrollments.promoted}
+                  value={
+                    summary.dryRun ? summary.enrollments.toPromote : summary.enrollments.promoted
+                  }
                   testId="rollover-promoted"
                 />
                 <Stat label="Graduating (no next grade)" value={summary.enrollments.graduating} />

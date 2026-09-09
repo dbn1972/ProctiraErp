@@ -581,9 +581,7 @@ export async function resolveExamMarks(
   return result.data;
 }
 
-export async function listExamReevaluations(
-  examinationId: string,
-): Promise<ExamOpsReevaluation[]> {
+export async function listExamReevaluations(examinationId: string): Promise<ExamOpsReevaluation[]> {
   const result = await gatewayFetch<{ data: ExamOpsReevaluation[] }>(
     `/examinations/${examinationId}/reevaluations`,
     { throwOnError: false, next: { revalidate: 0 } },

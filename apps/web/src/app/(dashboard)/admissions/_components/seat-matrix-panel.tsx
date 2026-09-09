@@ -78,33 +78,78 @@ export function SeatMatrixPanel({
             }}
           >
             <FormField id="seat-institution" label="Institution" required>
-              <select id="seat-institution" name="institutionId" data-testid="seat-institution" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" disabled={!hydrated || pending} defaultValue={institutions[0]?.id ?? ''}>
+              <select
+                id="seat-institution"
+                name="institutionId"
+                data-testid="seat-institution"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!hydrated || pending}
+                defaultValue={institutions[0]?.id ?? ''}
+              >
                 {institutions.map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
                 ))}
               </select>
             </FormField>
             <FormField id="seat-period" label="Period" required>
-              <select id="seat-period" name="academicPeriodId" data-testid="seat-period" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" disabled={!hydrated || pending} defaultValue={periods[0]?.id ?? ''}>
+              <select
+                id="seat-period"
+                name="academicPeriodId"
+                data-testid="seat-period"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!hydrated || pending}
+                defaultValue={periods[0]?.id ?? ''}
+              >
                 {periods.map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
                 ))}
               </select>
             </FormField>
             <FormField id="seat-grade" label="Grade" required>
-              <select id="seat-grade" name="gradeId" data-testid="seat-grade" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" disabled={!hydrated || pending} defaultValue={grades[0]?.id ?? ''}>
+              <select
+                id="seat-grade"
+                name="gradeId"
+                data-testid="seat-grade"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!hydrated || pending}
+                defaultValue={grades[0]?.id ?? ''}
+              >
                 {grades.map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
                 ))}
               </select>
             </FormField>
             <FormField id="seat-quota" label="Quota">
-              <Input id="seat-quota" name="quota" defaultValue="general" data-testid="seat-quota" disabled={!hydrated || pending} />
+              <Input
+                id="seat-quota"
+                name="quota"
+                defaultValue="general"
+                data-testid="seat-quota"
+                disabled={!hydrated || pending}
+              />
             </FormField>
             <FormField id="seat-count" label="Seats" required>
-              <Input id="seat-count" name="seats" type="number" min={0} defaultValue={1} data-testid="seat-count" disabled={!hydrated || pending} />
+              <Input
+                id="seat-count"
+                name="seats"
+                type="number"
+                min={0}
+                defaultValue={1}
+                data-testid="seat-count"
+                disabled={!hydrated || pending}
+              />
             </FormField>
-            {error ? <p className="text-sm text-destructive sm:col-span-2" role="alert">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-destructive sm:col-span-2" role="alert">
+                {error}
+              </p>
+            ) : null}
             <div className="sm:col-span-2 lg:col-span-5">
               <Button type="submit" data-testid="save-seat" disabled={!hydrated || pending}>
                 {pending ? 'Saving…' : 'Save row'}

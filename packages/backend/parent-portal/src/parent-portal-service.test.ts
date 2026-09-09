@@ -247,9 +247,9 @@ describe('ParentPortalService', () => {
       expect(linked.meta.studentId).toBe(STUDENT_ID);
       expect(linked.summary.percentage).toBeNull();
 
-      await expect(
-        service.getChildAttendance(TENANT_A, PARENT_USER, UNLINKED),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getChildAttendance(TENANT_A, PARENT_USER, UNLINKED)).rejects.toThrow(
+        NotFoundError,
+      );
     });
 
     it('denies grades, timetable, homework, calendar, and notices for an unlinked child', async () => {
@@ -275,9 +275,9 @@ describe('ParentPortalService', () => {
     it('does not leak tenant A academic reads into tenant B even when the parent is linked in A', async () => {
       await service.linkChild(TENANT_A, PARENT_USER, { studentId: STUDENT_ID });
 
-      await expect(
-        service.getChildAttendance(TENANT_B, PARENT_USER, STUDENT_ID),
-      ).rejects.toThrow(NotFoundError);
+      await expect(service.getChildAttendance(TENANT_B, PARENT_USER, STUDENT_ID)).rejects.toThrow(
+        NotFoundError,
+      );
       await expect(service.getChildGrades(TENANT_B, PARENT_USER, STUDENT_ID)).rejects.toThrow(
         NotFoundError,
       );

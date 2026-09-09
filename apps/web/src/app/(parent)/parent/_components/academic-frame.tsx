@@ -14,9 +14,7 @@ export function pickChild(
   return links[0] ?? null;
 }
 
-export function firstSearchParam(
-  value: string | string[] | undefined,
-): string | undefined {
+export function firstSearchParam(value: string | string[] | undefined): string | undefined {
   if (Array.isArray(value)) return value[0];
   return value;
 }

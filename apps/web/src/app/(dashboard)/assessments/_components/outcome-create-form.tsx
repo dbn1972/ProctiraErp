@@ -74,7 +74,12 @@ export function OutcomeCreateForm({
         <Label htmlFor="outcome-description">Description</Label>
         <Textarea id="outcome-description" name="description" rows={2} maxLength={1000} />
       </div>
-      <Button type="submit" size="sm" disabled={pending || subjects.length === 0} data-testid="add-outcome">
+      <Button
+        type="submit"
+        size="sm"
+        disabled={pending || subjects.length === 0}
+        data-testid="add-outcome"
+      >
         {pending ? 'Saving…' : 'Add outcome'}
       </Button>
       {error ? (

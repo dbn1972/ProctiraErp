@@ -80,11 +80,7 @@ async function relationExists(client: PgQueryable, name: string): Promise<boolea
   }
 }
 
-async function columnExists(
-  client: PgQueryable,
-  table: string,
-  column: string,
-): Promise<boolean> {
+async function columnExists(client: PgQueryable, table: string, column: string): Promise<boolean> {
   try {
     const result = await client.query(
       `SELECT 1 AS ok

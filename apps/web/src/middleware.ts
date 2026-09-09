@@ -299,9 +299,7 @@ export function isStudentOnlyRoles(roles: readonly string[]): boolean {
 }
 
 export function isParentOnlyRoles(roles: readonly string[]): boolean {
-  return (
-    roles.length > 0 && roles.every((role) => role === 'parent' || role === 'guardian')
-  );
+  return roles.length > 0 && roles.every((role) => role === 'parent' || role === 'guardian');
 }
 
 /**

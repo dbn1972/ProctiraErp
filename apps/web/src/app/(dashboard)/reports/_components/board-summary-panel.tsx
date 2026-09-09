@@ -57,10 +57,7 @@ export function BoardSummaryPanel() {
       className="space-y-3 border-t border-border pt-6"
     >
       <div>
-        <h2
-          id="board-summary-heading"
-          className="text-lg font-bold tracking-tight text-foreground"
-        >
+        <h2 id="board-summary-heading" className="text-lg font-bold tracking-tight text-foreground">
           Board summary
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -86,7 +86,11 @@ export function ExamOpsPanel({
   };
 
   return (
-    <div className="space-y-6" data-testid="exam-ops-panel" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-6"
+      data-testid="exam-ops-panel"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <Feedback state={state} />
 
       <Card data-testid="exam-sessions-card">
@@ -244,7 +248,9 @@ export function ExamOpsPanel({
         <CardHeader className="flex flex-row items-start justify-between space-y-0">
           <div>
             <CardTitle className="text-base">Seating</CardTitle>
-            <CardDescription>Persisted seating plan (30 seats per room per centre).</CardDescription>
+            <CardDescription>
+              Persisted seating plan (30 seats per room per centre).
+            </CardDescription>
           </div>
           <Button
             size="sm"
@@ -371,7 +377,10 @@ export function ExamOpsPanel({
               </TableHeader>
               <TableBody>
                 {marks.map((pair) => (
-                  <TableRow key={`${pair.candidateId}:${pair.subjectId}`} data-testid="marks-pair-row">
+                  <TableRow
+                    key={`${pair.candidateId}:${pair.subjectId}`}
+                    data-testid="marks-pair-row"
+                  >
                     <TableCell>
                       <code className="text-xs">{pair.candidateId.slice(0, 8)}</code>
                     </TableCell>

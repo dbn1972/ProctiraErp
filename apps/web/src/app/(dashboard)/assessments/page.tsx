@@ -34,7 +34,11 @@ function readStr(params: Awaited<PageProps['searchParams']>, key: string, fallba
   return fallback;
 }
 
-function readNum(params: Awaited<PageProps['searchParams']>, key: string, fallback: number): number {
+function readNum(
+  params: Awaited<PageProps['searchParams']>,
+  key: string,
+  fallback: number,
+): number {
   const parsed = Number.parseInt(readStr(params, key), 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }

@@ -57,7 +57,12 @@ export interface GradebookExtrasStore {
   updateComment(
     tenantId: string,
     id: string,
-    patch: Partial<Pick<CommentsBankRecord, 'label' | 'body' | 'subjectId' | 'gradeBand' | 'institutionId' | 'updatedAt'>>,
+    patch: Partial<
+      Pick<
+        CommentsBankRecord,
+        'label' | 'body' | 'subjectId' | 'gradeBand' | 'institutionId' | 'updatedAt'
+      >
+    >,
   ): Promise<CommentsBankRecord | null>;
   deleteComment(tenantId: string, id: string): Promise<boolean>;
   listComments(
@@ -94,7 +99,12 @@ export class InMemoryGradebookExtrasStore implements GradebookExtrasStore {
   async updateComment(
     tenantId: string,
     id: string,
-    patch: Partial<Pick<CommentsBankRecord, 'label' | 'body' | 'subjectId' | 'gradeBand' | 'institutionId' | 'updatedAt'>>,
+    patch: Partial<
+      Pick<
+        CommentsBankRecord,
+        'label' | 'body' | 'subjectId' | 'gradeBand' | 'institutionId' | 'updatedAt'
+      >
+    >,
   ): Promise<CommentsBankRecord | null> {
     const cur = this.comments.get(id);
     if (!cur || cur.tenantId !== tenantId) return null;
@@ -304,7 +314,12 @@ export class PgGradebookExtrasStore implements GradebookExtrasStore {
   async updateComment(
     tenantId: string,
     id: string,
-    patch: Partial<Pick<CommentsBankRecord, 'label' | 'body' | 'subjectId' | 'gradeBand' | 'institutionId' | 'updatedAt'>>,
+    patch: Partial<
+      Pick<
+        CommentsBankRecord,
+        'label' | 'body' | 'subjectId' | 'gradeBand' | 'institutionId' | 'updatedAt'
+      >
+    >,
   ): Promise<CommentsBankRecord | null> {
     const cur = await this.getComment(tenantId, id);
     if (!cur) return null;

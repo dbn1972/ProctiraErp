@@ -107,7 +107,9 @@ test.describe('G-904 portals academic visibility — live (E2E_BACKEND_READY)', 
       expect(Array.isArray(body.data ?? body)).toBe(true);
 
       const unlinked = await request.get(academicUrl(UNLINKED_CHILD, route.view), { headers });
-      expect([403, 404], `${route.view} unlinked ${unlinked.status()}`).toContain(unlinked.status());
+      expect([403, 404], `${route.view} unlinked ${unlinked.status()}`).toContain(
+        unlinked.status(),
+      );
     }
 
     const tenantB = parentPortalJwtHeaders(parentSub, { tenantId: TENANT_B });

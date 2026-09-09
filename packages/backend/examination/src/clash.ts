@@ -46,10 +46,7 @@ export function sessionsOverlap(a: TimedSlot, b: TimedSlot): boolean {
   return aStart < bEnd && bStart < aEnd;
 }
 
-export function findRoomClashes(
-  candidate: TimedSlot,
-  existing: TimedSlot[],
-): AllocationConflict[] {
+export function findRoomClashes(candidate: TimedSlot, existing: TimedSlot[]): AllocationConflict[] {
   return existing
     .filter((other) => other.id !== candidate.id && other.roomId === candidate.roomId)
     .filter((other) => sessionsOverlap(candidate, other))

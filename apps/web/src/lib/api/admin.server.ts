@@ -65,11 +65,13 @@ export async function listTenantRoles(): Promise<{ roles: TenantRole[]; source: 
   return { roles: result.data?.data ?? [], source: sourceOf(result.status, result.ok) };
 }
 
-export async function listTenantUsers(params: {
-  search?: string;
-  status?: TenantUser['status'];
-  roleId?: string;
-} = {}): Promise<{ users: TenantUser[]; source: AdminSource }> {
+export async function listTenantUsers(
+  params: {
+    search?: string;
+    status?: TenantUser['status'];
+    roleId?: string;
+  } = {},
+): Promise<{ users: TenantUser[]; source: AdminSource }> {
   const qs = new URLSearchParams();
   if (params.search) qs.set('search', params.search);
   if (params.status) qs.set('status', params.status);

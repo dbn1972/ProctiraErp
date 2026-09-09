@@ -98,7 +98,8 @@ export class InMemoryCurriculumStore implements CurriculumStore {
         if (filter?.institutionId && r.institutionId !== filter.institutionId) return false;
         if (filter?.subjectId && r.subjectId !== filter.subjectId) return false;
         if (filter?.gradeId && r.gradeId !== filter.gradeId) return false;
-        if (filter?.academicPeriodId && r.academicPeriodId !== filter.academicPeriodId) return false;
+        if (filter?.academicPeriodId && r.academicPeriodId !== filter.academicPeriodId)
+          return false;
         return true;
       })
       .sort((a, b) => a.sequence - b.sequence || a.code.localeCompare(b.code));
@@ -154,7 +155,9 @@ export class InMemoryCurriculumStore implements CurriculumStore {
   }
 
   async getCoverage(tenantId: string, unitId: string): Promise<UnitCoverageRecord | null> {
-    const row = [...this.coverage.values()].find((r) => r.tenantId === tenantId && r.unitId === unitId);
+    const row = [...this.coverage.values()].find(
+      (r) => r.tenantId === tenantId && r.unitId === unitId,
+    );
     return row ? { ...row } : null;
   }
 

@@ -222,17 +222,20 @@ test.describe('Exam ops — live chain (E2E_BACKEND_READY)', () => {
     expect(clash.status(), await clash.text()).toBe(409);
     expect((await clash.json()).conflicts[0].kind).toBe('staff_overlap');
 
-    const roomClash = await request.post(`${GATEWAY_URL}/api/v1/examinations/${fx.examId}/sessions`, {
-      headers: headers(),
-      data: {
-        subjectId: fx.subjectId,
-        date: isoDate(11),
-        startTime: '09:30',
-        endTime: '10:30',
-        roomId: 'HALL-A',
-        centerId: fx.centerId,
+    const roomClash = await request.post(
+      `${GATEWAY_URL}/api/v1/examinations/${fx.examId}/sessions`,
+      {
+        headers: headers(),
+        data: {
+          subjectId: fx.subjectId,
+          date: isoDate(11),
+          startTime: '09:30',
+          endTime: '10:30',
+          roomId: 'HALL-A',
+          centerId: fx.centerId,
+        },
       },
-    });
+    );
     expect(roomClash.status()).toBe(409);
 
     const seating = await postOk(request, `/examinations/${fx.examId}/seating/generate`, {}, 200);

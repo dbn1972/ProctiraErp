@@ -685,10 +685,10 @@ export class PgExamOpsStore implements ExamOpsStore {
     seats: ExamSeatingRecord[],
   ): Promise<ExamSeatingRecord[]> {
     return this.run(tenantId, async (client) => {
-      await client.query(
-        `DELETE FROM exam_seating WHERE tenant_id = $1 AND examination_id = $2`,
-        [tenantId, examinationId],
-      );
+      await client.query(`DELETE FROM exam_seating WHERE tenant_id = $1 AND examination_id = $2`, [
+        tenantId,
+        examinationId,
+      ]);
       const saved: ExamSeatingRecord[] = [];
       for (const seat of seats) {
         const { rows } = await client.query(

@@ -186,8 +186,7 @@ export default async function StudentProfilePage(props: PageProps) {
   const avgScore = readNum(cd, 'avgScore') ?? readNum(cd, 'averageScore');
   const rankBand = readStr(cd, 'rankBand') || readStr(cd, 'rank');
   const feeStatus = readStr(cd, 'feeStatus') || readStr(cd, 'feeClearanceStatus');
-  const attendancePct =
-    heatmap?.totalRecords ? heatmap.attendancePercentage : (attendance ?? null);
+  const attendancePct = heatmap?.totalRecords ? heatmap.attendancePercentage : (attendance ?? null);
 
   return (
     <section aria-labelledby="student-profile-heading" className="space-y-0">

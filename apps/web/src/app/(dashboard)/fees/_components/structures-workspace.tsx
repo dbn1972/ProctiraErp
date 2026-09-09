@@ -133,7 +133,14 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
                 <Input id="st-amount" name="amount" type="number" min="0" step="0.01" required />
               </FormField>
               <FormField id="st-parts" label="Instalments">
-                <Input id="st-parts" name="partCount" type="number" min="1" max="24" defaultValue="1" />
+                <Input
+                  id="st-parts"
+                  name="partCount"
+                  type="number"
+                  min="1"
+                  max="24"
+                  defaultValue="1"
+                />
               </FormField>
               <FormField id="st-class" label="Class UUID">
                 <Input id="st-class" name="classId" />
@@ -200,7 +207,11 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
               </p>
             ) : null}
             <div className="sm:col-span-2">
-              <Button type="submit" disabled={!hydrated || pending || structures.length === 0} data-testid="submit-bulk-invoice">
+              <Button
+                type="submit"
+                disabled={!hydrated || pending || structures.length === 0}
+                data-testid="submit-bulk-invoice"
+              >
                 {pending ? 'Invoicing…' : 'Bulk invoice'}
               </Button>
             </div>
@@ -217,7 +228,11 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
         </CardHeader>
         <CardContent>
           {structures.length === 0 ? (
-            <p className="text-sm text-muted-foreground" role="status" data-testid="structures-empty">
+            <p
+              className="text-sm text-muted-foreground"
+              role="status"
+              data-testid="structures-empty"
+            >
               Create a structure to bulk-invoice a class or grade.
             </p>
           ) : (
@@ -230,7 +245,8 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
                   data-structure-code={row.code}
                 >
                   <p className="text-sm font-medium text-foreground">
-                    {row.name} <span className="font-normal text-muted-foreground">({row.code})</span>
+                    {row.name}{' '}
+                    <span className="font-normal text-muted-foreground">({row.code})</span>
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatAmount(row.amountCents, row.currency)} · {row.category}

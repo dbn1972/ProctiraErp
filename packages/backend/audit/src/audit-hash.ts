@@ -108,7 +108,13 @@ export function verifyEntrySequence(tenantId: string, entries: AuditLogEntry[]):
       break;
     }
     if (!entry.entryHash) {
-      brokenAt = { chainSeq: seq, entryId: entry.id, reason: 'missing-hash', expected: null, actual: null };
+      brokenAt = {
+        chainSeq: seq,
+        entryId: entry.id,
+        reason: 'missing-hash',
+        expected: null,
+        actual: null,
+      };
       break;
     }
     if ((entry.prevHash ?? null) !== prevHash) {

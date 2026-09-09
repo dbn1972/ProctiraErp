@@ -24,10 +24,7 @@ import { getBoundAttendanceHeatmapSource } from './students-360/attendance-bridg
 import { createStudentBlobStore, type StudentBlobStore } from './students-360/blob-store.js';
 import { createStudents360Store } from './students-360/create-store.js';
 import { registerStudents360Routes } from './students-360/routes.js';
-import {
-  Students360Service,
-  type AttendanceHeatmapSource,
-} from './students-360/service.js';
+import { Students360Service, type AttendanceHeatmapSource } from './students-360/service.js';
 import type { Students360Store } from './students-360/store.js';
 
 /**

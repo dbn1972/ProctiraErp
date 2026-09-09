@@ -207,7 +207,6 @@ export async function registerGradebookRoutes(
     }
   });
 
-
   fastify.post(`${prefix}/entries/bulk-transition`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
@@ -247,7 +246,11 @@ export async function registerGradebookRoutes(
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
     try {
-      const query = request.query as { subjectId?: string; gradeBand?: string; institutionId?: string };
+      const query = request.query as {
+        subjectId?: string;
+        gradeBand?: string;
+        institutionId?: string;
+      };
       const rows = await service.listCommentsBank(tenantId, query);
       return reply.send({ data: rows });
     } catch (error) {

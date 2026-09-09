@@ -5,11 +5,7 @@ import Link from 'next/link';
 
 import { ArrowLeft } from 'lucide-react';
 
-import {
-  Button,
-  Card,
-  CardContent,
-} from '@proctira/ui/components';
+import { Button, Card, CardContent } from '@proctira/ui/components';
 import {
   listGradebookSections,
   listPublishedGradeEntries,
@@ -23,7 +19,9 @@ export const dynamic = 'force-dynamic';
 
 export default async function AssessmentReportCardsPage() {
   const [institutions, jobsResult] = await Promise.all([
-    listInstitutions({ pageSize: 50 }).catch(() => ({ data: [] as Array<{ id: string; name: string }> })),
+    listInstitutions({ pageSize: 50 }).catch(() => ({
+      data: [] as Array<{ id: string; name: string }>,
+    })),
     listReportCardJobs(),
   ]);
   const jobs = jobsResult.ok ? jobsResult.data : [];

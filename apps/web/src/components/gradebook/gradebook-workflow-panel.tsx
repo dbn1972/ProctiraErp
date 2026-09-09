@@ -191,7 +191,10 @@ export function GradebookWorkflowPanel({
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[52rem] text-start text-sm" data-testid="gradebook-entries">
+          <table
+            className="w-full min-w-[52rem] text-start text-sm"
+            data-testid="gradebook-entries"
+          >
             <thead>
               <tr className="border-b border-border text-muted-foreground">
                 <th className="py-2 pe-3 font-medium">
@@ -239,7 +242,9 @@ export function GradebookWorkflowPanel({
                     <td className="py-2 pe-3 text-xs" data-testid={`workflow-${row.id}`}>
                       {status}
                       {remark ? (
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">{remark}</span>
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                          {remark}
+                        </span>
                       ) : null}
                     </td>
                     <td className="py-2 pe-3 tabular-nums" data-testid={`rank-${row.studentId}`}>

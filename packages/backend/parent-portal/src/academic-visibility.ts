@@ -9,8 +9,7 @@
 export const STUDENT_SELF_BINDING_ASSUMPTION =
   'students has no user_id column; resolve via custom_data.user_id / custom_data.email, else JWT sub as students.id when the sub is a UUID';
 
-export const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type AcademicSource = 'postgres' | 'none';
 
@@ -115,11 +114,7 @@ export interface PalPlanItem {
 }
 
 export interface AcademicVisibilityStore {
-  resolveStudentId(
-    tenantId: string,
-    userId: string,
-    email?: string | null,
-  ): Promise<string | null>;
+  resolveStudentId(tenantId: string, userId: string, email?: string | null): Promise<string | null>;
   getAttendance(tenantId: string, studentId: string): Promise<AttendancePayload>;
   getGrades(tenantId: string, studentId: string): Promise<GradesPayload>;
   getTimetable(tenantId: string, studentId: string): Promise<AcademicList<TimetableSlot>>;
@@ -147,7 +142,14 @@ export function emptyAcademicList<T>(studentId: string): AcademicList<T> {
 }
 
 export function summariseAttendance(days: AttendanceDay[]): AttendanceSummary {
-  const summary: AttendanceSummary = { ...EMPTY_ATTENDANCE_SUMMARY, present: 0, absent: 0, late: 0, excused: 0, other: 0 };
+  const summary: AttendanceSummary = {
+    ...EMPTY_ATTENDANCE_SUMMARY,
+    present: 0,
+    absent: 0,
+    late: 0,
+    excused: 0,
+    other: 0,
+  };
   for (const day of days) {
     const status = day.status.toLowerCase();
     if (status === 'present') summary.present += 1;

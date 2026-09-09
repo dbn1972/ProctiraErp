@@ -51,9 +51,11 @@ export async function registerAcademicCalendarRoutes(
     async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
       const tenantId = tenantOf(request);
       if (!tenantId) {
-        return reply
-          .status(400)
-          .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
       }
       try {
         const events = await service.listEvents(tenantId, request.params.id);
@@ -72,9 +74,11 @@ export async function registerAcademicCalendarRoutes(
     ) => {
       const tenantId = tenantOf(request);
       if (!tenantId) {
-        return reply
-          .status(400)
-          .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
       }
       const body = validate(CreateCalendarEventSchema, request.body);
       if (!body.success) {
@@ -102,9 +106,11 @@ export async function registerAcademicCalendarRoutes(
     ) => {
       const tenantId = tenantOf(request);
       if (!tenantId) {
-        return reply
-          .status(400)
-          .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
       }
       try {
         await service.removeEvent(tenantId, request.params.id, request.params.eventId);
@@ -123,9 +129,11 @@ export async function registerAcademicCalendarRoutes(
     ) => {
       const tenantId = tenantOf(request);
       if (!tenantId) {
-        return reply
-          .status(400)
-          .send({ code: 'TENANT_REQUIRED', message: 'Tenant context is required', statusCode: 400 });
+        return reply.status(400).send({
+          code: 'TENANT_REQUIRED',
+          message: 'Tenant context is required',
+          statusCode: 400,
+        });
       }
       const body = validate(RolloverRequestSchema, request.body ?? {});
       if (!body.success) {

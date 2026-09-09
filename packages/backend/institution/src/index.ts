@@ -123,10 +123,7 @@ export { registerAcademicPeriodRoutes } from './academic-period/academic-period-
 export { AcademicCalendarService } from './academic-calendar/calendar-service.js';
 export type { AcademicCalendarServiceDeps } from './academic-calendar/calendar-service.js';
 export { registerAcademicCalendarRoutes } from './academic-calendar/routes.js';
-export {
-  InMemoryCalendarStore,
-  PgCalendarStore,
-} from './academic-calendar/calendar-store.js';
+export { InMemoryCalendarStore, PgCalendarStore } from './academic-calendar/calendar-store.js';
 export type { CalendarStore, CalendarEventRecord } from './academic-calendar/calendar-store.js';
 export {
   CALENDAR_EVENT_KINDS,

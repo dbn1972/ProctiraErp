@@ -28,12 +28,13 @@ describe('gradebook routes G-907', () => {
     app.addHook('onRequest', async (request) => {
       const rolesHeader = request.headers['x-roles'];
       const roles = typeof rolesHeader === 'string' ? rolesHeader.split(',') : ['admin'];
-      (request as FastifyRequest & { user: { tenantId: string; id: string; roles: string[] } }).user =
-        {
-          tenantId: TENANT,
-          id: 'actor-1',
-          roles,
-        };
+      (
+        request as FastifyRequest & { user: { tenantId: string; id: string; roles: string[] } }
+      ).user = {
+        tenantId: TENANT,
+        id: 'actor-1',
+        roles,
+      };
     });
     await app.register(gradebookPlugin, {
       repository: repo,

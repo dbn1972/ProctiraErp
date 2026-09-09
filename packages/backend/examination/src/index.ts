@@ -195,7 +195,12 @@ export {
   isModeratorRole,
   conflictResponse,
 } from './ops-service.js';
-export type { ExamOpsActor, ExamOpsServiceDeps, AllocateOutcome, MarksPairView } from './ops-service.js';
+export type {
+  ExamOpsActor,
+  ExamOpsServiceDeps,
+  AllocateOutcome,
+  MarksPairView,
+} from './ops-service.js';
 export { InMemoryExamOpsStore, PgExamOpsStore } from './ops-store.js';
 export type { ExamOpsStore, ExamSessionRecord, ExamInvigilatorRecord } from './ops-store.js';
 export { registerExamOpsRoutes } from './ops-routes.js';

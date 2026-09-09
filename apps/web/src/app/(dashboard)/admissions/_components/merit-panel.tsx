@@ -78,33 +78,84 @@ export function MeritPanel({
             }}
           >
             <FormField id="merit-institution" label="Institution" required>
-              <select id="merit-institution" name="institutionId" data-testid="merit-institution" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" disabled={!hydrated || pending} defaultValue={institutions[0]?.id ?? ''}>
+              <select
+                id="merit-institution"
+                name="institutionId"
+                data-testid="merit-institution"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!hydrated || pending}
+                defaultValue={institutions[0]?.id ?? ''}
+              >
                 {institutions.map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
                 ))}
               </select>
             </FormField>
             <FormField id="merit-period" label="Period" required>
-              <select id="merit-period" name="academicPeriodId" data-testid="merit-period" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" disabled={!hydrated || pending} defaultValue={periods[0]?.id ?? ''}>
+              <select
+                id="merit-period"
+                name="academicPeriodId"
+                data-testid="merit-period"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!hydrated || pending}
+                defaultValue={periods[0]?.id ?? ''}
+              >
                 {periods.map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
                 ))}
               </select>
             </FormField>
             <FormField id="merit-grade" label="Grade" required>
-              <select id="merit-grade" name="gradeId" data-testid="merit-grade" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" disabled={!hydrated || pending} defaultValue={grades[0]?.id ?? ''}>
+              <select
+                id="merit-grade"
+                name="gradeId"
+                data-testid="merit-grade"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                disabled={!hydrated || pending}
+                defaultValue={grades[0]?.id ?? ''}
+              >
                 {grades.map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
                 ))}
               </select>
             </FormField>
             <FormField id="merit-interview" label="Interview weight">
-              <Input id="merit-interview" name="interviewWeight" type="number" step="0.05" min={0} max={1} defaultValue="0.4" data-testid="merit-interview-weight" disabled={!hydrated || pending} />
+              <Input
+                id="merit-interview"
+                name="interviewWeight"
+                type="number"
+                step="0.05"
+                min={0}
+                max={1}
+                defaultValue="0.4"
+                data-testid="merit-interview-weight"
+                disabled={!hydrated || pending}
+              />
             </FormField>
             <FormField id="merit-test" label="Test weight">
-              <Input id="merit-test" name="testWeight" type="number" step="0.05" min={0} max={1} defaultValue="0.6" data-testid="merit-test-weight" disabled={!hydrated || pending} />
+              <Input
+                id="merit-test"
+                name="testWeight"
+                type="number"
+                step="0.05"
+                min={0}
+                max={1}
+                defaultValue="0.6"
+                data-testid="merit-test-weight"
+                disabled={!hydrated || pending}
+              />
             </FormField>
-            {error ? <p className="text-sm text-destructive sm:col-span-2" role="alert">{error}</p> : null}
+            {error ? (
+              <p className="text-sm text-destructive sm:col-span-2" role="alert">
+                {error}
+              </p>
+            ) : null}
             <div className="sm:col-span-2 lg:col-span-5">
               <Button type="submit" data-testid="generate-merit" disabled={!hydrated || pending}>
                 {pending ? 'Generating…' : 'Generate ranking'}
@@ -118,7 +169,9 @@ export function MeritPanel({
         <CardHeader>
           <CardTitle className="text-base">Ranked applicants</CardTitle>
           <CardDescription>
-            {list ? `${list.entries.length} applicant(s).` : 'Generate a list to rank placed applications.'}
+            {list
+              ? `${list.entries.length} applicant(s).`
+              : 'Generate a list to rank placed applications.'}
           </CardDescription>
         </CardHeader>
         <CardContent>

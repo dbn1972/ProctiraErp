@@ -147,7 +147,9 @@ export class InMemoryStudents360Store implements Students360Store {
   async upsertConsent(record: ConsentRecord): Promise<ConsentRecord> {
     const existing = Array.from(this.consents.values()).find(
       (r) =>
-        r.tenantId === record.tenantId && r.studentId === record.studentId && r.kind === record.kind,
+        r.tenantId === record.tenantId &&
+        r.studentId === record.studentId &&
+        r.kind === record.kind,
     );
     const stored: ConsentRecord = existing ? { ...record, id: existing.id } : { ...record };
     if (existing) this.consents.delete(existing.id);
@@ -158,7 +160,11 @@ export class InMemoryStudents360Store implements Students360Store {
   async listDiscipline(tenantId: string, studentId: string): Promise<DisciplineRecord[]> {
     return Array.from(this.discipline.values())
       .filter((r) => r.tenantId === tenantId && r.studentId === studentId)
-      .sort((a, b) => b.incidentDate.localeCompare(a.incidentDate) || b.createdAt.getTime() - a.createdAt.getTime());
+      .sort(
+        (a, b) =>
+          b.incidentDate.localeCompare(a.incidentDate) ||
+          b.createdAt.getTime() - a.createdAt.getTime(),
+      );
   }
 
   async createDiscipline(record: DisciplineRecord): Promise<DisciplineRecord> {

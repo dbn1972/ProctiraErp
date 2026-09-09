@@ -302,10 +302,7 @@ export interface FeesRepository {
     rows: Omit<FeeReconciliationRowEntity, 'createdAt'>[],
   ): Promise<FeeReconciliationRowEntity[]>;
   listReconciliationBatches(tenantId: string): Promise<FeeReconciliationBatchEntity[]>;
-  listReconciliationRows(
-    tenantId: string,
-    batchId: string,
-  ): Promise<FeeReconciliationRowEntity[]>;
+  listReconciliationRows(tenantId: string, batchId: string): Promise<FeeReconciliationRowEntity[]>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;

@@ -15,10 +15,7 @@ import type {
   OfferRecord,
   SeatMatrixRecord,
 } from './pipeline-store.js';
-import {
-  rankCandidates,
-  type MeritWeights,
-} from './ranking.js';
+import { rankCandidates, type MeritWeights } from './ranking.js';
 import type {
   AcceptOfferDto,
   CreateEnquiryDto,
@@ -566,10 +563,7 @@ export class AdmissionsPipelineService {
     return row;
   }
 
-  private async requireApplication(
-    tenantId: string,
-    id: string,
-  ): Promise<RegistrationEntity> {
+  private async requireApplication(tenantId: string, id: string): Promise<RegistrationEntity> {
     const row = await this.applications.findById(id, tenantId);
     if (!row || row.tenantId !== tenantId) {
       throw new NotFoundError(`Application '${id}' not found`);

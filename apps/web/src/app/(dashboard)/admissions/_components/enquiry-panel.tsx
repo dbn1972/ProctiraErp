@@ -139,20 +139,51 @@ export function EnquiryPanel({
             </FormField>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField id="enq-first" label="First name" required>
-                <Input id="enq-first" name="firstName" data-testid="enquiry-first-name" required disabled={!hydrated || pending} />
+                <Input
+                  id="enq-first"
+                  name="firstName"
+                  data-testid="enquiry-first-name"
+                  required
+                  disabled={!hydrated || pending}
+                />
               </FormField>
               <FormField id="enq-last" label="Last name" required>
-                <Input id="enq-last" name="lastName" data-testid="enquiry-last-name" required disabled={!hydrated || pending} />
+                <Input
+                  id="enq-last"
+                  name="lastName"
+                  data-testid="enquiry-last-name"
+                  required
+                  disabled={!hydrated || pending}
+                />
               </FormField>
             </div>
             <FormField id="enq-dob" label="Date of birth" required>
-              <Input id="enq-dob" name="dateOfBirth" type="date" data-testid="enquiry-dob" required disabled={!hydrated || pending} />
+              <Input
+                id="enq-dob"
+                name="dateOfBirth"
+                type="date"
+                data-testid="enquiry-dob"
+                required
+                disabled={!hydrated || pending}
+              />
             </FormField>
             <FormField id="enq-guardian" label="Guardian" required>
-              <Input id="enq-guardian" name="guardianName" data-testid="enquiry-guardian" required disabled={!hydrated || pending} />
+              <Input
+                id="enq-guardian"
+                name="guardianName"
+                data-testid="enquiry-guardian"
+                required
+                disabled={!hydrated || pending}
+              />
             </FormField>
             <FormField id="enq-phone" label="Guardian phone" required>
-              <Input id="enq-phone" name="guardianPhone" data-testid="enquiry-phone" required disabled={!hydrated || pending} />
+              <Input
+                id="enq-phone"
+                name="guardianPhone"
+                data-testid="enquiry-phone"
+                required
+                disabled={!hydrated || pending}
+              />
             </FormField>
             <FormField id="enq-source" label="Source">
               <select
@@ -172,10 +203,28 @@ export function EnquiryPanel({
             </FormField>
             <div className="grid gap-3 sm:grid-cols-2">
               <FormField id="enq-interview" label="Interview score">
-                <Input id="enq-interview" name="interviewScore" type="number" min={0} max={100} defaultValue={0} data-testid="enquiry-interview-score" disabled={!hydrated || pending} />
+                <Input
+                  id="enq-interview"
+                  name="interviewScore"
+                  type="number"
+                  min={0}
+                  max={100}
+                  defaultValue={0}
+                  data-testid="enquiry-interview-score"
+                  disabled={!hydrated || pending}
+                />
               </FormField>
               <FormField id="enq-test" label="Test score">
-                <Input id="enq-test" name="testScore" type="number" min={0} max={100} defaultValue={0} data-testid="enquiry-test-score" disabled={!hydrated || pending} />
+                <Input
+                  id="enq-test"
+                  name="testScore"
+                  type="number"
+                  min={0}
+                  max={100}
+                  defaultValue={0}
+                  data-testid="enquiry-test-score"
+                  disabled={!hydrated || pending}
+                />
               </FormField>
             </div>
             <input type="hidden" name="quota" value="general" />
@@ -206,7 +255,11 @@ export function EnquiryPanel({
           ) : (
             <ul className="divide-y divide-border" role="list">
               {enquiries.map((row) => (
-                <li key={row.id} className="space-y-3 py-3 first:pt-0 last:pb-0" data-testid="enquiry-row">
+                <li
+                  key={row.id}
+                  className="space-y-3 py-3 first:pt-0 last:pb-0"
+                  data-testid="enquiry-row"
+                >
                   <p className="text-sm font-medium">
                     {row.firstName} {row.lastName} · {row.stage}
                   </p>
@@ -234,14 +287,22 @@ export function EnquiryPanel({
                         className="mt-1 flex h-10 rounded-md border border-input bg-background px-2 text-sm"
                         disabled={!hydrated || pending}
                       >
-                        {['new', 'contacted', 'qualified', 'applied', 'lost', 'waitlisted'].map((stage) => (
-                          <option key={stage} value={stage}>
-                            {stage}
-                          </option>
-                        ))}
+                        {['new', 'contacted', 'qualified', 'applied', 'lost', 'waitlisted'].map(
+                          (stage) => (
+                            <option key={stage} value={stage}>
+                              {stage}
+                            </option>
+                          ),
+                        )}
                       </select>
                     </label>
-                    <Button type="submit" variant="outline" size="sm" data-testid="enquiry-stage-save" disabled={!hydrated || pending}>
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="sm"
+                      data-testid="enquiry-stage-save"
+                      disabled={!hydrated || pending}
+                    >
                       Save stage
                     </Button>
                   </form>
@@ -262,15 +323,38 @@ export function EnquiryPanel({
                     }}
                   >
                     <FormField id={`due-${row.id}`} label="Follow-up due">
-                      <Input id={`due-${row.id}`} name="dueAt" type="datetime-local" data-testid="followup-due" disabled={!hydrated || pending} required />
+                      <Input
+                        id={`due-${row.id}`}
+                        name="dueAt"
+                        type="datetime-local"
+                        data-testid="followup-due"
+                        disabled={!hydrated || pending}
+                        required
+                      />
                     </FormField>
                     <FormField id={`owner-${row.id}`} label="Owner">
-                      <Input id={`owner-${row.id}`} name="ownerId" data-testid="followup-owner" disabled={!hydrated || pending} />
+                      <Input
+                        id={`owner-${row.id}`}
+                        name="ownerId"
+                        data-testid="followup-owner"
+                        disabled={!hydrated || pending}
+                      />
                     </FormField>
                     <FormField id={`notes-${row.id}`} label="Notes">
-                      <Input id={`notes-${row.id}`} name="notes" data-testid="followup-notes" disabled={!hydrated || pending} />
+                      <Input
+                        id={`notes-${row.id}`}
+                        name="notes"
+                        data-testid="followup-notes"
+                        disabled={!hydrated || pending}
+                      />
                     </FormField>
-                    <Button type="submit" variant="outline" size="sm" data-testid="add-followup" disabled={!hydrated || pending}>
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      size="sm"
+                      data-testid="add-followup"
+                      disabled={!hydrated || pending}
+                    >
                       Add follow-up
                     </Button>
                   </form>

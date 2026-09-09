@@ -24,7 +24,8 @@ export default async function StudentGradesPage() {
         {grades.map((grade) => (
           <li key={grade.id} className="py-3 first:pt-0 last:pb-0">
             <p className="text-sm font-medium text-foreground">
-              {grade.assessmentCode ?? 'Assessment'} · {grade.letterGrade ?? grade.numericScore ?? '—'}
+              {grade.assessmentCode ?? 'Assessment'} ·{' '}
+              {grade.letterGrade ?? grade.numericScore ?? '—'}
             </p>
           </li>
         ))}

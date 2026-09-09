@@ -294,13 +294,17 @@ function ChainIntegrityCard({ verification }: { verification: AuditChainVerifica
           <dd className="tabular-nums">{verification.legacyEntries.toLocaleString()}</dd>
           <dt className="text-muted-foreground">Head</dt>
           <dd className="truncate font-mono text-xs" title={verification.headHash ?? ''}>
-            #{verification.headSeq} {verification.headHash ? verification.headHash.slice(0, 16) : '—'}
+            #{verification.headSeq}{' '}
+            {verification.headHash ? verification.headHash.slice(0, 16) : '—'}
           </dd>
           <dt className="text-muted-foreground">Checked at (UTC)</dt>
           <dd className="tabular-nums">{formatTimestamp(verification.verifiedAt)}</dd>
         </dl>
         {verification.brokenAt ? (
-          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
+          <p
+            role="alert"
+            className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs"
+          >
             Break at position #{verification.brokenAt.chainSeq} (entry{' '}
             <span className="font-mono">{verification.brokenAt.entryId}</span>):{' '}
             {verification.brokenAt.reason}. Treat every later entry as unverified and escalate to

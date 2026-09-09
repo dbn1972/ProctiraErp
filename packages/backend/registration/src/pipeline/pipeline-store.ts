@@ -261,7 +261,10 @@ export class InMemoryAdmissionsPipelineStore implements AdmissionsPipelineStore 
     return clone(placement);
   }
 
-  async getPlacement(tenantId: string, applicationId: string): Promise<ApplicationPlacement | null> {
+  async getPlacement(
+    tenantId: string,
+    applicationId: string,
+  ): Promise<ApplicationPlacement | null> {
     const row = this.placements.get(`${tenantId}:${applicationId}`);
     return row ? clone(row) : null;
   }

@@ -307,7 +307,9 @@ export async function getSelfGrades() {
 }
 
 export async function getSelfTimetable() {
-  return fetchAcademic<{ data: TimetableSlot[]; meta: AcademicMeta }>('/student-portal/me/timetable');
+  return fetchAcademic<{ data: TimetableSlot[]; meta: AcademicMeta }>(
+    '/student-portal/me/timetable',
+  );
 }
 
 export async function getSelfHomework() {

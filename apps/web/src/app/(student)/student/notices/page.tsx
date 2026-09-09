@@ -23,7 +23,9 @@ export default async function StudentNoticesPage() {
         {notices.map((notice) => (
           <li key={notice.id} className="py-3 first:pt-0 last:pb-0">
             <p className="text-sm font-medium text-foreground">{notice.title}</p>
-            {notice.body ? <p className="mt-1 text-sm text-muted-foreground">{notice.body}</p> : null}
+            {notice.body ? (
+              <p className="mt-1 text-sm text-muted-foreground">{notice.body}</p>
+            ) : null}
           </li>
         ))}
       </ul>

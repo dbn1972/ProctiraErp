@@ -230,9 +230,12 @@ export async function getCurriculumCoverage(filters: {
       academicPeriodId: filters.academicPeriodId,
     });
     if (filters.institutionId) params.set('institutionId', filters.institutionId);
-    const result = await gatewayFetch<CoverageSummary>(`/curriculum/coverage?${params.toString()}`, {
-      next: { revalidate: 0 },
-    });
+    const result = await gatewayFetch<CoverageSummary>(
+      `/curriculum/coverage?${params.toString()}`,
+      {
+        next: { revalidate: 0 },
+      },
+    );
     if (!result.data) {
       return { ok: false, error: 'Empty coverage response', status: result.status };
     }

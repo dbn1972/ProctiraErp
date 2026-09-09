@@ -9,9 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-const DASHBOARD_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-);
+const DASHBOARD_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 
 function walkPages(dir: string): string[] {
   const out: string[] = [];
@@ -27,9 +25,7 @@ function walkPages(dir: string): string[] {
 }
 
 function isRedirectOnly(source: string): boolean {
-  const withoutComments = source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
+  const withoutComments = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   if (!withoutComments.includes('redirect(')) return false;
   // No meaningful UI markup beyond the redirect shell.
   const hasUi =

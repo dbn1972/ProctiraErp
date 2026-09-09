@@ -12,7 +12,12 @@ import {
   listSyllabusUnits,
   type LessonPlan,
 } from '@/lib/api/curriculum';
-import { listAcademicPeriods, listGrades, listSubjects, type SubjectSummary } from '@/lib/institutions/api';
+import {
+  listAcademicPeriods,
+  listGrades,
+  listSubjects,
+  type SubjectSummary,
+} from '@/lib/institutions/api';
 import type { AcademicPeriod, Grade } from '@/lib/institutions/types';
 
 export const dynamic = 'force-dynamic';

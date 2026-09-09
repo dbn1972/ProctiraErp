@@ -305,11 +305,14 @@ export interface CurriculumOutcome {
 
 export async function listOutcomes(subjectId: string): Promise<CurriculumOutcome[]> {
   const params = new URLSearchParams({ subjectId });
-  const result = await gatewayFetch<{ data: CurriculumOutcome[] }>(`/outcomes?${params.toString()}`, {
-    method: 'GET',
-    throwOnError: false,
-    next: { revalidate: 0 },
-  });
+  const result = await gatewayFetch<{ data: CurriculumOutcome[] }>(
+    `/outcomes?${params.toString()}`,
+    {
+      method: 'GET',
+      throwOnError: false,
+      next: { revalidate: 0 },
+    },
+  );
   return result.ok && result.data ? (result.data.data ?? []) : [];
 }
 

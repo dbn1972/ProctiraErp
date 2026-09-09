@@ -63,10 +63,16 @@ export function RefundDialog({
         Refund
       </Button>
       <DialogContent>
-        <form onSubmit={onSubmit} data-testid="refund-form" data-hydrated={hydrated ? 'true' : 'false'}>
+        <form
+          onSubmit={onSubmit}
+          data-testid="refund-form"
+          data-hydrated={hydrated ? 'true' : 'false'}
+        >
           <DialogHeader>
             <DialogTitle>Record refund</DialogTitle>
-            <DialogDescription>Cannot exceed the amount already paid on this invoice.</DialogDescription>
+            <DialogDescription>
+              Cannot exceed the amount already paid on this invoice.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-3">
             <FormField id="refund-amount" label="Amount (INR)" required>

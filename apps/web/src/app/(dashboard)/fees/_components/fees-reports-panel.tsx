@@ -79,10 +79,12 @@ export function FeesReportsPanel({ report }: { report: DuesReport }) {
             <ul className="divide-y divide-border" role="list">
               {report.byClass.map((row) => (
                 <li key={row.classId} className="py-2" data-testid="dues-class-row">
-                  <p className="text-sm font-medium text-foreground">Class {row.classId.slice(0, 8)}…</p>
+                  <p className="text-sm font-medium text-foreground">
+                    Class {row.classId.slice(0, 8)}…
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    Open {row.openCount} ({formatAmount(row.openCents)}) · Overdue {row.overdueCount} (
-                    {formatAmount(row.overdueCents)})
+                    Open {row.openCount} ({formatAmount(row.openCents)}) · Overdue{' '}
+                    {row.overdueCount} ({formatAmount(row.overdueCents)})
                   </p>
                 </li>
               ))}
@@ -127,7 +129,13 @@ export function FeesReportsPanel({ report }: { report: DuesReport }) {
             data-hydrated={hydrated ? 'true' : 'false'}
           >
             <FormField id="recon-csv" label="CSV" required>
-              <Textarea id="recon-csv" name="csv" rows={6} required disabled={!hydrated || pending} />
+              <Textarea
+                id="recon-csv"
+                name="csv"
+                rows={6}
+                required
+                disabled={!hydrated || pending}
+              />
             </FormField>
             {error ? (
               <p className="text-sm text-destructive" role="alert">
@@ -135,7 +143,11 @@ export function FeesReportsPanel({ report }: { report: DuesReport }) {
               </p>
             ) : null}
             {summary ? (
-              <p className="text-sm text-muted-foreground" role="status" data-testid="recon-summary">
+              <p
+                className="text-sm text-muted-foreground"
+                role="status"
+                data-testid="recon-summary"
+              >
                 {summary}
               </p>
             ) : null}

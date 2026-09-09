@@ -75,9 +75,7 @@ export default async function InstitutionGradebookPage(props: PageProps) {
     : { ok: true as const, data: [] };
   const entries = entriesResult.ok ? entriesResult.data : [];
   const entryError = entriesResult.ok ? null : entriesResult.error;
-  const ranksResult = sectionId
-    ? await listClassRanks(sectionId)
-    : { ok: true as const, data: [] };
+  const ranksResult = sectionId ? await listClassRanks(sectionId) : { ok: true as const, data: [] };
   const ranks = ranksResult.ok ? ranksResult.data : [];
 
   const boardId = scales.find((s) => s.isDefault)?.boardId ?? scales[0]?.boardId ?? '';

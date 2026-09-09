@@ -53,10 +53,16 @@ const inviteSchema = z.object({
   roleIds: z.array(z.string().min(1)).max(20),
 });
 
-export async function inviteUserAction(input: z.input<typeof inviteSchema>): Promise<AdminActionState> {
+export async function inviteUserAction(
+  input: z.input<typeof inviteSchema>,
+): Promise<AdminActionState> {
   const parsed = inviteSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: 'Validation failed', fieldErrors: flatten(parsed.error.flatten().fieldErrors) };
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: flatten(parsed.error.flatten().fieldErrors),
+    };
   }
   try {
     await inviteTenantUser(parsed.data);
@@ -67,7 +73,10 @@ export async function inviteUserAction(input: z.input<typeof inviteSchema>): Pro
   }
 }
 
-export async function setUserRolesAction(userId: string, roleIds: string[]): Promise<AdminActionState> {
+export async function setUserRolesAction(
+  userId: string,
+  roleIds: string[],
+): Promise<AdminActionState> {
   if (!userId) return { status: 'error', message: 'Missing user' };
   try {
     await setTenantUserRoles(userId, roleIds);
@@ -86,7 +95,10 @@ export async function setUserStatusAction(
   try {
     await setTenantUserStatus(userId, status);
     revalidatePath('/admin/users');
-    return { status: 'success', message: status === 'SUSPENDED' ? 'User suspended' : 'User reactivated' };
+    return {
+      status: 'success',
+      message: status === 'SUSPENDED' ? 'User suspended' : 'User reactivated',
+    };
   } catch (error) {
     return fail(error, 'Could not change status');
   }
@@ -98,10 +110,16 @@ const roleSchema = z.object({
   permissions: z.array(permissionSchema).min(1, 'Grant at least one permission'),
 });
 
-export async function createRoleAction(input: z.input<typeof roleSchema>): Promise<AdminActionState> {
+export async function createRoleAction(
+  input: z.input<typeof roleSchema>,
+): Promise<AdminActionState> {
   const parsed = roleSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: 'Validation failed', fieldErrors: flatten(parsed.error.flatten().fieldErrors) };
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: flatten(parsed.error.flatten().fieldErrors),
+    };
   }
   try {
     await createTenantRole(parsed.data);
@@ -119,7 +137,11 @@ export async function updateRoleAction(
 ): Promise<AdminActionState> {
   const parsed = roleSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: 'Validation failed', fieldErrors: flatten(parsed.error.flatten().fieldErrors) };
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: flatten(parsed.error.flatten().fieldErrors),
+    };
   }
   try {
     await updateTenantRole(id, parsed.data);
@@ -164,7 +186,11 @@ export async function saveTenantSettingsAction(
 ): Promise<AdminActionState> {
   const parsed = settingsSchema.safeParse(input);
   if (!parsed.success) {
-    return { status: 'error', message: 'Validation failed', fieldErrors: flatten(parsed.error.flatten().fieldErrors) };
+    return {
+      status: 'error',
+      message: 'Validation failed',
+      fieldErrors: flatten(parsed.error.flatten().fieldErrors),
+    };
   }
   if (!parsed.data.supportedLocales.includes(parsed.data.defaultLocale)) {
     return {

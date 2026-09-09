@@ -91,10 +91,18 @@ export function aggregateAttendanceHeatmap(
   });
 
   const totalRecords = records.filter((r) => r.date >= from && r.date <= to).length;
-  const presentCount = records.filter((r) => r.date >= from && r.date <= to && r.status === 'PRESENT').length;
-  const absentCount = records.filter((r) => r.date >= from && r.date <= to && r.status === 'ABSENT').length;
-  const lateCount = records.filter((r) => r.date >= from && r.date <= to && r.status === 'LATE').length;
-  const excusedCount = records.filter((r) => r.date >= from && r.date <= to && r.status === 'EXCUSED').length;
+  const presentCount = records.filter(
+    (r) => r.date >= from && r.date <= to && r.status === 'PRESENT',
+  ).length;
+  const absentCount = records.filter(
+    (r) => r.date >= from && r.date <= to && r.status === 'ABSENT',
+  ).length;
+  const lateCount = records.filter(
+    (r) => r.date >= from && r.date <= to && r.status === 'LATE',
+  ).length;
+  const excusedCount = records.filter(
+    (r) => r.date >= from && r.date <= to && r.status === 'EXCUSED',
+  ).length;
   const attendancePercentage =
     totalRecords === 0 ? 0 : Math.round(((presentCount + lateCount) / totalRecords) * 10000) / 100;
   const absencePercentage =

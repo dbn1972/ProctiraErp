@@ -18,7 +18,11 @@ describe('grade workflow state machine', () => {
 
   it('reads PUBLISHED when publishedAt is set', () => {
     expect(
-      readGradeWorkflowStatus({ workflowStatus: 'LOCKED' }, '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'),
+      readGradeWorkflowStatus(
+        { workflowStatus: 'LOCKED' },
+        '2026-01-01T00:00:00Z',
+        '2026-01-02T00:00:00Z',
+      ),
     ).toBe('PUBLISHED');
     expect(isGradePublished({ published: true })).toBe(true);
     expect(isGradePublished({ workflowStatus: 'DRAFT' })).toBe(false);

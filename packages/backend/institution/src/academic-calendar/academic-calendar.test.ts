@@ -251,7 +251,10 @@ describe('G-905 academic calendar', () => {
       });
       expect(examWindow.statusCode).toBe(201);
 
-      const list = await app.inject({ method: 'GET', url: `/academic-periods/${year.id}/calendar` });
+      const list = await app.inject({
+        method: 'GET',
+        url: `/academic-periods/${year.id}/calendar`,
+      });
       expect(list.statusCode).toBe(200);
       expect(list.json().data.map((e: { name: string }) => e.name)).toEqual([
         'Diwali',
@@ -264,7 +267,10 @@ describe('G-905 academic calendar', () => {
       });
       expect(removed.statusCode).toBe(204);
 
-      const after = await app.inject({ method: 'GET', url: `/academic-periods/${year.id}/calendar` });
+      const after = await app.inject({
+        method: 'GET',
+        url: `/academic-periods/${year.id}/calendar`,
+      });
       expect(after.json().data).toHaveLength(1);
     });
 
@@ -334,7 +340,10 @@ describe('G-905 academic calendar', () => {
       });
       expect(foreignDelete.statusCode).toBe(404);
 
-      const ownList = await app.inject({ method: 'GET', url: `/academic-periods/${year.id}/calendar` });
+      const ownList = await app.inject({
+        method: 'GET',
+        url: `/academic-periods/${year.id}/calendar`,
+      });
       expect(ownList.json().data).toHaveLength(1);
     });
   });
@@ -404,7 +413,12 @@ describe('G-905 academic calendar', () => {
 
     it('dry-runs by default and reports the plan without writing', async () => {
       const { institutionId, source, target, g7, classIds } = await seedYearWithSections();
-      await seedEnrollment({ institutionId, periodId: source.id, gradeId: g7, classId: classIds['7-A']! });
+      await seedEnrollment({
+        institutionId,
+        periodId: source.id,
+        gradeId: g7,
+        classId: classIds['7-A']!,
+      });
 
       const plan = await app.inject({
         method: 'POST',
@@ -417,7 +431,13 @@ describe('G-905 academic calendar', () => {
         sourcePeriodId: source.id,
         targetPeriodId: target.id,
         classes: { toCreate: 3, existing: 0, created: 0 },
-        enrollments: { considered: 1, toPromote: 1, promoted: 0, graduating: 0, alreadyInTarget: 0 },
+        enrollments: {
+          considered: 1,
+          toPromote: 1,
+          promoted: 0,
+          graduating: 0,
+          alreadyInTarget: 0,
+        },
       });
 
       const targetClasses = await app.inject({
@@ -459,27 +479,34 @@ describe('G-905 academic calendar', () => {
       expect(run.json()).toMatchObject({
         dryRun: false,
         classes: { toCreate: 3, existing: 0, created: 3 },
-        enrollments: { considered: 2, toPromote: 1, promoted: 1, graduating: 1, alreadyInTarget: 0 },
+        enrollments: {
+          considered: 2,
+          toPromote: 1,
+          promoted: 1,
+          graduating: 1,
+          alreadyInTarget: 0,
+        },
       });
 
       const targetClasses = await app.inject({
         method: 'GET',
         url: `/classes?institutionId=${institutionId}&academicPeriodId=${target.id}`,
       });
-      expect(targetClasses.json().map((c: { name: string }) => c.name).sort()).toEqual([
-        '7-A',
-        '7-B',
-        '8-A',
-      ]);
+      expect(
+        targetClasses
+          .json()
+          .map((c: { name: string }) => c.name)
+          .sort(),
+      ).toEqual(['7-A', '7-B', '8-A']);
 
       const targetEnrollments = (await deps.prisma.enrollment.findMany({
         where: { tenantId: TENANT_A, academicPeriodId: target.id },
       })) as Array<{ studentId: string; gradeId: string; classId: string | null }>;
       expect(targetEnrollments).toHaveLength(1);
       expect(targetEnrollments[0]).toMatchObject({ studentId: promoted, gradeId: g8 });
-      const eightA = targetClasses
-        .json()
-        .find((c: { name: string }) => c.name === '8-A') as { id: string };
+      const eightA = targetClasses.json().find((c: { name: string }) => c.name === '8-A') as {
+        id: string;
+      };
       expect(targetEnrollments[0]!.classId).toBe(eightA.id);
       expect(targetEnrollments.some((e) => e.studentId === graduating)).toBe(false);
 
@@ -491,7 +518,13 @@ describe('G-905 academic calendar', () => {
       expect(again.statusCode).toBe(200);
       expect(again.json()).toMatchObject({
         classes: { toCreate: 0, existing: 3, created: 0 },
-        enrollments: { considered: 2, toPromote: 0, promoted: 0, graduating: 1, alreadyInTarget: 1 },
+        enrollments: {
+          considered: 2,
+          toPromote: 0,
+          promoted: 0,
+          graduating: 1,
+          alreadyInTarget: 1,
+        },
       });
       expect(
         await deps.prisma.enrollment.count({

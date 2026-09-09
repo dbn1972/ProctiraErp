@@ -36,7 +36,9 @@ export const CreateLearningOutcomeSchema = Type.Object({
 export type CreateLearningOutcomeInput = Static<typeof CreateLearningOutcomeSchema>;
 
 export const MarkTaughtSchema = Type.Object({
-  timetableMeetingId: Type.Optional(Type.Union([Type.String({ pattern: UUID_PATTERN }), Type.Null()])),
+  timetableMeetingId: Type.Optional(
+    Type.Union([Type.String({ pattern: UUID_PATTERN }), Type.Null()]),
+  ),
   lmsSkillId: Type.Optional(Type.Union([Type.String({ pattern: UUID_PATTERN }), Type.Null()])),
 });
 export type MarkTaughtInput = Static<typeof MarkTaughtSchema>;

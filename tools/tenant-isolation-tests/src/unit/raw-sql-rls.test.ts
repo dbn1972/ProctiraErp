@@ -411,8 +411,7 @@ describe('Wave 9 examination ops raw-SQL RLS (036_examination_ops_schema.sql)', 
   });
 
   it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
-    const policies =
-      sql.match(/CREATE POLICY tenant_isolation ON exam_[a-z_]+[\s\S]*?;/g) ?? [];
+    const policies = sql.match(/CREATE POLICY tenant_isolation ON exam_[a-z_]+[\s\S]*?;/g) ?? [];
     expect(policies).toHaveLength(tables.length);
     for (const policy of policies) {
       expect(policy).toMatch(
@@ -436,7 +435,9 @@ describe('Wave 9 students 360 raw-SQL RLS (035_students_360_schema.sql)', () => 
 
   it('creates the four 360 tables with tenant_id and forces RLS on each', () => {
     for (const table of tables) {
-      const ddl = sql.match(new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`));
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
       expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
       expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
       expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));

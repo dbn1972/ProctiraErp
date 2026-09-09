@@ -56,7 +56,10 @@ const MODERATOR_ROLES = new Set([
 ]);
 
 export function normalizeRoleName(role: string): string {
-  return role.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return role
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
 }
 
 export function isModeratorRole(roles: string[]): boolean {
@@ -223,10 +226,18 @@ export class ExamOpsService {
     if (conflicts.length > 0) return { ok: false, conflicts };
 
     const saved = await this.store.createSession(session);
-    await this.audit(tenantId, examinationId, 'session.create', 'exam_session', saved.id, actor.userId, {
-      roomId: saved.roomId,
-      date: saved.date,
-    });
+    await this.audit(
+      tenantId,
+      examinationId,
+      'session.create',
+      'exam_session',
+      saved.id,
+      actor.userId,
+      {
+        roomId: saved.roomId,
+        date: saved.date,
+      },
+    );
     return { ok: true, session: saved };
   }
 
@@ -347,9 +358,7 @@ export class ExamOpsService {
         rollNumber: doc?.rollNumber ?? reg.id,
         centerId: reg.centerId,
         centerName: doc?.centerName ?? centerName.get(reg.centerId) ?? reg.centerId,
-        subjectNames:
-          doc?.subjectNames ??
-          reg.subjectIds.map((id) => subjectName.get(id) ?? id),
+        subjectNames: doc?.subjectNames ?? reg.subjectIds.map((id) => subjectName.get(id) ?? id),
       };
     });
 
@@ -406,8 +415,7 @@ export class ExamOpsService {
     return [...grouped.entries()].map(([, list]) => {
       const entry1 = list.find((e) => e.entryNo === 1) ?? null;
       const entry2 = list.find((e) => e.entryNo === 2) ?? null;
-      const variance =
-        entry1 && entry2 ? Math.abs(entry1.marks - entry2.marks) : null;
+      const variance = entry1 && entry2 ? Math.abs(entry1.marks - entry2.marks) : null;
       const finalMarks = entry1?.finalMarks ?? entry2?.finalMarks ?? null;
       return {
         candidateId: (entry1 ?? entry2)!.candidateId,
@@ -516,11 +524,7 @@ export class ExamOpsService {
   ): Promise<MarksPairView> {
     await this.requireExam(tenantId, examinationId);
     if (!isModeratorRole(actor.roles)) {
-      throw new AppError(
-        'Resolving marks variance requires a moderator role',
-        'FORBIDDEN',
-        403,
-      );
+      throw new AppError('Resolving marks variance requires a moderator role', 'FORBIDDEN', 403);
     }
     const pair = await this.store.findMarksPair(
       tenantId,
@@ -626,9 +630,7 @@ export class ExamOpsService {
       throw new NotFoundError(`Re-evaluation request '${requestId}' not found`);
     }
     if (existing.status !== 'requested') {
-      throw new BusinessRuleError(
-        `Cannot assign a re-evaluation in '${existing.status}' status`,
-      );
+      throw new BusinessRuleError(`Cannot assign a re-evaluation in '${existing.status}' status`);
     }
     const updated = await this.store.updateReevaluation(tenantId, requestId, {
       status: 'assigned',
@@ -660,9 +662,7 @@ export class ExamOpsService {
       throw new NotFoundError(`Re-evaluation request '${requestId}' not found`);
     }
     if (existing.status !== 'assigned') {
-      throw new BusinessRuleError(
-        `Cannot complete a re-evaluation in '${existing.status}' status`,
-      );
+      throw new BusinessRuleError(`Cannot complete a re-evaluation in '${existing.status}' status`);
     }
     const notes = [existing.notes, input.notes?.trim()].filter(Boolean).join('\n') || null;
     const updated = await this.store.updateReevaluation(tenantId, requestId, {

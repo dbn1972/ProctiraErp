@@ -94,10 +94,7 @@ export { registerGradebookRoutes } from './routes.js';
 export type { GradebookRoutesOptions } from './routes.js';
 export { createGradebookRepository } from './repository-factory.js';
 export { createGradebookExtrasStore } from './extras-factory.js';
-export {
-  InMemoryGradebookExtrasStore,
-  PgGradebookExtrasStore,
-} from './extras-store.js';
+export { InMemoryGradebookExtrasStore, PgGradebookExtrasStore } from './extras-store.js';
 export type {
   CommentsBankRecord,
   ClassRankSnapshotRecord,

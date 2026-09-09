@@ -114,7 +114,9 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     expect(parts.reduce((sum, n) => sum + n, 0)).toBe(100_000);
 
     await page.goto('/fees/structures', { waitUntil: 'domcontentloaded' });
-    const row = page.locator(`[data-testid="fee-structure-row"][data-structure-code="${structure.code}"]`);
+    const row = page.locator(
+      `[data-testid="fee-structure-row"][data-structure-code="${structure.code}"]`,
+    );
     await expect(row).toBeVisible();
 
     await expect(page.getByTestId('bulk-invoice-form')).toHaveAttribute('data-hydrated', 'true', {
@@ -125,14 +127,16 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
 
     const listed = await request.get(`${GATEWAY_URL}/api/v1/fees/invoices`, { headers: headers() });
     expect(listed.status()).toBe(200);
-    const invoices = ((await listed.json()).data as Array<{
-      id: string;
-      structureId: string;
-      studentId: string;
-      amountCents: number;
-      invoiceNumber: string;
-      status: string;
-    }>).filter((inv) => inv.structureId === structure.id);
+    const invoices = (
+      (await listed.json()).data as Array<{
+        id: string;
+        structureId: string;
+        studentId: string;
+        amountCents: number;
+        invoiceNumber: string;
+        status: string;
+      }>
+    ).filter((inv) => inv.structureId === structure.id);
     expect(invoices).toHaveLength(1);
     expect(invoices[0]!.studentId).toBe(STUDENT_A);
     expect(invoices[0]!.amountCents).toBe(100_000);

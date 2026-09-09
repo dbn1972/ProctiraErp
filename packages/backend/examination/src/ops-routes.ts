@@ -400,12 +400,8 @@ export async function registerExamOpsRoutes(
         return reply.status(200).send({
           data: pairs.map((pair) => ({
             ...pair,
-            entry1: pair.entry1
-              ? { ...pair.entry1, enteredAt: iso(pair.entry1.enteredAt) }
-              : null,
-            entry2: pair.entry2
-              ? { ...pair.entry2, enteredAt: iso(pair.entry2.enteredAt) }
-              : null,
+            entry1: pair.entry1 ? { ...pair.entry1, enteredAt: iso(pair.entry1.enteredAt) } : null,
+            entry2: pair.entry2 ? { ...pair.entry2, enteredAt: iso(pair.entry2.enteredAt) } : null,
           })),
         });
       } catch (error) {

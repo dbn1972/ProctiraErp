@@ -285,10 +285,7 @@ export class PgAcademicVisibilityStore implements AcademicVisibilityStore {
     });
   }
 
-  async getCalendar(
-    tenantId: string,
-    studentId: string,
-  ): Promise<AcademicList<CalendarEventItem>> {
+  async getCalendar(tenantId: string, studentId: string): Promise<AcademicList<CalendarEventItem>> {
     return this.withTenant(tenantId, async (client) => {
       const periodRows = await queryRows(
         client,

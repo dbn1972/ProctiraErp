@@ -327,10 +327,7 @@ export async function registerAdmissionsPipelineRoutes(
 
   fastify.patch(
     `${prefix}/applications/:id/placement`,
-    async (
-      request: FastifyRequest<{ Params: IdParams; Body: ApplicationPlacementDto }>,
-      reply,
-    ) => {
+    async (request: FastifyRequest<{ Params: IdParams; Body: ApplicationPlacementDto }>, reply) => {
       const tenantId = requireTenant(request, reply);
       if (!tenantId) return;
       const params = validate(IdParamsSchema, request.params);
@@ -424,7 +421,9 @@ export async function registerAdmissionsPipelineRoutes(
         });
       }
       try {
-        return reply.status(200).send(await service.acceptOffer(tenantId, params.data.id, body.data));
+        return reply
+          .status(200)
+          .send(await service.acceptOffer(tenantId, params.data.id, body.data));
       } catch (error) {
         return sendError(reply, error);
       }

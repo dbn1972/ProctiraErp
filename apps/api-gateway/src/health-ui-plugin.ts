@@ -254,7 +254,11 @@ function mergeById<T extends { id: string }>(seeded: T[], live: T[]): T[] {
   return Array.from(byId.values());
 }
 
-function sourceMeta(repository: HealthRepository | undefined, liveCount: number, seedCount: number) {
+function sourceMeta(
+  repository: HealthRepository | undefined,
+  liveCount: number,
+  seedCount: number,
+) {
   return { source: repository ? 'live+seed' : 'seed', liveCount, seedCount };
 }
 

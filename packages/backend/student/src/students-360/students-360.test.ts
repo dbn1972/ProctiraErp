@@ -24,11 +24,7 @@ const PNG_1X1 =
 const TENANT_A = randomUUID();
 const TENANT_B = randomUUID();
 
-async function createStudent(
-  repo: InMemoryStudentRepository,
-  tenantId: string,
-  firstName = 'Ada',
-) {
+async function createStudent(repo: InMemoryStudentRepository, tenantId: string, firstName = 'Ada') {
   const service = new StudentService(repo);
   return service.create(tenantId, {
     firstName,
@@ -167,7 +163,12 @@ describe('G-914 students 360', () => {
         { date: '2026-09-03', status: 'ABSENT' },
         { date: '2026-09-03', status: 'PRESENT' },
       );
-      const heatmap = await service.attendanceHeatmap(TENANT_A, student.id, '2026-09-01', '2026-09-03');
+      const heatmap = await service.attendanceHeatmap(
+        TENANT_A,
+        student.id,
+        '2026-09-01',
+        '2026-09-03',
+      );
       expect(heatmap.totalRecords).toBe(4);
       expect(heatmap.attendancePercentage).toBe(75);
       expect(heatmap.absencePercentage).toBe(25);
@@ -229,7 +230,12 @@ describe('G-914 students 360 routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/students',
-      payload: { firstName: 'Ada', lastName: 'Lovelace', dateOfBirth: '2008-12-10', gender: 'female' },
+      payload: {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        dateOfBirth: '2008-12-10',
+        gender: 'female',
+      },
     });
     expect(created.statusCode).toBe(201);
     const studentId = created.json().id as string;
@@ -259,7 +265,12 @@ describe('G-914 students 360 routes', () => {
     const created = await app.inject({
       method: 'POST',
       url: '/students',
-      payload: { firstName: 'Ada', lastName: 'Lovelace', dateOfBirth: '2008-12-10', gender: 'female' },
+      payload: {
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+        dateOfBirth: '2008-12-10',
+        gender: 'female',
+      },
     });
     const studentId = created.json().id as string;
     const foreign = await app.inject({

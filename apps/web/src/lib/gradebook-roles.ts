@@ -1,4 +1,11 @@
-const ADMIN_ROLES = ['admin', 'super-admin', 'super_admin', 'system_admin', 'principal', 'school_admin'];
+const ADMIN_ROLES = [
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system_admin',
+  'principal',
+  'school_admin',
+];
 const TEACHER_ROLES = ['teacher', 'class_teacher', 'subject_teacher', ...ADMIN_ROLES];
 const REGISTRAR_ROLES = ['registrar', 'board_officer', 'examinations_officer', ...ADMIN_ROLES];
 

@@ -285,7 +285,11 @@ export class GradebookService {
       throw new GradeLockedError(`Grade entry ${existing.id} is locked`);
     }
     if (existing) {
-      const workflow = readGradeWorkflowStatus(existing.metadata, existing.lockedAt, existing.publishedAt);
+      const workflow = readGradeWorkflowStatus(
+        existing.metadata,
+        existing.lockedAt,
+        existing.publishedAt,
+      );
       if (
         workflow === 'SUBMITTED' ||
         workflow === 'APPROVED' ||
@@ -417,7 +421,11 @@ export class GradebookService {
         : action === 'reopen'
           ? null
           : entry.lockedAt;
-    const publishedAt = published ? (entry.publishedAt ?? now) : action === 'reopen' ? null : entry.publishedAt;
+    const publishedAt = published
+      ? (entry.publishedAt ?? now)
+      : action === 'reopen'
+        ? null
+        : entry.publishedAt;
     const updated = await this.repo.updateGradeEntry(tenantId, entryId, {
       metadata,
       lockedAt,

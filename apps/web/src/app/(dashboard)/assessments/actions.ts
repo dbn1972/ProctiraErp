@@ -266,7 +266,11 @@ export async function createOutcomeAction(input: {
   const name = input.name.trim();
   const code = input.code.trim();
   if (!subjectId) {
-    return { status: 'error', message: 'Subject is required.', fieldErrors: { subjectId: 'Required' } };
+    return {
+      status: 'error',
+      message: 'Subject is required.',
+      fieldErrors: { subjectId: 'Required' },
+    };
   }
   if (!name) {
     return { status: 'error', message: 'Name is required.', fieldErrors: { name: 'Required' } };

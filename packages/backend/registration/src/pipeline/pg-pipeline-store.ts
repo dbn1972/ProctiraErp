@@ -4,10 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { withPgTenant, type PgQueryable } from '@proctira/database';
 
-import {
-  ensureRegistrationSchema,
-  type PgPoolLike,
-} from '../pg-registration-repository.js';
+import { ensureRegistrationSchema, type PgPoolLike } from '../pg-registration-repository.js';
 
 import type {
   AdmissionsPipelineStore,
@@ -418,7 +415,10 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
     });
   }
 
-  async getPlacement(tenantId: string, applicationId: string): Promise<ApplicationPlacement | null> {
+  async getPlacement(
+    tenantId: string,
+    applicationId: string,
+  ): Promise<ApplicationPlacement | null> {
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
         `SELECT * FROM admission_applications WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
@@ -476,10 +476,10 @@ export class PgAdmissionsPipelineStore implements AdmissionsPipelineStore {
         ],
       );
       const saved = mapMeritList(upserted.rows[0] as Record<string, unknown>);
-      await client.query(`DELETE FROM merit_list_entries WHERE merit_list_id = $1 AND tenant_id = $2`, [
-        saved.id,
-        list.tenantId,
-      ]);
+      await client.query(
+        `DELETE FROM merit_list_entries WHERE merit_list_id = $1 AND tenant_id = $2`,
+        [saved.id, list.tenantId],
+      );
       const mapped: MeritListEntryRecord[] = [];
       for (const entry of entries) {
         const inserted = await client.query(

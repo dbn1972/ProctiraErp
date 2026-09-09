@@ -55,7 +55,10 @@ export function createRetentionScheduler(options: RetentionSchedulerOptions): Re
         failures: result.failures.length,
       };
       if (result.failures.length > 0) {
-        logger?.error({ ...lastRun, failures: result.failures }, 'audit retention sweep had failures');
+        logger?.error(
+          { ...lastRun, failures: result.failures },
+          'audit retention sweep had failures',
+        );
       } else if (result.tenants > 0) {
         logger?.info(lastRun, 'audit retention sweep complete');
       }

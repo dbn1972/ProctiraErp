@@ -335,10 +335,12 @@ export interface DsarPackage {
 }
 
 /** `GET /audit-logs/dsar/:subjectId` — every entry where the subject is the entity or the actor. */
-export async function exportDsarPackage(subjectId: string): Promise<PlatformItemResult<DsarPackage>> {
-  const raw = await fetchPlatformItem<Omit<DsarPackage, 'entries'> & { entries: Record<string, unknown>[] }>(
-    `/audit-logs/dsar/${encodeURIComponent(subjectId)}`,
-  );
+export async function exportDsarPackage(
+  subjectId: string,
+): Promise<PlatformItemResult<DsarPackage>> {
+  const raw = await fetchPlatformItem<
+    Omit<DsarPackage, 'entries'> & { entries: Record<string, unknown>[] }
+  >(`/audit-logs/dsar/${encodeURIComponent(subjectId)}`);
   if (!raw.data) return { ...raw, data: null };
   return { ...raw, data: { ...raw.data, entries: raw.data.entries.map(mapAuditEntry) } };
 }

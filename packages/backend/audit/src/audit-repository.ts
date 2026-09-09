@@ -209,5 +209,3 @@ export interface AuditRepository {
    */
   listTenantsWithArchivalEnabled(): Promise<string[]>;
 }
-
-

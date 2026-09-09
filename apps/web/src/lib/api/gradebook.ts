@@ -13,13 +13,7 @@ export type GradeWorkflowStatus =
   | 'PUBLISHED'
   | 'REJECTED';
 
-export type GradeWorkflowAction =
-  | 'submit'
-  | 'approve'
-  | 'reject'
-  | 'lock'
-  | 'publish'
-  | 'reopen';
+export type GradeWorkflowAction = 'submit' | 'approve' | 'reject' | 'lock' | 'publish' | 'reopen';
 
 export interface GradeEntry {
   id: string;

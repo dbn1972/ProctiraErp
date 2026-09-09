@@ -85,7 +85,11 @@ export default async function DsarPage(props: { searchParams?: Promise<SearchPar
 
       <Card>
         <CardContent className="pt-6">
-          <form method="get" className="flex flex-col gap-3 sm:flex-row sm:items-end" aria-label="DSAR lookup">
+          <form
+            method="get"
+            className="flex flex-col gap-3 sm:flex-row sm:items-end"
+            aria-label="DSAR lookup"
+          >
             <label className="flex flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground">
               Subject id
               <input
@@ -160,11 +164,15 @@ export default async function DsarPage(props: { searchParams?: Promise<SearchPar
                       </TableCell>
                       <TableCell>
                         <p className="font-semibold text-foreground">{entry.entityType}</p>
-                        <p className="font-mono text-[11px] text-muted-foreground">{entry.entityId}</p>
+                        <p className="font-mono text-[11px] text-muted-foreground">
+                          {entry.entityId}
+                        </p>
                       </TableCell>
                       <TableCell>
                         <p className="text-foreground">{entry.userName}</p>
-                        <p className="font-mono text-[11px] text-muted-foreground">{entry.userId}</p>
+                        <p className="font-mono text-[11px] text-muted-foreground">
+                          {entry.userId}
+                        </p>
                       </TableCell>
                       <TableCell className="pe-4">
                         {entry.changedFields.length === 0 ? (
@@ -172,7 +180,11 @@ export default async function DsarPage(props: { searchParams?: Promise<SearchPar
                         ) : (
                           <div className="flex max-w-md flex-wrap gap-1">
                             {entry.changedFields.map((field) => (
-                              <Badge key={field} variant="outline" className="font-mono font-normal">
+                              <Badge
+                                key={field}
+                                variant="outline"
+                                className="font-mono font-normal"
+                              >
                                 {field}
                               </Badge>
                             ))}

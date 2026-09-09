@@ -225,15 +225,21 @@ test.describe('Students 360 — live chain (E2E_BACKEND_READY)', () => {
     });
     expect(foreignPhoto.status()).toBe(404);
 
-    const foreignCard = await request.get(`${GATEWAY_URL}/api/v1/students/${studentId}/id-card.pdf`, {
-      headers: headers(TENANT_B),
-    });
+    const foreignCard = await request.get(
+      `${GATEWAY_URL}/api/v1/students/${studentId}/id-card.pdf`,
+      {
+        headers: headers(TENANT_B),
+      },
+    );
     expect(foreignCard.status()).toBe(404);
 
-    const foreignConsent = await request.put(`${GATEWAY_URL}/api/v1/students/${studentId}/consents`, {
-      headers: headers(TENANT_B),
-      data: { kind: 'photo', granted: true },
-    });
+    const foreignConsent = await request.put(
+      `${GATEWAY_URL}/api/v1/students/${studentId}/consents`,
+      {
+        headers: headers(TENANT_B),
+        data: { kind: 'photo', granted: true },
+      },
+    );
     expect(foreignConsent.status()).toBe(404);
   });
 });

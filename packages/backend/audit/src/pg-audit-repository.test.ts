@@ -106,8 +106,18 @@ describe('PgAuditRepository hash chain (live, G-913)', () => {
       afterValues: { name: 'B' },
       metadata: null,
     };
-    const first = await repo.create({ ...base, id: randomUUID(), entityId: randomUUID(), timestamp: new Date() });
-    const second = await repo.create({ ...base, id: randomUUID(), entityId: randomUUID(), timestamp: new Date() });
+    const first = await repo.create({
+      ...base,
+      id: randomUUID(),
+      entityId: randomUUID(),
+      timestamp: new Date(),
+    });
+    const second = await repo.create({
+      ...base,
+      id: randomUUID(),
+      entityId: randomUUID(),
+      timestamp: new Date(),
+    });
     expect(first.chainSeq).toBe(1);
     expect(second.chainSeq).toBe(2);
     expect(second.prevHash).toBe(first.entryHash);
