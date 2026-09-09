@@ -6,6 +6,7 @@
  * published grades are readable, UI hydrates workflow controls.
  */
 import { randomUUID } from 'node:crypto';
+import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ChangeEvent } from 'react';
 
 import {
   computeGpaAction,
@@ -118,7 +118,7 @@ export function GradeEntryForm({
             id="gradeRemark"
             name="remark"
             value={remark}
-            onChange={(event) => {
+            onChange={(event: ChangeEvent<HTMLTextAreaElement>) => {
               setRemark(event.target.value);
               setCommentBankId(null);
             }}

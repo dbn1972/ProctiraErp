@@ -163,7 +163,7 @@ export async function bulkTransitionGradeEntriesAction(input: {
     revalidatePath('/assessments/report-cards');
     return {
       ok: true,
-      id: rows[0]?.id ?? parsed.data.ids[0],
+      id: rows[0]?.id ?? parsed.data.ids[0]!,
       extra: { count: rows.length },
     };
   } catch (error) {

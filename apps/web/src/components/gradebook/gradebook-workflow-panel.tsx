@@ -11,11 +11,12 @@ import {
 } from '@/app/(dashboard)/gradebook-actions';
 import { useHydrated } from '@/hooks/useHydrated';
 import { resolveEntityLabel } from '@/lib/entity-label';
-import type {
-  ClassRankSnapshot,
-  CommentsBankItem,
-  GradeEntry,
-  GradeWorkflowAction,
+import {
+  readGradeWorkflowStatus,
+  type ClassRankSnapshot,
+  type CommentsBankItem,
+  type GradeEntry,
+  type GradeWorkflowAction,
 } from '@/lib/api/gradebook';
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
 
@@ -76,7 +77,7 @@ export function GradebookWorkflowPanel({
     startTransition(async () => {
       const result =
         ids.length === 1
-          ? await transitionGradeEntryAction({ id: ids[0], action, institutionId })
+          ? await transitionGradeEntryAction({ id: ids[0]!, action, institutionId })
           : await bulkTransitionGradeEntriesAction({ ids, action, institutionId });
       if (!result.ok) {
         setError(result.error);
