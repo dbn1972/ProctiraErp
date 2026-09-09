@@ -69,6 +69,11 @@ test.describe('Communication circulars — pages render (ungated)', () => {
     await page.goto('/communication/circulars/new', { waitUntil: 'domcontentloaded' });
     await hydrated(page, 'communication-circular-form');
   });
+
+  test('/communication/delivery renders the delivery log', async ({ page }) => {
+    await page.goto('/communication/delivery', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { level: 1, name: /delivery log/i })).toBeVisible();
+  });
 });
 
 test.describe('Communication circulars — live chain (E2E_BACKEND_READY)', () => {
@@ -99,9 +104,12 @@ test.describe('Communication circulars — live chain (E2E_BACKEND_READY)', () =
     const sent = await postOk(request, `/communication/circulars/${created.id}/send`, {}, 200);
     expect(sent.status).toBe('sent');
 
-    const logs = await request.get(`${GATEWAY_URL}/api/v1/communication/delivery-log?channel=whatsapp`, {
-      headers: headers(),
-    });
+    const logs = await request.get(
+      `${GATEWAY_URL}/api/v1/communication/delivery-log?channel=whatsapp`,
+      {
+        headers: headers(),
+      },
+    );
     expect(logs.status()).toBe(200);
     expect((await logs.json()).data.length).toBeGreaterThan(0);
 

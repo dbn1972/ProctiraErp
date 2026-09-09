@@ -67,6 +67,13 @@ test.describe('Transport ops — pages render (ungated)', () => {
     await page.goto('/transport/live', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
+
+  for (const path of ['/transport/attendance', '/transport/alerts', '/transport/fees'] as const) {
+    test(`${path} renders with a heading`, async ({ page }) => {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    });
+  }
 });
 
 test.describe('Transport ops — live chain (E2E_BACKEND_READY)', () => {
@@ -154,6 +161,10 @@ test.describe('Transport ops — live chain (E2E_BACKEND_READY)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByTestId('transport-live-bus').first()).toBeVisible();
     await hydrated(page, 'transport-gps-form').catch(() => undefined);
+
+    await page.goto(`/transport/routes/${route.id}/stops`, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { level: 1 })).toContainText(route.name);
+    await expect(page.getByText(stop.name)).toBeVisible();
   });
 
   test('cross-tenant: tenant B cannot read tenant A live GPS', async ({ request }) => {

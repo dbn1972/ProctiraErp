@@ -79,6 +79,11 @@ test.describe('Staff HR — pages render (ungated)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await hydrated(page, 'staff-attendance-grid');
   });
+
+  test('/staff/import renders the bulk import heading', async ({ page }) => {
+    await page.goto('/staff/import', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { level: 1, name: /bulk staff import/i })).toBeVisible();
+  });
 });
 
 test.describe('Staff HR — live chain (E2E_BACKEND_READY)', () => {

@@ -76,6 +76,16 @@ test.describe('Library ops — pages render (ungated)', () => {
   });
 });
 
+test.describe('Library OPAC portals — unauthenticated bounce (ungated)', () => {
+  for (const path of ['/parent/library', '/student/library'] as const) {
+    test(`${path} unauthenticated → /login`, async ({ page }) => {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page).toHaveURL(/\/login/);
+      await expect(page.getByRole('heading').first()).toBeVisible();
+    });
+  }
+});
+
 test.describe('Library ops — live chain (E2E_BACKEND_READY)', () => {
   test.skip(!BACKEND_READY, 'Requires E2E_BACKEND_READY=1 and a live gateway + Postgres');
 
@@ -116,18 +126,22 @@ test.describe('Library ops — live chain (E2E_BACKEND_READY)', () => {
     expect(hold.status(), await hold.text()).toBe(201);
     expect((await hold.json()).status).toBe('queued');
 
-    const returned = await request.post(`${GATEWAY_URL}/api/v1/library/circulation/return-barcode`, {
-      headers: headers(),
-      data: { barcode },
-    });
+    const returned = await request.post(
+      `${GATEWAY_URL}/api/v1/library/circulation/return-barcode`,
+      {
+        headers: headers(),
+        data: { barcode },
+      },
+    );
     expect(returned.status(), await returned.text()).toBe(200);
 
-    const holds = await request.get(
-      `${GATEWAY_URL}/api/v1/library/holds?itemId=${item.id}`,
-      { headers: headers() },
-    );
+    const holds = await request.get(`${GATEWAY_URL}/api/v1/library/holds?itemId=${item.id}`, {
+      headers: headers(),
+    });
     expect(holds.status()).toBe(200);
-    const ready = (await holds.json()).data.find((h: { studentId: string }) => h.studentId === STUDENT_HOLD);
+    const ready = (await holds.json()).data.find(
+      (h: { studentId: string }) => h.studentId === STUDENT_HOLD,
+    );
     expect(ready.status).toBe('ready');
 
     const checkoutReady = await request.post(`${GATEWAY_URL}/api/v1/library/circulation/checkout`, {
@@ -180,7 +194,9 @@ test.describe('Library ops — live chain (E2E_BACKEND_READY)', () => {
       { headers: headers() },
     );
     expect(opac.status()).toBe(200);
-    expect((await opac.json()).data.some((row: { title: string }) => row.title === title)).toBe(true);
+    expect((await opac.json()).data.some((row: { title: string }) => row.title === title)).toBe(
+      true,
+    );
 
     const isolated = await request.get(
       `${GATEWAY_URL}/api/v1/library/opac/search?q=${encodeURIComponent(title)}`,
