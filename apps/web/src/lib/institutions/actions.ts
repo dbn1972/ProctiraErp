@@ -11,23 +11,32 @@ import { revalidatePath } from 'next/cache';
 import {
   ApiClientError,
   createAcademicPeriod,
+  createCalendarEvent,
   createClassSection,
   createGrade,
   createInstitution,
   deactivateInstitution,
   deleteAcademicPeriod,
+  deleteCalendarEvent,
+  rolloverAcademicPeriod,
   updateAcademicPeriod,
   updateInstitution,
 } from './api';
+import type { CreateAcademicPeriodInput, RolloverSummary } from './types';
 import {
   academicPeriodFormSchema,
+  calendarEventFormSchema,
   classSectionFormSchema,
   gradeFormSchema,
   institutionFormSchema,
+  rolloverFormSchema,
+  type AcademicPeriodFormParsed,
   type AcademicPeriodFormValues,
+  type CalendarEventFormValues,
   type ClassSectionFormValues,
   type GradeFormValues,
   type InstitutionFormValues,
+  type RolloverFormValues,
 } from './validation';
 
 export interface FieldError {
@@ -133,6 +142,12 @@ export async function deactivateInstitutionAction(
 // Academic Periods
 // ---------------------------------------------------------------------------
 
+/** G-905: the form uses '' for "no parent"; the API wants null. */
+function toPeriodInput(parsed: AcademicPeriodFormParsed): CreateAcademicPeriodInput {
+  const { parentId, ...rest } = parsed;
+  return { ...rest, kind: rest.kind ?? 'year', parentId: parentId ? parentId : null };
+}
+
 export async function createAcademicPeriodAction(
   values: AcademicPeriodFormValues,
 ): Promise<ActionResult<{ id: string }>> {
@@ -146,7 +161,7 @@ export async function createAcademicPeriodAction(
   }
 
   try {
-    const period = await createAcademicPeriod(parsed.data);
+    const period = await createAcademicPeriod(toPeriodInput(parsed.data));
     revalidatePath('/academic-periods');
     return { success: true, data: { id: period.id } };
   } catch (error) {
@@ -168,7 +183,7 @@ export async function updateAcademicPeriodAction(
   }
 
   try {
-    const period = await updateAcademicPeriod(id, parsed.data);
+    const period = await updateAcademicPeriod(id, toPeriodInput(parsed.data));
     revalidatePath('/academic-periods');
     return { success: true, data: { id: period.id } };
   } catch (error) {
@@ -183,6 +198,83 @@ export async function deleteAcademicPeriodAction(
     await deleteAcademicPeriod(id);
     revalidatePath('/academic-periods');
     return { success: true, data: { id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// G-905 — Academic calendar events + year-end rollover
+// ---------------------------------------------------------------------------
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function createCalendarEventAction(
+  periodId: string,
+  values: CalendarEventFormValues,
+): Promise<ActionResult<{ id: string }>> {
+  if (!UUID_RE.test(periodId)) {
+    return { success: false, error: 'Invalid academic period' };
+  }
+  const parsed = calendarEventFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    const event = await createCalendarEvent(periodId, parsed.data);
+    revalidatePath(`/academic-periods/${periodId}/calendar`);
+    return { success: true, data: { id: event.id } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function deleteCalendarEventAction(
+  periodId: string,
+  eventId: string,
+): Promise<ActionResult<{ id: string }>> {
+  if (!UUID_RE.test(periodId) || !UUID_RE.test(eventId)) {
+    return { success: false, error: 'Invalid calendar event' };
+  }
+  try {
+    await deleteCalendarEvent(periodId, eventId);
+    revalidatePath(`/academic-periods/${periodId}/calendar`);
+    return { success: true, data: { id: eventId } };
+  } catch (error) {
+    return toActionError(error);
+  }
+}
+
+export async function rolloverAcademicPeriodAction(
+  sourcePeriodId: string,
+  values: RolloverFormValues,
+): Promise<ActionResult<RolloverSummary>> {
+  if (!UUID_RE.test(sourcePeriodId)) {
+    return { success: false, error: 'Invalid academic period' };
+  }
+  const parsed = rolloverFormSchema.safeParse(values);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: 'Validation failed',
+      fieldErrors: flattenZodErrors(parsed.error.flatten().fieldErrors),
+    };
+  }
+  try {
+    // Default to a dry run — the caller must opt in to writing.
+    const summary = await rolloverAcademicPeriod(sourcePeriodId, {
+      ...parsed.data,
+      dryRun: parsed.data.dryRun ?? true,
+    });
+    if (!summary.dryRun) {
+      revalidatePath('/academic-periods');
+      revalidatePath('/institutions', 'layout');
+    }
+    return { success: true, data: summary };
   } catch (error) {
     return toActionError(error);
   }

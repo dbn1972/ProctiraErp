@@ -17,14 +17,18 @@ import { gatewayFetch, GatewayError } from '@/lib/api/gateway';
 import type {
   AcademicPeriod,
   AreaNode,
+  CalendarEvent,
   ClassSection,
   CreateAcademicPeriodInput,
+  CreateCalendarEventInput,
   CreateInstitutionInput,
   Grade,
   InfrastructureHierarchy,
   Institution,
   InstitutionListFilters,
   PaginatedResponse,
+  RolloverInput,
+  RolloverSummary,
   UpdateAcademicPeriodInput,
   UpdateInstitutionInput,
 } from './types';
@@ -241,6 +245,63 @@ export async function deleteAcademicPeriod(id: string): Promise<void> {
       method: 'DELETE',
       throwOnError: true,
     });
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// G-905 — Academic calendar events + rollover
+// ---------------------------------------------------------------------------
+
+export async function listCalendarEvents(periodId: string): Promise<CalendarEvent[]> {
+  try {
+    const result = await gatewayFetch<{ data: CalendarEvent[] }>(
+      `/academic-periods/${encodeURIComponent(periodId)}/calendar`,
+      { method: 'GET', throwOnError: true },
+    );
+    return unwrap(result, { data: [] }).data;
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export async function createCalendarEvent(
+  periodId: string,
+  input: CreateCalendarEventInput,
+): Promise<CalendarEvent> {
+  try {
+    const result = await gatewayFetch<CalendarEvent>(
+      `/academic-periods/${encodeURIComponent(periodId)}/calendar`,
+      { method: 'POST', json: input, throwOnError: true },
+    );
+    return unwrap(result);
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export async function deleteCalendarEvent(periodId: string, eventId: string): Promise<void> {
+  try {
+    await gatewayFetch<null>(
+      `/academic-periods/${encodeURIComponent(periodId)}/calendar/${encodeURIComponent(eventId)}`,
+      { method: 'DELETE', throwOnError: true },
+    );
+  } catch (error) {
+    rethrowAsApiError(error);
+  }
+}
+
+export async function rolloverAcademicPeriod(
+  sourcePeriodId: string,
+  input: RolloverInput,
+): Promise<RolloverSummary> {
+  try {
+    const result = await gatewayFetch<RolloverSummary>(
+      `/academic-periods/${encodeURIComponent(sourcePeriodId)}/rollover`,
+      { method: 'POST', json: input, throwOnError: true },
+    );
+    return unwrap(result);
   } catch (error) {
     rethrowAsApiError(error);
   }

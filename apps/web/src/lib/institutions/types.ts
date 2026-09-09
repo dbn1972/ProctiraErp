@@ -76,6 +76,8 @@ export interface AreaNode {
 }
 
 export type AcademicPeriodStatus = 'active' | 'inactive' | 'archived';
+/** G-905: `year` is top-level; the rest nest under a year. */
+export type AcademicPeriodKind = 'year' | 'semester' | 'term' | 'quarter';
 
 export interface AcademicPeriod {
   id: string;
@@ -85,6 +87,9 @@ export interface AcademicPeriod {
   startDate: string;
   endDate: string;
   status: AcademicPeriodStatus;
+  kind: AcademicPeriodKind;
+  /** Owning academic year for sub-periods; null for years. */
+  parentId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -95,9 +100,58 @@ export interface CreateAcademicPeriodInput {
   startDate: string;
   endDate: string;
   status?: AcademicPeriodStatus;
+  kind?: AcademicPeriodKind;
+  parentId?: string | null;
 }
 
 export type UpdateAcademicPeriodInput = Partial<CreateAcademicPeriodInput>;
+
+// G-905 — academic calendar events + year-end rollover
+export type CalendarEventKind = 'holiday' | 'break' | 'grading_window' | 'exam_window' | 'event';
+
+export interface CalendarEvent {
+  id: string;
+  tenantId: string;
+  academicPeriodId: string;
+  /** null = tenant-wide (every institution). */
+  institutionId: string | null;
+  kind: CalendarEventKind;
+  name: string;
+  startDate: string;
+  endDate: string;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface CreateCalendarEventInput {
+  kind: CalendarEventKind;
+  name: string;
+  startDate: string;
+  endDate: string;
+  institutionId?: string;
+  notes?: string;
+}
+
+export interface RolloverInput {
+  targetPeriodId: string;
+  institutionId?: string;
+  promoteEnrollments?: boolean;
+  dryRun?: boolean;
+}
+
+export interface RolloverSummary {
+  dryRun: boolean;
+  sourcePeriodId: string;
+  targetPeriodId: string;
+  classes: { toCreate: number; existing: number; created: number };
+  enrollments: {
+    considered: number;
+    toPromote: number;
+    promoted: number;
+    graduating: number;
+    alreadyInTarget: number;
+  };
+}
 
 export interface Grade {
   id: string;
