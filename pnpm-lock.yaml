@@ -230,6 +230,9 @@ importers:
       '@proctira/backend-registration':
         specifier: workspace:*
         version: link:../../packages/backend/registration
+      '@proctira/backend-report':
+        specifier: workspace:*
+        version: link:../../packages/backend/report
       '@proctira/backend-scholarship':
         specifier: workspace:*
         version: link:../../packages/backend/scholarship
@@ -2085,12 +2088,21 @@ importers:
       '@proctira/common':
         specifier: workspace:*
         version: link:../../shared/common
+      '@proctira/database':
+        specifier: workspace:*
+        version: link:../../shared/database
       '@proctira/events':
         specifier: workspace:*
         version: link:../../shared/events
       '@proctira/observability':
         specifier: workspace:*
         version: link:../../shared/observability
+      '@proctira/pdf-lite':
+        specifier: workspace:*
+        version: link:../../shared/pdf-lite
+      '@proctira/storage':
+        specifier: workspace:*
+        version: link:../../shared/storage
       '@proctira/validation':
         specifier: workspace:*
         version: link:../../shared/validation

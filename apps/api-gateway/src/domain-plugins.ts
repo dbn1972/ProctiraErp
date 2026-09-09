@@ -29,7 +29,8 @@
  *  - gradebook (entries / GPA / report cards / transcripts / board exports):
  *    raw SQL + `pg` when DATABASE_URL is set (003 + 004 indexes); else in-memory.
  *  - insights / platform-admin: UI aggregates; PG-backed when DATABASE_URL
- *    (020_insights_ui_schema.sql). Full report/data-warehouse packages unmounted.
+ *    (020_insights_ui_schema.sql). G-909 mounts `@proctira/backend-report`
+ *    for real catalogue exports; insights keeps board summary + data-warehouse.
  *  - assessment report-card repos wired (in-memory; no Prisma models yet).
  *    Durable HTML report cards also via gradebook `/gradebook/report-cards`.
  *
@@ -52,6 +53,7 @@ import {
   createCommunicationRepository,
   createSandboxDeliveryAdapter,
 } from '@proctira/backend-communication';
+import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import {
   developerPortalPlugin,
   InMemoryDeveloperPortalRepository,
@@ -65,7 +67,6 @@ import {
   SimplePdfGenerator,
 } from '@proctira/backend-examination';
 import { createFeesRepository, FeesService, feesPlugin } from '@proctira/backend-fees';
-import { createCurriculumStore, curriculumPlugin } from '@proctira/backend-curriculum';
 import { createGradebookRepository, gradebookPlugin } from '@proctira/backend-gradebook';
 import {
   assertPhiKeyConfigured,
@@ -84,6 +85,7 @@ import {
   createRegistrationRepository,
   registrationPlugin,
 } from '@proctira/backend-registration';
+import { reportCataloguePlugin } from '@proctira/backend-report';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,
@@ -366,10 +368,16 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'insights',
     proxyPrefixes: ['/reports', '/data-warehouse'],
     register: async (scope) => {
-      // Redesign Insights UI aggregates (templates / runs / DW indicators /
-      // import jobs / map features). PG-backed when DATABASE_URL (G-209);
-      // App Router banners hide when the gateway responds.
+      // Board rollup + DW indicators/import/map (G-209 / G-809). Catalogue
+      // generate / schedules / dashboards are backend-report (G-909).
       await scope.register(insightsUiPlugin);
+    },
+  },
+  {
+    name: 'report',
+    proxyPrefixes: ['/reports'],
+    register: async (scope) => {
+      await scope.register(reportCataloguePlugin);
     },
   },
   {

@@ -160,6 +160,8 @@ export default async function ReportResultsPage(props: PageProps) {
                   <TableHead className="font-semibold">Format</TableHead>
                   <TableHead className="text-end font-semibold">Size</TableHead>
                   <TableHead className="font-semibold">Status</TableHead>
+                  <TableHead className="font-semibold">Trigger</TableHead>
+                  <TableHead className="font-mono text-xs font-semibold">SHA-256</TableHead>
                   <TableHead className="text-end font-semibold">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -174,6 +176,12 @@ export default async function ReportResultsPage(props: PageProps) {
                     <TableCell className="text-end tabular-nums">{run.fileSizeKb} KB</TableCell>
                     <TableCell>
                       <RunStatus status={run.status} />
+                    </TableCell>
+                    <TableCell className="text-xs" data-testid="run-trigger">
+                      {run.trigger ?? 'manual'}
+                    </TableCell>
+                    <TableCell className="max-w-[12rem] truncate font-mono text-[11px]" title={run.sha256 ?? undefined}>
+                      {run.sha256 ?? '—'}
                     </TableCell>
                     <TableCell className="text-end">
                       {run.downloadUrl && run.status === 'READY' ? (

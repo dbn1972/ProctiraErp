@@ -93,3 +93,18 @@ export type {
 // Routes
 export { registerReportRoutes } from './routes.js';
 export type { ReportRoutesOptions } from './routes.js';
+
+export { reportCataloguePlugin } from './catalogue-plugin.js';
+export type { ReportCataloguePluginOptions } from './catalogue-plugin.js';
+export { CatalogueService } from './catalogue-service.js';
+export { createReportStore, resetSharedReportStoreForTests } from './create-report-store.js';
+export { InMemoryReportStore } from './report-store.js';
+export { InMemoryReportBlobStore, createReportBlobStore } from './blob-store.js';
+export { computeNextRunAt, createReportScheduler } from './scheduler.js';
+export { REPORT_CATALOGUE, resolveReportKey } from './catalogue.js';
+export type { CatalogueReportKey, CatalogueReportFormat, CatalogueEntry } from './catalogue.js';
+export { registerCatalogueRoutes } from './catalogue-routes.js';
+export { sha256Hex } from './generators.js';
+export { createReportDownloadToken, verifyReportDownloadToken } from './signed-download.js';
+export { buildRoleDashboard, inferDashboardRole } from './dashboards.js';
+export type { DashboardRole, RoleDashboard } from './dashboards.js';

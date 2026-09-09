@@ -61,6 +61,7 @@ export const EXPECTED_MOUNTED: readonly string[] = [
   'notification',
   'parent-portal',
   'registration',
+  'report',
   'scholarship',
   'staff',
   'student',
@@ -83,7 +84,6 @@ export const EXPECTED_UNMOUNTED: readonly string[] = [
   'install',
   'plugin',
   'policy',
-  'report',
   'survey',
   'theme',
 ] as const;
@@ -104,7 +104,6 @@ export const EXPECTED_PARKED: readonly string[] = [
   'install',
   'plugin',
   'policy',
-  'report',
   'survey',
   'theme',
 ] as const;
@@ -380,11 +379,11 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   {
     package: 'insights-ui',
     mounted: true,
-    prefixes: ['/reports', '/data-warehouse'],
+    prefixes: ['/data-warehouse'],
     persistence: 'mixed',
     rbacWired: false,
     notes:
-      'insightsUiPlugin with PG store when DATABASE_URL set (020; G-209). G-809: GET /reports/board/:boardId/summary. Real `report` / `data-warehouse` packages still unmounted.',
+      'insightsUiPlugin with PG store when DATABASE_URL set (020; G-209). G-809: GET /reports/board/:boardId/summary. G-909: catalogue generate/schedules/dashboard served by backend-report; this plugin keeps board rollup + /data-warehouse.',
     registrarName: 'insights',
   },
   {
@@ -439,7 +438,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     rbacWired: false,
     parked: true,
     parkedReason:
-      'G-605 PARKED — needs AreaHierarchyResolver product wiring; insights UI covers reporting for now.',
+      'G-605 PARKED — needs AreaHierarchyResolver product wiring. G-909 role dashboards ship in backend-report GET /reports/dashboard; this package stays unmounted.',
     notes: 'Formally PARKED (G-605).',
   },
   {
@@ -499,14 +498,13 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
   },
   {
     package: 'report',
-    mounted: false,
+    mounted: true,
     prefixes: ['/reports'],
-    persistence: 'n/a',
-    rbacWired: false,
-    parked: true,
-    parkedReason:
-      'G-924 decision: MOUNT via G-909 (this wave) — real CSV/XLSX/PDF generation + schedules replace insights-ui synthetic downloads; until that lands insights UI owns `/reports`.',
-    notes: 'Unmounted; insights UI owns `/reports` (G-209).',
+    persistence: 'mixed',
+    rbacWired: true,
+    registrarName: 'report',
+    notes:
+      'G-909: reportCataloguePlugin — real CSV/XLSX/PDF artefacts (sha256), cadence schedules + in-process scheduler, role dashboards. PG 037 when DATABASE_URL, else in-memory; local-disk blobs unless S3_* is set. Insights UI still serves GET /reports/board/:boardId/summary and /data-warehouse.',
   },
   {
     package: 'survey',

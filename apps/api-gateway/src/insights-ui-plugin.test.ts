@@ -41,32 +41,18 @@ describe('insightsUiPlugin (memory)', () => {
   it('lists seeded templates', async () => {
     const app = await buildApp();
     const res = await app.inject({ method: 'GET', url: '/reports/templates' });
-    expect(res.statusCode).toBe(200);
-    const body = res.json() as { data: Array<{ id: string }> };
-    expect(body.data.some((t) => t.id === 'tpl-enrolment-summary')).toBe(true);
+    expect(res.statusCode).toBe(404);
   });
 
-  it('generates a report run and lists it for the tenant', async () => {
+  it('does not serve synthetic report generate (G-909 moved to backend-report)', async () => {
     const app = await buildApp();
-    const tenant = 'tenant-insights-a';
     const create = await app.inject({
       method: 'POST',
       url: '/reports/generate',
-      headers: { 'x-tenant-id': tenant },
+      headers: { 'x-tenant-id': 'tenant-insights-a' },
       payload: { templateId: 'tpl-enrolment-summary', format: 'PDF' },
     });
-    expect(create.statusCode).toBe(201);
-    const run = create.json() as { id: string; status: string };
-    expect(run.status).toBe('READY');
-
-    const list = await app.inject({
-      method: 'GET',
-      url: '/reports/runs',
-      headers: { 'x-tenant-id': tenant },
-    });
-    expect(list.statusCode).toBe(200);
-    const body = list.json() as { data: Array<{ id: string }> };
-    expect(body.data.some((r) => r.id === run.id)).toBe(true);
+    expect(create.statusCode).toBe(404);
   });
 
   it('queues a warehouse import job', async () => {

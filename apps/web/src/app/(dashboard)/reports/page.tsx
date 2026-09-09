@@ -12,6 +12,7 @@ import { ScaffoldModeBanner } from '@/components/insights/ScaffoldModeBanner';
 import { listReportTemplates, type ReportTemplate } from '@/lib/api/reports';
 
 import { BoardSummaryPanel } from './_components/board-summary-panel';
+import { CatalogueGeneratePanel } from './_components/catalogue-generate-panel';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,12 +41,20 @@ export default async function ReportsPage() {
             — or build your own.
           </p>
         </div>
-        <Button asChild size="sm">
-          <Link href="/reports/new">
-            <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
-            New report
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <Link href="/reports/schedules">Schedules</Link>
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/reports/dashboards">Dashboards</Link>
+          </Button>
+          <Button asChild size="sm">
+            <Link href="/reports/new">
+              <Plus className="me-1.5 h-4 w-4" aria-hidden="true" />
+              New report
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <ScaffoldModeBanner
@@ -82,6 +91,8 @@ export default async function ReportsPage() {
           </section>
         ))
       )}
+
+      {templates.length > 0 ? <CatalogueGeneratePanel templates={templates} /> : null}
 
       <BoardSummaryPanel />
     </section>
