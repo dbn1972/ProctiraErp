@@ -18,7 +18,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
-import { conflictResponse, type ExamOpsActor, type ExamOpsService } from './ops-service.js';
 import {
   AllocateInvigilatorSchema,
   AllocationParamsSchema,
@@ -44,6 +43,7 @@ import {
   type RejectReevaluationInput,
   type ResolveMarksInput,
 } from './ops-schemas.js';
+import { conflictResponse, type ExamOpsActor, type ExamOpsService } from './ops-service.js';
 
 export interface ExamOpsRoutesOptions {
   examOpsService: ExamOpsService;
