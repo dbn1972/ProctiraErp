@@ -5,6 +5,8 @@
  * Gated (E2E_BACKEND_READY): allocate → clash rejected → double-entry variance
  * → moderator resolve → re-evaluation request → complete; tenant B isolation.
  */
+import { randomUUID } from 'node:crypto';
+
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
@@ -183,7 +185,8 @@ test.describe('Exam ops — live chain (E2E_BACKEND_READY)', () => {
     request,
   }) => {
     const fx = await buildExam(request);
-    const staffId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
+    // Run-unique invigilator: the staff clash check is tenant-wide across runs.
+    const staffId = randomUUID();
     const sessionA = await postOk(
       request,
       `/examinations/${fx.examId}/sessions`,
