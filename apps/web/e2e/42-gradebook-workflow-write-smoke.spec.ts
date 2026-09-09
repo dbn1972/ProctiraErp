@@ -5,7 +5,6 @@
  * Gated (E2E_BACKEND_READY): live API transitions, TEACHER cannot APPROVE,
  * published grades are readable, UI hydrates workflow controls.
  */
-import { randomUUID } from 'node:crypto';
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
 import { createSignedJwt, setupGatewayTenantSession } from './fixtures/fake-session';
@@ -45,14 +44,24 @@ function stamp() {
   return Date.now().toString(36).slice(-6).toUpperCase();
 }
 
-function uuid() {
-  return randomUUID();
-}
-
 async function hydrated(page: Page, testId: string) {
   const el = page.getByTestId(testId);
   await expect(el).toHaveAttribute('data-hydrated', 'true', { timeout: 20_000 });
   return el;
+}
+
+async function createStudent(request: APIRequestContext): Promise<string> {
+  const res = await request.post(`${GATEWAY_URL}/api/v1/students`, {
+    headers: headers(),
+    data: {
+      firstName: 'Grade',
+      lastName: `Book${stamp()}`,
+      dateOfBirth: '2010-06-15',
+      gender: 'female',
+    },
+  });
+  expect(res.status(), await res.text()).toBe(201);
+  return (await res.json()).id as string;
 }
 
 async function putEntry(
@@ -101,7 +110,7 @@ test.describe('Gradebook workflow — live chain (E2E_BACKEND_READY)', () => {
   });
 
   test('submit → approve → lock → publish then GET /published', async ({ page, request }) => {
-    const studentId = uuid();
+    const studentId = await createStudent(request);
     const sectionId = SECTION_A;
     const assessmentCode = `GB-${stamp()}`;
     const entry = await putEntry(request, { sectionId, studentId, assessmentCode });
@@ -151,7 +160,7 @@ test.describe('Gradebook workflow — live chain (E2E_BACKEND_READY)', () => {
   test('TEACHER cannot APPROVE a submitted grade', async ({ request }) => {
     const entry = await putEntry(request, {
       sectionId: SECTION_A,
-      studentId: uuid(),
+      studentId: await createStudent(request),
       assessmentCode: `TCH-${stamp()}`,
     });
     const submit = await request.post(
@@ -171,7 +180,7 @@ test.describe('Gradebook workflow — live chain (E2E_BACKEND_READY)', () => {
   });
 
   test('cross-tenant: tenant B cannot read tenant A published grades', async ({ request }) => {
-    const studentId = uuid();
+    const studentId = await createStudent(request);
     const entry = await putEntry(request, {
       sectionId: SECTION_A,
       studentId,

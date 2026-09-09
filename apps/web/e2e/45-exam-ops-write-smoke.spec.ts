@@ -205,7 +205,7 @@ test.describe('Exam ops — live chain (E2E_BACKEND_READY)', () => {
         date: isoDate(11),
         startTime: '10:00',
         endTime: '12:00',
-        roomId: 'HALL-B',
+        roomId: `${ROOM}-B`,
         centerId: fx.centerId,
       },
       201,
