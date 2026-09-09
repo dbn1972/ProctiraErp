@@ -15,6 +15,7 @@ import {
   deleteGradingScheme,
   enterBulkResults,
   importResultsFromExcel,
+  createOutcome,
   updateGradingScheme,
   type BulkResultEntryResponse,
   type CreateGradingSchemeInput,
@@ -252,5 +253,37 @@ export async function importResultsFromExcelAction(
     };
   } catch (error) {
     return toErrorState<BulkResultEntryResponse>(error, 'Failed to import results');
+  }
+}
+
+export async function createOutcomeAction(input: {
+  subjectId: string;
+  name: string;
+  code: string;
+  description?: string;
+}): Promise<ActionState<{ id: string }>> {
+  const subjectId = input.subjectId.trim();
+  const name = input.name.trim();
+  const code = input.code.trim();
+  if (!subjectId) {
+    return { status: 'error', message: 'Subject is required.', fieldErrors: { subjectId: 'Required' } };
+  }
+  if (!name) {
+    return { status: 'error', message: 'Name is required.', fieldErrors: { name: 'Required' } };
+  }
+  if (!code) {
+    return { status: 'error', message: 'Code is required.', fieldErrors: { code: 'Required' } };
+  }
+  try {
+    const row = await createOutcome({
+      subjectId,
+      name,
+      code,
+      description: input.description?.trim() || undefined,
+    });
+    revalidatePath('/assessments/outcomes');
+    return { status: 'success', message: 'Outcome saved.', data: { id: row.id } };
+  } catch (error) {
+    return toErrorState(error, 'Failed to create outcome');
   }
 }
