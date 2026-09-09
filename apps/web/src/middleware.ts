@@ -268,6 +268,57 @@ function isStructurallyValid(token: string): boolean {
   }
 }
 
+/** Normalised role ids from a JWT payload (`roleId` preferred over `roleName`). */
+export function jwtRoleIds(payload: unknown): string[] {
+  if (!payload || typeof payload !== 'object') return [];
+  const roles = (payload as { roles?: unknown }).roles;
+  if (!Array.isArray(roles)) return [];
+  const ids: string[] = [];
+  for (const role of roles) {
+    if (typeof role === 'string') {
+      const normalised = role.toLowerCase().replace(/_/g, '-').trim();
+      if (normalised) ids.push(normalised);
+      continue;
+    }
+    if (role && typeof role === 'object') {
+      const rec = role as Record<string, unknown>;
+      const raw =
+        (typeof rec.roleId === 'string' && rec.roleId) ||
+        (typeof rec.roleName === 'string' && rec.roleName) ||
+        (typeof rec.id === 'string' && rec.id) ||
+        '';
+      const normalised = raw.toLowerCase().replace(/_/g, '-').trim();
+      if (normalised) ids.push(normalised);
+    }
+  }
+  return ids;
+}
+
+export function isStudentOnlyRoles(roles: readonly string[]): boolean {
+  return roles.length > 0 && roles.every((role) => role === 'student');
+}
+
+export function isParentOnlyRoles(roles: readonly string[]): boolean {
+  return (
+    roles.length > 0 && roles.every((role) => role === 'parent' || role === 'guardian')
+  );
+}
+
+/**
+ * Bounce student-only actors off `/parent` and parent-only actors off `/student`.
+ * Staff/admin (any non-portal-only role) keep access so a11y sessions still work.
+ */
+export function portalRoleRedirect(
+  pathname: string,
+  roles: readonly string[],
+): '/parent' | '/student' | null {
+  const onParent = pathname === '/parent' || pathname.startsWith('/parent/');
+  const onStudent = pathname === '/student' || pathname.startsWith('/student/');
+  if (onParent && isStudentOnlyRoles(roles)) return '/student';
+  if (onStudent && isParentOnlyRoles(roles)) return '/parent';
+  return null;
+}
+
 // ─── Middleware ───────────────────────────────────────────────────────────────
 
 /**
@@ -366,9 +417,13 @@ export async function middleware(request: NextRequest) {
     // subdomain/header for authenticated requests — Design §M priority 3).
     try {
       const parts = accessToken.split('.');
-      const payload = JSON.parse(atob(parts[1]!)) as { tenantId?: string };
+      const payload = JSON.parse(atob(parts[1]!)) as { tenantId?: string; roles?: unknown };
       if (payload.tenantId) {
         response.headers.set('X-Tenant-ID', payload.tenantId);
+      }
+      const bounce = portalRoleRedirect(pathname, jwtRoleIds(payload));
+      if (bounce) {
+        return NextResponse.redirect(new URL(bounce, request.url));
       }
     } catch {
       // Token parsing failed, continue with subdomain-resolved tenant.

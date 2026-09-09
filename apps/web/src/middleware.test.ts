@@ -315,3 +315,42 @@ describe('API CSRF gate (G-719)', () => {
     expect(res.cookies.get('csrf_token')).toBeUndefined();
   });
 });
+
+describe('G-904 portal role bounce', () => {
+  it('sends a student-only JWT from /parent to /student', async () => {
+    const { portalRoleRedirect, jwtRoleIds, isStudentOnlyRoles } = await import('./middleware');
+    const roles = jwtRoleIds({
+      roles: [{ roleId: 'student', roleName: 'Student', areaId: null }],
+    });
+    expect(isStudentOnlyRoles(roles)).toBe(true);
+    expect(portalRoleRedirect('/parent', roles)).toBe('/student');
+    expect(portalRoleRedirect('/parent/attendance', roles)).toBe('/student');
+  });
+
+  it('sends a parent-only JWT from /student to /parent', async () => {
+    const { portalRoleRedirect, jwtRoleIds, isParentOnlyRoles } = await import('./middleware');
+    const roles = jwtRoleIds({
+      roles: [{ roleId: 'parent', roleName: 'Parent', areaId: null }],
+    });
+    expect(isParentOnlyRoles(roles)).toBe(true);
+    expect(portalRoleRedirect('/student', roles)).toBe('/parent');
+    expect(portalRoleRedirect('/student/pal', roles)).toBe('/parent');
+    expect(portalRoleRedirect('/parent/grades', roles)).toBeNull();
+  });
+
+  it('lets staff and admin keep /parent and /student for a11y scans', async () => {
+    const { portalRoleRedirect, jwtRoleIds } = await import('./middleware');
+    const admin = jwtRoleIds({
+      roles: [{ roleId: 'admin', roleName: 'SUPER_ADMIN', areaId: null }],
+    });
+    expect(portalRoleRedirect('/parent', admin)).toBeNull();
+    expect(portalRoleRedirect('/student', admin)).toBeNull();
+    const mixed = jwtRoleIds({
+      roles: [
+        { roleId: 'parent', roleName: 'Parent', areaId: null },
+        { roleId: 'teacher', roleName: 'Teacher', areaId: null },
+      ],
+    });
+    expect(portalRoleRedirect('/student', mixed)).toBeNull();
+  });
+});

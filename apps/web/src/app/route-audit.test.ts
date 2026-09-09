@@ -78,6 +78,27 @@ describe('G-727 App Router route audit', () => {
     }
   });
 
+  it('discovers G-904 parent and student academic pages on disk', () => {
+    for (const required of [
+      '/parent/attendance',
+      '/parent/grades',
+      '/parent/timetable',
+      '/parent/homework',
+      '/parent/calendar',
+      '/parent/notices',
+      '/student',
+      '/student/attendance',
+      '/student/grades',
+      '/student/timetable',
+      '/student/homework',
+      '/student/calendar',
+      '/student/notices',
+      '/student/pal',
+    ]) {
+      expect(ROUTES.has(required), `${required} missing from src/app`).toBe(true);
+    }
+  });
+
   it('sidebar navItems resolve to real routes', () => {
     const dead = navItems.map((i) => i.href).filter((h) => !routeExists(h));
     expect(dead).toEqual([]);

@@ -42,6 +42,24 @@ import { runAxe } from './helpers/axe';
 
 const BACKEND_READY = !!process.env.E2E_BACKEND_READY;
 
+const PORTAL_RTL_ROUTES = [
+  '/parent',
+  '/parent/attendance',
+  '/parent/grades',
+  '/parent/timetable',
+  '/parent/homework',
+  '/parent/calendar',
+  '/parent/notices',
+  '/student',
+  '/student/attendance',
+  '/student/grades',
+  '/student/timetable',
+  '/student/homework',
+  '/student/calendar',
+  '/student/notices',
+  '/student/pal',
+] as const;
+
 /**
  * Logical-axis Tailwind utilities mandated by Requirement 18 AC 10. The
  * lint rule from task 48.4 forbids the corresponding physical-axis
@@ -111,6 +129,22 @@ test.describe('Task 48.5 — Arabic locale pilot end-to-end RTL behaviour', () =
     //     dropdown that escapes the viewport, a focus ring clipped by
     //     `overflow: hidden`, or a label/control swap).
     await runAxe(page, { checkpointLabel: 'RTL /students' });
+  });
+
+  test('parent and student academic pages keep RTL direction', async ({ page }) => {
+    await loginAsTenantAdmin(page);
+
+    const languageTrigger = page.getByRole('button', { name: /select language/i });
+    await expect(languageTrigger).toBeVisible();
+    await languageTrigger.click();
+    await page.getByRole('menuitemradio', { name: /العربية|arabic/i }).first().click();
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl', { timeout: 10_000 });
+
+    for (const path of PORTAL_RTL_ROUTES) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
+    }
   });
 });
 

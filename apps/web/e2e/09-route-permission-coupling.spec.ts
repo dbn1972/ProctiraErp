@@ -72,6 +72,7 @@ const PROTECTED_ROUTES: ProtectedRoute[] = [
     requiredPermissions: ['examination.read'],
   },
   { id: 'parent-portal', path: '/parent', requiredPermissions: ['parent.read'] },
+  { id: 'student-portal', path: '/student', requiredPermissions: ['student-portal.read'] },
 ];
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
