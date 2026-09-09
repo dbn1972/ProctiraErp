@@ -16,7 +16,7 @@
  *  - notifications: in-memory delivery records; prefs/devices use raw SQL +
  *    `pg` when DATABASE_URL is set (db/sql/005_notifications_schema.sql).
  *  - transport: raw SQL + `pg` when DATABASE_URL is set
- *    (db/sql/006_transport_schema.sql); else in-memory.
+ *    (db/sql/006_transport_schema.sql + 045_transport_ops_schema.sql); else in-memory.
  *  - communication / hostel / library / parent-portal / fees: raw SQL + `pg` when DATABASE_URL is set
  *    (db/sql/007–011_*.sql); else in-memory.
  *  - scholarships: raw SQL + `pg` when DATABASE_URL is set (db/sql/016_scholarships_schema.sql);
@@ -468,10 +468,20 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'transport',
     proxyPrefixes: ['/transport'],
     register: async (scope) => {
-      // Pg when DATABASE_URL (db/sql/006_transport_schema.sql); else in-memory.
+      // Pg when DATABASE_URL (db/sql/006 + 045_transport_ops_schema.sql); else in-memory.
+      // G-920: GPS ingest + live map, trip attendance, alerts, fees via FeesService (G-903).
       const repository = createTransportRepository();
+      const feesService = new FeesService(createFeesRepository());
       await scope.register(transportPlugin, {
         repository,
+        feesService: {
+          createFeeStructure: (tenantId, actorId, input) =>
+            feesService.createFeeStructure(tenantId, actorId, input),
+          createInvoice: (tenantId, actorId, input) =>
+            feesService.createInvoice(tenantId, actorId, input),
+          bulkInvoiceClass: (tenantId, actorId, input) =>
+            feesService.bulkInvoiceClass(tenantId, actorId, input),
+        },
         prefix: '/transport',
       });
     },
