@@ -13,6 +13,10 @@
  * - 21.5: Configurable retention with automated archival
  */
 
+import type { ChainVerification } from './audit-hash.js';
+
+export type { ChainBreak, ChainVerification } from './audit-hash.js';
+
 /**
  * Supported audit operations.
  */
@@ -46,6 +50,13 @@ export interface AuditLogEntry {
   afterValues: Record<string, unknown> | null;
   /** Optional metadata (e.g., request ID, correlation ID) */
   metadata: Record<string, unknown> | null;
+  /**
+   * G-913 tamper-evident chain. `null` on rows written before the chain
+   * existed (legacy); every new row carries all three.
+   */
+  chainSeq: number | null;
+  prevHash: string | null;
+  entryHash: string | null;
 }
 
 /**
@@ -185,4 +196,18 @@ export interface AuditRepository {
    * Get the count of entries that would be archived based on current retention config.
    */
   getArchivalCandidateCount(tenantId: string): Promise<number>;
+
+  /**
+   * G-913: re-compute the tenant's hash chain from the genesis entry and
+   * report the first break, if any.
+   */
+  verifyChain(tenantId: string): Promise<ChainVerification>;
+
+  /**
+   * G-913: tenants whose retention config has archival enabled — the runtime
+   * retention scheduler iterates this list.
+   */
+  listTenantsWithArchivalEnabled(): Promise<string[]>;
 }
+
+

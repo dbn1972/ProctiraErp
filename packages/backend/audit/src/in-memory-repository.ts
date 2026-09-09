@@ -12,7 +12,9 @@ import type {
   AuditLogQueryResult,
   AuditRetentionConfig,
   ArchivalResult,
+  ChainVerification,
 } from './audit-repository.js';
+import { computeEntryHash, verifyEntrySequence } from './audit-hash.js';
 
 /**
  * In-memory implementation of AuditRepository for testing purposes.
@@ -22,11 +24,16 @@ export class InMemoryAuditRepository implements AuditRepository {
   private entries: AuditLogEntry[] = [];
   private archivedEntries: AuditLogEntry[] = [];
   private retentionConfigs: Map<string, AuditRetentionConfig> = new Map();
+  /** Per-tenant chain head (G-913). */
+  private chainHeads: Map<string, { seq: number; hash: string | null }> = new Map();
 
   /**
    * Create a new audit log entry (append-only).
    */
   async create(input: CreateAuditLogInput): Promise<AuditLogEntry> {
+    const head = this.chainHeads.get(input.tenantId) ?? { seq: 0, hash: null };
+    const prevHash = head.hash;
+    const entryHash = computeEntryHash(input, prevHash);
     const entry: AuditLogEntry = {
       id: input.id,
       tenantId: input.tenantId,
@@ -40,9 +47,13 @@ export class InMemoryAuditRepository implements AuditRepository {
       beforeValues: input.beforeValues,
       afterValues: input.afterValues,
       metadata: input.metadata ?? null,
+      chainSeq: head.seq + 1,
+      prevHash,
+      entryHash,
     };
 
     this.entries.push(entry);
+    this.chainHeads.set(input.tenantId, { seq: entry.chainSeq!, hash: entryHash });
     return entry;
   }
 
@@ -191,7 +202,31 @@ export class InMemoryAuditRepository implements AuditRepository {
     return this.entries.filter((e) => e.tenantId === tenantId && e.timestamp < cutoffDate).length;
   }
 
+  /**
+   * G-913: verify across active + archived rows so archival never breaks the chain.
+   */
+  async verifyChain(tenantId: string): Promise<ChainVerification> {
+    const all = [...this.entries, ...this.archivedEntries].filter((e) => e.tenantId === tenantId);
+    return verifyEntrySequence(tenantId, all);
+  }
+
+  async listTenantsWithArchivalEnabled(): Promise<string[]> {
+    return [...this.retentionConfigs.values()]
+      .filter((c) => c.archivalEnabled)
+      .map((c) => c.tenantId);
+  }
+
   // --- Test helpers ---
+
+  /**
+   * Simulates out-of-band tampering (e.g. a DBA editing a row with the
+   * append-only trigger disabled) so tests can prove `verifyChain` catches it.
+   */
+  tamperForTest(id: string, patch: Partial<AuditLogEntry>): void {
+    const idx = this.entries.findIndex((e) => e.id === id);
+    if (idx === -1) throw new Error(`no entry ${id}`);
+    this.entries[idx] = { ...this.entries[idx]!, ...patch };
+  }
 
   /**
    * Get all entries (for test assertions).

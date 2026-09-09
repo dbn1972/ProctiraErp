@@ -30,7 +30,17 @@ export type {
   AuditOperation,
   AuditRetentionConfig,
   ArchivalResult,
+  ChainBreak,
+  ChainVerification,
 } from './audit-repository.js';
+
+// G-913 hash chain + runtime retention
+export { computeEntryHash, canonicalJson, verifyEntrySequence } from './audit-hash.js';
+export {
+  createRetentionScheduler,
+  DEFAULT_RETENTION_INTERVAL_MS,
+} from './retention-scheduler.js';
+export type { RetentionScheduler, RetentionSchedulerOptions } from './retention-scheduler.js';
 
 // In-memory repository (for testing)
 export { InMemoryAuditRepository } from './in-memory-repository.js';

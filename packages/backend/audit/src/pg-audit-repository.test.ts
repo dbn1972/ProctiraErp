@@ -90,3 +90,63 @@ describe('PgAuditRepository (live)', () => {
     expect(cfg?.lastArchivalAt).toBeInstanceOf(Date);
   });
 });
+
+describe('PgAuditRepository hash chain (live, G-913)', () => {
+  it.skipIf(!pool)('chains inserts, verifies, and flags out-of-band tampering', async () => {
+    const repo = new PgAuditRepository(pool!);
+    const tenantId = randomUUID();
+    const base = {
+      tenantId,
+      entityType: 'student',
+      operation: 'UPDATE' as const,
+      userId: 'user-1',
+      userName: 'Test User',
+      ipAddress: '127.0.0.1',
+      beforeValues: { name: 'A' },
+      afterValues: { name: 'B' },
+      metadata: null,
+    };
+    const first = await repo.create({ ...base, id: randomUUID(), entityId: randomUUID(), timestamp: new Date() });
+    const second = await repo.create({ ...base, id: randomUUID(), entityId: randomUUID(), timestamp: new Date() });
+    expect(first.chainSeq).toBe(1);
+    expect(second.chainSeq).toBe(2);
+    expect(second.prevHash).toBe(first.entryHash);
+
+    const clean = await repo.verifyChain(tenantId);
+    expect(clean.valid).toBe(true);
+    expect(clean.checkedEntries).toBe(2);
+    expect(clean.headHash).toBe(second.entryHash);
+
+    // Simulate a DBA bypassing the append-only trigger.
+    const client = await pool!.connect();
+    try {
+      await client.query(`SELECT set_config('app.platform_admin','1',false)`);
+      await client.query(`ALTER TABLE audit_log_entries DISABLE TRIGGER trg_audit_log_append_only`);
+      await client.query(
+        `UPDATE audit_log_entries SET after_values = '{"name":"forged"}'::jsonb WHERE id = $1`,
+        [first.id],
+      );
+    } finally {
+      await client.query(`ALTER TABLE audit_log_entries ENABLE TRIGGER trg_audit_log_append_only`);
+      client.release();
+    }
+
+    const tampered = await repo.verifyChain(tenantId);
+    expect(tampered.valid).toBe(false);
+    expect(tampered.brokenAt?.chainSeq).toBe(1);
+    expect(tampered.brokenAt?.reason).toBe('hash-mismatch');
+  });
+
+  it.skipIf(!pool)('lists archival-enabled tenants for the retention sweep', async () => {
+    const repo = new PgAuditRepository(pool!);
+    const tenantId = randomUUID();
+    await repo.setRetentionConfig({
+      tenantId,
+      retentionMonths: 6,
+      archivalEnabled: true,
+      archivalDestination: null,
+      lastArchivalAt: null,
+    });
+    expect(await repo.listTenantsWithArchivalEnabled()).toContain(tenantId);
+  });
+});

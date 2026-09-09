@@ -5,6 +5,7 @@
  * POST   /audit/batch              - Record multiple audit log entries
  * GET    /audit                    - Query audit logs with filters
  * GET    /audit/dsar/:subjectId     - G-734 DSAR export for a data subject
+ * GET    /audit/chain/verify        - G-913 recompute the tenant hash chain
  * GET    /audit/:id                - Get a single audit log entry
  * GET    /audit/retention          - Get retention configuration
  * PUT    /audit/retention          - Set retention configuration
@@ -62,6 +63,9 @@ function formatAuditEntryResponse(entry: AuditLogEntry) {
     beforeValues: entry.beforeValues,
     afterValues: entry.afterValues,
     metadata: entry.metadata,
+    chainSeq: entry.chainSeq,
+    prevHash: entry.prevHash,
+    entryHash: entry.entryHash,
   };
 }
 
@@ -375,6 +379,24 @@ export async function registerAuditRoutes(
       }
     },
   );
+
+  // GET /audit/chain/verify — G-913 tamper-evidence check
+  fastify.get(`${prefix}/chain/verify`, async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      const tenantId = getTenantId(request);
+      const verification = await auditService.verifyChain(tenantId);
+      return reply.status(200).send(verification);
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return reply.status(error.statusCode).send({
+          code: error.code,
+          message: error.message,
+          statusCode: error.statusCode,
+        });
+      }
+      throw error;
+    }
+  });
 
   // GET /audit/dsar/:subjectId — G-734 Data Subject Access Request export
   fastify.get(`${prefix}/dsar/:subjectId`, async (request: FastifyRequest, reply: FastifyReply) => {

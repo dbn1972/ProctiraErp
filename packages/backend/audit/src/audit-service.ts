@@ -23,6 +23,7 @@ import type {
   AuditOperation,
   AuditRetentionConfig,
   ArchivalResult,
+  ChainVerification,
   CreateAuditLogInput,
 } from './audit-repository.js';
 
@@ -310,6 +311,42 @@ export class AuditService {
    */
   async getArchivalCandidateCount(tenantId: string): Promise<number> {
     return this.repository.getArchivalCandidateCount(tenantId);
+  }
+
+  /**
+   * G-913 — recompute the tenant's hash chain and report integrity.
+   */
+  async verifyChain(tenantId: string): Promise<ChainVerification> {
+    if (!tenantId?.trim()) {
+      throw new ValidationError('tenantId is required', [
+        { field: 'tenantId', rule: 'required', message: 'tenantId is required' },
+      ]);
+    }
+    return this.repository.verifyChain(tenantId);
+  }
+
+  /**
+   * G-913 — runtime retention sweep: archive expired rows for every tenant
+   * that enabled archival. Failures are isolated per tenant so one bad
+   * tenant never blocks the others.
+   */
+  async runRetentionSweep(): Promise<{
+    tenants: number;
+    archived: number;
+    failures: { tenantId: string; error: string }[];
+  }> {
+    const tenants = await this.repository.listTenantsWithArchivalEnabled();
+    let archived = 0;
+    const failures: { tenantId: string; error: string }[] = [];
+    for (const tenantId of tenants) {
+      try {
+        const result = await this.repository.archiveExpiredEntries(tenantId);
+        archived += result.archivedCount;
+      } catch (error) {
+        failures.push({ tenantId, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return { tenants: tenants.length, archived, failures };
   }
 
   /**

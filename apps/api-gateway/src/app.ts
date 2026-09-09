@@ -17,7 +17,12 @@ import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
-import { auditPlugin, createAuditRepository } from '@proctira/backend-audit';
+import {
+  auditPlugin,
+  createAuditRepository,
+  createRetentionScheduler,
+  DEFAULT_RETENTION_INTERVAL_MS,
+} from '@proctira/backend-audit';
 import {
   authPlugin,
   createKeycloakIdentityStore,
@@ -611,6 +616,21 @@ export async function buildApp(options: BuildAppOptions): Promise<FastifyInstanc
     repository: auditRepository,
     prefix: '/api/v1/audit-logs',
   });
+
+  // 8d'. G-913 — enforce per-tenant retention at runtime. Opt out with
+  // AUDIT_RETENTION_SCHEDULER=0 (tests / one-off tooling); interval override in ms.
+  if (process.env.AUDIT_RETENTION_SCHEDULER !== '0' && process.env.NODE_ENV !== 'test') {
+    const intervalMs = Number(process.env.AUDIT_RETENTION_INTERVAL_MS) || DEFAULT_RETENTION_INTERVAL_MS;
+    const retentionScheduler = createRetentionScheduler({
+      service: app.auditService,
+      intervalMs,
+      logger: app.log,
+    });
+    retentionScheduler.start();
+    app.addHook('onClose', async () => {
+      retentionScheduler.stop();
+    });
+  }
 
   // 8e. Mount billing + tenant lifecycle (G-106). Tenant routes use a non-clashing
   // prefix because platform-admin UI owns `/api/v1/tenants`.

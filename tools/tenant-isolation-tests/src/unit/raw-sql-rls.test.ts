@@ -201,3 +201,25 @@ describe('Wave 9 institution infrastructure raw-SQL RLS (027_institution_infrast
     }
   });
 });
+
+describe('Wave 9 audit hash chain raw-SQL RLS (028_audit_hash_chain.sql)', () => {
+  const sql = loadSql('028_audit_hash_chain.sql');
+
+  it('audit_chain_heads enables + forces RLS with the tenant_isolation / platform_admin policy', () => {
+    expect(sql).toMatch(/ALTER TABLE audit_chain_heads ENABLE ROW LEVEL SECURITY/);
+    expect(sql).toMatch(/ALTER TABLE audit_chain_heads FORCE ROW LEVEL SECURITY/);
+    expect(sql).toMatch(/CREATE POLICY tenant_isolation ON audit_chain_heads/);
+    expect(sql).toMatch(/current_setting\('app\.platform_admin', true\) = '1'/);
+  });
+
+  it('adds chain columns to both the active and archive audit tables', () => {
+    for (const table of ['audit_log_entries', 'audit_log_archive']) {
+      const alter = sql.match(new RegExp(`ALTER TABLE ${table}\\s+([\\s\\S]*?);`));
+      expect(alter, `missing ALTER TABLE for ${table}`).not.toBeNull();
+      for (const col of ['chain_seq', 'prev_hash', 'entry_hash']) {
+        expect(alter?.[1]).toMatch(new RegExp(`ADD COLUMN IF NOT EXISTS ${col}`));
+      }
+    }
+    expect(sql).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS audit_log_entries_tenant_chain_seq_idx/);
+  });
+});

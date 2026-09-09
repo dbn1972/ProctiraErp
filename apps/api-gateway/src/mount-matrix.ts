@@ -328,10 +328,10 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     package: 'audit',
     mounted: true,
     prefixes: ['/audit-logs'],
-    persistence: 'in-memory',
+    persistence: 'raw-pg',
     rbacWired: true,
     notes:
-      'auditPlugin + mutating onResponse trail in `app.ts` (G-105). Prefix `/audit-logs` avoids clash with platform-admin GET `/audit` stub.',
+      'auditPlugin + mutating onResponse trail in `app.ts` (G-105). Raw pg 022/028 when DATABASE_URL (G-704): append-only trigger + sha256 hash chain with `/chain/verify`, DSAR export, runtime retention scheduler (G-913). Prefix `/audit-logs` avoids clash with platform-admin GET `/audit` stub.',
   },
   {
     package: 'billing',
