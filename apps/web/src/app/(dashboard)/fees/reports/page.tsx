@@ -12,7 +12,17 @@ export default async function FeesReportsPage() {
   const report = await fetchDuesReport();
   return (
     <div className="p-6">
-      <FeesReportsPanel report={report} />
+      <FeesReportsPanel
+        report={report}
+        header={
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee reports</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Dues by class and status, plus bank reconciliation CSV import.
+            </p>
+          </div>
+        }
+      />
     </div>
   );
 }

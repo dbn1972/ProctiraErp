@@ -12,7 +12,19 @@ export default async function FeesStructuresPage() {
   const structures = await listFeeStructures();
   return (
     <div className="p-6">
-      <StructuresWorkspace structures={structures} />
+      <StructuresWorkspace
+        structures={structures}
+        header={
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Fee structures
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Class × category × term amounts, instalment schedules, and bulk invoicing.
+            </p>
+          </div>
+        }
+      />
     </div>
   );
 }

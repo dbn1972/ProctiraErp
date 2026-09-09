@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -31,7 +31,14 @@ function formatAmount(cents: number, currency: string): string {
   }).format(cents / 100);
 }
 
-export function StructuresWorkspace({ structures }: { structures: FeeStructure[] }) {
+export function StructuresWorkspace({
+  structures,
+  header,
+}: {
+  structures: FeeStructure[];
+  /** Server-rendered page heading (h1 + description) so the page owns its h1. */
+  header: ReactNode;
+}) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [open, setOpen] = useState(false);
@@ -89,12 +96,7 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee structures</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Class × category × term amounts, instalment schedules, and bulk invoicing.
-          </p>
-        </div>
+        {header}
         <Button
           type="button"
           data-testid="new-structure"

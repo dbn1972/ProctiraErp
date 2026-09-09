@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -25,7 +25,7 @@ function formatAmount(cents: number): string {
   }).format(cents / 100);
 }
 
-export function FeesReportsPanel({ report }: { report: DuesReport }) {
+export function FeesReportsPanel({ report, header }: { report: DuesReport; header: ReactNode }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [pending, startTransition] = useTransition();
@@ -54,12 +54,7 @@ export function FeesReportsPanel({ report }: { report: DuesReport }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Fee reports</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Dues by class and status, plus bank reconciliation CSV import.
-          </p>
-        </div>
+        {header}
         <Button asChild data-testid="download-dues-csv" data-hydrated={hydrated ? 'true' : 'false'}>
           <a href="/api/fees/reports/dues">Download dues CSV</a>
         </Button>
