@@ -59,7 +59,7 @@ export function LessonForm() {
           id="lesson-published"
           name="published"
           type="checkbox"
-          className="size-11 shrink-0 rounded border border-input"
+          className="size-12 shrink-0 rounded border border-input"
         />
         <span className="text-sm font-medium">Published</span>
       </label>

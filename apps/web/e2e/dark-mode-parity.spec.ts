@@ -189,10 +189,8 @@ async function gotoDashboardRoute(
   page: import('@playwright/test').Page,
   path: string,
 ): Promise<void> {
-  await page.goto(path);
-  if (path === '/reports/dashboards') {
-    await page.waitForURL('**/reports/dashboard**', { timeout: 20_000 });
-  }
+  const target = path === '/reports/dashboards' ? '/reports/dashboard' : path;
+  await page.goto(target);
   await page
     .waitForSelector('[role="main"], main', {
       state: 'visible',

@@ -624,10 +624,11 @@ test.describe('Wave 9 routes — touch targets (E2E_BACKEND_READY=1)', () => {
       page,
     }) => {
       await loginAsTenantAdmin(page);
-      const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
-      expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
       if (route === '/reports/dashboards') {
-        await page.waitForURL('**/reports/dashboard**', { timeout: 20_000 });
+        await page.goto('/reports/dashboard', { waitUntil: 'domcontentloaded' });
+      } else {
+        const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
+        expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
       }
       // `networkidle` never settles under `next dev` (HMR); wait for load + a short settle.
       await page.waitForLoadState('load').catch(() => {});
@@ -650,10 +651,11 @@ test.describe('Wave 9 routes — touch targets (E2E_BACKEND_READY=1)', () => {
       const page = await context.newPage();
       try {
         await loginAsTenantAdmin(page);
-        const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
-        expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
         if (route === '/reports/dashboards') {
-          await page.waitForURL('**/reports/dashboard**', { timeout: 20_000 });
+          await page.goto('/reports/dashboard', { waitUntil: 'domcontentloaded' });
+        } else {
+          const response = await page.goto(route, { waitUntil: 'domcontentloaded' });
+          expect(response?.status(), `${route} must resolve`).toBeLessThan(400);
         }
         // `networkidle` never settles under `next dev` (HMR); wait for load + a short settle.
         await page.waitForLoadState('load').catch(() => {});

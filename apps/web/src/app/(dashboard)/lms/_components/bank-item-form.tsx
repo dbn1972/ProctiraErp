@@ -76,7 +76,11 @@ export function BankItemForm() {
       </div>
       <div className="space-y-1">
         <Label htmlFor="bank-type">Type</Label>
-        <select id="bank-type" name="questionType" className="h-11 w-full rounded-md border px-3">
+        <select
+          id="bank-type"
+          name="questionType"
+          className="h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+        >
           <option value="mcq">MCQ</option>
           <option value="msq">MSQ</option>
           <option value="numeric">Numeric</option>
@@ -90,7 +94,7 @@ export function BankItemForm() {
           id="bank-diff"
           name="difficulty"
           defaultValue="medium"
-          className="h-11 w-full rounded-md border px-3"
+          className="h-11 min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
         >
           <option value="easy">Easy</option>
           <option value="medium">Medium</option>

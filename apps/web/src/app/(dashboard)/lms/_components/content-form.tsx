@@ -72,7 +72,7 @@ export function ContentForm() {
         <input
           type="checkbox"
           name="published"
-          className="size-11 shrink-0 rounded border border-input"
+          className="size-12 shrink-0 rounded border border-input"
         />
         Publish for students
       </label>
