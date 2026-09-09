@@ -18,11 +18,7 @@ export function RoleDashboardPanel({ dashboard }: { dashboard: RoleDashboard }) 
       </h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {dashboard.cards.map((card) => (
-          <Card
-            key={card.id}
-            data-testid={`dashboard-card-${card.id}`}
-            data-card-id={card.id}
-          >
+          <Card key={card.id} data-testid={`dashboard-card-${card.id}`} data-card-id={card.id}>
             <CardHeader className="pb-2">
               <CardDescription>{card.title}</CardDescription>
               <CardTitle className="text-2xl tabular-nums">{card.value}</CardTitle>

@@ -22,7 +22,11 @@ function services() {
   return { staffService, hr };
 }
 
-async function hire(staffService: StaffService, tenantId = TENANT_A, identity = `ID-${randomUUID().slice(0, 8)}`) {
+async function hire(
+  staffService: StaffService,
+  tenantId = TENANT_A,
+  identity = `ID-${randomUUID().slice(0, 8)}`,
+) {
   return staffService.create(tenantId, {
     firstName: 'Ada',
     lastName: 'Lovelace',
@@ -126,11 +130,7 @@ Grace,Hopper,1906-12-09,EMP-GH-1,+15551111,Teacher,grace@school.test,permanent,2
     expect(committed.staffIds).toHaveLength(1);
 
     const staffId = committed.staffIds[0]!;
-    await hr.markAttendance(
-      TENANT_A,
-      { staffId, date: '2026-09-03', status: 'present' },
-      'hr-1',
-    );
+    await hr.markAttendance(TENANT_A, { staffId, date: '2026-09-03', status: 'present' }, 'hr-1');
     const payroll = await hr.exportPayroll(TENANT_A, { month: '2026-09' });
     expect(payroll.filename).toBe('payroll-2026-09.csv');
     expect(payroll.csv).toMatch(/staffId,name,salaryBand/);
@@ -143,8 +143,8 @@ Grace,Hopper,1906-12-09,EMP-GH-1,+15551111,Teacher,grace@school.test,permanent,2
 
   it('rejects empty import commit', async () => {
     const { hr } = services();
-    await expect(hr.commitImport(TENANT_A, { csv: 'not,a,staff,header\n1,2,3,4' })).rejects.toBeInstanceOf(
-      ValidationError,
-    );
+    await expect(
+      hr.commitImport(TENANT_A, { csv: 'not,a,staff,header\n1,2,3,4' }),
+    ).rejects.toBeInstanceOf(ValidationError);
   });
 });

@@ -29,8 +29,18 @@ const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
   principal: {
     title: 'Principal dashboard',
     cards: [
-      { id: 'principal-enrolment', title: 'School enrolment', value: '—', hint: 'Active enrolments' },
-      { id: 'principal-attendance', title: 'Today attendance', value: '—', hint: 'Campus present %' },
+      {
+        id: 'principal-enrolment',
+        title: 'School enrolment',
+        value: '—',
+        hint: 'Active enrolments',
+      },
+      {
+        id: 'principal-attendance',
+        title: 'Today attendance',
+        value: '—',
+        hint: 'Campus present %',
+      },
       { id: 'principal-dues', title: 'Open fee dues', value: '—', hint: 'Open + overdue invoices' },
       { id: 'principal-students', title: 'Students', value: '—', hint: 'Active student records' },
     ],
@@ -39,18 +49,38 @@ const DASHBOARDS: Record<DashboardRole, Omit<RoleDashboard, 'role'>> = {
     title: 'Teacher dashboard',
     cards: [
       { id: 'teacher-students', title: 'Roster size', value: '—', hint: 'Students in tenant' },
-      { id: 'teacher-attendance', title: 'Period attendance', value: '—', hint: 'Marked present share' },
-      { id: 'teacher-enrolment', title: 'Active enrolments', value: '—', hint: 'Current enrolments' },
+      {
+        id: 'teacher-attendance',
+        title: 'Period attendance',
+        value: '—',
+        hint: 'Marked present share',
+      },
+      {
+        id: 'teacher-enrolment',
+        title: 'Active enrolments',
+        value: '—',
+        hint: 'Current enrolments',
+      },
       { id: 'teacher-dues', title: 'Open invoices', value: '—', hint: 'Fee invoices still open' },
     ],
   },
   parent: {
     title: 'Parent dashboard',
     cards: [
-      { id: 'parent-children', title: 'Linked children', value: '—', hint: 'Active guardian links' },
+      {
+        id: 'parent-children',
+        title: 'Linked children',
+        value: '—',
+        hint: 'Active guardian links',
+      },
       { id: 'parent-fees', title: 'Upcoming fees', value: '—', hint: 'Open invoices' },
       { id: 'parent-students', title: 'Student records', value: '—', hint: 'Visible roster rows' },
-      { id: 'parent-attendance', title: 'Child attendance', value: '—', hint: 'Present-like share' },
+      {
+        id: 'parent-attendance',
+        title: 'Child attendance',
+        value: '—',
+        hint: 'Present-like share',
+      },
     ],
   },
 };
@@ -72,7 +102,9 @@ export function inferDashboardRole(
   queryRole?: string | null,
 ): DashboardRole {
   const names = (roles ?? []).flatMap((r) =>
-    [r.roleName, r.roleId].filter((v): v is string => typeof v === 'string').map((v) => v.toLowerCase()),
+    [r.roleName, r.roleId]
+      .filter((v): v is string => typeof v === 'string')
+      .map((v) => v.toLowerCase()),
   );
   if (names.some((n) => n.includes('parent') || n.includes('guardian'))) return 'parent';
   if (names.some((n) => n.includes('teacher') || n === 'staff')) return 'teacher';
@@ -183,7 +215,10 @@ export async function loadDashboardAggregates(tenantId: string): Promise<Dashboa
         ? await count(client, `SELECT COUNT(*)::int AS n FROM students WHERE deleted_at IS NULL`)
         : 0;
       const enrolments = (await relationExists(client, 'enrollments'))
-        ? await count(client, `SELECT COUNT(*)::int AS n FROM enrollments WHERE status = 'ENROLLED'`)
+        ? await count(
+            client,
+            `SELECT COUNT(*)::int AS n FROM enrollments WHERE status = 'ENROLLED'`,
+          )
         : 0;
       let attendancePercent: number | null = null;
       if (await relationExists(client, 'student_attendance')) {
@@ -246,7 +281,10 @@ function fmtMoney(cents: number): string {
   });
 }
 
-export function valuesForRole(role: DashboardRole, agg: DashboardAggregates): Record<string, string> {
+export function valuesForRole(
+  role: DashboardRole,
+  agg: DashboardAggregates,
+): Record<string, string> {
   switch (role) {
     case 'board':
       return {

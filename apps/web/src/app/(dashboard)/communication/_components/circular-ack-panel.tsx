@@ -52,7 +52,11 @@ export function CircularAckPanel({
   }
 
   return (
-    <div className="space-y-4" data-testid="circular-ack-panel" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-4"
+      data-testid="circular-ack-panel"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <p className="text-sm text-muted-foreground">
         Status {status} · ack rate {Math.round(ackRate * 100)}%
       </p>

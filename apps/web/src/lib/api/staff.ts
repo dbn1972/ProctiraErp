@@ -488,12 +488,14 @@ export async function verifyStaffQualification(
   return result.data;
 }
 
-export async function listStaffAttendance(filters: {
-  date?: string;
-  staffId?: string;
-  from?: string;
-  to?: string;
-} = {}): Promise<StaffAttendanceMark[]> {
+export async function listStaffAttendance(
+  filters: {
+    date?: string;
+    staffId?: string;
+    from?: string;
+    to?: string;
+  } = {},
+): Promise<StaffAttendanceMark[]> {
   const params = new URLSearchParams();
   if (filters.date) params.set('date', filters.date);
   if (filters.staffId) params.set('staffId', filters.staffId);
@@ -546,7 +548,10 @@ export async function markStaffAttendanceBulk(input: {
   return result.data.data ?? [];
 }
 
-export async function dryRunStaffImport(csv: string, filename?: string): Promise<StaffImportReport> {
+export async function dryRunStaffImport(
+  csv: string,
+  filename?: string,
+): Promise<StaffImportReport> {
   const result = await gatewayFetch<StaffImportReport>('/staff/import/dry-run', {
     method: 'POST',
     json: { csv, filename },
@@ -555,7 +560,10 @@ export async function dryRunStaffImport(csv: string, filename?: string): Promise
   return result.data;
 }
 
-export async function commitStaffImport(csv: string, filename?: string): Promise<StaffImportReport> {
+export async function commitStaffImport(
+  csv: string,
+  filename?: string,
+): Promise<StaffImportReport> {
   const result = await gatewayFetch<StaffImportReport>('/staff/import/commit', {
     method: 'POST',
     json: { csv, filename },

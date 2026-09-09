@@ -874,15 +874,7 @@ export class PgHostelRepository implements HostelRepository {
              reason = EXCLUDED.reason,
              updated_at = now()
        RETURNING *`,
-      [
-        data.id,
-        data.tenantId,
-        data.blockId,
-        data.studentId,
-        data.onDate,
-        data.status,
-        data.reason,
-      ],
+      [data.id, data.tenantId, data.blockId, data.studentId, data.onDate, data.status, data.reason],
     );
     return mapAttendance(result.rows[0] as Record<string, unknown>);
   }

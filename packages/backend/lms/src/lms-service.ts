@@ -76,12 +76,7 @@ import type {
   UpdateAssignmentInput,
   UploadFileInput,
 } from './schemas.js';
-import {
-  applyAttempt,
-  buildSpiralPlan,
-  INITIAL_MASTERY,
-  type SpiralPlan,
-} from './spiral-pal.js';
+import { applyAttempt, buildSpiralPlan, INITIAL_MASTERY, type SpiralPlan } from './spiral-pal.js';
 
 export class ForbiddenError extends AppError {
   constructor(message = 'Forbidden') {
@@ -165,7 +160,11 @@ function normaliseQuestions(
     if (questionType === 'mcq') {
       if (options.length < 2) {
         throw new ValidationError('MCQ questions need at least two options', [
-          { field: `questions[${index}].options`, rule: 'min', message: 'Provide at least two options' },
+          {
+            field: `questions[${index}].options`,
+            rule: 'min',
+            message: 'Provide at least two options',
+          },
         ]);
       }
       const idx = q.correctOptionIndex ?? 0;
@@ -205,9 +204,7 @@ function bankToQuizQuestion(
 ): Omit<QuizQuestionEntity, 'createdAt'> {
   const options = Array.isArray(bank.payload.options) ? (bank.payload.options as string[]) : [];
   const correctOptionIndex =
-    typeof bank.payload.correctOptionIndex === 'number'
-      ? bank.payload.correctOptionIndex
-      : -1;
+    typeof bank.payload.correctOptionIndex === 'number' ? bank.payload.correctOptionIndex : -1;
   return {
     id: randomUUID(),
     tenantId,
@@ -224,7 +221,9 @@ function bankToQuizQuestion(
     payload: {
       ...bank.payload,
       tags: bank.tags,
-      rubricId: bank.rubricId ?? (typeof bank.payload.rubricId === 'string' ? bank.payload.rubricId : undefined),
+      rubricId:
+        bank.rubricId ??
+        (typeof bank.payload.rubricId === 'string' ? bank.payload.rubricId : undefined),
     },
   };
 }
@@ -364,7 +363,9 @@ export class LmsService {
     const id = randomUUID();
     const fromInline = normaliseQuestions(tenantId, id, questions);
     const fromBank =
-      bankIds.length > 0 ? await this.copyBankQuestions(tenantId, id, bankIds, fromInline.length) : [];
+      bankIds.length > 0
+        ? await this.copyBankQuestions(tenantId, id, bankIds, fromInline.length)
+        : [];
     const normalised = [...fromInline, ...fromBank];
     const quizPoints = normalised.reduce((sum, q) => sum + q.points, 0);
     const maxScore = input.maxScore ?? (input.kind === 'quiz' && quizPoints > 0 ? quizPoints : 100);
@@ -874,7 +875,9 @@ export class LmsService {
       ]);
     }
     const byId = new Map(found.map((q) => [q.id, q]));
-    return bankIds.map((id, i) => bankToQuizQuestion(tenantId, assignmentId, byId.get(id)!, startPosition + i));
+    return bankIds.map((id, i) =>
+      bankToQuizQuestion(tenantId, assignmentId, byId.get(id)!, startPosition + i),
+    );
   }
 
   async assembleFromBank(
@@ -891,7 +894,12 @@ export class LmsService {
       ]);
     }
     const existing = await this.repository.listQuestions(tenantId, assignmentId);
-    const copied = await this.copyBankQuestions(tenantId, assignmentId, questionIds, existing.length);
+    const copied = await this.copyBankQuestions(
+      tenantId,
+      assignmentId,
+      questionIds,
+      existing.length,
+    );
     const merged = [
       ...existing.map((q, i) => ({ ...q, position: i })),
       ...copied.map((q, i) => ({ ...q, position: existing.length + i })),
@@ -938,10 +946,18 @@ export class LmsService {
     return this.repository.listBankQuestions(tenantId, filter, pagination);
   }
 
-  async getBankQuestion(tenantId: string, id: string, actor: LmsActor): Promise<BankQuestionEntity> {
+  async getBankQuestion(
+    tenantId: string,
+    id: string,
+    actor: LmsActor,
+  ): Promise<BankQuestionEntity> {
     const row = await this.repository.findBankQuestion(tenantId, id);
     if (!row) throw new NotFoundError('Question not found');
-    if (row.scope === 'school' && isSchoolBound(actor) && !actor.institutions.includes(row.institutionId!)) {
+    if (
+      row.scope === 'school' &&
+      isSchoolBound(actor) &&
+      !actor.institutions.includes(row.institutionId!)
+    ) {
       throw new NotFoundError('Question not found');
     }
     return row;
@@ -1016,8 +1032,9 @@ export class LmsService {
     const rubricId =
       essay && typeof essay.payload?.rubricId === 'string'
         ? essay.payload.rubricId
-        : questions.find((q) => q.questionType === 'essay' && typeof q.payload?.rubricId === 'string')
-            ?.payload?.rubricId;
+        : questions.find(
+            (q) => q.questionType === 'essay' && typeof q.payload?.rubricId === 'string',
+          )?.payload?.rubricId;
     if (typeof rubricId === 'string') {
       for (const c of await this.repository.listRubricCriteria(tenantId, rubricId)) {
         criteriaById.set(c.id, c);
@@ -1048,10 +1065,7 @@ export class LmsService {
         scoredBy: uuidOrNull(actor.userId),
       })),
     );
-    const objective = gradeObjectiveQuiz(
-      questions.map(toBankLike),
-      submission.answers,
-    );
+    const objective = gradeObjectiveQuiz(questions.map(toBankLike), submission.answers);
     const combined = objective.results
       .filter((r) => r.questionType !== 'essay')
       .reduce((s, r) => s + r.score, 0);
@@ -1081,9 +1095,7 @@ export class LmsService {
       { assignmentId },
       { page: 1, pageSize: 500 },
     );
-    const scores = submissions.data
-      .map((s) => s.score)
-      .filter((s): s is number => s != null);
+    const scores = submissions.data.map((s) => s.score).filter((s): s is number => s != null);
     const items = questions.map((q) => {
       let correctCount = 0;
       let attemptCount = 0;
@@ -1281,7 +1293,13 @@ export class LmsService {
     });
   }
 
-  async pinPost(tenantId: string, discussionId: string, postId: string, pinned: boolean, actor: LmsActor) {
+  async pinPost(
+    tenantId: string,
+    discussionId: string,
+    postId: string,
+    pinned: boolean,
+    actor: LmsActor,
+  ) {
     if (!canAuthor(actor)) throw new ForbiddenError('Only staff can pin posts');
     await this.getDiscussion(tenantId, discussionId, actor);
     const post = await this.repository.findDiscussionPost(tenantId, postId);
@@ -1458,7 +1476,11 @@ export class LmsService {
     };
   }
 
-  async createLesson(tenantId: string, input: CreateLessonInput, actor: LmsActor): Promise<LessonEntity> {
+  async createLesson(
+    tenantId: string,
+    input: CreateLessonInput,
+    actor: LmsActor,
+  ): Promise<LessonEntity> {
     if (!canAuthor(actor)) throw new ForbiddenError('Only staff can author lessons');
     assertScopeTarget(input.scope, input.boardId, input.institutionId);
     assertInstitutionAllowed(actor, input.institutionId);

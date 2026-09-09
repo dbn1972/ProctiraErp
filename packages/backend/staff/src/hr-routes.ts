@@ -258,11 +258,7 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
-        const row = await hrService.updateContract(
-          tenantId,
-          paramsResult.data.id,
-          bodyResult.data,
-        );
+        const row = await hrService.updateContract(tenantId, paramsResult.data.id, bodyResult.data);
         return reply.status(200).send(formatContract(row));
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());
@@ -435,11 +431,7 @@ export async function registerStaffHrRoutes(
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
       try {
-        const rows = await hrService.markAttendanceBulk(
-          tenantId,
-          result.data,
-          getActorId(request),
-        );
+        const rows = await hrService.markAttendanceBulk(tenantId, result.data, getActorId(request));
         return reply.status(200).send({ data: rows.map(formatAttendance) });
       } catch (error: unknown) {
         if (error instanceof AppError) return reply.status(error.statusCode).send(error.toJSON());

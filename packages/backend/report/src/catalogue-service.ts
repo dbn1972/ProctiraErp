@@ -149,7 +149,10 @@ export class CatalogueService {
     return artifact;
   }
 
-  async downloadBytes(tenantId: string, id: string): Promise<{
+  async downloadBytes(
+    tenantId: string,
+    id: string,
+  ): Promise<{
     artifact: ReportArtifactRecord;
     bytes: Buffer;
     contentType: string;
@@ -216,7 +219,9 @@ export class CatalogueService {
       ]);
     }
     const now = new Date();
-    const hour = Number.isFinite(input.hour) ? Math.min(23, Math.max(0, Math.trunc(input.hour!))) : 6;
+    const hour = Number.isFinite(input.hour)
+      ? Math.min(23, Math.max(0, Math.trunc(input.hour!)))
+      : 6;
     return this.store.insertSchedule({
       id: randomUUID(),
       tenantId,
@@ -266,16 +271,23 @@ export class CatalogueService {
     return this.tickDueSchedules(now);
   }
 
-  async tickDueSchedules(now = new Date()): Promise<{ due: number; completed: number; failed: number }> {
+  async tickDueSchedules(
+    now = new Date(),
+  ): Promise<{ due: number; completed: number; failed: number }> {
     const due = await this.store.listDueSchedules(now);
     let completed = 0;
     let failed = 0;
     for (const schedule of due) {
       try {
-        await this.generate(schedule.tenantId, schedule.createdBy, {
-          reportKey: schedule.reportKey,
-          format: schedule.format,
-        }, { source: 'schedule', scheduleId: schedule.id });
+        await this.generate(
+          schedule.tenantId,
+          schedule.createdBy,
+          {
+            reportKey: schedule.reportKey,
+            format: schedule.format,
+          },
+          { source: 'schedule', scheduleId: schedule.id },
+        );
         await this.store.updateSchedule(schedule.tenantId, schedule.id, {
           lastRunAt: now,
           nextRunAt: computeNextRunAt(schedule.cadence, now, schedule.hour),
@@ -332,9 +344,7 @@ export class CatalogueService {
             : run.status === 'running'
               ? ('RUNNING' as const)
               : ('QUEUED' as const),
-      downloadUrl: artifact
-        ? `/api/v1/reports/artifacts/${artifact.id}/download`
-        : null,
+      downloadUrl: artifact ? `/api/v1/reports/artifacts/${artifact.id}/download` : null,
       artifactId: artifact?.id ?? null,
       sha256: artifact?.sha256 ?? run.sha256 ?? null,
       trigger: run.source,

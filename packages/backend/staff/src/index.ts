@@ -252,7 +252,12 @@ export {
 
 // ─── Staff / HR ops (G-918) ───────────────────────────────────────────
 
-export { StaffHrService, payableDays, withRenewalAlert, CONTRACT_RENEWAL_WINDOW_DAYS } from './hr-service.js';
+export {
+  StaffHrService,
+  payableDays,
+  withRenewalAlert,
+  CONTRACT_RENEWAL_WINDOW_DAYS,
+} from './hr-service.js';
 export type {
   AttendanceSummaryRow,
   ContractView,

@@ -393,7 +393,9 @@ export async function listHostelMessMenu(planId: string): Promise<HostelMessMenu
   return result.data?.data ?? [];
 }
 
-export async function listHostelMessSubscriptions(planId?: string): Promise<HostelMessSubscription[]> {
+export async function listHostelMessSubscriptions(
+  planId?: string,
+): Promise<HostelMessSubscription[]> {
   const query = planId ? `?planId=${encodeURIComponent(planId)}` : '';
   const result = await gatewayFetch<{ data: HostelMessSubscription[] }>(
     `/hostel/mess/subscriptions${query}`,
@@ -495,8 +497,7 @@ export async function transitionHostelGatePass(
   id: string,
   status: 'approved' | 'rejected' | 'out' | 'in',
 ): Promise<HostelGatePass> {
-  const path =
-    status === 'approved' ? 'approve' : status === 'rejected' ? 'reject' : status;
+  const path = status === 'approved' ? 'approve' : status === 'rejected' ? 'reject' : status;
   const result = await gatewayFetch<HostelGatePass>(`/hostel/gate-passes/${id}/${path}`, {
     method: 'POST',
     json: {},

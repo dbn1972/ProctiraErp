@@ -120,9 +120,7 @@ export class InMemoryLibraryRepository implements LibraryRepository {
 
   async findCopyByBarcode(tenantId: string, barcode: string): Promise<LibraryCopyEntity | null> {
     const needle = barcode.trim();
-    return (
-      this.copies.find((c) => c.tenantId === tenantId && c.barcode === needle) ?? null
-    );
+    return this.copies.find((c) => c.tenantId === tenantId && c.barcode === needle) ?? null;
   }
 
   async updateCopy(

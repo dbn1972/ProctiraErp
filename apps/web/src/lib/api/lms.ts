@@ -381,13 +381,15 @@ export interface ClassAnalytics {
   }>;
 }
 
-export async function listBankQuestions(filter: {
-  subject?: string;
-  gradeLevel?: string;
-  questionType?: QuestionType;
-  tags?: string;
-  pageSize?: number;
-} = {}): Promise<BankQuestion[]> {
+export async function listBankQuestions(
+  filter: {
+    subject?: string;
+    gradeLevel?: string;
+    questionType?: QuestionType;
+    tags?: string;
+    pageSize?: number;
+  } = {},
+): Promise<BankQuestion[]> {
   const result = await gatewayFetch<{ data: BankQuestion[] }>(
     `/lms/bank${toQuery({ ...filter, pageSize: filter.pageSize ?? 100 })}`,
     { throwOnError: false, next: { revalidate: 0 } },
@@ -550,10 +552,12 @@ export async function hideDiscussionPost(
   return result.data;
 }
 
-export async function listContentItems(filter: {
-  classKey?: string;
-  published?: boolean;
-} = {}): Promise<ContentItem[]> {
+export async function listContentItems(
+  filter: {
+    classKey?: string;
+    published?: boolean;
+  } = {},
+): Promise<ContentItem[]> {
   const result = await gatewayFetch<{ data: ContentItem[] }>(
     `/lms/content${toQuery({ ...filter, pageSize: 100 })}`,
     { throwOnError: false, next: { revalidate: 0 } },
@@ -582,7 +586,10 @@ export async function createContentItem(input: {
   return result.data;
 }
 
-export async function getClassAnalytics(classKey: string, institutionId?: string): Promise<ClassAnalytics | null> {
+export async function getClassAnalytics(
+  classKey: string,
+  institutionId?: string,
+): Promise<ClassAnalytics | null> {
   const result = await gatewayFetch<ClassAnalytics>(
     `/lms/analytics${toQuery({ classKey, institutionId })}`,
     { throwOnError: false, next: { revalidate: 0 } },

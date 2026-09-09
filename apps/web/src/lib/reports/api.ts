@@ -226,7 +226,9 @@ export async function setReportScheduleEnabled(
   return { schedule: null, error: result.error?.message ?? 'Failed to update schedule' };
 }
 
-export async function deleteReportSchedule(scheduleId: string): Promise<{ ok: boolean; error?: string }> {
+export async function deleteReportSchedule(
+  scheduleId: string,
+): Promise<{ ok: boolean; error?: string }> {
   const result = await gatewayFetch<unknown>(`/reports/schedules/${scheduleId}`, {
     method: 'DELETE',
     throwOnError: false,

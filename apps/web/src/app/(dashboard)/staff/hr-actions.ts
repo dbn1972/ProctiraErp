@@ -16,7 +16,11 @@ import {
   type StaffAttendanceStatus,
   type StaffImportReport,
 } from '@/lib/api/staff';
-import { contractFormSchema, qualificationFormSchema, staffImportSchema } from '@/lib/validation/staff-schema';
+import {
+  contractFormSchema,
+  qualificationFormSchema,
+  staffImportSchema,
+} from '@/lib/validation/staff-schema';
 
 export interface HrActionState {
   status: 'idle' | 'success' | 'error';
@@ -111,7 +115,11 @@ export async function dryRunImportAction(csv: string, filename?: string): Promis
   }
   try {
     const report = await dryRunStaffImport(parsed.data.csv, parsed.data.filename);
-    return { status: 'success', message: `${report.valid} valid of ${report.rows} row(s).`, report };
+    return {
+      status: 'success',
+      message: `${report.valid} valid of ${report.rows} row(s).`,
+      report,
+    };
   } catch (error) {
     return {
       status: 'error',

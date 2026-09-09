@@ -188,12 +188,7 @@ describe('LMS depth — question bank + quiz from bank', () => {
     await expect(svc.getBankQuestion(TENANT_B, created.id, admin)).rejects.toBeInstanceOf(
       NotFoundError,
     );
-    const foreign = await svc.listBankQuestions(
-      TENANT_B,
-      {},
-      { page: 1, pageSize: 20 },
-      admin,
-    );
+    const foreign = await svc.listBankQuestions(TENANT_B, {}, { page: 1, pageSize: 20 }, admin);
     expect(foreign.data).toEqual([]);
   });
 

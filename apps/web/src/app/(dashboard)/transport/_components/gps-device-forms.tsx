@@ -55,9 +55,7 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
                   setError(result.message ?? 'Failed');
                   return;
                 }
-                setMessage(
-                  `Device ${result.deviceId}. Key (copy now): ${result.deviceKey}`,
-                );
+                setMessage(`Device ${result.deviceId}. Key (copy now): ${result.deviceKey}`);
               });
             }}
           >
@@ -131,7 +129,13 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
             </FormField>
             <div className="grid gap-4 md:grid-cols-2">
               <FormField id="gps-lat" label="Latitude" required>
-                <Input id="gps-lat" name="latitude" type="number" step="0.0001" className="h-11 min-h-11" />
+                <Input
+                  id="gps-lat"
+                  name="latitude"
+                  type="number"
+                  step="0.0001"
+                  className="h-11 min-h-11"
+                />
               </FormField>
               <FormField id="gps-lng" label="Longitude" required>
                 <Input

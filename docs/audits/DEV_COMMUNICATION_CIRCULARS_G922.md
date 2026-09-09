@@ -12,23 +12,23 @@
 
 ## 0. Product contract
 
-| Item                   | Content |
-| ---------------------- | ------- |
-| Capability statement   | See `PRODUCT_COMMUNICATION_G922.md` |
-| In scope               | WhatsApp adapter + sandbox, circulars, acks, delivery log, retry failed |
-| Explicit non-goals     | Live WhatsApp network calls, webhook receipts, media templates |
-| Roles (RBAC)           | Existing `communication` resource |
-| Boards impacted        | N/A |
+| Item                 | Content                                                                 |
+| -------------------- | ----------------------------------------------------------------------- |
+| Capability statement | See `PRODUCT_COMMUNICATION_G922.md`                                     |
+| In scope             | WhatsApp adapter + sandbox, circulars, acks, delivery log, retry failed |
+| Explicit non-goals   | Live WhatsApp network calls, webhook receipts, media templates          |
+| Roles (RBAC)         | Existing `communication` resource                                       |
+| Boards impacted      | N/A                                                                     |
 
 ---
 
 ## 1. Domain model (SQL-first)
 
-| Check | Done | Evidence |
-| ----- | ---- | -------- |
-| Versioned SQL | ☑ | `db/sql/044_communication_circulars_schema.sql` |
-| Constraints | ☑ | audience_type check; delivery status check; unique ack per recipient |
-| Domain tests | ☑ | `circulars-service.test.ts`, `whatsapp-adapter.test.ts` |
+| Check         | Done | Evidence                                                             |
+| ------------- | ---- | -------------------------------------------------------------------- |
+| Versioned SQL | ☑    | `db/sql/044_communication_circulars_schema.sql`                      |
+| Constraints   | ☑    | audience_type check; delivery status check; unique ack per recipient |
+| Domain tests  | ☑    | `circulars-service.test.ts`, `whatsapp-adapter.test.ts`              |
 
 Invariants: ack rate = acknowledged / recipient rows; sandbox WhatsApp never performs HTTP; retry only from `failed`.
 

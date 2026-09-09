@@ -15,7 +15,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { StaffAssignmentService } from './assignment-service.js';
 import {
   CreateAssignmentSchema,
   UpdateAssignmentSchema,
@@ -25,6 +24,7 @@ import {
   type AssignmentListQuery,
   type AssignmentParams,
 } from './assignment-schemas.js';
+import type { StaffAssignmentService } from './assignment-service.js';
 
 /**
  * Options for registering assignment routes.
@@ -192,7 +192,7 @@ export async function registerAssignmentRoutes(
         });
       }
 
-      const query = request.query as AssignmentListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

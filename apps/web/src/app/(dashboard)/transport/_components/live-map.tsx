@@ -30,13 +30,7 @@ function project(
   return { x, y };
 }
 
-export function LiveMapSvg({
-  vehicles,
-  stops,
-}: {
-  vehicles: LiveVehicle[];
-  stops: LiveStop[];
-}) {
+export function LiveMapSvg({ vehicles, stops }: { vehicles: LiveVehicle[]; stops: LiveStop[] }) {
   const points = [
     ...stops.map((s) => ({ latitude: s.latitude, longitude: s.longitude })),
     ...vehicles.map((v) => ({ latitude: v.latitude, longitude: v.longitude })),
@@ -44,7 +38,8 @@ export function LiveMapSvg({
   if (points.length === 0) {
     return (
       <p className="text-sm text-muted-foreground" role="status">
-        No mapped stops or GPS pings yet. Add stop coordinates and ingest a ping to plot the corridor.
+        No mapped stops or GPS pings yet. Add stop coordinates and ingest a ping to plot the
+        corridor.
       </p>
     );
   }

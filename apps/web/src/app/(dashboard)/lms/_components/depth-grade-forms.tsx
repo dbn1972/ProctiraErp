@@ -116,7 +116,14 @@ export function RubricGradeForm({
             className="h-11 w-48"
             required
           />
-          <Input name="points" type="number" min={0} placeholder="Points" className="h-11 w-24" required />
+          <Input
+            name="points"
+            type="number"
+            min={0}
+            placeholder="Points"
+            className="h-11 w-24"
+            required
+          />
           <Input name="levelIndex" type="number" min={0} defaultValue={0} className="h-11 w-20" />
         </div>
       )}
@@ -197,7 +204,11 @@ export function AssignmentFileForm({ assignmentId }: { assignmentId: string }) {
       <Button type="submit" size="sm" disabled={pending} aria-busy={pending}>
         Upload
       </Button>
-      {message ? <span role="status" className="text-xs">{message}</span> : null}
+      {message ? (
+        <span role="status" className="text-xs">
+          {message}
+        </span>
+      ) : null}
     </form>
   );
 }

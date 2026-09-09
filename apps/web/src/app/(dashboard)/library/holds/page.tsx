@@ -52,7 +52,11 @@ export default async function LibraryHoldsPage() {
           ) : (
             <ul className="divide-y divide-border" role="list">
               {holds.map((hold) => (
-                <li key={hold.id} className="py-3 first:pt-0 last:pb-0" data-testid="library-hold-row">
+                <li
+                  key={hold.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="library-hold-row"
+                >
                   <p className="text-sm font-medium text-foreground">
                     {hold.status} · position {hold.position}
                   </p>

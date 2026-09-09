@@ -35,7 +35,14 @@ const APPROVER_ROLES = new Set([
 ]);
 
 export function isAttendanceApprover(roles: string[]): boolean {
-  return roles.some((r) => APPROVER_ROLES.has(r.trim().toLowerCase().replace(/[\s-]+/g, '_')));
+  return roles.some((r) =>
+    APPROVER_ROLES.has(
+      r
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_'),
+    ),
+  );
 }
 
 export interface OpsActor {
@@ -303,7 +310,11 @@ export class AttendanceOpsService {
       throw new AppError('X-Device-Api-Key header required', 'UNAUTHORIZED', 401);
     }
     const device = await this.store.findDeviceKeyByHash(tenantId, hashDeviceApiKey(apiKeyHeader));
-    if (!device || device.institutionId !== input.institutionId || device.deviceId !== input.deviceId) {
+    if (
+      !device ||
+      device.institutionId !== input.institutionId ||
+      device.deviceId !== input.deviceId
+    ) {
       throw new AppError('Invalid device API key for this institution', 'UNAUTHORIZED', 401);
     }
 

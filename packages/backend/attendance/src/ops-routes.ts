@@ -102,7 +102,11 @@ export async function registerAttendanceOpsRoutes(
       });
     }
     try {
-      const row = await opsService.requestRegularisation(tenantId, validated.data, actorOf(request));
+      const row = await opsService.requestRegularisation(
+        tenantId,
+        validated.data,
+        actorOf(request),
+      );
       return reply.status(201).send(row);
     } catch (error) {
       return sendError(reply, error);

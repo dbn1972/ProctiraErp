@@ -299,11 +299,13 @@ export async function ackCircular(id: string, recipientId: string): Promise<Comm
   return result.data;
 }
 
-export async function listDeliveryLogs(filters: {
-  channel?: string;
-  status?: string;
-  sourceType?: string;
-} = {}): Promise<DeliveryLogEntry[]> {
+export async function listDeliveryLogs(
+  filters: {
+    channel?: string;
+    status?: string;
+    sourceType?: string;
+  } = {},
+): Promise<DeliveryLogEntry[]> {
   const params = new URLSearchParams();
   if (filters.channel) params.set('channel', filters.channel);
   if (filters.status) params.set('status', filters.status);

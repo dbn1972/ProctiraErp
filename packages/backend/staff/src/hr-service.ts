@@ -24,11 +24,7 @@ import type {
   StaffHrStore,
   StaffQualificationRecord,
 } from './hr-store.js';
-import {
-  parseCsv,
-  STAFF_IMPORT_REQUIRED_HEADERS,
-  toCsv,
-} from './staff-csv.js';
+import { parseCsv, STAFF_IMPORT_REQUIRED_HEADERS, toCsv } from './staff-csv.js';
 import type { StaffService } from './staff-service.js';
 
 export const CONTRACT_RENEWAL_WINDOW_DAYS = 60;
@@ -102,10 +98,7 @@ function daysUntil(endDate: string, now = new Date()): number {
   return Math.floor((end - start) / 86_400_000);
 }
 
-export function withRenewalAlert(
-  record: StaffContractRecord,
-  now = new Date(),
-): ContractView {
+export function withRenewalAlert(record: StaffContractRecord, now = new Date()): ContractView {
   const days = record.endDate ? daysUntil(record.endDate, now) : null;
   const renewalAlert =
     record.status === 'active' && days != null && days >= 0 && days <= CONTRACT_RENEWAL_WINDOW_DAYS;

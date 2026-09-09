@@ -75,9 +75,7 @@ export const REPORT_CATALOGUE: readonly CatalogueEntry[] = [
     description: 'Headcount by grade and status for the selected period.',
     module: 'students',
     format: ['PDF', 'XLSX', 'CSV'],
-    filters: [
-      { key: 'academicPeriodId', label: 'Academic period', type: 'text', required: true },
-    ],
+    filters: [{ key: 'academicPeriodId', label: 'Academic period', type: 'text', required: true }],
   },
   {
     id: 'tpl-exam-results',

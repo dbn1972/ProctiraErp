@@ -126,7 +126,11 @@ export default async function ReportSchedulesPage() {
               </TableHeader>
               <TableBody>
                 {runs.map((run) => (
-                  <TableRow key={run.id} data-testid="report-run-row" data-trigger={run.trigger ?? 'manual'}>
+                  <TableRow
+                    key={run.id}
+                    data-testid="report-run-row"
+                    data-trigger={run.trigger ?? 'manual'}
+                  >
                     <TableCell className="text-xs">{run.generatedAt}</TableCell>
                     <TableCell>{run.templateName}</TableCell>
                     <TableCell>{run.trigger ?? 'manual'}</TableCell>

@@ -74,7 +74,10 @@ export default async function LibraryCatalogPage() {
                   data-testid="library-item-row"
                 >
                   <p className="text-sm font-medium text-foreground">
-                    <Link href={`/library/${item.id}`} className="underline-offset-4 hover:underline">
+                    <Link
+                      href={`/library/${item.id}`}
+                      className="underline-offset-4 hover:underline"
+                    >
                       {item.title}
                     </Link>
                   </p>

@@ -7,7 +7,11 @@
  * Mirrors the institution/student repository factories so the standalone
  * service and the API gateway compose persistence identically.
  */
-import { assertInMemoryFallbackAllowed, createPrismaClient, getSharedPgPool } from '@proctira/database';
+import {
+  assertInMemoryFallbackAllowed,
+  createPrismaClient,
+  getSharedPgPool,
+} from '@proctira/database';
 
 import type { AttendanceRepository } from './attendance-repository.js';
 import { InMemoryAttendanceRepository } from './in-memory-repository.js';

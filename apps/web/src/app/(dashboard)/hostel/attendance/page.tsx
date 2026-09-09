@@ -26,8 +26,7 @@ export default async function HostelAttendancePage({
   const date = onDate && onDate.length >= 10 ? onDate.slice(0, 10) : today;
   const blocks = await listHostelBlocks();
   const selectedBlock = blockId && blocks.some((b) => b.id === blockId) ? blockId : blocks[0]?.id;
-  const marks =
-    selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : [];
+  const marks = selectedBlock && date ? await listHostelAttendance(selectedBlock, date) : [];
 
   return (
     <div className="space-y-6 p-6">
@@ -45,11 +44,7 @@ export default async function HostelAttendancePage({
         </Button>
       </div>
 
-      <HostelAttendanceForm
-        blocks={blocks}
-        defaultBlockId={selectedBlock}
-        defaultDate={date}
-      />
+      <HostelAttendanceForm blocks={blocks} defaultBlockId={selectedBlock} defaultDate={date} />
 
       <Card>
         <CardHeader>

@@ -304,7 +304,10 @@ export async function registerHostelOpsRoutes(
           code: 'VALIDATION_ERROR',
           message: 'Validation failed',
           statusCode: 400,
-          errors: [...(paramsResult.success ? [] : paramsResult.errors), ...(bodyResult.success ? [] : bodyResult.errors)],
+          errors: [
+            ...(paramsResult.success ? [] : paramsResult.errors),
+            ...(bodyResult.success ? [] : bodyResult.errors),
+          ],
         });
       }
       const tenantId = getTenantId(request);

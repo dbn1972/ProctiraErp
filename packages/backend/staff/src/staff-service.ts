@@ -13,8 +13,8 @@ import { ConflictError, NotFoundError, EntityStatus } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
 import type { CreateStaffInput, UpdateStaffInput } from './schemas.js';
+import type { StaffEntity, StaffFilter, StaffRepository } from './staff-repository.js';
 
 /**
  * Service handling staff business logic.

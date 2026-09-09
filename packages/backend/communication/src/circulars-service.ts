@@ -13,10 +13,7 @@ import type {
   DeliveryLogFilter,
   DeliveryLogRecord,
 } from './circular-store.js';
-import {
-  createSandboxWhatsAppAdapter,
-  type WhatsAppChannelAdapter,
-} from './whatsapp-adapter.js';
+import { createSandboxWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
 
 export interface CircularView extends CircularRecord {
   ackTotal: number;

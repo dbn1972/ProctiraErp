@@ -16,7 +16,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { AppraisalService } from './appraisal-service.js';
 import {
   CreateAppraisalTemplateSchema,
   CreateAppraisalSchema,
@@ -28,6 +27,7 @@ import {
   type AppraisalTemplateParams,
   type AppraisalListQuery,
 } from './appraisal-schemas.js';
+import type { AppraisalService } from './appraisal-service.js';
 
 /**
  * Options for registering appraisal routes.
@@ -274,7 +274,7 @@ export async function registerAppraisalRoutes(
         });
       }
 
-      const query = request.query as AppraisalListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

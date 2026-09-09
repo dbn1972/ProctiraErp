@@ -54,11 +54,7 @@ export default async function HostelFeesPage() {
           ) : (
             <ul className="divide-y divide-border" role="list">
               {rows.map((row) => (
-                <li
-                  key={row.id}
-                  className="py-3 first:pt-0 last:pb-0"
-                  data-testid="hostel-fee-row"
-                >
+                <li key={row.id} className="py-3 first:pt-0 last:pb-0" data-testid="hostel-fee-row">
                   <p className="text-sm font-medium text-foreground">
                     {row.roomType} · {row.termLabel}
                   </p>

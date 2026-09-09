@@ -17,7 +17,10 @@ const PATRON_A = 'patron-a';
 const PATRON_B = 'patron-b';
 
 function service(repo = new InMemoryLibraryRepository()) {
-  return { repo, service: new LibraryService(repo, new InMemoryFeesLedgerPort(), new StubIsbnLookup()) };
+  return {
+    repo,
+    service: new LibraryService(repo, new InMemoryFeesLedgerPort(), new StubIsbnLookup()),
+  };
 }
 
 describe('computeFineCents', () => {

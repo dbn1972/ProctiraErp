@@ -139,7 +139,7 @@ function formatTemplateResponse(entity: {
   layout: string;
   mergeFields: unknown[];
   conditionalSections: unknown[] | null;
-  branding: unknown | null;
+  branding: unknown;
   createdAt: Date;
   updatedAt: Date;
 }) {

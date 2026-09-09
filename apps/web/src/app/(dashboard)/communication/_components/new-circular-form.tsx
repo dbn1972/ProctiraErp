@@ -113,7 +113,12 @@ export function NewCircularForm({ createdBy }: { createdBy?: string }) {
             <Input id="circ-audience-ids" name="audienceIds" disabled={!hydrated || pending} />
           </FormField>
           <FormField id="circ-recipients" label="Recipient ids (comma-separated)" required>
-            <Input id="circ-recipients" name="recipientIds" required disabled={!hydrated || pending} />
+            <Input
+              id="circ-recipients"
+              name="recipientIds"
+              required
+              disabled={!hydrated || pending}
+            />
           </FormField>
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Channels</legend>

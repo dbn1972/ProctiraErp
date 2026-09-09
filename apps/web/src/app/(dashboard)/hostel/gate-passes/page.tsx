@@ -64,8 +64,8 @@ export default async function HostelGatePassesPage() {
                     {pass.overdueReturn ? ' · overdue return' : ''}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    student {pass.studentId.slice(0, 8)} · out {pass.expectedOutAt.slice(0, 16)} → in{' '}
-                    {pass.expectedInAt.slice(0, 16)}
+                    student {pass.studentId.slice(0, 8)} · out {pass.expectedOutAt.slice(0, 16)} →
+                    in {pass.expectedInAt.slice(0, 16)}
                   </p>
                   <GatePassActions id={pass.id} status={pass.status} />
                 </li>

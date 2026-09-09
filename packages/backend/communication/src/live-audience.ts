@@ -2,9 +2,9 @@
  * Optional live audience counts from hostel / transport tables (raw pg).
  * Falls back to null when DATABASE_URL is unset or queries fail.
  */
+import { withPgTenant, type PgQueryable } from '@proctira/database';
 import pg from 'pg';
 
-import { withPgTenant, type PgQueryable } from '@proctira/database';
 
 const { Pool } = pg;
 

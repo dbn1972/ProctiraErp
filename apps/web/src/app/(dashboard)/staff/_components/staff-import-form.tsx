@@ -23,7 +23,9 @@ export function StaffImportForm() {
     startTransition(async () => {
       setError(null);
       const result =
-        kind === 'dry' ? await dryRunImportAction(csv, 'staff.csv') : await commitImportAction(csv, 'staff.csv');
+        kind === 'dry'
+          ? await dryRunImportAction(csv, 'staff.csv')
+          : await commitImportAction(csv, 'staff.csv');
       if (result.status === 'error') {
         setError(result.message ?? 'Failed');
         return;
@@ -45,7 +47,11 @@ export function StaffImportForm() {
   }
 
   return (
-    <div className="space-y-4" data-testid="staff-import-form" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-4"
+      data-testid="staff-import-form"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <p className="text-sm text-muted-foreground">
         CSV only. Excel (.xlsx) is not parsed in this slice — save the first sheet as CSV.
       </p>
@@ -74,7 +80,10 @@ export function StaffImportForm() {
         </p>
       ) : null}
       {report ? (
-        <div className="rounded-md border border-border p-3 text-sm" data-testid="staff-import-report">
+        <div
+          className="rounded-md border border-border p-3 text-sm"
+          data-testid="staff-import-report"
+        >
           <p>
             {report.rows} row(s) · {report.valid} valid
             {typeof report.created === 'number' ? ` · ${report.created} created` : ''}
@@ -94,7 +103,12 @@ export function StaffImportForm() {
         </div>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" onClick={() => run('dry')} disabled={!hydrated || pending}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => run('dry')}
+          disabled={!hydrated || pending}
+        >
           {pending ? 'Working…' : 'Dry-run'}
         </Button>
         <Button type="button" onClick={() => run('commit')} disabled={!hydrated || pending}>

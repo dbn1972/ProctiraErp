@@ -215,9 +215,7 @@ export class LibraryService implements LibraryFinesPort {
         loan.copyId ??
         (await this.repository.listCopies(tenantId, item.id)).find((c) => c.status === 'on_loan')
           ?.id;
-      const held = copyId
-        ? await this.promoteHoldOrReleaseCopy(tenantId, item.id, copyId)
-        : false;
+      const held = copyId ? await this.promoteHoldOrReleaseCopy(tenantId, item.id, copyId) : false;
       if (!held) {
         await this.repository.updateItem(item.id, tenantId, {
           available: Math.min(item.copies, item.available + 1),
@@ -527,11 +525,7 @@ export class LibraryService implements LibraryFinesPort {
     const now = Date.now();
     const holds = await this.repository.listHolds(tenantId, itemId);
     for (const hold of holds) {
-      if (
-        hold.status === 'ready' &&
-        hold.expiresAt &&
-        hold.expiresAt.getTime() < now
-      ) {
+      if (hold.status === 'ready' && hold.expiresAt && hold.expiresAt.getTime() < now) {
         await this.repository.updateHold(hold.id, tenantId, { status: 'expired' });
         if (hold.copyId) {
           const held = await this.promoteHoldOrReleaseCopy(tenantId, itemId, hold.copyId);

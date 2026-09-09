@@ -39,7 +39,11 @@ export function DeliveryLogTable({ rows }: { rows: DeliveryLogEntry[] }) {
   }
 
   return (
-    <div className="space-y-2" data-testid="delivery-log-table" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-2"
+      data-testid="delivery-log-table"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       {error ? (
         <p className="text-sm text-destructive" role="alert">
           {error}
@@ -47,7 +51,11 @@ export function DeliveryLogTable({ rows }: { rows: DeliveryLogEntry[] }) {
       ) : null}
       <ul className="divide-y divide-border" role="list">
         {rows.map((row) => (
-          <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3" data-testid="delivery-log-row">
+          <li
+            key={row.id}
+            className="flex flex-wrap items-center justify-between gap-2 py-3"
+            data-testid="delivery-log-row"
+          >
             <div>
               <p className="text-sm font-medium text-foreground">
                 {row.channel} · {row.status} · {row.recipientId}

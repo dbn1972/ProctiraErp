@@ -21,7 +21,9 @@ function parseRole(value: string | string[] | undefined): DashboardRole | undefi
   return undefined;
 }
 
-function isParentSession(roles: Array<{ roleId?: string; roleName?: string }> | undefined): boolean {
+function isParentSession(
+  roles: Array<{ roleId?: string; roleName?: string }> | undefined,
+): boolean {
   return (roles ?? []).some((r) => {
     const n = `${r.roleId ?? ''} ${r.roleName ?? ''}`.toLowerCase();
     return n.includes('parent') || n.includes('guardian');

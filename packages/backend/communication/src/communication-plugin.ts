@@ -9,10 +9,7 @@ import { CommunicationService, type CommunicationAuditSink } from './communicati
 import { createCircularStore } from './create-circular-store.js';
 import type { CommunicationDeliveryAdapter } from './delivery-adapter.js';
 import { registerCommunicationRoutes } from './routes.js';
-import {
-  createSandboxWhatsAppAdapter,
-  type WhatsAppChannelAdapter,
-} from './whatsapp-adapter.js';
+import { createSandboxWhatsAppAdapter, type WhatsAppChannelAdapter } from './whatsapp-adapter.js';
 
 export interface CommunicationPluginOptions {
   repository: CommunicationRepository;

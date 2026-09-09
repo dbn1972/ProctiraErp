@@ -61,7 +61,10 @@ export function parseCsv(input: string): ParseCsvResult {
     };
   }
 
-  const text = input.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const text = input
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
   const lines = text.split('\n').filter((line) => line.trim().length > 0);
   if (lines.length === 0) {
     return { headers: [], rows: [], error: 'CSV is empty' };
@@ -94,7 +97,10 @@ export function escapeCsvCell(value: string | number | null | undefined): string
   return text;
 }
 
-export function toCsv(headers: string[], rows: Array<Array<string | number | null | undefined>>): string {
+export function toCsv(
+  headers: string[],
+  rows: Array<Array<string | number | null | undefined>>,
+): string {
   const lines = [
     headers.map(escapeCsvCell).join(','),
     ...rows.map((row) => row.map(escapeCsvCell).join(',')),

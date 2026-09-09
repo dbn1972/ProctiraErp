@@ -337,7 +337,13 @@ export async function createTransportFeeStructure(input: {
 }
 
 export async function listFeeLinks(): Promise<
-  Array<{ id: string; assignmentId: string; status: string; feesInvoiceId: string | null; reason: string | null }>
+  Array<{
+    id: string;
+    assignmentId: string;
+    status: string;
+    feesInvoiceId: string | null;
+    reason: string | null;
+  }>
 > {
   const result = await gatewayFetch<{
     data: Array<{

@@ -48,7 +48,9 @@ export default async function StaffPayrollPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Monthly extract</CardTitle>
-          <CardDescription>Payable days = present + half-day × 0.5. Deductions stay 0.</CardDescription>
+          <CardDescription>
+            Payable days = present + half-day × 0.5. Deductions stay 0.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <PayrollExportPanel initial={initial} />

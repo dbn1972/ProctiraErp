@@ -64,7 +64,10 @@ export async function lookupIsbnFillAction(isbn: string): Promise<OpsActionState
   }
 }
 
-export async function importIsbnAction(input: { isbn: string; copies?: number }): Promise<OpsActionState> {
+export async function importIsbnAction(input: {
+  isbn: string;
+  copies?: number;
+}): Promise<OpsActionState> {
   const parsed = z
     .object({ isbn: z.string().min(10).max(32), copies: z.number().int().min(1).optional() })
     .safeParse(input);

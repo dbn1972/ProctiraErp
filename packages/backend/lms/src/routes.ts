@@ -520,7 +520,15 @@ export async function registerLmsRoutes(
     try {
       const result = await lmsService.listBankQuestions(
         tenantId,
-        { ...rest, tags: tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : undefined },
+        {
+          ...rest,
+          tags: tags
+            ? tags
+                .split(',')
+                .map((t) => t.trim())
+                .filter(Boolean)
+            : undefined,
+        },
         { page, pageSize },
         getLmsActor(request),
       );
@@ -735,11 +743,7 @@ export async function registerLmsRoutes(
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     try {
-      const created = await lmsService.createDiscussion(
-        tenantId,
-        body.data,
-        getLmsActor(request),
-      );
+      const created = await lmsService.createDiscussion(tenantId, body.data, getLmsActor(request));
       return reply.status(201).send(serialise(created));
     } catch (error) {
       return sendError(reply, error);
@@ -771,11 +775,7 @@ export async function registerLmsRoutes(
     const tenantId = getTenantId(request);
     if (!tenantId) return tenantRequired(reply);
     try {
-      const thread = await lmsService.getDiscussion(
-        tenantId,
-        params.data.id,
-        getLmsActor(request),
-      );
+      const thread = await lmsService.getDiscussion(tenantId, params.data.id, getLmsActor(request));
       return reply.send(serialise(thread));
     } catch (error) {
       return sendError(reply, error);

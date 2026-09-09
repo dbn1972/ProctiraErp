@@ -14,7 +14,12 @@ import {
   TableRow,
 } from '@proctira/ui/components';
 
-import { getClassAnalytics, getQuizAnalytics, listAssignments, type QuizAnalytics } from '@/lib/api/lms';
+import {
+  getClassAnalytics,
+  getQuizAnalytics,
+  listAssignments,
+  type QuizAnalytics,
+} from '@/lib/api/lms';
 import { EmptyState } from '@/components/page';
 
 import { LmsSubnav } from '../_components/lms-subnav';
@@ -63,7 +68,11 @@ export default async function LmsAnalyticsPage({
           Load
         </button>
       </form>
-      <div className="grid gap-4 sm:grid-cols-3" data-testid="lms-analytics-panel" data-hydrated="true">
+      <div
+        className="grid gap-4 sm:grid-cols-3"
+        data-testid="lms-analytics-panel"
+        data-hydrated="true"
+      >
         <Card>
           <CardHeader>
             <CardTitle>Assignments</CardTitle>

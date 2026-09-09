@@ -14,13 +14,13 @@ Copy from `docs/audits/templates/ENTERPRISE_MODULE_DEV_CHECKLIST.md`.
 
 ## 0. Product contract
 
-| Item                   | Content |
-| ---------------------- | ------- |
-| Capability statement   | See `docs/audits/PRODUCT_REPORTS.md` |
+| Item                   | Content                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| Capability statement   | See `docs/audits/PRODUCT_REPORTS.md`                                              |
 | In scope (peer parity) | Catalogue exports, schedules + run history, role dashboards inside report package |
-| Explicit non-goals     | Cube designer, SMTP send, unparking `backend/dashboards`, live S3 required |
-| Roles (RBAC)           | `report` resource; parent/guardian `report.read` for dashboard GET |
-| Boards impacted        | Other — operational BI, not marksheet |
+| Explicit non-goals     | Cube designer, SMTP send, unparking `backend/dashboards`, live S3 required        |
+| Roles (RBAC)           | `report` resource; parent/guardian `report.read` for dashboard GET                |
+| Boards impacted        | Other — operational BI, not marksheet                                             |
 
 Screen / API inventory: catalogue `/reports`, generate `POST /reports/generate`, schedules, `GET /reports/dashboard`, download proxy `/api/reports/artifacts/[id]/download`. Tables `037`: `report_definitions`, `report_artifacts`, `report_schedules`, `report_runs`.
 
@@ -28,58 +28,58 @@ Screen / API inventory: catalogue `/reports`, generate `POST /reports/generate`,
 
 ## 1. Domain model (SQL-first)
 
-| Check                         | Done | Evidence |
-| ----------------------------- | ---- | -------- |
-| Versioned SQL under `db/sql/` | ☑    | `db/sql/037_reports_schema.sql` |
-| Constraints / indexes / FKs   | ☑    | format/cadence/status CHECKs; sha256 hex CHECK |
-| Multi-board seed fixtures     | ☐    | Demo rows when domain tables missing (tenant-scoped) |
-| Domain unit/property tests    | ☑    | `packages/backend/report/src/catalogue-service.test.ts` |
+| Check                         | Done | Evidence                                                        |
+| ----------------------------- | ---- | --------------------------------------------------------------- |
+| Versioned SQL under `db/sql/` | ☑    | `db/sql/037_reports_schema.sql`                                 |
+| Constraints / indexes / FKs   | ☑    | format/cadence/status CHECKs; sha256 hex CHECK                  |
+| Multi-board seed fixtures     | ☐    | Demo rows when domain tables missing (tenant-scoped)            |
+| Domain unit/property tests    | ☑    | `packages/backend/report/src/catalogue-service.test.ts`         |
 | Invariants documented         | ☑    | `docs/audits/DATA_REPORTS.md` (if present) / PRODUCT_REPORTS.md |
 
 ---
 
 ## 2. API / services
 
-| Check                              | Done | Evidence |
-| ---------------------------------- | ---- | -------- |
-| Tenant middleware on all routes    | ☑    | `x-tenant-id` / JWT; RLS `app.tenant_id` |
-| Validation + typed errors          | ☑    | TypeBox catalogue schemas |
+| Check                              | Done | Evidence                                            |
+| ---------------------------------- | ---- | --------------------------------------------------- |
+| Tenant middleware on all routes    | ☑    | `x-tenant-id` / JWT; RLS `app.tenant_id`            |
+| Validation + typed errors          | ☑    | TypeBox catalogue schemas                           |
 | RBAC enforced                      | ☑    | PATH_RESOURCE_MAP `reports` → `report`; parent read |
-| Conflict / rule failures → 409/422 | ☐    | 400 validation; 404 cross-tenant |
-| Idempotent writes where needed     | ☐    | Generate always creates a new artifact |
-| Cross-tenant deny test             | ☑    | catalogue-service + e2e 46 live block |
+| Conflict / rule failures → 409/422 | ☐    | 400 validation; 404 cross-tenant                    |
+| Idempotent writes where needed     | ☐    | Generate always creates a new artifact              |
+| Cross-tenant deny test             | ☑    | catalogue-service + e2e 46 live block               |
 
 ---
 
 ## 3. UI (redesign)
 
-| Screen | Empty/loading/error | Write works | Board-aware | Evidence |
-| ------ | ------------------- | ----------- | ----------- | -------- |
-| `/reports` | ☑ scaffold banner | ☑ generate panel | n/a | `catalogue-generate-panel.tsx` |
-| `/reports/schedules` | ☑ | ☑ create/enable/run | n/a | schedules page |
-| `/reports/dashboard` | ☑ | read | n/a | role cards |
-| `/reports/new` | ☑ | ☑ existing builder | n/a | 14c live generate |
+| Screen               | Empty/loading/error | Write works         | Board-aware | Evidence                       |
+| -------------------- | ------------------- | ------------------- | ----------- | ------------------------------ |
+| `/reports`           | ☑ scaffold banner   | ☑ generate panel    | n/a         | `catalogue-generate-panel.tsx` |
+| `/reports/schedules` | ☑                   | ☑ create/enable/run | n/a         | schedules page                 |
+| `/reports/dashboard` | ☑                   | read                | n/a         | role cards                     |
+| `/reports/new`       | ☑                   | ☑ existing builder  | n/a         | 14c live generate              |
 
 ---
 
 ## 4. Cross-module integration
 
-| Dependency                                       | Integrated | Evidence |
-| ------------------------------------------------ | ---------- | -------- |
+| Dependency                                       | Integrated | Evidence                                       |
+| ------------------------------------------------ | ---------- | ---------------------------------------------- |
 | Institutions / periods                           | ☑          | enrolment provider joins `grades` when present |
-| Staff / students / enrollments                   | ☑          | roster + enrolment providers |
-| Attendance / assessments / exams (as applicable) | ☑          | attendance + exam_results providers |
-| Exports / jobs (as applicable)                   | ☑          | CSV/XLSX/PDF generators + scheduler |
+| Staff / students / enrollments                   | ☑          | roster + enrolment providers                   |
+| Attendance / assessments / exams (as applicable) | ☑          | attendance + exam_results providers            |
+| Exports / jobs (as applicable)                   | ☑          | CSV/XLSX/PDF generators + scheduler            |
 
 ---
 
 ## 5. Observability & audit
 
-| Check                               | Done | Evidence |
-| ----------------------------------- | ---- | -------- |
-| Structured logs on mutate           | ☑    | scheduler tick logs |
-| Audit-relevant writes               | ☐    | Gateway G-105 on mutating `/api/v1` |
-| No secrets in logs                  | ☑    | download tokens not logged |
+| Check                     | Done | Evidence                            |
+| ------------------------- | ---- | ----------------------------------- |
+| Structured logs on mutate | ☑    | scheduler tick logs                 |
+| Audit-relevant writes     | ☐    | Gateway G-105 on mutating `/api/v1` |
+| No secrets in logs        | ☑    | download tokens not logged          |
 
 ---
 

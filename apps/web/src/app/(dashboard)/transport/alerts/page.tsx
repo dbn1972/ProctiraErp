@@ -18,7 +18,8 @@ export default async function TransportAlertsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Transport alerts</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Delay, geofence, and missed-pickup rules. Evaluate against latest pings and trip attendance.
+          Delay, geofence, and missed-pickup rules. Evaluate against latest pings and trip
+          attendance.
         </p>
       </div>
       <AlertsPanel routes={routes} rules={rules} alerts={alerts} />

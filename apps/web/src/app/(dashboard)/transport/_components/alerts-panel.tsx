@@ -41,8 +41,8 @@ export function AlertsPanel({
         <CardHeader>
           <CardTitle className="text-base">Alert rule</CardTitle>
           <CardDescription>
-            delay_minutes, geofence_exit (metres), or missed_pickup. Channels are stored; dispatch is
-            not sent in this slice.
+            delay_minutes, geofence_exit (metres), or missed_pickup. Channels are stored; dispatch
+            is not sent in this slice.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -79,7 +79,13 @@ export function AlertsPanel({
               </select>
             </FormField>
             <FormField id="rule-threshold" label="Threshold" required>
-              <Input id="rule-threshold" name="threshold" type="number" min={0} className="h-11 min-h-11" />
+              <Input
+                id="rule-threshold"
+                name="threshold"
+                type="number"
+                min={0}
+                className="h-11 min-h-11"
+              />
             </FormField>
             <FormField id="rule-route" label="Route (optional)">
               <select
@@ -143,7 +149,9 @@ export function AlertsPanel({
                   <p className="text-sm font-medium">
                     {rule.kind} · threshold {rule.threshold}
                   </p>
-                  <p className="text-xs text-muted-foreground">{rule.isActive ? 'active' : 'inactive'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {rule.isActive ? 'active' : 'inactive'}
+                  </p>
                 </li>
               ))}
             </ul>

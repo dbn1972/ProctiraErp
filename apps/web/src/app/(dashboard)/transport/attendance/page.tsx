@@ -16,7 +16,8 @@ export default async function TransportAttendancePage(props: PageProps) {
     listTransportRoutes(),
     listStudentAssignments(),
   ]);
-  const direction = query.direction === 'drop' ? 'drop' : query.direction === 'pickup' ? 'pickup' : null;
+  const direction =
+    query.direction === 'drop' ? 'drop' : query.direction === 'pickup' ? 'pickup' : null;
   const trip =
     query.routeId && query.tripDate && direction
       ? await getTripAttendance({

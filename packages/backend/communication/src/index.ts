@@ -69,5 +69,9 @@ export {
   WHATSAPP_SANDBOX_HONESTY_NOTE,
   WHATSAPP_LIVE_ENV_VARS,
 } from './whatsapp-adapter.js';
-export type { WhatsAppChannelAdapter, WhatsAppSendRequest, WhatsAppSendResult } from './whatsapp-adapter.js';
+export type {
+  WhatsAppChannelAdapter,
+  WhatsAppSendRequest,
+  WhatsAppSendResult,
+} from './whatsapp-adapter.js';
 export { CreateCircularSchema, AckCircularSchema } from './circular-schemas.js';

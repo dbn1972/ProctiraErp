@@ -605,9 +605,8 @@ export class AttendanceService {
 
     // Present-partial: EARLY_DEPARTURE counts as 0.5 in the numerator (G-919).
     const attendancePercentage =
-      Math.round(
-        ((presentCount + lateCount + 0.5 * earlyDepartureCount) / totalRecords) * 10000,
-      ) / 100;
+      Math.round(((presentCount + lateCount + 0.5 * earlyDepartureCount) / totalRecords) * 10000) /
+      100;
     const absencePercentage = Math.round((absentCount / totalRecords) * 10000) / 100;
 
     const byStudent = new Map<string, typeof records>();

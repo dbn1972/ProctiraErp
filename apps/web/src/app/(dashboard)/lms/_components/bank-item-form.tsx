@@ -107,7 +107,14 @@ export function BankItemForm() {
       </div>
       <div className="space-y-1">
         <Label htmlFor="bank-correct">Correct MCQ index</Label>
-        <Input id="bank-correct" name="correctOptionIndex" type="number" min={0} defaultValue={0} className="h-11" />
+        <Input
+          id="bank-correct"
+          name="correctOptionIndex"
+          type="number"
+          min={0}
+          defaultValue={0}
+          className="h-11"
+        />
       </div>
       <div className="space-y-1">
         <Label htmlFor="bank-msq">MSQ correct indexes (0,2)</Label>
@@ -127,7 +134,15 @@ export function BankItemForm() {
       </div>
       <div className="space-y-1">
         <Label htmlFor="bank-points">Points</Label>
-        <Input id="bank-points" name="points" type="number" min={0.5} step={0.5} defaultValue={1} className="h-11" />
+        <Input
+          id="bank-points"
+          name="points"
+          type="number"
+          min={0.5}
+          step={0.5}
+          defaultValue={1}
+          className="h-11"
+        />
       </div>
       <Button type="submit" disabled={pending} aria-busy={pending}>
         Add to bank

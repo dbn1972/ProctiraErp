@@ -136,9 +136,7 @@ export type CreateMessSubscriptionInput = Static<typeof CreateMessSubscriptionSc
 export const CreateGatePassSchema = Type.Object({
   hostelId: Type.String({ pattern: UUID_PATTERN }),
   studentId: Type.String({ pattern: UUID_PATTERN }),
-  requestedBy: Type.Optional(
-    Type.Union([Type.Literal('resident'), Type.Literal('parent')]),
-  ),
+  requestedBy: Type.Optional(Type.Union([Type.Literal('resident'), Type.Literal('parent')])),
   requesterUserId: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
   reason: Type.Optional(Type.String({ maxLength: 1000 })),
   expectedOutAt: Type.String({ minLength: 1 }),
@@ -167,11 +165,7 @@ export const CreateAttendanceSchema = Type.Object({
   blockId: Type.String({ pattern: UUID_PATTERN }),
   studentId: Type.String({ pattern: UUID_PATTERN }),
   onDate: Type.String({ minLength: 10, maxLength: 10 }),
-  status: Type.Union([
-    Type.Literal('present'),
-    Type.Literal('absent'),
-    Type.Literal('leave'),
-  ]),
+  status: Type.Union([Type.Literal('present'), Type.Literal('absent'), Type.Literal('leave')]),
   reason: Type.Optional(Type.String({ maxLength: 500 })),
 });
 

@@ -132,7 +132,11 @@ export function CatalogueGeneratePanel({ templates }: CatalogueGeneratePanelProp
             </div>
           )}
           <div className="sm:col-span-2">
-            <Button type="submit" disabled={pending} title={pending ? 'Generating report' : undefined}>
+            <Button
+              type="submit"
+              disabled={pending}
+              title={pending ? 'Generating report' : undefined}
+            >
               {pending ? 'Generating…' : 'Generate'}
             </Button>
           </div>

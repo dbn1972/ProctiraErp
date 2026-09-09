@@ -10,21 +10,21 @@
 
 ## 1. Automated
 
-| Check                                   | Pass | Evidence |
-| --------------------------------------- | ---- | -------- |
-| axe WCAG 2.1 AA on module routes        | ☐    | not run |
-| Dark-mode parity list includes routes   | ☐    | |
+| Check                                   | Pass | Evidence                  |
+| --------------------------------------- | ---- | ------------------------- |
+| axe WCAG 2.1 AA on module routes        | ☐    | not run                   |
+| Dark-mode parity list includes routes   | ☐    |                           |
 | Touch targets ≥44 / ≥48 mobile          | ☑    | forms use `h-11 min-h-11` |
-| Contrast / icon-only lint clean for tip | ☐    | not run |
+| Contrast / icon-only lint clean for tip | ☐    | not run                   |
 
 ## 2. Manual
 
-| Check                                           | Pass | Evidence |
-| ----------------------------------------------- | ---- | -------- |
-| Keyboard tab order / focus visible              | ☐    | not exercised |
-| Dialogs / drawers focus not trapped incorrectly | n/a  | no dialogs |
+| Check                                           | Pass | Evidence                        |
+| ----------------------------------------------- | ---- | ------------------------------- |
+| Keyboard tab order / focus visible              | ☐    | not exercised                   |
+| Dialogs / drawers focus not trapped incorrectly | n/a  | no dialogs                      |
 | Primary CTAs have accessible names              | ☑    | Button text + icons aria-hidden |
-| RTL smoke (if locale on)                        | ☐    | |
+| RTL smoke (if locale on)                        | ☐    |                                 |
 | Screen-reader spot check or waiver              | ☐    | live map has aria-label + title |
 
 ## 3. Findings

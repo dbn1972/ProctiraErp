@@ -31,7 +31,9 @@ export default async function StaffContractsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Contracts & qualifications</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Contracts & qualifications
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Employment contracts with 60-day renewal alerts, plus a qualifications registry.
           </p>
@@ -42,8 +44,12 @@ export default async function StaffContractsPage() {
       </div>
 
       {renewals.length > 0 ? (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="status">
-          {renewals.length} contract{renewals.length === 1 ? '' : 's'} due for renewal within 60 days.
+        <p
+          className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+          role="status"
+        >
+          {renewals.length} contract{renewals.length === 1 ? '' : 's'} due for renewal within 60
+          days.
         </p>
       ) : null}
 
@@ -67,7 +73,11 @@ export default async function StaffContractsPage() {
           ) : (
             <ul className="divide-y divide-border" role="list">
               {contracts.map((row) => (
-                <li key={row.id} className="py-3 first:pt-0 last:pb-0" data-testid="staff-contract-row">
+                <li
+                  key={row.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="staff-contract-row"
+                >
                   <p className="text-sm font-medium text-foreground">
                     {row.contractType} · {row.salaryBand || 'no band'} · {row.status}
                     {row.renewalAlert ? ' · renewal due' : ''}
@@ -100,14 +110,16 @@ export default async function StaffContractsPage() {
           ) : (
             <ul className="divide-y divide-border" role="list">
               {qualifications.map((row) => (
-                <li key={row.id} className="py-3 first:pt-0 last:pb-0" data-testid="staff-qualification-row">
+                <li
+                  key={row.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="staff-qualification-row"
+                >
                   <p className="text-sm font-medium text-foreground">
-                    {row.degree} · {row.institution} ({row.year})
-                    {row.verified ? ' · verified' : ''}
+                    {row.degree} · {row.institution} ({row.year}){row.verified ? ' · verified' : ''}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Staff {row.staffId.slice(0, 8)}…
-                    {row.documentRef ? ` · ${row.documentRef}` : ''}
+                    Staff {row.staffId.slice(0, 8)}…{row.documentRef ? ` · ${row.documentRef}` : ''}
                   </p>
                 </li>
               ))}

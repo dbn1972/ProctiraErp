@@ -94,7 +94,13 @@ export function NewContractForm() {
             <Input id="contract-band" name="salaryBand" disabled={!hydrated || pending} />
           </FormField>
           <FormField id="contract-start" label="Start" required>
-            <Input id="contract-start" name="startDate" type="date" required disabled={!hydrated || pending} />
+            <Input
+              id="contract-start"
+              name="startDate"
+              type="date"
+              required
+              disabled={!hydrated || pending}
+            />
           </FormField>
           <FormField id="contract-end" label="End">
             <Input id="contract-end" name="endDate" type="date" disabled={!hydrated || pending} />

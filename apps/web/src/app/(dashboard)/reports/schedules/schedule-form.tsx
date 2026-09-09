@@ -2,7 +2,15 @@
 
 import { useState, useTransition } from 'react';
 
-import { Button, Card, CardContent, CardHeader, CardTitle, FormField, Input } from '@proctira/ui/components';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  FormField,
+  Input,
+} from '@proctira/ui/components';
 import { cn } from '@/lib/utils';
 import { useHydrated } from '@/hooks/useHydrated';
 import type { ReportTemplate } from '@/lib/reports/api';
@@ -72,14 +80,24 @@ export function ReportScheduleForm({ templates }: ScheduleFormProps) {
             </select>
           </FormField>
           <FormField id="schedule-format" label="Format" required>
-            <select id="schedule-format" name="format" className={selectClassName} defaultValue="csv">
+            <select
+              id="schedule-format"
+              name="format"
+              className={selectClassName}
+              defaultValue="csv"
+            >
               <option value="csv">CSV</option>
               <option value="xlsx">XLSX</option>
               <option value="pdf">PDF</option>
             </select>
           </FormField>
           <FormField id="schedule-cadence" label="Cadence" required>
-            <select id="schedule-cadence" name="cadence" className={selectClassName} defaultValue="daily">
+            <select
+              id="schedule-cadence"
+              name="cadence"
+              className={selectClassName}
+              defaultValue="daily"
+            >
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
@@ -89,7 +107,12 @@ export function ReportScheduleForm({ templates }: ScheduleFormProps) {
             <Input id="schedule-hour" name="hour" type="number" min={0} max={23} defaultValue={6} />
           </FormField>
           <div className="sm:col-span-2">
-            <FormField id="schedule-recipients" label="Recipients" required hint="Comma-separated emails">
+            <FormField
+              id="schedule-recipients"
+              label="Recipients"
+              required
+              hint="Comma-separated emails"
+            >
               <Input
                 id="schedule-recipients"
                 name="recipients"
@@ -109,7 +132,11 @@ export function ReportScheduleForm({ templates }: ScheduleFormProps) {
             </p>
           )}
           <div className="sm:col-span-2">
-            <Button type="submit" disabled={pending} title={pending ? 'Saving schedule' : undefined}>
+            <Button
+              type="submit"
+              disabled={pending}
+              title={pending ? 'Saving schedule' : undefined}
+            >
               {pending ? 'Saving…' : 'Create schedule'}
             </Button>
           </div>

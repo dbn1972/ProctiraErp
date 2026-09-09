@@ -108,10 +108,9 @@ test.describe('Reports catalogue — live chain (E2E_BACKEND_READY)', () => {
     expect(created.status(), await created.text()).toBe(201);
     const schedule = (await created.json()) as { id: string };
 
-    const run = await request.post(
-      `${GATEWAY_URL}/api/v1/reports/schedules/${schedule.id}/run`,
-      { headers: headers() },
-    );
+    const run = await request.post(`${GATEWAY_URL}/api/v1/reports/schedules/${schedule.id}/run`, {
+      headers: headers(),
+    });
     expect(run.status(), await run.text()).toBe(201);
 
     const history = await request.get(

@@ -54,7 +54,9 @@ export default async function StaffAttendancePage(props: PageProps) {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Staff attendance</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Staff attendance
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Daily present / absent / leave / half-day marks and a monthly summary.
           </p>
@@ -102,7 +104,11 @@ export default async function StaffAttendancePage(props: PageProps) {
           ) : (
             <ul className="divide-y divide-border" role="list">
               {summary.map((row) => (
-                <li key={row.staffId} className="py-2 text-sm" data-testid="staff-attendance-summary-row">
+                <li
+                  key={row.staffId}
+                  className="py-2 text-sm"
+                  data-testid="staff-attendance-summary-row"
+                >
                   Staff {row.staffId.slice(0, 8)}… · present {row.present} · leave {row.leave} ·
                   half-day {row.halfDay} · payable {row.payableDays}
                 </li>

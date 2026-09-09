@@ -1355,19 +1355,22 @@ export async function registerTransportRoutes(
     },
   );
 
-  fastify.get(`${prefix}/live`, async function liveMapHandler(request: FastifyRequest, reply: FastifyReply) {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return tenantMissing(reply);
-    const live = await transportService.getLiveMap(tenantId);
-    return reply.status(200).send({
-      honestyNote: live.honestyNote,
-      vehicles: live.vehicles.map((v) => ({
-        ...v,
-        recordedAt: v.recordedAt.toISOString(),
-      })),
-      stops: live.stops,
-    });
-  });
+  fastify.get(
+    `${prefix}/live`,
+    async function liveMapHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantMissing(reply);
+      const live = await transportService.getLiveMap(tenantId);
+      return reply.status(200).send({
+        honestyNote: live.honestyNote,
+        vehicles: live.vehicles.map((v) => ({
+          ...v,
+          recordedAt: v.recordedAt.toISOString(),
+        })),
+        stops: live.stops,
+      });
+    },
+  );
 
   fastify.get(
     `${prefix}/stops`,
@@ -1522,14 +1525,17 @@ export async function registerTransportRoutes(
     },
   );
 
-  fastify.get(`${prefix}/alerts`, async function listAlertsHandler(request: FastifyRequest, reply: FastifyReply) {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return tenantMissing(reply);
-    const alerts = await transportService.listAlerts(tenantId);
-    return reply.status(200).send({
-      data: alerts.map((a) => serializeDates(a as unknown as Record<string, unknown>)),
-    });
-  });
+  fastify.get(
+    `${prefix}/alerts`,
+    async function listAlertsHandler(request: FastifyRequest, reply: FastifyReply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantMissing(reply);
+      const alerts = await transportService.listAlerts(tenantId);
+      return reply.status(200).send({
+        data: alerts.map((a) => serializeDates(a as unknown as Record<string, unknown>)),
+      });
+    },
+  );
 
   fastify.post(
     `${prefix}/alerts/:id/acknowledge`,

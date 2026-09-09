@@ -11,14 +11,14 @@
 
 ## 0. Inventory
 
-| Screen | Route | Desktop | Tablet | Mobile | Notes |
-| ------ | ----- | ------- | ------ | ------ | ----- |
-| Overview | `/transport` | ☐ | ☐ | ☐ | extra cards added; not captured |
-| Route stops | `/transport/routes/[id]/stops` | ☐ | ☐ | ☐ | |
-| Live map | `/transport/live` | ☐ | ☐ | ☐ | SVG, not a map SDK |
-| Attendance | `/transport/attendance` | ☐ | ☐ | ☐ | |
-| Alerts | `/transport/alerts` | ☐ | ☐ | ☐ | |
-| Fees | `/transport/fees` | ☐ | ☐ | ☐ | |
+| Screen      | Route                          | Desktop | Tablet | Mobile | Notes                           |
+| ----------- | ------------------------------ | ------- | ------ | ------ | ------------------------------- |
+| Overview    | `/transport`                   | ☐       | ☐      | ☐      | extra cards added; not captured |
+| Route stops | `/transport/routes/[id]/stops` | ☐       | ☐      | ☐      |                                 |
+| Live map    | `/transport/live`              | ☐       | ☐      | ☐      | SVG, not a map SDK              |
+| Attendance  | `/transport/attendance`        | ☐       | ☐      | ☐      |                                 |
+| Alerts      | `/transport/alerts`            | ☐       | ☐      | ☐      |                                 |
+| Fees        | `/transport/fees`              | ☐       | ☐      | ☐      |                                 |
 
 ---
 
@@ -38,10 +38,10 @@ None from code review; visual QA not run.
 
 ### P1
 
-| ID | Screen | Finding | Fix / evidence |
-| ---- | ------ | ------- | -------------- |
-| UX-1 | Live map | SVG projection is a substitute for a slippy map | Documented; OSM deep links |
-| UX-2 | Attendance | Trip query is form POST, not URL-driven load | PARTIAL — summary needs route/date query for list |
+| ID   | Screen     | Finding                                         | Fix / evidence                                    |
+| ---- | ---------- | ----------------------------------------------- | ------------------------------------------------- |
+| UX-1 | Live map   | SVG projection is a substitute for a slippy map | Documented; OSM deep links                        |
+| UX-2 | Attendance | Trip query is form POST, not URL-driven load    | PARTIAL — summary needs route/date query for list |
 
 ---
 

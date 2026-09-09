@@ -10,29 +10,29 @@
 
 ## 0. Inventory
 
-| Route / API | AuthN | AuthZ | Data class | Notes |
-| ----------- | ----- | ----- | ---------- | ----- |
-| `/transport/stops` | JWT | `transport` | stop names | |
-| `POST /transport/gps` | JWT + device key | `transport` write | lat/lng | anonymous ingest deferred |
-| `GET /transport/live` | JWT | `transport` read | lat/lng | last ping per vehicle |
-| `/transport/attendance` | JWT | `transport` | student ids | |
-| `/transport/alerts*` | JWT | `transport` | student/vehicle | |
-| `/transport/fee-*` | JWT | `transport` | amounts | via FeesService |
+| Route / API             | AuthN            | AuthZ             | Data class      | Notes                     |
+| ----------------------- | ---------------- | ----------------- | --------------- | ------------------------- |
+| `/transport/stops`      | JWT              | `transport`       | stop names      |                           |
+| `POST /transport/gps`   | JWT + device key | `transport` write | lat/lng         | anonymous ingest deferred |
+| `GET /transport/live`   | JWT              | `transport` read  | lat/lng         | last ping per vehicle     |
+| `/transport/attendance` | JWT              | `transport`       | student ids     |                           |
+| `/transport/alerts*`    | JWT              | `transport`       | student/vehicle |                           |
+| `/transport/fee-*`      | JWT              | `transport`       | amounts         | via FeesService           |
 
 ---
 
 ## 1. Controls
 
-| Check                                   | Pass | Evidence |
-| --------------------------------------- | ---- | -------- |
-| Unauthenticated → sign-in / 401         | ☐    | not live-tested |
-| RBAC deny / hide                        | ☐    | existing `/transport` mapping |
+| Check                                   | Pass | Evidence                                 |
+| --------------------------------------- | ---- | ---------------------------------------- |
+| Unauthenticated → sign-in / 401         | ☐    | not live-tested                          |
+| RBAC deny / hide                        | ☐    | existing `/transport` mapping            |
 | Cross-tenant IDOR blocked (API)         | ☐    | RLS + tenant filters; E2E gated, not run |
-| Cross-tenant IDOR blocked (UI)          | ☐    | |
-| Write audit events (money/consent/PHI)  | ☐    | fees ledger if invoiced |
-| No secrets/tokens in git or client logs | ☑    | device key hashed SHA-256 |
-| Tenant isolation suite cited/run        | ☑    | unit SQL RLS for 045 |
-| Input validation / abuse basics         | ☑    | TypeBox + Zod |
+| Cross-tenant IDOR blocked (UI)          | ☐    |                                          |
+| Write audit events (money/consent/PHI)  | ☐    | fees ledger if invoiced                  |
+| No secrets/tokens in git or client logs | ☑    | device key hashed SHA-256                |
+| Tenant isolation suite cited/run        | ☑    | unit SQL RLS for 045                     |
+| Input validation / abuse basics         | ☑    | TypeBox + Zod                            |
 
 ## 2. Findings
 

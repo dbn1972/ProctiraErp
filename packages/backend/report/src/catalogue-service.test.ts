@@ -87,7 +87,11 @@ describe('G-909 scheduler next_run_at', () => {
 
   it('createReportScheduler.runOnce is idempotent while in flight', async () => {
     const { service } = makeService();
-    const scheduler = createReportScheduler({ service, intervalMs: 60_000, initialDelayMs: 60_000 });
+    const scheduler = createReportScheduler({
+      service,
+      intervalMs: 60_000,
+      initialDelayMs: 60_000,
+    });
     const first = await scheduler.runOnce(new Date());
     expect(first.due).toBe(0);
     scheduler.start();
@@ -173,7 +177,11 @@ describe('G-909 catalogue plugin routes', () => {
       method: 'POST',
       url: '/reports/generate',
       headers: { 'x-tenant-id': TENANT_A },
-      payload: { templateId: 'tpl-enrolment-summary', format: 'CSV', filters: { academicPeriodId: 'p' } },
+      payload: {
+        templateId: 'tpl-enrolment-summary',
+        format: 'CSV',
+        filters: { academicPeriodId: 'p' },
+      },
     });
     expect(create.statusCode).toBe(201);
     const run = create.json() as { artifactId: string; sha256: string; status: string };
@@ -203,7 +211,12 @@ describe('G-909 catalogue plugin routes', () => {
       method: 'POST',
       url: '/reports/schedules',
       headers: { 'x-tenant-id': TENANT_A },
-      payload: { reportKey: 'attendance_summary', format: 'csv', cadence: 'daily', recipients: ['a@b.c'] },
+      payload: {
+        reportKey: 'attendance_summary',
+        format: 'csv',
+        cadence: 'daily',
+        recipients: ['a@b.c'],
+      },
     });
     expect(created.statusCode).toBe(201);
     const schedule = created.json() as { id: string; nextRunAt: string; hour: number };

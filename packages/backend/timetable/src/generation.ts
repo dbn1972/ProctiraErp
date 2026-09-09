@@ -247,9 +247,7 @@ function tryPlaceOne(
   let best: { score: number; assignment: GeneratorAssignment } | null = null;
   for (const slot of slots) {
     const roomId =
-      rooms.length === 0
-        ? null
-        : pickRoom(demand, rooms, occ, slot.dayOfWeek, slot.period.id);
+      rooms.length === 0 ? null : pickRoom(demand, rooms, occ, slot.dayOfWeek, slot.period.id);
     if (rooms.length > 0 && roomId === null && (demand.enrollmentCount ?? 0) > 0) {
       continue;
     }
@@ -320,7 +318,14 @@ export function generateTimetable(input: GenerateInput): GenerateResult {
     const rotated = slots.slice(repairPasses).concat(slots.slice(0, repairPasses));
     for (const state of leftover) {
       while (state.left > 0) {
-        const placed = tryPlaceOne(state.demand, rotated, input.rooms, occ, unavailable, maxPeriods);
+        const placed = tryPlaceOne(
+          state.demand,
+          rotated,
+          input.rooms,
+          occ,
+          unavailable,
+          maxPeriods,
+        );
         if (!placed) break;
         occupy(occ, placed);
         assignments.push(placed);

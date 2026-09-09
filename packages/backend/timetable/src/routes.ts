@@ -814,8 +814,7 @@ export async function registerTimetableRoutes(
       });
     }
     try {
-      const actor =
-        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
+      const actor = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
       const row = await service.runGenerationJob(tenantId, validated.data, actor);
       return reply.status(201).send(row);
     } catch (error) {
@@ -839,8 +838,7 @@ export async function registerTimetableRoutes(
       });
     }
     try {
-      const actor =
-        (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
+      const actor = (request as FastifyRequest & { user?: { sub?: string } }).user?.sub ?? null;
       const row = await service.markTeacherAbsent(tenantId, validated.data, actor);
       return reply.status(201).send(row);
     } catch (error) {

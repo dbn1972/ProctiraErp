@@ -143,10 +143,7 @@ export class InMemoryStaffHrStore implements StaffHrStore {
       .map((row) => clone(row));
   }
 
-  async findQualification(
-    tenantId: string,
-    id: string,
-  ): Promise<StaffQualificationRecord | null> {
+  async findQualification(tenantId: string, id: string): Promise<StaffQualificationRecord | null> {
     const row = this.qualifications.get(id);
     return row && row.tenantId === tenantId ? clone(row) : null;
   }

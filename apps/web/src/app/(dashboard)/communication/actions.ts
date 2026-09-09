@@ -169,7 +169,9 @@ export async function dispatchEmergencyBlastAction(id: string): Promise<Communic
   }
 }
 
-export async function createCircularAction(input: CreateCircularInput): Promise<CommunicationActionState> {
+export async function createCircularAction(
+  input: CreateCircularInput,
+): Promise<CommunicationActionState> {
   const parsed = circularFormSchema.safeParse({
     title: input.title,
     body: input.body,
@@ -181,7 +183,10 @@ export async function createCircularAction(input: CreateCircularInput): Promise<
     return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid circular' };
   }
   if (input.requiresAck && (!input.recipientIds || input.recipientIds.length === 0)) {
-    return { status: 'error', message: 'Acknowledgement circulars need at least one recipient id.' };
+    return {
+      status: 'error',
+      message: 'Acknowledgement circulars need at least one recipient id.',
+    };
   }
   try {
     const circular = await createCircular(input);
@@ -207,7 +212,11 @@ export async function sendCircularAction(id: string): Promise<CommunicationActio
     revalidatePath('/communication/circulars');
     revalidatePath(`/communication/circulars/${id}`);
     revalidatePath('/communication/delivery');
-    return { status: 'success', message: `Circular marked sent (${circular.status}).`, id: circular.id };
+    return {
+      status: 'success',
+      message: `Circular marked sent (${circular.status}).`,
+      id: circular.id,
+    };
   } catch (error) {
     return {
       status: 'error',

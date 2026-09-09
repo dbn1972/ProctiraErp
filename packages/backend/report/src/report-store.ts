@@ -189,7 +189,11 @@ export class InMemoryReportStore implements ReportStore {
         if (r.tenantId !== tenantId) return false;
         if (filter?.scheduleId && r.scheduleId !== filter.scheduleId) return false;
         if (filter?.reportKey && r.reportKey !== filter.reportKey) return false;
-        if (filter?.templateId && r.reportKey !== filter.templateId && r.reportKey !== filter.templateId) {
+        if (
+          filter?.templateId &&
+          r.reportKey !== filter.templateId &&
+          r.reportKey !== filter.templateId
+        ) {
           // template aliases resolved by caller
           return r.reportKey === filter.templateId;
         }

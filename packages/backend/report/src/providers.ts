@@ -118,7 +118,10 @@ function demoTable(key: CatalogueReportKey, tenantId: string): ReportTable {
   };
 }
 
-async function loadStudentsRoster(client: PgQueryable, tenantId: string): Promise<ReportTable | null> {
+async function loadStudentsRoster(
+  client: PgQueryable,
+  tenantId: string,
+): Promise<ReportTable | null> {
   if (!(await relationExists(client, 'students'))) return null;
   try {
     const { rows } = await client.query(
@@ -279,12 +282,12 @@ async function loadExamResults(client: PgQueryable, tenantId: string): Promise<R
   for (const table of ['examination_results', 'exam_results', 'candidate_results']) {
     if (!(await relationExists(client, table))) continue;
     try {
-      const { rows } = await client.query(
-        `SELECT * FROM ${table} LIMIT 200`,
-      );
+      const { rows } = await client.query(`SELECT * FROM ${table} LIMIT 200`);
       if (rows.length === 0) continue;
       const sample = rows[0] as Record<string, unknown>;
-      const keys = Object.keys(sample).filter((k) => k !== 'tenant_id').slice(0, 6);
+      const keys = Object.keys(sample)
+        .filter((k) => k !== 'tenant_id')
+        .slice(0, 6);
       return {
         columns: [
           ...keys.map((k) => ({ name: k, label: k })),

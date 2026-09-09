@@ -216,18 +216,17 @@ function toReportCsv(
   if (studentRows.length === 0) return metricCsv;
   const studentHeader =
     'student_id,total_records,present,absent,late,excused,early_departure,attendance_percentage';
-  const studentLines = studentRows.map(
-    (r) =>
-      [
-        cell(r.studentId),
-        r.totalRecords,
-        r.presentCount,
-        r.absentCount,
-        r.lateCount,
-        r.excusedCount,
-        r.earlyDepartureCount,
-        r.attendancePercentage.toFixed(2),
-      ].join(','),
+  const studentLines = studentRows.map((r) =>
+    [
+      cell(r.studentId),
+      r.totalRecords,
+      r.presentCount,
+      r.absentCount,
+      r.lateCount,
+      r.excusedCount,
+      r.earlyDepartureCount,
+      r.attendancePercentage.toFixed(2),
+    ].join(','),
   );
   return `${metricCsv}\n${[studentHeader, ...studentLines].join('\n')}\n`;
 }

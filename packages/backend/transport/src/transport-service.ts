@@ -707,7 +707,9 @@ export class TransportService {
     await this.getVehicleById(tenantId, vehicleId);
     const existing = await this.repository.findDeviceByVehicleId(vehicleId, tenantId);
     if (existing) {
-      throw new ConflictError('Vehicle already has an active GPS device. Rotate by deactivating first.');
+      throw new ConflictError(
+        'Vehicle already has an active GPS device. Rotate by deactivating first.',
+      );
     }
     const plaintext = generateDeviceKey();
     const deviceId = input.deviceId?.trim() || generateDeviceId();
@@ -890,11 +892,7 @@ export class TransportService {
     return this.repository.listAlertRules(tenantId);
   }
 
-  async evaluateAlerts(
-    tenantId: string,
-    input: EvaluateAlertsInput = {},
-    now = new Date(),
-  ) {
+  async evaluateAlerts(tenantId: string, input: EvaluateAlertsInput = {}, now = new Date()) {
     const tripDate = input.tripDate ?? now.toISOString().slice(0, 10);
     const [rules, pings, stops, routes, assignments] = await Promise.all([
       this.repository.listAlertRules(tenantId),
@@ -1048,7 +1046,10 @@ export class TransportService {
     if (byStop) return byStop;
     const byRoute = active.find((b) => b.routeId === assignment.routeId && !b.stopId);
     if (byRoute) {
-      if (routeDistanceKm != null && (byRoute.minDistanceKm != null || byRoute.maxDistanceKm != null)) {
+      if (
+        routeDistanceKm != null &&
+        (byRoute.minDistanceKm != null || byRoute.maxDistanceKm != null)
+      ) {
         const min = byRoute.minDistanceKm ?? 0;
         const max = byRoute.maxDistanceKm ?? Number.POSITIVE_INFINITY;
         if (routeDistanceKm >= min && routeDistanceKm <= max) return byRoute;

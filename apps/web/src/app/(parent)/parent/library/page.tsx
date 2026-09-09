@@ -67,7 +67,8 @@ export default async function ParentLibraryPage({
                 <p className="text-sm font-medium text-foreground">{item.title}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {item.author ?? 'Unknown author'}
-                  {item.isbn ? ` · ISBN ${item.isbn}` : ''} · {item.available}/{item.copies} available
+                  {item.isbn ? ` · ISBN ${item.isbn}` : ''} · {item.available}/{item.copies}{' '}
+                  available
                 </p>
               </li>
             ))}
@@ -89,7 +90,9 @@ export default async function ParentLibraryPage({
               {loans.map((loan) => (
                 <li key={loan.id} className="py-3 first:pt-0 last:pb-0">
                   <p className="text-sm font-medium text-foreground">{loan.status}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">due {loan.dueAt.slice(0, 10)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    due {loan.dueAt.slice(0, 10)}
+                  </p>
                 </li>
               ))}
             </ul>

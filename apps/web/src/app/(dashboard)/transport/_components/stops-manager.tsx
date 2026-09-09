@@ -17,13 +17,7 @@ import {
 import { createRouteStopAction, deleteRouteStopAction } from '../actions';
 import type { RouteStop } from '@/lib/transport/api';
 
-export function StopsManager({
-  routeId,
-  stops,
-}: {
-  routeId: string;
-  stops: RouteStop[];
-}) {
+export function StopsManager({ routeId, stops }: { routeId: string; stops: RouteStop[] }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [hydrated, setHydrated] = useState(false);
@@ -97,7 +91,13 @@ export function StopsManager({
             </FormField>
             <div className="grid gap-4 md:grid-cols-2">
               <FormField id="stop-lat" label="Latitude">
-                <Input id="stop-lat" name="latitude" type="number" step="0.0001" className="h-11 min-h-11" />
+                <Input
+                  id="stop-lat"
+                  name="latitude"
+                  type="number"
+                  step="0.0001"
+                  className="h-11 min-h-11"
+                />
               </FormField>
               <FormField id="stop-lng" label="Longitude">
                 <Input
@@ -111,10 +111,20 @@ export function StopsManager({
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <FormField id="stop-pickup" label="Pickup (HH:MM)">
-                <Input id="stop-pickup" name="pickupTime" placeholder="07:15" className="h-11 min-h-11" />
+                <Input
+                  id="stop-pickup"
+                  name="pickupTime"
+                  placeholder="07:15"
+                  className="h-11 min-h-11"
+                />
               </FormField>
               <FormField id="stop-drop" label="Drop-off (HH:MM)">
-                <Input id="stop-drop" name="dropoffTime" placeholder="15:45" className="h-11 min-h-11" />
+                <Input
+                  id="stop-drop"
+                  name="dropoffTime"
+                  placeholder="15:45"
+                  className="h-11 min-h-11"
+                />
               </FormField>
             </div>
             {error ? (

@@ -23,7 +23,6 @@ import { AppError } from '@proctira/common';
 import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 
-import type { TrainingService } from './training-service.js';
 import {
   CreateTrainingProgramSchema,
   UpdateTrainingProgramSchema,
@@ -44,6 +43,7 @@ import {
   type TrainingProgramListQuery,
   type CertificationListQuery,
 } from './training-schemas.js';
+import type { TrainingService } from './training-service.js';
 
 /**
  * Options for registering training routes.
@@ -216,7 +216,7 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query as TrainingProgramListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 
@@ -587,7 +587,7 @@ export async function registerTrainingRoutes(
         });
       }
 
-      const query = request.query as CertificationListQuery;
+      const query = request.query;
       const page = Number(query.page) || 1;
       const pageSize = Number(query.pageSize) || 20;
 

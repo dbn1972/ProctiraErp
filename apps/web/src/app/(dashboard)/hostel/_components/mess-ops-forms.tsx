@@ -25,13 +25,7 @@ import type { Hostel, HostelMessPlan } from '@/lib/api/hostel';
 const MEALS = ['breakfast', 'lunch', 'dinner', 'snacks'] as const;
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function MessOpsForms({
-  hostels,
-  plans,
-}: {
-  hostels: Hostel[];
-  plans: HostelMessPlan[];
-}) {
+export function MessOpsForms({ hostels, plans }: { hostels: Hostel[]; plans: HostelMessPlan[] }) {
   const router = useRouter();
   const hydrated = useHydrated();
   const [error, setError] = useState<string | null>(null);

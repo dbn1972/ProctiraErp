@@ -376,7 +376,9 @@ export class InMemoryLmsRepository implements LmsRepository {
 
   async findBankQuestionsByIds(tenantId: string, ids: string[]): Promise<BankQuestionEntity[]> {
     const wanted = new Set(ids);
-    return Array.from(this.bank.values()).filter((q) => q.tenantId === tenantId && wanted.has(q.id));
+    return Array.from(this.bank.values()).filter(
+      (q) => q.tenantId === tenantId && wanted.has(q.id),
+    );
   }
 
   async listBankQuestions(
@@ -561,7 +563,10 @@ export class InMemoryLmsRepository implements LmsRepository {
   ): Promise<DiscussionPostEntity[]> {
     return (this.posts.get(discussionId) ?? [])
       .filter((p) => p.tenantId === tenantId)
-      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || a.createdAt.getTime() - b.createdAt.getTime());
+      .sort(
+        (a, b) =>
+          Number(b.pinned) - Number(a.pinned) || a.createdAt.getTime() - b.createdAt.getTime(),
+      );
   }
 
   async setPostPinned(

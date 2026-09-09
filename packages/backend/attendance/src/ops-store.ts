@@ -107,10 +107,7 @@ export interface AttendanceOpsStore {
   ): Promise<LeaveRequestRecord | null>;
 
   createDeviceKey(row: DeviceKeyRecord): Promise<DeviceKeyRecord>;
-  findDeviceKeyByHash(
-    tenantId: string,
-    apiKeyHash: string,
-  ): Promise<DeviceKeyRecord | null>;
+  findDeviceKeyByHash(tenantId: string, apiKeyHash: string): Promise<DeviceKeyRecord | null>;
   listDeviceKeys(tenantId: string, institutionId?: string): Promise<DeviceKeyRecord[]>;
 
   findIngestEvent(
@@ -147,7 +144,13 @@ export class InMemoryAttendanceOpsStore implements AttendanceOpsStore {
   async updateRegularisation(tenantId: string, id: string, patch: Partial<RegularisationRecord>) {
     const cur = await this.getRegularisation(tenantId, id);
     if (!cur) return null;
-    const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId, updatedAt: new Date().toISOString() };
+    const next = {
+      ...cur,
+      ...patch,
+      id: cur.id,
+      tenantId: cur.tenantId,
+      updatedAt: new Date().toISOString(),
+    };
     this.regularisations.set(id, next);
     return clone(next);
   }
@@ -168,7 +171,13 @@ export class InMemoryAttendanceOpsStore implements AttendanceOpsStore {
   async updateLeave(tenantId: string, id: string, patch: Partial<LeaveRequestRecord>) {
     const cur = await this.getLeave(tenantId, id);
     if (!cur) return null;
-    const next = { ...cur, ...patch, id: cur.id, tenantId: cur.tenantId, updatedAt: new Date().toISOString() };
+    const next = {
+      ...cur,
+      ...patch,
+      id: cur.id,
+      tenantId: cur.tenantId,
+      updatedAt: new Date().toISOString(),
+    };
     this.leaves.set(id, next);
     return clone(next);
   }
@@ -185,7 +194,9 @@ export class InMemoryAttendanceOpsStore implements AttendanceOpsStore {
   }
   async listDeviceKeys(tenantId: string, institutionId?: string) {
     return [...this.devices.values()]
-      .filter((d) => d.tenantId === tenantId && (!institutionId || d.institutionId === institutionId))
+      .filter(
+        (d) => d.tenantId === tenantId && (!institutionId || d.institutionId === institutionId),
+      )
       .map(clone);
   }
 
@@ -312,10 +323,24 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
          VALUES ($1,$2,$3,$4,$5,$6,$7::date,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
          RETURNING *`,
         [
-          row.id, row.tenantId, row.attendanceId, row.studentId, row.institutionId, row.classId,
-          row.attendanceDate, row.fromStatus, row.toStatus, row.reason, row.requesterId,
-          row.requesterRole, row.status, row.decidedBy, row.decidedAt, row.decisionNote,
-          row.createdAt, row.updatedAt,
+          row.id,
+          row.tenantId,
+          row.attendanceId,
+          row.studentId,
+          row.institutionId,
+          row.classId,
+          row.attendanceDate,
+          row.fromStatus,
+          row.toStatus,
+          row.reason,
+          row.requesterId,
+          row.requesterRole,
+          row.status,
+          row.decidedBy,
+          row.decidedAt,
+          row.decisionNote,
+          row.createdAt,
+          row.updatedAt,
         ],
       );
       return toReg(rows[0] as Record<string, unknown>);
@@ -355,7 +380,15 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
         `UPDATE attendance_regularisation_requests SET
            status = $3, decided_by = $4, decided_at = $5, decision_note = $6, updated_at = $7
          WHERE tenant_id = $1 AND id = $2 RETURNING *`,
-        [tenantId, id, next.status, next.decidedBy, next.decidedAt, next.decisionNote, next.updatedAt],
+        [
+          tenantId,
+          id,
+          next.status,
+          next.decidedBy,
+          next.decidedAt,
+          next.decisionNote,
+          next.updatedAt,
+        ],
       );
       return rows[0] ? toReg(rows[0] as Record<string, unknown>) : null;
     });
@@ -371,9 +404,24 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
          VALUES ($1,$2,$3,$4,$5,$6,$7::date,$8::date,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
          RETURNING *`,
         [
-          row.id, row.tenantId, row.studentId, row.institutionId, row.classId, row.academicPeriodId,
-          row.fromDate, row.toDate, row.reason, row.attachmentUrl, row.requesterId, row.requesterRole,
-          row.status, row.decidedBy, row.decidedAt, row.decisionNote, row.createdAt, row.updatedAt,
+          row.id,
+          row.tenantId,
+          row.studentId,
+          row.institutionId,
+          row.classId,
+          row.academicPeriodId,
+          row.fromDate,
+          row.toDate,
+          row.reason,
+          row.attachmentUrl,
+          row.requesterId,
+          row.requesterRole,
+          row.status,
+          row.decidedBy,
+          row.decidedAt,
+          row.decisionNote,
+          row.createdAt,
+          row.updatedAt,
         ],
       );
       return toLeave(rows[0] as Record<string, unknown>);
@@ -413,7 +461,15 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
         `UPDATE attendance_leave_requests SET
            status = $3, decided_by = $4, decided_at = $5, decision_note = $6, updated_at = $7
          WHERE tenant_id = $1 AND id = $2 RETURNING *`,
-        [tenantId, id, next.status, next.decidedBy, next.decidedAt, next.decisionNote, next.updatedAt],
+        [
+          tenantId,
+          id,
+          next.status,
+          next.decidedBy,
+          next.decidedAt,
+          next.decisionNote,
+          next.updatedAt,
+        ],
       );
       return rows[0] ? toLeave(rows[0] as Record<string, unknown>) : null;
     });
@@ -425,7 +481,16 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
         `INSERT INTO attendance_device_keys
            (id, tenant_id, institution_id, device_id, api_key_hash, label, status, created_at)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-        [row.id, row.tenantId, row.institutionId, row.deviceId, row.apiKeyHash, row.label, row.status, row.createdAt],
+        [
+          row.id,
+          row.tenantId,
+          row.institutionId,
+          row.deviceId,
+          row.apiKeyHash,
+          row.label,
+          row.status,
+          row.createdAt,
+        ],
       );
       return toDevice(rows[0] as Record<string, unknown>);
     });
@@ -476,8 +541,17 @@ export class PgAttendanceOpsStore implements AttendanceOpsStore {
          ON CONFLICT (tenant_id, device_id, event_id) DO UPDATE SET duplicate = true
          RETURNING *`,
         [
-          row.id, row.tenantId, row.institutionId, row.deviceId, row.eventId, row.studentId,
-          row.punchedAt, row.punchType, row.attendanceId, row.duplicate, row.createdAt,
+          row.id,
+          row.tenantId,
+          row.institutionId,
+          row.deviceId,
+          row.eventId,
+          row.studentId,
+          row.punchedAt,
+          row.punchType,
+          row.attendanceId,
+          row.duplicate,
+          row.createdAt,
         ],
       );
       return toIngest(rows[0] as Record<string, unknown>);

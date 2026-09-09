@@ -98,7 +98,10 @@ const studentAssignmentSchema = z.object({
   routeId: uuid,
   stopId: uuid.optional(),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export async function createStudentAssignmentAction(input: {
@@ -154,7 +157,10 @@ export async function createRouteStopAction(
   }
 }
 
-export async function deleteRouteStopAction(id: string, routeId: string): Promise<TransportActionState> {
+export async function deleteRouteStopAction(
+  id: string,
+  routeId: string,
+): Promise<TransportActionState> {
   const parsed = uuid.safeParse(id);
   if (!parsed.success) return { status: 'error', message: 'Invalid stop id' };
   try {
@@ -332,7 +338,10 @@ export async function createTransportFeeStructureAction(
   try {
     await createTransportFeeStructure(parsed.data);
     revalidatePath('/transport/fees');
-    return { status: 'success', message: 'Fee band created (Fees category=transport when G-903 is wired).' };
+    return {
+      status: 'success',
+      message: 'Fee band created (Fees category=transport when G-903 is wired).',
+    };
   } catch (error) {
     return fail(error, 'Failed to create fee band');
   }

@@ -49,6 +49,11 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 
 import type { GatewayConfig } from './config.js';
 import { registerDomainPlugins } from './domain-plugins.js';
+import {
+  decideInstitutionScope,
+  extractInstitutionId,
+  type InstitutionScopeUser,
+} from './institution-scope.js';
 import { verifySecretCandidates } from './jwt-secrets.js';
 import {
   buildAuditValues,
@@ -71,11 +76,6 @@ import {
   UNMAPPED_API_RESOURCE,
 } from './rbac-registry.js';
 import { isRequestTenantSuspended } from './tenant-entitlement.js';
-import {
-  decideInstitutionScope,
-  extractInstitutionId,
-  type InstitutionScopeUser,
-} from './institution-scope.js';
 import { missingFeatureForRequest, type FeaturesUser } from './tenant-features.js';
 import { maxRequestsForTenant } from './tenant-plan-quotas.js';
 

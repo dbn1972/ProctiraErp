@@ -75,7 +75,11 @@ export function DiscussionModeration({
   const [pending, startTransition] = useTransition();
 
   return (
-    <div className="space-y-3" data-testid="lms-discussion-moderation" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-3"
+      data-testid="lms-discussion-moderation"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -107,14 +111,20 @@ export function DiscussionModeration({
           Reply
         </Label>
         <Textarea id={`post-${threadId}`} name="body" required rows={2} className="flex-1" />
-        <Button type="submit" disabled={pending || locked} title={locked ? 'Thread is locked' : undefined}>
+        <Button
+          type="submit"
+          disabled={pending || locked}
+          title={locked ? 'Thread is locked' : undefined}
+        >
           Reply
         </Button>
       </form>
       <ul className="space-y-2">
         {posts.map((post) => (
           <li key={post.id} className="rounded border p-3 text-sm">
-            <p className={post.hidden ? 'text-muted-foreground line-through' : undefined}>{post.body}</p>
+            <p className={post.hidden ? 'text-muted-foreground line-through' : undefined}>
+              {post.body}
+            </p>
             <Button
               type="button"
               variant="ghost"

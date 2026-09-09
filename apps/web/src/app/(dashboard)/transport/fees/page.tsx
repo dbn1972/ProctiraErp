@@ -19,8 +19,8 @@ export default async function TransportFeesPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Transport fees</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Stop/route fee bands linked to G-903 FeesService. Assigning a student to a stop creates the
-          fee line or a pending link.
+          Stop/route fee bands linked to G-903 FeesService. Assigning a student to a stop creates
+          the fee line or a pending link.
         </p>
       </div>
       <FeesPanel routes={routes} stops={stops} bands={bands} links={links} />

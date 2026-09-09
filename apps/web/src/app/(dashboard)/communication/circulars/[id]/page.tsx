@@ -30,7 +30,9 @@ export default async function CircularDetailPage(props: PageProps) {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{circular.title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            {circular.title}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {circular.audienceType} · {circular.channels.join(', ') || 'no channels'}
           </p>
@@ -42,11 +44,17 @@ export default async function CircularDetailPage(props: PageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Body</CardTitle>
-          <CardDescription>{circular.requiresAck ? 'Acknowledgement required' : 'No ack required'}</CardDescription>
+          <CardDescription>
+            {circular.requiresAck ? 'Acknowledgement required' : 'No ack required'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="whitespace-pre-wrap text-sm">{circular.body}</p>
-          <CircularAckPanel circularId={circular.id} status={circular.status} ackRate={circular.ackRate} />
+          <CircularAckPanel
+            circularId={circular.id}
+            status={circular.status}
+            ackRate={circular.ackRate}
+          />
           <ul className="divide-y divide-border" role="list">
             {circular.acks.map((ack) => (
               <li key={ack.id} className="py-2 text-sm" data-testid="circular-ack-row">

@@ -15,57 +15,57 @@ A tenant transport officer can maintain ordered route stops (name, lat/lng, sche
 
 ## 2. Personas & jobs
 
-| Persona | Job-to-be-done | Success looks like |
-| ------- | -------------- | ------------------ |
-| Transport officer | Keep stop lists and student stop seats current | Ordered stops CRUD; assignment includes `stopId` |
-| Fleet / telematics operator | See where buses are without a map SDK | Device-key GPS batch ingest; live SVG map + OSM deep links |
-| Attendant / driver (staff) | Record who boarded this trip | Trip roster with boarded / alighted / absent + counts |
-| Registrar / fees clerk | Charge transport by stop distance | Fee band → FeesService invoice (or honest pending link) |
-| Parent (out of this slice) | See bus location | Non-goal this slice (staff shell only) |
+| Persona                     | Job-to-be-done                                 | Success looks like                                         |
+| --------------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
+| Transport officer           | Keep stop lists and student stop seats current | Ordered stops CRUD; assignment includes `stopId`           |
+| Fleet / telematics operator | See where buses are without a map SDK          | Device-key GPS batch ingest; live SVG map + OSM deep links |
+| Attendant / driver (staff)  | Record who boarded this trip                   | Trip roster with boarded / alighted / absent + counts      |
+| Registrar / fees clerk      | Charge transport by stop distance              | Fee band → FeesService invoice (or honest pending link)    |
+| Parent (out of this slice)  | See bus location                               | Non-goal this slice (staff shell only)                     |
 
 ## 3. Scope
 
-| In scope | Non-goals |
-| -------- | --------- |
-| Ordered stops CRUD + student stop assignment UI | Native MapLibre / Leaflet / Google Maps (no new npm map deps) |
+| In scope                                                                    | Non-goals                                                                                         |
+| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Ordered stops CRUD + student stop assignment UI                             | Native MapLibre / Leaflet / Google Maps (no new npm map deps)                                     |
 | `POST /transport/gps` batch ingest (device key, idempotent deviceId+pingId) | Anonymous telematics without tenant JWT (FORCE RLS needs tenant GUC; device-only ingest deferred) |
-| `GET /transport/live` last ping per vehicle + live SVG map | Live cellular provider / hardware GPS adapter |
-| Trip bus attendance (pickup/drop) + summary | RFID / scanner hardware (G-602 stub remains for that path) |
-| Alert rules + evaluator (unit-tested) + acknowledge list | SMS/email channel delivery (channels stored; dispatch deferred) |
-| Transport fee bands linked via FeesService | Changing FeesService.createInvoice to accept `structureId` |
-| Staff dashboard under `/transport/*` | Parent portal live map |
+| `GET /transport/live` last ping per vehicle + live SVG map                  | Live cellular provider / hardware GPS adapter                                                     |
+| Trip bus attendance (pickup/drop) + summary                                 | RFID / scanner hardware (G-602 stub remains for that path)                                        |
+| Alert rules + evaluator (unit-tested) + acknowledge list                    | SMS/email channel delivery (channels stored; dispatch deferred)                                   |
+| Transport fee bands linked via FeesService                                  | Changing FeesService.createInvoice to accept `structureId`                                        |
+| Staff dashboard under `/transport/*`                                        | Parent portal live map                                                                            |
 
 ## 4. Peer parity
 
-| Peer capability | Our target this slice |
-| --------------- | --------------------- |
-| Stop sequence + scheduled times (Versa Trans / Tyler) | Ordered stops with lat/lng + pickup/drop times |
-| Live GPS on a map | Inline SVG projection + OSM deep link (no MapLibre) |
-| Boarding attendance | Per-trip status + counts |
-| Delay / geofence / missed pickup alerts | Rules + evaluator; in-app list + acknowledge |
-| Transport fee by distance/stop | Fee band + FeesService invoice or pending link |
+| Peer capability                                       | Our target this slice                               |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| Stop sequence + scheduled times (Versa Trans / Tyler) | Ordered stops with lat/lng + pickup/drop times      |
+| Live GPS on a map                                     | Inline SVG projection + OSM deep link (no MapLibre) |
+| Boarding attendance                                   | Per-trip status + counts                            |
+| Delay / geofence / missed pickup alerts               | Rules + evaluator; in-app list + acknowledge        |
+| Transport fee by distance/stop                        | Fee band + FeesService invoice or pending link      |
 
 ## 5. Surface map
 
-| Nav label | Route | API | Tables / events | Shell (staff / parent / public) |
-| --------- | ----- | --- | --------------- | ------------------------------- |
-| Transport | `/transport` | `/transport/*` | overview | staff |
-| Routes | `/transport/routes` | `/transport/routes` | `transport_routes` | staff |
-| Route stops | `/transport/routes/[id]/stops` | `/transport/stops`, `/transport/routes/:id/stops` | `transport_stops` | staff |
-| Live map | `/transport/live` | `GET /transport/live`, `POST /transport/gps` | `transport_gps_pings`, `transport_vehicle_devices` | staff |
-| Bus attendance | `/transport/attendance` | `/transport/attendance` | `transport_bus_attendance` | staff |
-| Alerts | `/transport/alerts` | `/transport/alert-rules`, `/transport/alerts` | `transport_alert_rules`, `transport_alerts` | staff |
-| Transport fees | `/transport/fees` | `/transport/fee-structures` | `transport_fee_structures`, `transport_fee_links` | staff |
-| Assignments | `/transport/assignments` | `/transport/student-assignments` | `transport_student_assignments` + fee link | staff |
+| Nav label      | Route                          | API                                               | Tables / events                                    | Shell (staff / parent / public) |
+| -------------- | ------------------------------ | ------------------------------------------------- | -------------------------------------------------- | ------------------------------- |
+| Transport      | `/transport`                   | `/transport/*`                                    | overview                                           | staff                           |
+| Routes         | `/transport/routes`            | `/transport/routes`                               | `transport_routes`                                 | staff                           |
+| Route stops    | `/transport/routes/[id]/stops` | `/transport/stops`, `/transport/routes/:id/stops` | `transport_stops`                                  | staff                           |
+| Live map       | `/transport/live`              | `GET /transport/live`, `POST /transport/gps`      | `transport_gps_pings`, `transport_vehicle_devices` | staff                           |
+| Bus attendance | `/transport/attendance`        | `/transport/attendance`                           | `transport_bus_attendance`                         | staff                           |
+| Alerts         | `/transport/alerts`            | `/transport/alert-rules`, `/transport/alerts`     | `transport_alert_rules`, `transport_alerts`        | staff                           |
+| Transport fees | `/transport/fees`              | `/transport/fee-structures`                       | `transport_fee_structures`, `transport_fee_links`  | staff                           |
+| Assignments    | `/transport/assignments`       | `/transport/student-assignments`                  | `transport_student_assignments` + fee link         | staff                           |
 
 ## 6. Roles & tenancy (high level)
 
-| Role | Can | Cannot |
-| ---- | --- | ------ |
-| SUPER_ADMIN / tenant admin | All transport writes | Cross-tenant rows |
-| Staff with `transport` write | Stops, GPS device register, attendance, rules, fees bands | Other tenants’ pings/alerts |
-| Staff with `transport` read | Live map, lists | Device key plaintext after issue; writes |
-| Device (header key) | Batch ping when JWT tenant matches registered device | Cross-tenant deviceId |
+| Role                         | Can                                                       | Cannot                                   |
+| ---------------------------- | --------------------------------------------------------- | ---------------------------------------- |
+| SUPER_ADMIN / tenant admin   | All transport writes                                      | Cross-tenant rows                        |
+| Staff with `transport` write | Stops, GPS device register, attendance, rules, fees bands | Other tenants’ pings/alerts              |
+| Staff with `transport` read  | Live map, lists                                           | Device key plaintext after issue; writes |
+| Device (header key)          | Batch ping when JWT tenant matches registered device      | Cross-tenant deviceId                    |
 
 Tenant boundary notes: every 045 table has `tenant_id`, ENABLE + FORCE RLS, `USING`/`WITH CHECK` on `app.tenant_id` (same contract as 036). GPS ingest still requires a tenant JWT so `withPgTenant` can bind RLS; the device key is a second factor bound to a vehicle in that tenant.
 
@@ -81,11 +81,11 @@ Tenant boundary notes: every 045 table has `tenant_id`, ENABLE + FORCE RLS, `USI
 
 ## 8. Handoff
 
-| Next skill | Audit path |
-| ---------- | ---------- |
-| Build | `docs/audits/DEV_TRANSPORT_OPS.md` |
-| UX | `docs/audits/UX_TRANSPORT_OPS.md` |
-| A11y | `docs/audits/A11Y_TRANSPORT_OPS.md` |
-| Security | `docs/audits/SEC_TRANSPORT_OPS.md` |
-| Test | deferred — no Playwright/full E2E in this worktree (resource discipline) |
-| Release | not claimed |
+| Next skill | Audit path                                                               |
+| ---------- | ------------------------------------------------------------------------ |
+| Build      | `docs/audits/DEV_TRANSPORT_OPS.md`                                       |
+| UX         | `docs/audits/UX_TRANSPORT_OPS.md`                                        |
+| A11y       | `docs/audits/A11Y_TRANSPORT_OPS.md`                                      |
+| Security   | `docs/audits/SEC_TRANSPORT_OPS.md`                                       |
+| Test       | deferred — no Playwright/full E2E in this worktree (resource discipline) |
+| Release    | not claimed                                                              |

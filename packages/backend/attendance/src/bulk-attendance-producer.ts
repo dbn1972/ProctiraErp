@@ -8,9 +8,9 @@
  * The consumer (not in this file) reads from the 'attendance.bulk' topic
  * and persists records to the database in batches.
  */
+import type { AttendanceStatus } from '@proctira/common';
 import type { QueueAdapter, QueueMessage } from '@proctira/queue-abstraction';
 import { buildTenantName } from '@proctira/queue-abstraction';
-import type { AttendanceStatus } from '@proctira/common';
 
 /**
  * A single attendance record within a bulk submission.

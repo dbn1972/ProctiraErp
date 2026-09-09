@@ -200,7 +200,11 @@ export function ReportBuilderForm({
             <Button asChild variant="outline" type="button">
               <Link href="/reports">Cancel</Link>
             </Button>
-            <Button type="submit" disabled={pending} title={pending ? 'Generating report' : undefined}>
+            <Button
+              type="submit"
+              disabled={pending}
+              title={pending ? 'Generating report' : undefined}
+            >
               {pending ? 'Generating…' : 'Generate report'}
             </Button>
           </div>

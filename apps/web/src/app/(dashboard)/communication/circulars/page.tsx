@@ -49,8 +49,15 @@ export default async function CommunicationCircularsPage() {
           ) : (
             <ul className="divide-y divide-border" role="list">
               {circulars.map((row) => (
-                <li key={row.id} className="py-3 first:pt-0 last:pb-0" data-testid="communication-circular-row">
-                  <Link href={`/communication/circulars/${row.id}`} className="text-sm font-medium hover:underline">
+                <li
+                  key={row.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="communication-circular-row"
+                >
+                  <Link
+                    href={`/communication/circulars/${row.id}`}
+                    className="text-sm font-medium hover:underline"
+                  >
                     {row.title}
                   </Link>
                   <p className="mt-0.5 text-xs text-muted-foreground">

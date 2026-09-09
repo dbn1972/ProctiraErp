@@ -234,9 +234,7 @@ export interface HostelRepository {
   updateGatePass(
     id: string,
     tenantId: string,
-    data: Partial<
-      Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>
-    >,
+    data: Partial<Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>>,
   ): Promise<GatePassEntity | null>;
 
   createFeeStructure(data: NewHostelFeeStructure): Promise<HostelFeeStructureEntity>;

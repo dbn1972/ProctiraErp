@@ -13,10 +13,7 @@ import { AttendanceOpsForms } from '../_components/attendance-ops-forms';
 export const dynamic = 'force-dynamic';
 
 export default async function AttendanceOpsPage() {
-  const [regularisations, leaves] = await Promise.all([
-    listRegularisations(),
-    listLeaveRequests(),
-  ]);
+  const [regularisations, leaves] = await Promise.all([listRegularisations(), listLeaveRequests()]);
 
   return (
     <section className="space-y-6" data-testid="attendance-ops-page" data-hydrated="true">

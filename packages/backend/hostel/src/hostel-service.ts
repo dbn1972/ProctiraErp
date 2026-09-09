@@ -59,7 +59,11 @@ export class HostelService {
     return hostel;
   }
 
-  async createAssignment(tenantId: string, input: CreateAssignmentInput, actorId = 'hostel-system') {
+  async createAssignment(
+    tenantId: string,
+    input: CreateAssignmentInput,
+    actorId = 'hostel-system',
+  ) {
     const bed = await this.repository.findBedById(input.bedId, tenantId);
     if (!bed) {
       throw new NotFoundError(`Bed with id '${input.bedId}' not found`);
@@ -317,12 +321,7 @@ export class HostelService {
     }));
   }
 
-  async transitionGatePass(
-    tenantId: string,
-    id: string,
-    next: GatePassStatus,
-    actorId?: string,
-  ) {
+  async transitionGatePass(tenantId: string, id: string, next: GatePassStatus, actorId?: string) {
     const pass = await this.repository.findGatePassById(id, tenantId);
     if (!pass) {
       throw new NotFoundError(`Gate pass with id '${id}' not found`);
@@ -330,9 +329,9 @@ export class HostelService {
     if (!canTransitionGatePass(pass.status, next)) {
       throw new ConflictError(`Cannot transition gate pass from ${pass.status} to ${next}`);
     }
-    const patch: Partial<
-      Pick<typeof pass, 'status' | 'decidedBy' | 'outAt' | 'inAt'>
-    > = { status: next };
+    const patch: Partial<Pick<typeof pass, 'status' | 'decidedBy' | 'outAt' | 'inAt'>> = {
+      status: next,
+    };
     if (next === 'approved' || next === 'rejected') {
       patch.decidedBy = actorId ?? null;
     }

@@ -96,7 +96,9 @@ function expectedAttendancePercentage(statuses: AttendanceStatus[]): number {
   const presentCount = statuses.filter((s) => s === AttendanceStatus.PRESENT).length;
   const lateCount = statuses.filter((s) => s === AttendanceStatus.LATE).length;
   const earlyCount = statuses.filter((s) => s === AttendanceStatus.EARLY_DEPARTURE).length;
-  return Math.round(((presentCount + lateCount + 0.5 * earlyCount) / statuses.length) * 10000) / 100;
+  return (
+    Math.round(((presentCount + lateCount + 0.5 * earlyCount) / statuses.length) * 10000) / 100
+  );
 }
 
 /**

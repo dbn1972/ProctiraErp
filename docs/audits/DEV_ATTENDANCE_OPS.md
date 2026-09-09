@@ -11,13 +11,13 @@
 
 ## 0. Product contract
 
-| Item                   | Content |
-| ---------------------- | ------- |
-| Capability statement   | See `PRODUCT_ATTENDANCE_OPS.md` |
-| In scope (peer parity) | Regularisation, EARLY_DEPARTURE, leave, ingest, CSV rows |
-| Explicit non-goals     | Injecting `WorkflowService` (self-contained request/approve + audit instead) |
+| Item                   | Content                                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------------------- |
+| Capability statement   | See `PRODUCT_ATTENDANCE_OPS.md`                                                                       |
+| In scope (peer parity) | Regularisation, EARLY_DEPARTURE, leave, ingest, CSV rows                                              |
+| Explicit non-goals     | Injecting `WorkflowService` (self-contained request/approve + audit instead)                          |
 | Roles (RBAC)           | Approver roles: registrar, attendance_officer, principal, admin. Requesters: teacher, parent, student |
-| Boards impacted        | none |
+| Boards impacted        | none                                                                                                  |
 
 **EARLY_DEPARTURE present-partial rule:** the status is not ABSENT. Attendance percentage numerator = `PRESENT + LATE + 0.5 × EARLY_DEPARTURE`. Denominator = all records including EXCUSED and EARLY_DEPARTURE. Absence percentage still uses ABSENT only.
 
@@ -25,24 +25,24 @@
 
 Screen / API inventory:
 
-| Nav / surface | Route | API | Tables | PII |
-| ------------- | ----- | --- | ------ | --- |
-| Marking | `/attendance` | `POST /attendance/student/bulk` | `student_attendance` | student names |
-| Ops | `/attendance/ops` | regularisation + leave | `attendance_regularisation_requests`, `attendance_leave_requests` | student ids, reasons |
-| Ingest | machine | `POST /attendance/ingest` | `attendance_device_keys`, `attendance_ingest_events` | student ids, punch times |
-| Reports | `/attendance/reports` | `GET /attendance/percentage` | student_attendance | aggregates + optional studentRows |
+| Nav / surface | Route                 | API                             | Tables                                                            | PII                               |
+| ------------- | --------------------- | ------------------------------- | ----------------------------------------------------------------- | --------------------------------- |
+| Marking       | `/attendance`         | `POST /attendance/student/bulk` | `student_attendance`                                              | student names                     |
+| Ops           | `/attendance/ops`     | regularisation + leave          | `attendance_regularisation_requests`, `attendance_leave_requests` | student ids, reasons              |
+| Ingest        | machine               | `POST /attendance/ingest`       | `attendance_device_keys`, `attendance_ingest_events`              | student ids, punch times          |
+| Reports       | `/attendance/reports` | `GET /attendance/percentage`    | student_attendance                                                | aggregates + optional studentRows |
 
 ---
 
 ## 1. Domain model (SQL-first)
 
-| Check                         | Done | Evidence |
-| ----------------------------- | ---- | -------- |
-| Versioned SQL under `db/sql/` | ☑    | `db/sql/042_attendance_ops_schema.sql` |
-| Constraints / indexes / FKs   | ☑    | status checks, unique (tenant, device, event) |
-| Multi-board seed fixtures     | ☐    | waived — attendance statuses are board-agnostic |
+| Check                         | Done | Evidence                                                      |
+| ----------------------------- | ---- | ------------------------------------------------------------- |
+| Versioned SQL under `db/sql/` | ☑    | `db/sql/042_attendance_ops_schema.sql`                        |
+| Constraints / indexes / FKs   | ☑    | status checks, unique (tenant, device, event)                 |
+| Multi-board seed fixtures     | ☐    | waived — attendance statuses are board-agnostic               |
 | Domain unit/property tests    | ☑    | percentage property includes EARLY_DEPARTURE; ingest contract |
-| Invariants documented         | ☑    | present-partial 0.5; ingest idempotent; leave weekdays only |
+| Invariants documented         | ☑    | present-partial 0.5; ingest idempotent; leave weekdays only   |
 
 ---
 

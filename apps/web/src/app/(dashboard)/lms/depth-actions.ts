@@ -50,9 +50,7 @@ function optionalId(value?: string): string | undefined {
   return value && value.length > 0 ? value : undefined;
 }
 
-export async function createBankItemAction(
-  input: LmsBankItemValues,
-): Promise<LmsDepthActionState> {
+export async function createBankItemAction(input: LmsBankItemValues): Promise<LmsDepthActionState> {
   const parsed = lmsBankItemSchema.safeParse(input);
   if (!parsed.success) {
     return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid bank item' };
@@ -71,8 +69,7 @@ export async function createBankItemAction(
         .split(',')
         .map((n) => Number(n.trim()))
         .filter((n) => Number.isInteger(n) && n >= 0);
-      payload.correctOptionIndexes =
-        indexes.length > 0 ? indexes : [data.correctOptionIndex ?? 0];
+      payload.correctOptionIndexes = indexes.length > 0 ? indexes : [data.correctOptionIndex ?? 0];
       payload.partialCredit = true;
     }
   }
@@ -96,7 +93,12 @@ export async function createBankItemAction(
       institutionId: optionalId(data.institutionId),
       subject: data.subject,
       gradeLevel: optionalId(data.gradeLevel),
-      tags: data.tags ? data.tags.split(',').map((t) => t.trim()).filter(Boolean) : [],
+      tags: data.tags
+        ? data.tags
+            .split(',')
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : [],
       questionType: data.questionType,
       difficulty: data.difficulty,
       prompt: data.prompt,
@@ -161,7 +163,9 @@ export async function gradeWithRubricAction(
   }
 }
 
-export async function uploadLmsFileAction(input: LmsFileUploadValues): Promise<LmsDepthActionState> {
+export async function uploadLmsFileAction(
+  input: LmsFileUploadValues,
+): Promise<LmsDepthActionState> {
   const parsed = lmsFileUploadSchema.safeParse(input);
   if (!parsed.success) {
     return { status: 'error', message: parsed.error.issues[0]?.message ?? 'Invalid file' };

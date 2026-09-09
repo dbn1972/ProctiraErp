@@ -55,7 +55,10 @@ describe('Circular routes (G-922)', () => {
     expect(acked.statusCode).toBe(200);
     expect(acked.json().ackRate).toBe(1);
 
-    const logs = await app.inject({ method: 'GET', url: '/communication/delivery-log?channel=whatsapp' });
+    const logs = await app.inject({
+      method: 'GET',
+      url: '/communication/delivery-log?channel=whatsapp',
+    });
     expect(logs.statusCode).toBe(200);
     expect(logs.json().data.length).toBeGreaterThan(0);
   });

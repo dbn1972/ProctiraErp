@@ -54,7 +54,11 @@ export function StaffAttendanceGrid({
   }
 
   return (
-    <div className="space-y-3" data-testid="staff-attendance-grid" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-3"
+      data-testid="staff-attendance-grid"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       {staff.length === 0 ? (
         <p className="text-sm text-muted-foreground" role="status">
           No staff records to mark.

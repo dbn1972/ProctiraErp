@@ -54,7 +54,11 @@ export default async function LibraryOpacPage({
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <p className="text-sm text-muted-foreground" role="status" data-testid="library-opac-empty">
+            <p
+              className="text-sm text-muted-foreground"
+              role="status"
+              data-testid="library-opac-empty"
+            >
               {query ? 'No titles match this search.' : 'Search the catalogue.'}
             </p>
           ) : (

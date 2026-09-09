@@ -3,7 +3,7 @@
  * exceljs exists on student/web but is not a dependency of this package;
  * this writer avoids a new install in the worktree.
  */
-import { deflateRawSync } from "node:zlib";
+import { deflateRawSync } from 'node:zlib';
 
 function crc32(buf: Buffer): number {
   let crc = 0xffffffff;
@@ -21,7 +21,7 @@ function zipStore(files: Array<{ name: string; data: Buffer }>): Buffer {
   const centrals: Buffer[] = [];
   let offset = 0;
   for (const file of files) {
-    const name = Buffer.from(file.name, "utf8");
+    const name = Buffer.from(file.name, 'utf8');
     const compressed = deflateRawSync(file.data);
     const crc = crc32(file.data);
     const local = Buffer.alloc(30);
@@ -75,15 +75,15 @@ function zipStore(files: Array<{ name: string; data: Buffer }>): Buffer {
 
 function xmlEscape(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function colLetter(index: number): string {
   let n = index + 1;
-  let out = "";
+  let out = '';
   while (n > 0) {
     const rem = (n - 1) % 26;
     out = String.fromCharCode(65 + rem) + out;
@@ -92,7 +92,7 @@ function colLetter(index: number): string {
   return out;
 }
 
-export function buildXlsx(headers: string[], rows: string[][], sheetName = "Report"): Buffer {
+export function buildXlsx(headers: string[], rows: string[][], sheetName = 'Report'): Buffer {
   const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -121,20 +121,20 @@ export function buildXlsx(headers: string[], rows: string[][], sheetName = "Repo
           const ref = `${colLetter(cIdx)}${rIdx + 1}`;
           return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(cell)}</t></is></c>`;
         })
-        .join("");
+        .join('');
       return `<row r="${rIdx + 1}">${cells}</row>`;
     })
-    .join("");
+    .join('');
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <sheetData>${sheetRows}</sheetData>
 </worksheet>`;
 
   return zipStore([
-    { name: "[Content_Types].xml", data: Buffer.from(contentTypes, "utf8") },
-    { name: "_rels/.rels", data: Buffer.from(rels, "utf8") },
-    { name: "xl/workbook.xml", data: Buffer.from(workbook, "utf8") },
-    { name: "xl/_rels/workbook.xml.rels", data: Buffer.from(workbookRels, "utf8") },
-    { name: "xl/worksheets/sheet1.xml", data: Buffer.from(sheet, "utf8") },
+    { name: '[Content_Types].xml', data: Buffer.from(contentTypes, 'utf8') },
+    { name: '_rels/.rels', data: Buffer.from(rels, 'utf8') },
+    { name: 'xl/workbook.xml', data: Buffer.from(workbook, 'utf8') },
+    { name: 'xl/_rels/workbook.xml.rels', data: Buffer.from(workbookRels, 'utf8') },
+    { name: 'xl/worksheets/sheet1.xml', data: Buffer.from(sheet, 'utf8') },
   ]);
 }

@@ -57,11 +57,12 @@ export async function generateReportAction(
   }
   const result = await generateReport({
     templateId: parsed.data.templateId,
-    format: parsed.data.format === 'pdf' || parsed.data.format === 'PDF'
-      ? 'PDF'
-      : parsed.data.format === 'xlsx' || parsed.data.format === 'XLSX'
-        ? 'XLSX'
-        : 'CSV',
+    format:
+      parsed.data.format === 'pdf' || parsed.data.format === 'PDF'
+        ? 'PDF'
+        : parsed.data.format === 'xlsx' || parsed.data.format === 'XLSX'
+          ? 'XLSX'
+          : 'CSV',
     filters: parsed.data.filters,
   });
   if (!result.run) {
@@ -129,7 +130,11 @@ export async function createReportScheduleAction(form: {
     enabled: parsed.data.enabled ?? true,
   });
   if (!result.schedule) {
-    return { status: 'error', message: result.error ?? 'Failed to create schedule', source: result.source };
+    return {
+      status: 'error',
+      message: result.error ?? 'Failed to create schedule',
+      source: result.source,
+    };
   }
   revalidatePath('/reports/schedules');
   return {

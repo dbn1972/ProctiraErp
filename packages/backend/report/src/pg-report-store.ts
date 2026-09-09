@@ -369,9 +369,7 @@ export class PgReportStore implements ReportStore {
           `SELECT * FROM report_runs WHERE tenant_id = $1 AND id = $2 LIMIT 1`,
           [tenantId, id],
         );
-        return existing.rows[0]
-          ? mapRun(existing.rows[0] as Record<string, unknown>)
-          : null;
+        return existing.rows[0] ? mapRun(existing.rows[0] as Record<string, unknown>) : null;
       }
       values.push(tenantId, id);
       const { rows } = await client.query(

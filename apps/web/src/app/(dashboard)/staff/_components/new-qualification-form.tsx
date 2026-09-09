@@ -74,7 +74,13 @@ export function NewQualificationForm() {
             <Input id="qual-inst" name="institution" required disabled={!hydrated || pending} />
           </FormField>
           <FormField id="qual-year" label="Year" required>
-            <Input id="qual-year" name="year" type="number" required disabled={!hydrated || pending} />
+            <Input
+              id="qual-year"
+              name="year"
+              type="number"
+              required
+              disabled={!hydrated || pending}
+            />
           </FormField>
           <FormField id="qual-doc" label="Document ref">
             <Input id="qual-doc" name="documentRef" disabled={!hydrated || pending} />

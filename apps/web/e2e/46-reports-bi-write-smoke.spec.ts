@@ -92,10 +92,15 @@ test.describe('Reports BI — live chain (E2E_BACKEND_READY)', () => {
     page,
     request,
   }) => {
-    const created = await postOk(request, '/reports/generate', {
-      templateId: 'tpl-students-roster',
-      format: 'CSV',
-    }, 201);
+    const created = await postOk(
+      request,
+      '/reports/generate',
+      {
+        templateId: 'tpl-students-roster',
+        format: 'CSV',
+      },
+      201,
+    );
     expect(created.status).toBe('READY');
     expect(created.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(created.artifactId).toBeTruthy();
@@ -110,19 +115,19 @@ test.describe('Reports BI — live chain (E2E_BACKEND_READY)', () => {
     expect(digest).toBe(created.sha256);
     expect(download.headers()['x-artifact-sha256']).toBe(created.sha256);
 
-    const schedule = await postOk(request, '/reports/schedules', {
-      reportKey: 'attendance_summary',
-      format: 'csv',
-      cadence: 'daily',
-      hour: 7,
-      recipients: ['office@school.test'],
-    }, 201);
-    const forced = await postOk(
+    const schedule = await postOk(
       request,
-      `/reports/schedules/${schedule.id}/run`,
-      {},
+      '/reports/schedules',
+      {
+        reportKey: 'attendance_summary',
+        format: 'csv',
+        cadence: 'daily',
+        hour: 7,
+        recipients: ['office@school.test'],
+      },
       201,
     );
+    const forced = await postOk(request, `/reports/schedules/${schedule.id}/run`, {}, 201);
     expect(forced.trigger).toBe('schedule');
     expect(forced.sha256).toMatch(/^[0-9a-f]{64}$/);
 
@@ -157,10 +162,9 @@ test.describe('Reports BI — live chain (E2E_BACKEND_READY)', () => {
     expect(parentOk.status()).toBe(200);
     expect((await parentOk.json()).role).toBe('parent');
 
-    const principal = await request.get(
-      `${GATEWAY_URL}/api/v1/reports/dashboard?role=principal`,
-      { headers: headers() },
-    );
+    const principal = await request.get(`${GATEWAY_URL}/api/v1/reports/dashboard?role=principal`, {
+      headers: headers(),
+    });
     const teacher = await request.get(`${GATEWAY_URL}/api/v1/reports/dashboard?role=teacher`, {
       headers: headers(),
     });
@@ -176,10 +180,15 @@ test.describe('Reports BI — live chain (E2E_BACKEND_READY)', () => {
   });
 
   test('cross-tenant: tenant B cannot download tenant A artifacts', async ({ request }) => {
-    const created = await postOk(request, '/reports/generate', {
-      templateId: 'tpl-attendance-daily',
-      format: 'CSV',
-    }, 201);
+    const created = await postOk(
+      request,
+      '/reports/generate',
+      {
+        templateId: 'tpl-attendance-daily',
+        format: 'CSV',
+      },
+      201,
+    );
     const foreign = await request.get(
       `${GATEWAY_URL}/api/v1/reports/artifacts/${created.artifactId}/download`,
       { headers: headers(TENANT_B) },

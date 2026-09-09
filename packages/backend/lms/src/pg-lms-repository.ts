@@ -1297,10 +1297,10 @@ export class PgLmsRepository implements LmsRepository {
   ): Promise<RubricScoreEntity[]> {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
-      await client.query(
-        'DELETE FROM lms_rubric_scores WHERE tenant_id=$1 AND submission_id=$2',
-        [tenantId, submissionId],
-      );
+      await client.query('DELETE FROM lms_rubric_scores WHERE tenant_id=$1 AND submission_id=$2', [
+        tenantId,
+        submissionId,
+      ]);
       const rows: RubricScoreEntity[] = [];
       for (const s of scores) {
         const result = await client.query(

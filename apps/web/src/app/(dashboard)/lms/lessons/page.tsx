@@ -21,8 +21,8 @@ export default async function LmsLessonsPage() {
           Lessons
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Lesson library with link, file, or embedded video resources. Students see published lessons
-          only.
+          Lesson library with link, file, or embedded video resources. Students see published
+          lessons only.
         </p>
       </div>
       <LmsSubnav current="/lms/lessons" />

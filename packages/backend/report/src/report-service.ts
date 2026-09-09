@@ -28,7 +28,6 @@ import type {
   ReportDataSource,
   ReportUserContext,
   ReportDataResult,
-  ReportColumn,
 } from './report-repository.js';
 import type {
   GenerateReportInput,
@@ -266,7 +265,7 @@ export class ReportService {
         return this.generateDefaultCsv(data);
 
       default:
-        throw new ValidationError(`Unsupported format: ${job.format}`, [
+        throw new ValidationError(`Unsupported format: ${String(job.format)}`, [
           { field: 'format', rule: 'enum', message: 'Must be xlsx, pdf, or csv' },
         ]);
     }
@@ -747,7 +746,7 @@ export class ReportService {
    * Calculate the next run time from a cron expression.
    * Simplified implementation — in production, use a cron parser library.
    */
-  calculateNextRun(cronExpression: string): Date {
+  calculateNextRun(_cronExpression: string): Date {
     // Simple implementation: next run is 1 hour from now
     // In production, use a library like 'cron-parser' to calculate actual next run
     const next = new Date();

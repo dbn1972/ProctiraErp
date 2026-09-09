@@ -153,7 +153,10 @@ export function AttendanceOpsForms({
           <li className="py-2 text-sm text-muted-foreground">No regularisation requests.</li>
         ) : (
           regularisations.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <li
+              key={row.id}
+              className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+            >
               <span>
                 {row.attendanceDate} · {row.fromStatus} → {row.toStatus} · {row.status}
               </span>
@@ -267,7 +270,10 @@ export function AttendanceOpsForms({
           <li className="py-2 text-sm text-muted-foreground">No leave requests.</li>
         ) : (
           leaves.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <li
+              key={row.id}
+              className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+            >
               <span>
                 {row.fromDate}–{row.toDate} · {row.status}
                 {row.reason ? ` · ${row.reason}` : ''}

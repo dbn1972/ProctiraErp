@@ -84,7 +84,11 @@ export class OpenLibraryIsbnLookup implements IsbnLookup {
     return {
       isbn: key,
       title,
-      author: body.authors?.map((a) => a.name).filter(Boolean).join(', ') || null,
+      author:
+        body.authors
+          ?.map((a) => a.name)
+          .filter(Boolean)
+          .join(', ') || null,
       publisher: body.publishers?.[0] ?? null,
       publishedYear: yearMatch ? Number(yearMatch[0]) : null,
     };

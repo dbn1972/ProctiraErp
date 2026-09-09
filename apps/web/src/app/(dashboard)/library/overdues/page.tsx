@@ -1,6 +1,13 @@
 import Link from 'next/link';
 
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@proctira/ui/components';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@proctira/ui/components';
 
 import { requireSession } from '@/lib/auth/server';
 import { listLibraryOverdues } from '@/lib/api/library';
@@ -48,7 +55,9 @@ export default async function LibraryOverduesPage() {
                   data-testid="library-overdue-row"
                 >
                   <div>
-                    <p className="text-sm font-medium text-foreground">Loan {loan.id.slice(0, 8)}</p>
+                    <p className="text-sm font-medium text-foreground">
+                      Loan {loan.id.slice(0, 8)}
+                    </p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       due {loan.dueAt.slice(0, 10)} · {loan.status}
                       {loan.barcode ? ` · ${loan.barcode}` : ''}

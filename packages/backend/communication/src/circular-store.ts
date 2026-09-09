@@ -90,7 +90,13 @@ export interface CircularStore {
     patch: Partial<
       Pick<
         DeliveryLogRecord,
-        'status' | 'providerRef' | 'errorMessage' | 'sentAt' | 'deliveredAt' | 'failedAt' | 'retriedAt'
+        | 'status'
+        | 'providerRef'
+        | 'errorMessage'
+        | 'sentAt'
+        | 'deliveredAt'
+        | 'failedAt'
+        | 'retriedAt'
       >
     >,
   ): Promise<DeliveryLogRecord | null>;
@@ -203,7 +209,13 @@ export class InMemoryCircularStore implements CircularStore {
     patch: Partial<
       Pick<
         DeliveryLogRecord,
-        'status' | 'providerRef' | 'errorMessage' | 'sentAt' | 'deliveredAt' | 'failedAt' | 'retriedAt'
+        | 'status'
+        | 'providerRef'
+        | 'errorMessage'
+        | 'sentAt'
+        | 'deliveredAt'
+        | 'failedAt'
+        | 'retriedAt'
       >
     >,
   ): Promise<DeliveryLogRecord | null> {

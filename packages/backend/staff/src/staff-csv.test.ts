@@ -23,10 +23,7 @@ Ada,"Lovelace, Countess",1815-12-10,ID-1,+1555,Teacher`;
   });
 
   it('writes RFC4180-escaped payroll rows', () => {
-    const csv = toCsv(
-      ['staffId', 'name', 'salaryBand'],
-      [['abc', 'Doe, Jane', 'L3']],
-    );
+    const csv = toCsv(['staffId', 'name', 'salaryBand'], [['abc', 'Doe, Jane', 'L3']]);
     expect(csv).toBe('staffId,name,salaryBand\nabc,"Doe, Jane",L3\n');
   });
 });

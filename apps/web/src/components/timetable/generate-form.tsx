@@ -138,7 +138,11 @@ export function TimetableGenerateForm(props: {
         </p>
       ) : null}
       {result ? (
-        <p className="text-sm text-emerald-700 sm:col-span-2" role="status" data-testid="generation-result">
+        <p
+          className="text-sm text-emerald-700 sm:col-span-2"
+          role="status"
+          data-testid="generation-result"
+        >
           {result}
         </p>
       ) : null}

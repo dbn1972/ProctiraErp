@@ -316,7 +316,8 @@ export default async function StaffListPage(props: PageProps) {
             Staff
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {totalAll.toLocaleString()} staff · records, assignments, leave, contracts, attendance, payroll
+            {totalAll.toLocaleString()} staff · records, assignments, leave, contracts, attendance,
+            payroll
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">

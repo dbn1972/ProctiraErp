@@ -12,7 +12,10 @@ const TENANT_B = '660e8400-e29b-41d4-a716-446655440000';
 const STUDENT = '33333333-3333-4333-8333-333333333333';
 
 async function seedHostel(service: HostelService, tenantId = TENANT_A) {
-  const hostel = await service.createHostel(tenantId, { name: 'North', code: `NH-${tenantId.slice(0, 8)}` });
+  const hostel = await service.createHostel(tenantId, {
+    name: 'North',
+    code: `NH-${tenantId.slice(0, 8)}`,
+  });
   const block = await service.createBlock(tenantId, { hostelId: hostel.id, name: 'A', floor: 1 });
   return { hostel, block };
 }

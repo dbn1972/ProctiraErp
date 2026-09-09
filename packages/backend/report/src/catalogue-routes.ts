@@ -105,20 +105,17 @@ export function registerCatalogueRoutes(
     return reply.send({ data: service.listCatalogue() });
   });
 
-  fastify.get<{ Params: { id: string } }>(
-    `${prefix}/templates/:id`,
-    async (request, reply) => {
-      const entry = service.getCatalogueEntry(request.params.id);
-      if (!entry) {
-        return reply.status(404).send({
-          code: 'NOT_FOUND',
-          message: 'Report template not found',
-          statusCode: 404,
-        });
-      }
-      return reply.send(entry);
-    },
-  );
+  fastify.get<{ Params: { id: string } }>(`${prefix}/templates/:id`, async (request, reply) => {
+    const entry = service.getCatalogueEntry(request.params.id);
+    if (!entry) {
+      return reply.status(404).send({
+        code: 'NOT_FOUND',
+        message: 'Report template not found',
+        statusCode: 404,
+      });
+    }
+    return reply.send(entry);
+  });
 
   fastify.post(`${prefix}/generate`, async (request, reply) => {
     const parsed = validate(GenerateCatalogueReportSchema, request.body);
@@ -168,34 +165,31 @@ export function registerCatalogueRoutes(
     }
   });
 
-  fastify.get<{ Params: { id: string } }>(
-    `${prefix}/artifacts/:id`,
-    async (request, reply) => {
-      const params = validate(ArtifactIdParamsSchema, request.params);
-      if (!params.success) {
-        return reply.status(400).send({
-          code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          statusCode: 400,
-          errors: params.errors,
-        });
-      }
-      const tenantId = resolveTenantId(request);
-      if (!tenantId) return tenantMissing(reply);
-      try {
-        const artifact = await service.getArtifact(tenantId, params.data.id);
-        const signed = createReportDownloadToken(tenantId, artifact.id);
-        return reply.send({
-          ...artifact,
-          createdAt: artifact.createdAt.toISOString(),
-          formatLabel: formatApiLabel(artifact.format),
-          downloadUrl: `/api/v1/reports/artifacts/${artifact.id}/download?token=${signed.token}`,
-        });
-      } catch (error: unknown) {
-        return sendError(reply, error);
-      }
-    },
-  );
+  fastify.get<{ Params: { id: string } }>(`${prefix}/artifacts/:id`, async (request, reply) => {
+    const params = validate(ArtifactIdParamsSchema, request.params);
+    if (!params.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: params.errors,
+      });
+    }
+    const tenantId = resolveTenantId(request);
+    if (!tenantId) return tenantMissing(reply);
+    try {
+      const artifact = await service.getArtifact(tenantId, params.data.id);
+      const signed = createReportDownloadToken(tenantId, artifact.id);
+      return reply.send({
+        ...artifact,
+        createdAt: artifact.createdAt.toISOString(),
+        formatLabel: formatApiLabel(artifact.format),
+        downloadUrl: `/api/v1/reports/artifacts/${artifact.id}/download?token=${signed.token}`,
+      });
+    } catch (error: unknown) {
+      return sendError(reply, error);
+    }
+  });
 
   fastify.get<{ Params: { id: string }; Querystring: { token?: string } }>(
     `${prefix}/artifacts/:id/download`,
@@ -373,11 +367,7 @@ export function registerCatalogueRoutes(
     const tenantId = resolveTenantId(request);
     if (!tenantId) return tenantMissing(reply);
     try {
-      const dashboard = await service.dashboard(
-        tenantId,
-        resolveRoles(request),
-        role ?? null,
-      );
+      const dashboard = await service.dashboard(tenantId, resolveRoles(request), role ?? null);
       return reply.send(dashboard);
     } catch (error: unknown) {
       return sendError(reply, error);

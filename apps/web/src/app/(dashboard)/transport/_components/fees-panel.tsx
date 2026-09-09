@@ -113,14 +113,35 @@ export function FeesPanel({
             </FormField>
             <div className="grid gap-4 md:grid-cols-2">
               <FormField id="fee-min" label="Min distance (km)">
-                <Input id="fee-min" name="minDistanceKm" type="number" min={0} step="0.1" className="h-11 min-h-11" />
+                <Input
+                  id="fee-min"
+                  name="minDistanceKm"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  className="h-11 min-h-11"
+                />
               </FormField>
               <FormField id="fee-max" label="Max distance (km)">
-                <Input id="fee-max" name="maxDistanceKm" type="number" min={0} step="0.1" className="h-11 min-h-11" />
+                <Input
+                  id="fee-max"
+                  name="maxDistanceKm"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  className="h-11 min-h-11"
+                />
               </FormField>
             </div>
             <FormField id="fee-amount" label="Amount (INR)" required>
-              <Input id="fee-amount" name="amountRupees" type="number" min={0} step="1" className="h-11 min-h-11" />
+              <Input
+                id="fee-amount"
+                name="amountRupees"
+                type="number"
+                min={0}
+                step="1"
+                className="h-11 min-h-11"
+              />
             </FormField>
             {error ? (
               <p className="text-sm text-destructive" role="alert">
@@ -179,7 +200,11 @@ export function FeesPanel({
           ) : (
             <ul className="divide-y divide-border" role="list">
               {links.map((link) => (
-                <li key={link.id} className="py-3 first:pt-0 last:pb-0" data-testid="transport-fee-link">
+                <li
+                  key={link.id}
+                  className="py-3 first:pt-0 last:pb-0"
+                  data-testid="transport-fee-link"
+                >
                   <p className="text-sm font-medium">{link.status}</p>
                   <p className="text-xs text-muted-foreground">
                     {link.feesInvoiceId ? `invoice ${link.feesInvoiceId.slice(0, 8)}` : link.reason}

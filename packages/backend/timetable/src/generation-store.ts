@@ -50,10 +50,7 @@ export interface TimetableOpsStore {
     patch: Partial<GenerationJobRecord>,
   ): Promise<GenerationJobRecord | null>;
   getJob(tenantId: string, id: string): Promise<GenerationJobRecord | null>;
-  listJobs(
-    tenantId: string,
-    filter: { institutionId?: string },
-  ): Promise<GenerationJobRecord[]>;
+  listJobs(tenantId: string, filter: { institutionId?: string }): Promise<GenerationJobRecord[]>;
   createAbsence(row: TeacherAbsenceRecord): Promise<TeacherAbsenceRecord>;
   listAbsences(
     tenantId: string,

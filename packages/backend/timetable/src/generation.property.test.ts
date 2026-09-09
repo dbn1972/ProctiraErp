@@ -24,25 +24,21 @@ function uuid(): string {
   return randomUUID();
 }
 
-const periodArb: fc.Arbitrary<GeneratorPeriod[]> = fc
-  .integer({ min: 3, max: 6 })
-  .map((n) =>
-    Array.from({ length: n }, (_, i) => ({
-      id: `p-${i + 1}`,
-      periodOrder: i + 1,
-      startTime: `${String(8 + i).padStart(2, '0')}:00`,
-      endTime: `${String(8 + i).padStart(2, '0')}:45`,
-    })),
-  );
+const periodArb: fc.Arbitrary<GeneratorPeriod[]> = fc.integer({ min: 3, max: 6 }).map((n) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `p-${i + 1}`,
+    periodOrder: i + 1,
+    startTime: `${String(8 + i).padStart(2, '0')}:00`,
+    endTime: `${String(8 + i).padStart(2, '0')}:45`,
+  })),
+);
 
-const roomArb: fc.Arbitrary<GeneratorRoom[]> = fc
-  .integer({ min: 2, max: 5 })
-  .map((n) =>
-    Array.from({ length: n }, (_, i) => ({
-      id: `room-${i + 1}`,
-      capacity: 30 + i * 5,
-    })),
-  );
+const roomArb: fc.Arbitrary<GeneratorRoom[]> = fc.integer({ min: 2, max: 5 }).map((n) =>
+  Array.from({ length: n }, (_, i) => ({
+    id: `room-${i + 1}`,
+    capacity: 30 + i * 5,
+  })),
+);
 
 function inputArb(): fc.Arbitrary<GenerateInput> {
   return fc

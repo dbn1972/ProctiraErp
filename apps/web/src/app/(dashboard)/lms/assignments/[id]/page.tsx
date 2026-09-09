@@ -197,23 +197,23 @@ export default async function AssignmentDetailPage({
                     </span>
                   </p>
                   {q.options.length > 0 ? (
-                  <ul className="mt-2 grid gap-1 sm:grid-cols-2">
-                    {q.options.map((opt, oi) => (
-                      <li
-                        key={oi}
-                        className={
-                          oi === q.correctOptionIndex
-                            ? 'rounded-md bg-emerald-50 px-2 py-1 text-sm font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                            : 'rounded-md px-2 py-1 text-sm'
-                        }
-                      >
-                        {opt}
-                        {oi === q.correctOptionIndex ? (
-                          <span className="sr-only"> ({t('correctAnswer')})</span>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
+                    <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+                      {q.options.map((opt, oi) => (
+                        <li
+                          key={oi}
+                          className={
+                            oi === q.correctOptionIndex
+                              ? 'rounded-md bg-emerald-50 px-2 py-1 text-sm font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : 'rounded-md px-2 py-1 text-sm'
+                          }
+                        >
+                          {opt}
+                          {oi === q.correctOptionIndex ? (
+                            <span className="sr-only"> ({t('correctAnswer')})</span>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
                   {q.explanation ? (
                     <p className="mt-2 text-xs text-muted-foreground">{q.explanation}</p>

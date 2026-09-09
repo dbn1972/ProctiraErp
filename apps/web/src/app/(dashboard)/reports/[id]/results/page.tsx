@@ -180,7 +180,10 @@ export default async function ReportResultsPage(props: PageProps) {
                     <TableCell className="text-xs" data-testid="run-trigger">
                       {run.trigger ?? 'manual'}
                     </TableCell>
-                    <TableCell className="max-w-[12rem] truncate font-mono text-[11px]" title={run.sha256 ?? undefined}>
+                    <TableCell
+                      className="max-w-[12rem] truncate font-mono text-[11px]"
+                      title={run.sha256 ?? undefined}
+                    >
                       {run.sha256 ?? '—'}
                     </TableCell>
                     <TableCell className="text-end">

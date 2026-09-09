@@ -475,11 +475,7 @@ export const UpsertBusAttendanceSchema = Type.Object({
   direction: Type.Union([Type.Literal('pickup'), Type.Literal('drop')]),
   studentId: Type.String({ pattern: UUID_PATTERN }),
   stopId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
-  status: Type.Union([
-    Type.Literal('boarded'),
-    Type.Literal('alighted'),
-    Type.Literal('absent'),
-  ]),
+  status: Type.Union([Type.Literal('boarded'), Type.Literal('alighted'), Type.Literal('absent')]),
 });
 
 export type UpsertBusAttendanceInput = Static<typeof UpsertBusAttendanceSchema>;
@@ -491,9 +487,7 @@ export const CreateAlertRuleSchema = Type.Object({
     Type.Literal('missed_pickup'),
   ]),
   threshold: Type.Number({ minimum: 0 }),
-  channels: Type.Optional(
-    Type.Array(Type.String({ minLength: 1, maxLength: 32 })),
-  ),
+  channels: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 32 }))),
   routeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
 });
 

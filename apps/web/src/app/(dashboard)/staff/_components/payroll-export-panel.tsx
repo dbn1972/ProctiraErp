@@ -58,7 +58,11 @@ export function PayrollExportPanel({ initial }: { initial: PayrollExport | null 
   }
 
   return (
-    <div className="space-y-4" data-testid="staff-payroll-panel" data-hydrated={hydrated ? 'true' : 'false'}>
+    <div
+      className="space-y-4"
+      data-testid="staff-payroll-panel"
+      data-hydrated={hydrated ? 'true' : 'false'}
+    >
       <div className="flex flex-wrap items-end gap-2">
         <FormField id="payroll-month" label="Month">
           <Input

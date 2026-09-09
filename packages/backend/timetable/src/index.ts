@@ -45,10 +45,7 @@ export { registerTimetableRoutes } from './routes.js';
 export type { TimetableRoutesOptions } from './routes.js';
 export { createTimetableRepository, createTimetableOpsStore } from './repository-factory.js';
 export { InMemoryTimetableRepository } from './in-memory-repository.js';
-export {
-  InMemoryTimetableOpsStore,
-  PgTimetableOpsStore,
-} from './generation-store.js';
+export { InMemoryTimetableOpsStore, PgTimetableOpsStore } from './generation-store.js';
 export type {
   TimetableOpsStore,
   GenerationJobRecord,

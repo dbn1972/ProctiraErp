@@ -52,7 +52,14 @@ export function RubricForm() {
       </div>
       <div className="space-y-1">
         <Label htmlFor="rubric-points">Max points</Label>
-        <Input id="rubric-points" name="maxPoints" type="number" min={1} defaultValue={4} className="h-11" />
+        <Input
+          id="rubric-points"
+          name="maxPoints"
+          type="number"
+          min={1}
+          defaultValue={4}
+          className="h-11"
+        />
       </div>
       <Button type="submit" disabled={pending} aria-busy={pending}>
         Create rubric

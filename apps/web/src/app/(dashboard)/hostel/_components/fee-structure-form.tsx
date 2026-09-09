@@ -55,7 +55,9 @@ export function HostelFeeStructureForm({ hostels }: { hostels: Hostel[] }) {
     <Card className="max-w-[720px]">
       <CardHeader>
         <CardTitle className="text-base">Fee structure</CardTitle>
-        <CardDescription>Amount per room type × term. Fees reads the summary route.</CardDescription>
+        <CardDescription>
+          Amount per room type × term. Fees reads the summary route.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form

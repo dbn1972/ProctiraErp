@@ -612,4 +612,3 @@ describe('G-917 generation jobs + absences', () => {
     expect(affected[0]?.staffId).toBe(staffA);
   });
 });
-
