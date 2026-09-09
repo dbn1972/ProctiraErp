@@ -588,8 +588,10 @@ export class AttendanceService {
         absentCount: 0,
         excusedCount: 0,
         lateCount: 0,
+        earlyDepartureCount: 0,
         attendancePercentage: 0,
         absencePercentage: 0,
+        studentRows: [],
       };
     }
 
@@ -597,12 +599,42 @@ export class AttendanceService {
     const absentCount = records.filter((r) => r.status === AttendanceStatus.ABSENT).length;
     const excusedCount = records.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
     const lateCount = records.filter((r) => r.status === AttendanceStatus.LATE).length;
+    const earlyDepartureCount = records.filter(
+      (r) => r.status === AttendanceStatus.EARLY_DEPARTURE,
+    ).length;
 
-    // Attendance percentage: (present + late) / total * 100, rounded to 2 decimal places
+    // Present-partial: EARLY_DEPARTURE counts as 0.5 in the numerator (G-919).
     const attendancePercentage =
-      Math.round(((presentCount + lateCount) / totalRecords) * 10000) / 100;
-    // Absence percentage: absent / total * 100, rounded to 2 decimal places
+      Math.round(
+        ((presentCount + lateCount + 0.5 * earlyDepartureCount) / totalRecords) * 10000,
+      ) / 100;
     const absencePercentage = Math.round((absentCount / totalRecords) * 10000) / 100;
+
+    const byStudent = new Map<string, typeof records>();
+    for (const rec of records) {
+      const list = byStudent.get(rec.studentId) ?? [];
+      list.push(rec);
+      byStudent.set(rec.studentId, list);
+    }
+    const studentRows = [...byStudent.entries()].map(([studentId, rows]) => {
+      const p = rows.filter((r) => r.status === AttendanceStatus.PRESENT).length;
+      const a = rows.filter((r) => r.status === AttendanceStatus.ABSENT).length;
+      const e = rows.filter((r) => r.status === AttendanceStatus.EXCUSED).length;
+      const l = rows.filter((r) => r.status === AttendanceStatus.LATE).length;
+      const ed = rows.filter((r) => r.status === AttendanceStatus.EARLY_DEPARTURE).length;
+      const total = rows.length;
+      return {
+        studentId,
+        totalRecords: total,
+        presentCount: p,
+        absentCount: a,
+        lateCount: l,
+        excusedCount: e,
+        earlyDepartureCount: ed,
+        attendancePercentage:
+          total === 0 ? 0 : Math.round(((p + l + 0.5 * ed) / total) * 10000) / 100,
+      };
+    });
 
     return {
       scope: query.scope,
@@ -611,8 +643,10 @@ export class AttendanceService {
       absentCount,
       excusedCount,
       lateCount,
+      earlyDepartureCount,
       attendancePercentage,
       absencePercentage,
+      studentRows,
     };
   }
 

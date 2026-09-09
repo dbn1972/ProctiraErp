@@ -139,10 +139,23 @@ export interface AttendancePercentageResult {
   excusedCount: number;
   /** Number of records with LATE status */
   lateCount: number;
-  /** Attendance percentage (present + late) / total, rounded to 2 decimal places */
+  /** Number of EARLY_DEPARTURE records (present-partial, weight 0.5) */
+  earlyDepartureCount: number;
+  /** Attendance percentage (present + late + 0.5*earlyDeparture) / total */
   attendancePercentage: number;
   /** Absence percentage (absent) / total, rounded to 2 decimal places */
   absencePercentage: number;
+  /** Per-student breakdown when scope is class or institution (G-919 CSV). */
+  studentRows?: Array<{
+    studentId: string;
+    totalRecords: number;
+    presentCount: number;
+    absentCount: number;
+    lateCount: number;
+    excusedCount: number;
+    earlyDepartureCount: number;
+    attendancePercentage: number;
+  }>;
 }
 
 /**

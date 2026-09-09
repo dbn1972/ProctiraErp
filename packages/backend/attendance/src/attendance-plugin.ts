@@ -15,6 +15,10 @@ import fp from 'fastify-plugin';
 
 import type { AttendanceRepository } from './attendance-repository.js';
 import { AttendanceService } from './attendance-service.js';
+import { registerAttendanceOpsRoutes } from './ops-routes.js';
+import { AttendanceOpsService } from './ops-service.js';
+import type { AttendanceOpsStore } from './ops-store.js';
+import { createAttendanceOpsStore } from './repository-factory.js';
 import { registerAttendanceRoutes } from './routes.js';
 
 /**
@@ -23,6 +27,8 @@ import { registerAttendanceRoutes } from './routes.js';
 export interface AttendancePluginOptions {
   /** Attendance repository implementation */
   repository: AttendanceRepository;
+  /** G-919 ops store (optional — factory default) */
+  opsStore?: AttendanceOpsStore;
   /** Route prefix for attendance (default: '/attendance') */
   prefix?: string;
 }
@@ -43,6 +49,8 @@ export const attendancePlugin = fp(
 
     // Create attendance service instance
     const attendanceService = new AttendanceService(repository);
+    const opsStore = options.opsStore ?? createAttendanceOpsStore();
+    const opsService = new AttendanceOpsService(opsStore, repository);
 
     // Decorate fastify with the attendance service
     fastify.decorate('attendanceService', attendanceService);
@@ -52,6 +60,7 @@ export const attendancePlugin = fp(
       attendanceService,
       prefix,
     });
+    await registerAttendanceOpsRoutes(fastify, { opsService, prefix });
   },
   {
     name: '@proctira/backend-attendance',

@@ -35,6 +35,7 @@ const attendanceStatusArb: fc.Arbitrary<AttendanceStatus> = fc.constantFrom(
   AttendanceStatus.ABSENT,
   AttendanceStatus.LATE,
   AttendanceStatus.EXCUSED,
+  AttendanceStatus.EARLY_DEPARTURE,
 );
 
 /** Generates a date string in YYYY-MM-DD format within a fixed range. */
@@ -94,7 +95,8 @@ function expectedAttendancePercentage(statuses: AttendanceStatus[]): number {
   if (statuses.length === 0) return 0;
   const presentCount = statuses.filter((s) => s === AttendanceStatus.PRESENT).length;
   const lateCount = statuses.filter((s) => s === AttendanceStatus.LATE).length;
-  return Math.round(((presentCount + lateCount) / statuses.length) * 10000) / 100;
+  const earlyCount = statuses.filter((s) => s === AttendanceStatus.EARLY_DEPARTURE).length;
+  return Math.round(((presentCount + lateCount + 0.5 * earlyCount) / statuses.length) * 10000) / 100;
 }
 
 /**
@@ -390,6 +392,7 @@ describe('Property 21: Attendance Percentage Calculation', () => {
       expect(result.absentCount).toBe(0);
       expect(result.lateCount).toBe(0);
       expect(result.excusedCount).toBe(0);
+      expect(result.earlyDepartureCount).toBe(0);
     });
 
     it('single record returns correct percentage for each status', async () => {
@@ -421,6 +424,11 @@ describe('Property 21: Attendance Percentage Calculation', () => {
           // Single EXCUSED record → 0% attendance, 0% absence
           if (status === AttendanceStatus.EXCUSED) {
             expect(result.attendancePercentage).toBe(0);
+            expect(result.absencePercentage).toBe(0);
+          }
+          // Single EARLY_DEPARTURE → 50% attendance (present-partial weight 0.5)
+          if (status === AttendanceStatus.EARLY_DEPARTURE) {
+            expect(result.attendancePercentage).toBe(50);
             expect(result.absencePercentage).toBe(0);
           }
         }),
@@ -522,7 +530,11 @@ describe('Property 21: Attendance Percentage Calculation', () => {
           });
 
           const sumOfCounts =
-            result.presentCount + result.absentCount + result.lateCount + result.excusedCount;
+            result.presentCount +
+            result.absentCount +
+            result.lateCount +
+            result.excusedCount +
+            result.earlyDepartureCount;
           expect(sumOfCounts).toBe(result.totalRecords);
         }),
         { numRuns: 100 },
