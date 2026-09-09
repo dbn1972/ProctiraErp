@@ -45,7 +45,14 @@ const jwtArb: fc.Arbitrary<JwtPayload> = fc.record({
 
 describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
   let app: FastifyInstance;
+  // G-720: the plugin binds the tenant id as a query parameter, so capture
+  // the rendered statement (SQL + bound values) rather than the raw SQL.
   const setConfigCalls: string[] = [];
+  const renderCall = (query: string, ...params: unknown[]): string =>
+    params.reduce<string>(
+      (sql, value, index) => sql.split(`$${index + 1}`).join(`'${String(value)}'`),
+      query,
+    );
 
   beforeEach(async () => {
     setConfigCalls.length = 0;
@@ -55,8 +62,8 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
     // the RLS session-config calls the plugin issues per request.
     await app.register(tenantPlugin, {
       getDbClient: () => ({
-        $executeRawUnsafe: (query: string) => {
-          setConfigCalls.push(query);
+        $executeRawUnsafe: (query: string, ...params: unknown[]) => {
+          setConfigCalls.push(renderCall(query, ...params));
           return Promise.resolve(undefined);
         },
       }),
@@ -101,8 +108,14 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
         expect(body.tenantId).toBe(tenantId);
         expect(body.tenantSource).toBe('header');
 
-        const expected = `SELECT set_config('app.current_tenant_id', '${tenantId}', true)`;
-        expect(setConfigCalls).toContain(expected);
+        const expected = `set_config('app.current_tenant_id', '${tenantId}', true)`;
+        expect(setConfigCalls.some((call) => call.includes(expected))).toBe(true);
+        // Both GUC spellings must be bound so Prisma-side and raw-pg policies agree.
+        expect(
+          setConfigCalls.some((call) =>
+            call.includes(`set_config('app.tenant_id', '${tenantId}', true)`),
+          ),
+        ).toBe(true);
       }),
       { numRuns: 25 },
     );
@@ -125,8 +138,8 @@ describe('Category 2 — Integration Tests: Auth/Authz Boundaries', () => {
         });
         await local.register(tenantPlugin, {
           getDbClient: () => ({
-            $executeRawUnsafe: (q: string) => {
-              setConfigCalls.push(q);
+            $executeRawUnsafe: (q: string, ...params: unknown[]) => {
+              setConfigCalls.push(renderCall(q, ...params));
               return Promise.resolve(undefined);
             },
           }),
