@@ -33,7 +33,13 @@ const LINKS = [
   { href: '/student/homework', label: 'Homework', Icon: BookOpen, hint: 'Work that is due' },
   { href: '/student/calendar', label: 'Calendar', Icon: CalendarDays, hint: 'Holidays and events' },
   { href: '/student/notices', label: 'Notices', Icon: Bell, hint: 'School announcements' },
-  { href: '/student/pal', label: 'PAL plan', Icon: Brain, hint: 'Today’s practice plan' },
+  {
+    href: '/student/pal',
+    label: 'PAL plan',
+    cta: 'Open PAL plan',
+    Icon: Brain,
+    hint: 'Today’s practice plan',
+  },
 ] as const;
 
 export default async function StudentHomePage() {
@@ -61,7 +67,9 @@ export default async function StudentHomePage() {
               </CardHeader>
               <CardContent>
                 <Button asChild variant="outline" className="min-h-12">
-                  <Link href={item.href}>Open {item.label.toLowerCase()}</Link>
+                  <Link href={item.href}>
+                    {'cta' in item ? item.cta : `Open ${item.label.toLowerCase()}`}
+                  </Link>
                 </Button>
               </CardContent>
             </Card>
