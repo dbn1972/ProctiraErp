@@ -476,13 +476,13 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
   },
   {
     name: 'parent-portal',
-    proxyPrefixes: ['/parent-portal'],
+    proxyPrefixes: ['/parent-portal', '/student-portal'],
     register: async (scope) => {
-      // Pg when DATABASE_URL (db/sql/010_parent_portal_schema.sql); else in-memory.
       const repository = createParentPortalRepository();
       await scope.register(parentPortalPlugin, {
         repository,
         prefix: '/parent-portal',
+        studentPrefix: '/student-portal',
       });
     },
   },

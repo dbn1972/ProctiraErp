@@ -79,6 +79,7 @@ describe('rbac-registry helpers', () => {
     expect(resourceForApiPath('/api/v1/scholarships')).toBe('scholarship');
     expect(resourceForApiPath('/api/v1/lms/assignments')).toBe('lms');
     expect(resourceForApiPath('/api/v1/parent-portal/children')).toBe('parent');
+    expect(resourceForApiPath('/api/v1/student-portal/me/attendance')).toBe('student-portal');
     expect(resourceForApiPath('/api/v1/tenants')).toBe('platform');
     expect(resourceForApiPath('/api/v1/auth/login')).toBeUndefined();
     expect(resourceForApiPath('/health')).toBeUndefined();
@@ -105,6 +106,8 @@ describe('rbac-registry helpers', () => {
     expect(registry.roleHasPermission('teacher', 'student', 'create')).toBe(false);
     expect(registry.roleHasPermission('nurse', 'health', 'manage')).toBe(true);
     expect(registry.roleHasPermission('parent', 'parent', 'read')).toBe(true);
+    expect(registry.roleHasPermission('parent', 'student-portal', 'read')).toBe(false);
+    expect(registry.roleHasPermission('student', 'student-portal', 'read')).toBe(true);
     expect(registry.roleHasPermission('platform_admin', 'platform', 'manage')).toBe(true);
     expect(registry.roleHasPermission('super-admin', 'platform', 'create')).toBe(true);
   });
@@ -521,6 +524,7 @@ describe('G-301 campus module RBAC deny matrix', () => {
     expect(resourceForApiPath('/api/v1/fees/invoices')).toBe('fees');
     expect(resourceForApiPath('/api/v1/scholarships/programs')).toBe('scholarship');
     expect(resourceForApiPath('/api/v1/parent-portal/messages')).toBe('parent');
+    expect(resourceForApiPath('/api/v1/student-portal/me/grades')).toBe('student-portal');
     expect(resourceForApiPath('/api/v1/hostel/leaves')).toBe('hostel');
     expect(resourceForApiPath('/api/v1/transport/vehicles')).toBe('transport');
     expect(resourceForApiPath('/api/v1/library/circulation/checkout')).toBe('library');

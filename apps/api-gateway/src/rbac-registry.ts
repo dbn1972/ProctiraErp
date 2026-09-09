@@ -25,6 +25,7 @@ const CAMPUS_MANAGE_RESOURCES = [
   'workflow',
   'assessment',
   'student',
+  'student-portal',
 ] as const;
 
 const CAMPUS_MANAGE: Permission[] = CAMPUS_MANAGE_RESOURCES.map((resource) => ({
@@ -55,6 +56,7 @@ export const PATH_RESOURCE_MAP: Record<string, string> = {
   hostel: 'hostel',
   library: 'library',
   'parent-portal': 'parent',
+  'student-portal': 'student-portal',
   registrations: 'registration',
   fees: 'fees',
   developer: 'developer',
@@ -297,6 +299,8 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       { resource: 'fees', action: 'read' },
       { resource: 'communication', action: 'read' },
       { resource: 'lms', action: 'read' },
+      { resource: 'gradebook', action: 'read' },
+      { resource: 'timetable', action: 'read' },
     ],
   });
 
@@ -307,6 +311,8 @@ export function createGatewayRbacRegistry(): RbacPermissionRegistry {
       ...PORTAL_SELF_SERVICE_WRITES,
       { resource: 'parent', action: 'read' },
       { resource: 'parent', action: 'list' },
+      { resource: 'student-portal', action: 'read' },
+      { resource: 'student-portal', action: 'list' },
       { resource: 'student', action: 'read' },
       { resource: 'attendance', action: 'read' },
       { resource: 'assessment', action: 'read' },
