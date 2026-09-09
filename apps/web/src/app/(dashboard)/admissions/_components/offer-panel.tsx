@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -54,12 +53,15 @@ export function OfferPanel({ bundle }: { bundle: ApplicationBundle }) {
       </CardHeader>
       <CardContent className="space-y-4">
         {enrolled ? (
-          <Badge data-testid="enrolled-badge" className="gap-1">
+          <p
+            data-testid="enrolled-badge"
+            className="inline-flex items-center gap-1 rounded-md border border-transparent bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground"
+          >
             Enrolled
             <Link className="underline" href={`/students/${enrolled}`} data-testid="enrolled-student-link">
               Open student
             </Link>
-          </Badge>
+          </p>
         ) : null}
 
         <form
