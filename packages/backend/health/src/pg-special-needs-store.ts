@@ -535,6 +535,30 @@ export class PgSpecialNeedsStore {
       return paginate((result.rows as Record<string, unknown>[]).map(mapPlan), pagination);
     });
   }
+
+  // ─── Tenant-wide reads (G-912) ────────────────────────────────────────────
+
+  async listAllDiagnoses(tenantId: string): Promise<DiagnosisEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM health_diagnoses WHERE tenant_id = $1 ORDER BY diagnosis_date DESC`,
+        [tenantId],
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapDiagnosis);
+    });
+  }
+
+  async listAllAccommodationPlans(tenantId: string): Promise<AccommodationPlanEntity[]> {
+    await this.ensureSchema();
+    return this.withTenant(tenantId, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM health_accommodation_plans WHERE tenant_id = $1 ORDER BY start_date DESC`,
+        [tenantId],
+      );
+      return (result.rows as Record<string, unknown>[]).map(mapPlan);
+    });
+  }
 }
 
 export function createPgSpecialNeedsStore(): PgSpecialNeedsStore | null {

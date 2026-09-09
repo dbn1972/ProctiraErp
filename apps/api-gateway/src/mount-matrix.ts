@@ -223,7 +223,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'mixed',
     rbacWired: false,
     notes:
-      'Counselling + profile/screening PHI + special-needs via raw pg when DATABASE_URL (G-203). Also mounts healthUiPlugin.',
+      'Counselling + profile/screening PHI + special-needs via raw pg when DATABASE_URL (G-203). Also mounts healthUiPlugin; its list aggregates are folded from domain rows (allergies/conditions, diagnoses/plans, screening programs, sessions) with the demo seed limited to dev/test (G-912).',
     registrarName: 'health',
   },
   {

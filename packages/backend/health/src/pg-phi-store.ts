@@ -421,6 +421,17 @@ export class PgPhiStore {
     );
   }
 
+  /** G-912 — tenant-wide read for the `/health` records aggregate. */
+  async listAllAllergies(tenantId: string): Promise<AllergyEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM health_allergies WHERE tenant_id=$1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((r) => mapAllergy(r as Record<string, unknown>));
+  }
+
   async deleteAllergy(id: string, tenantId: string): Promise<boolean> {
     await this.ensureSchema();
     const result = await this.query(
@@ -526,6 +537,17 @@ export class PgPhiStore {
       result.rows.map((r) => mapCondition(r as Record<string, unknown>)),
       pagination,
     );
+  }
+
+  /** G-912 — tenant-wide read for the `/health` records aggregate. */
+  async listAllConditions(tenantId: string): Promise<HealthConditionEntity[]> {
+    await this.ensureSchema();
+    const result = await this.query(
+      tenantId,
+      `SELECT * FROM health_conditions WHERE tenant_id=$1 ORDER BY created_at DESC`,
+      [tenantId],
+    );
+    return result.rows.map((r) => mapCondition(r as Record<string, unknown>));
   }
 
   async deleteCondition(id: string, tenantId: string): Promise<boolean> {

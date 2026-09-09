@@ -540,6 +540,32 @@ export class InMemoryHealthRepository implements HealthRepository {
       .sort((a, b) => b.sessionDate.localeCompare(a.sessionDate));
   }
 
+  // ─── Tenant-wide reads (G-912) ────────────────────────────────────────────
+
+  async listAllAllergies(tenantId: string): Promise<AllergyEntity[]> {
+    return Array.from(this.allergies.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async listAllConditions(tenantId: string): Promise<HealthConditionEntity[]> {
+    return Array.from(this.conditions.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async listAllDiagnoses(tenantId: string): Promise<DiagnosisEntity[]> {
+    return Array.from(this.diagnoses.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.diagnosisDate.localeCompare(a.diagnosisDate));
+  }
+
+  async listAllAccommodationPlans(tenantId: string): Promise<AccommodationPlanEntity[]> {
+    return Array.from(this.accommodationPlans.values())
+      .filter((e) => e.tenantId === tenantId)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate));
+  }
+
   // ─── Screening Programs ───────────────────────────────────────────────────
 
   async createScreeningProgram(

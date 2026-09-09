@@ -342,6 +342,14 @@ export interface HealthRepository {
   /** Tenant-wide list for redesign UI aggregates (optional on older impls). */
   listAllCounsellingSessions?(tenantId: string): Promise<CounsellingSessionEntity[]>;
 
+  // G-912 — tenant-wide reads that back the redesign list pages from domain
+  // rows instead of the demo seed. Optional so older implementations still
+  // satisfy the contract; the UI aggregate treats "absent" as "no live rows".
+  listAllAllergies?(tenantId: string): Promise<AllergyEntity[]>;
+  listAllConditions?(tenantId: string): Promise<HealthConditionEntity[]>;
+  listAllDiagnoses?(tenantId: string): Promise<DiagnosisEntity[]>;
+  listAllAccommodationPlans?(tenantId: string): Promise<AccommodationPlanEntity[]>;
+
   // Screening Programs
   createScreeningProgram(
     data: Omit<ScreeningProgramEntity, 'createdAt' | 'updatedAt'>,

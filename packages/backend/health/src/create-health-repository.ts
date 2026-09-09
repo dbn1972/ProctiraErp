@@ -8,8 +8,10 @@ import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { assertInMemoryFallbackAllowed } from '@proctira/database';
 
 import type {
+  AccommodationPlanEntity,
   AllergyEntity,
   CounsellingSessionEntity,
+  DiagnosisEntity,
   HealthConditionEntity,
   HealthMeasurementEntity,
   HealthRepository,
@@ -398,6 +400,28 @@ export class HybridHealthRepository implements HealthRepository {
       return this.counselling.listByTenant(tenantId);
     }
     return this.memory.listAllCounsellingSessions(tenantId);
+  }
+
+  // ─── Tenant-wide reads (G-912) ────────────────────────────────────────────
+
+  async listAllAllergies(tenantId: string): Promise<AllergyEntity[]> {
+    if (this.phi) return this.phi.listAllAllergies(tenantId);
+    return this.memory.listAllAllergies(tenantId);
+  }
+
+  async listAllConditions(tenantId: string): Promise<HealthConditionEntity[]> {
+    if (this.phi) return this.phi.listAllConditions(tenantId);
+    return this.memory.listAllConditions(tenantId);
+  }
+
+  async listAllDiagnoses(tenantId: string): Promise<DiagnosisEntity[]> {
+    if (this.specialNeeds) return this.specialNeeds.listAllDiagnoses(tenantId);
+    return this.memory.listAllDiagnoses(tenantId);
+  }
+
+  async listAllAccommodationPlans(tenantId: string): Promise<AccommodationPlanEntity[]> {
+    if (this.specialNeeds) return this.specialNeeds.listAllAccommodationPlans(tenantId);
+    return this.memory.listAllAccommodationPlans(tenantId);
   }
 }
 
