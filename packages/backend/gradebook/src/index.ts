@@ -7,6 +7,8 @@
 
 export {
   applyCreditRule,
+  computeCgpa,
+  computeClassRanks,
   computeGpaSnapshot,
   resolveBandFromLetter,
   resolveBandFromPercent,
@@ -15,6 +17,8 @@ export {
   type CourseGpaResult,
   type GradeBand,
   type GpaPolicy,
+  type ClassRankInput,
+  type ClassRankRow,
   type GpaSnapshotResult,
 } from './gpa-engine.js';
 
@@ -63,6 +67,7 @@ export {
 export {
   GRADE_WORKFLOW_ACTIONS,
   GRADE_WORKFLOW_STATUSES,
+  isGradePublished,
   isGradeWorkflowAction,
   readGradeWorkflowStatus,
   transitionGradeWorkflow,
@@ -88,6 +93,17 @@ export type { GradebookPluginOptions } from './gradebook-plugin.js';
 export { registerGradebookRoutes } from './routes.js';
 export type { GradebookRoutesOptions } from './routes.js';
 export { createGradebookRepository } from './repository-factory.js';
+export { createGradebookExtrasStore } from './extras-factory.js';
+export {
+  InMemoryGradebookExtrasStore,
+  PgGradebookExtrasStore,
+} from './extras-store.js';
+export type {
+  CommentsBankRecord,
+  ClassRankSnapshotRecord,
+  GradeChangeAuditRecord,
+  GradebookExtrasStore,
+} from './extras-store.js';
 export { InMemoryGradebookRepository } from './in-memory-repository.js';
 export {
   PgGradebookRepository,
@@ -119,4 +135,7 @@ export {
   CreateCreditRuleSchema,
   CreateBoardExportJobSchema,
   TransitionGradeEntrySchema,
+  BulkTransitionGradeEntriesSchema,
+  ComputeClassRankSchema,
+  UpsertCommentsBankSchema,
 } from './schemas.js';

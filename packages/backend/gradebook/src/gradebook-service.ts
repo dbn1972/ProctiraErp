@@ -9,8 +9,19 @@ import {
   validateBoardExportCompleteness,
 } from './board-export-validation.js';
 import { getBoardPack, listBoardPacks, type BoardPackCode } from './board-pack-registry.js';
-import { computeGpaSnapshot, type CourseGradeInput, type GpaPolicy } from './gpa-engine.js';
 import {
+  InMemoryGradebookExtrasStore,
+  type CommentsBankRecord,
+  type GradebookExtrasStore,
+} from './extras-store.js';
+import {
+  computeClassRanks,
+  computeGpaSnapshot,
+  type CourseGradeInput,
+  type GpaPolicy,
+} from './gpa-engine.js';
+import {
+  isGradePublished,
   readGradeWorkflowStatus,
   transitionGradeWorkflow,
   type GradeWorkflowAction,
@@ -32,7 +43,9 @@ import type {
   CreateBoardExportJobInput,
   CreateCreditRuleInput,
   CreateReportCardJobInput,
+  ComputeClassRankInput,
   IssueTranscriptInput,
+  UpsertCommentsBankInput,
   UpsertGradeEntryInput,
 } from './schemas.js';
 import {
@@ -66,11 +79,21 @@ const BOARD_EXPORT_JOB_TYPE = 'MARKSHEET_PACK';
 
 export class GradebookService {
   private readonly auditLog: GradebookAuditEntry[] = [];
+  private readonly extras: GradebookExtrasStore;
 
-  constructor(private readonly repo: GradebookRepository) {}
+  constructor(
+    private readonly repo: GradebookRepository,
+    extras?: GradebookExtrasStore,
+  ) {
+    this.extras = extras ?? new InMemoryGradebookExtrasStore();
+  }
 
   listAudits(tenantId: string): GradebookAuditEntry[] {
     return this.auditLog.filter((row) => row.tenantId === tenantId);
+  }
+
+  async listGradeChangeAudits(tenantId: string, gradeEntryId?: string) {
+    return this.extras.listAudits(tenantId, gradeEntryId);
   }
 
   private recordAudit(entry: Omit<GradebookAuditEntry, 'id' | 'at'>): void {
@@ -81,12 +104,50 @@ export class GradebookService {
     });
   }
 
+  private persistGradeChange(entry: {
+    tenantId: string;
+    gradeEntryId: string;
+    action: string;
+    fromStatus?: string | null;
+    toStatus?: string | null;
+    fromNumericScore?: number | null;
+    toNumericScore?: number | null;
+    fromLetterGrade?: string | null;
+    toLetterGrade?: string | null;
+    actorId: string | null;
+    details?: Record<string, unknown>;
+  }): void {
+    const row = {
+      id: randomUUID(),
+      tenantId: entry.tenantId,
+      gradeEntryId: entry.gradeEntryId,
+      action: entry.action,
+      fromStatus: entry.fromStatus ?? null,
+      toStatus: entry.toStatus ?? null,
+      fromNumericScore: entry.fromNumericScore ?? null,
+      toNumericScore: entry.toNumericScore ?? null,
+      fromLetterGrade: entry.fromLetterGrade ?? null,
+      toLetterGrade: entry.toLetterGrade ?? null,
+      actorId: entry.actorId,
+      details: entry.details ?? {},
+      createdAt: nowIso(),
+    };
+    void this.extras.appendAudit(row).catch(() => {
+      // In-memory listAudits remains the fallback when 032 is not applied.
+    });
+  }
+
   listSections(tenantId: string, filter?: ListSectionsFilter) {
     return this.repo.listSections(tenantId, filter);
   }
 
   listGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter) {
     return this.repo.listGradeEntries(tenantId, filter);
+  }
+
+  async listPublishedGradeEntries(tenantId: string, filter?: ListGradeEntriesFilter) {
+    const rows = await this.repo.listGradeEntries(tenantId, filter);
+    return rows.filter((row) => isGradePublished(row.metadata, row.publishedAt));
   }
 
   listCreditRules(tenantId: string, boardId?: string) {
@@ -224,8 +285,13 @@ export class GradebookService {
       throw new GradeLockedError(`Grade entry ${existing.id} is locked`);
     }
     if (existing) {
-      const workflow = readGradeWorkflowStatus(existing.metadata, existing.lockedAt);
-      if (workflow === 'SUBMITTED' || workflow === 'APPROVED' || workflow === 'LOCKED') {
+      const workflow = readGradeWorkflowStatus(existing.metadata, existing.lockedAt, existing.publishedAt);
+      if (
+        workflow === 'SUBMITTED' ||
+        workflow === 'APPROVED' ||
+        workflow === 'LOCKED' ||
+        workflow === 'PUBLISHED'
+      ) {
         throw new BusinessRuleError(
           `Grade entry ${existing.id} is ${workflow}; reopen or wait for moderation before editing`,
         );
@@ -234,14 +300,16 @@ export class GradebookService {
 
     const now = nowIso();
     const priorWorkflow = existing
-      ? readGradeWorkflowStatus(existing.metadata, existing.lockedAt)
+      ? readGradeWorkflowStatus(existing.metadata, existing.lockedAt, existing.publishedAt)
       : 'DRAFT';
     const metadata: Record<string, unknown> = {
       ...(existing?.metadata ?? {}),
       ...((input.metadata as Record<string, unknown>) ?? {}),
       ...(input.creditRuleCode ? { creditRuleCode: input.creditRuleCode } : {}),
-      // Editing resets REJECTED → DRAFT; new rows start DRAFT.
+      ...(input.remark != null ? { remark: input.remark } : {}),
+      ...(input.commentBankId != null ? { commentBankId: input.commentBankId } : {}),
       workflowStatus: priorWorkflow === 'REJECTED' || !existing ? 'DRAFT' : priorWorkflow,
+      published: false,
     };
 
     if (existing) {
@@ -264,6 +332,19 @@ export class GradebookService {
         actorId: actorId(user),
         details: { studentId: input.studentId, mode: 'update' },
       });
+      this.persistGradeChange({
+        tenantId,
+        gradeEntryId: updated.id,
+        action: 'grade.upsert',
+        fromStatus: priorWorkflow,
+        toStatus: String(metadata.workflowStatus),
+        fromNumericScore: existing.numericScore,
+        toNumericScore: updated.numericScore,
+        fromLetterGrade: existing.letterGrade,
+        toLetterGrade: updated.letterGrade,
+        actorId: actorId(user),
+        details: { mode: 'update' },
+      });
       return updated;
     }
 
@@ -278,6 +359,7 @@ export class GradebookService {
       enteredBy: actorId(user),
       enteredAt: now,
       lockedAt: null,
+      publishedAt: null,
       metadata,
       createdAt: now,
       updatedAt: now,
@@ -289,6 +371,17 @@ export class GradebookService {
       entityId: created.id,
       actorId: actorId(user),
       details: { studentId: input.studentId, mode: 'create' },
+    });
+    this.persistGradeChange({
+      tenantId,
+      gradeEntryId: created.id,
+      action: 'grade.upsert',
+      fromStatus: null,
+      toStatus: 'DRAFT',
+      toNumericScore: created.numericScore,
+      toLetterGrade: created.letterGrade,
+      actorId: actorId(user),
+      details: { mode: 'create' },
     });
     return created;
   }
@@ -306,21 +399,29 @@ export class GradebookService {
     if (!entry) {
       throw new NotFoundError(`Grade entry ${entryId} not found`);
     }
-    const current = readGradeWorkflowStatus(entry.metadata, entry.lockedAt);
+    const current = readGradeWorkflowStatus(entry.metadata, entry.lockedAt, entry.publishedAt);
     const next = transitionGradeWorkflow(current, action);
     const now = nowIso();
+    const published = next === 'PUBLISHED';
     const metadata = {
       ...entry.metadata,
       workflowStatus: next,
       lastWorkflowAction: action,
       lastWorkflowAt: now,
       lastWorkflowBy: actorId(user),
+      published,
     };
     const lockedAt =
-      next === 'LOCKED' ? (entry.lockedAt ?? now) : action === 'reopen' ? null : entry.lockedAt;
+      next === 'LOCKED' || next === 'PUBLISHED'
+        ? (entry.lockedAt ?? now)
+        : action === 'reopen'
+          ? null
+          : entry.lockedAt;
+    const publishedAt = published ? (entry.publishedAt ?? now) : action === 'reopen' ? null : entry.publishedAt;
     const updated = await this.repo.updateGradeEntry(tenantId, entryId, {
       metadata,
       lockedAt,
+      publishedAt,
       updatedAt: now,
     });
     if (!updated) throw new NotFoundError(`Grade entry ${entryId} not found`);
@@ -332,7 +433,136 @@ export class GradebookService {
       actorId: actorId(user),
       details: { from: current, to: next },
     });
+    this.persistGradeChange({
+      tenantId,
+      gradeEntryId: entryId,
+      action: `grade.${action}`,
+      fromStatus: current,
+      toStatus: next,
+      fromNumericScore: entry.numericScore,
+      toNumericScore: entry.numericScore,
+      fromLetterGrade: entry.letterGrade,
+      toLetterGrade: entry.letterGrade,
+      actorId: actorId(user),
+      details: { from: current, to: next },
+    });
     return updated;
+  }
+
+  async bulkTransitionGradeEntries(
+    tenantId: string,
+    ids: string[],
+    action: GradeWorkflowAction,
+    user?: { id?: string; sub?: string },
+  ): Promise<GradeEntryEntity[]> {
+    const out: GradeEntryEntity[] = [];
+    for (const id of ids) {
+      out.push(await this.transitionGradeEntry(tenantId, id, action, user));
+    }
+    return out;
+  }
+
+  async listCommentsBank(
+    tenantId: string,
+    filter?: { subjectId?: string; gradeBand?: string; institutionId?: string },
+  ) {
+    return this.extras.listComments(tenantId, filter);
+  }
+
+  async createCommentsBank(
+    tenantId: string,
+    input: UpsertCommentsBankInput,
+  ): Promise<CommentsBankRecord> {
+    const now = nowIso();
+    return this.extras.createComment({
+      id: randomUUID(),
+      tenantId,
+      institutionId: input.institutionId ?? null,
+      subjectId: input.subjectId ?? null,
+      gradeBand: input.gradeBand ?? null,
+      label: input.label,
+      body: input.body,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  async updateCommentsBank(
+    tenantId: string,
+    id: string,
+    input: UpsertCommentsBankInput,
+  ): Promise<CommentsBankRecord> {
+    const updated = await this.extras.updateComment(tenantId, id, {
+      institutionId: input.institutionId ?? null,
+      subjectId: input.subjectId ?? null,
+      gradeBand: input.gradeBand ?? null,
+      label: input.label,
+      body: input.body,
+      updatedAt: nowIso(),
+    });
+    if (!updated) throw new NotFoundError(`Comments bank item ${id} not found`);
+    return updated;
+  }
+
+  async deleteCommentsBank(tenantId: string, id: string): Promise<void> {
+    const ok = await this.extras.deleteComment(tenantId, id);
+    if (!ok) throw new NotFoundError(`Comments bank item ${id} not found`);
+  }
+
+  async computeClassRank(tenantId: string, input: ComputeClassRankInput) {
+    const entries = await this.repo.listGradeEntries(tenantId, { sectionId: input.sectionId });
+    if (entries.length === 0) {
+      throw new ValidationError('No grade entries in section; enter grades before ranking');
+    }
+    const studentIds = [...new Set(entries.map((e) => e.studentId))];
+    const rankInputs = [];
+    for (const studentId of studentIds) {
+      const { snapshot: term } = await this.computeGpa(tenantId, {
+        studentId,
+        academicPeriodId: input.academicPeriodId ?? null,
+        boardId: input.boardId ?? null,
+      });
+      const { snapshot: cumulative } = await this.computeGpa(tenantId, {
+        studentId,
+        boardId: input.boardId ?? null,
+      });
+      rankInputs.push({
+        studentId,
+        weightedGpa: term.weightedGpa,
+        unweightedGpa: term.unweightedGpa,
+        cgpa: cumulative.weightedGpa,
+        creditsEarned: cumulative.creditsEarned,
+      });
+    }
+    const ranked = computeClassRanks(rankInputs);
+    const now = nowIso();
+    const batchId = randomUUID();
+    const persist = input.persist !== false;
+    if (persist) {
+      await this.extras.saveRankBatch(
+        ranked.map((row) => ({
+          id: randomUUID(),
+          tenantId,
+          sectionId: input.sectionId,
+          academicPeriodId: input.academicPeriodId ?? null,
+          batchId,
+          studentId: row.studentId,
+          classRank: row.classRank,
+          tieCount: row.tieCount,
+          weightedGpa: row.weightedGpa,
+          unweightedGpa: row.unweightedGpa ?? null,
+          cgpa: row.cgpa,
+          creditsEarned: row.creditsEarned ?? null,
+          computedAt: now,
+          metadata: { batchId },
+        })),
+      );
+    }
+    return { batchId, computedAt: now, ranks: ranked };
+  }
+
+  listClassRanks(tenantId: string, sectionId: string) {
+    return this.extras.listLatestRanks(tenantId, sectionId);
   }
 
   async computeGpa(

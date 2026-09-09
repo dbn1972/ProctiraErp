@@ -262,3 +262,90 @@ describe('GradebookService G-303 workflow + signing', () => {
     expect(String(t.metadata.signature)).toHaveLength(64);
   });
 });
+
+describe('GradebookService G-907 rank / comments / publish / audit', () => {
+  function setup() {
+    const repo = new InMemoryGradebookRepository();
+    repo.seedSection({
+      id: SECTION,
+      tenantId: TENANT,
+      institutionId: '66666666-6666-4666-8666-666666666666',
+      academicPeriodId: '77777777-7777-4777-8777-777777777777',
+      code: '10-A',
+      name: 'Class 10-A',
+      status: 'PUBLISHED',
+    });
+    repo.seedScale({
+      id: SCALE,
+      tenantId: TENANT,
+      boardId: BOARD,
+      code: 'CBSE-9PT',
+      name: 'CBSE 9-point',
+      scaleType: 'PERCENT_BAND',
+      isDefault: true,
+      bands: [
+        { label: 'A1', minPercent: 91, maxPercent: 100, gradePoints: 10 },
+        { label: 'A2', minPercent: 81, maxPercent: 90.99, gradePoints: 9 },
+        { label: 'E', minPercent: 0, maxPercent: 32.99, gradePoints: 0 },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    return new GradebookService(repo);
+  }
+
+  it('publishes grades and lists them for parent reads', async () => {
+    const service = setup();
+    const entry = await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+      remark: 'Excellent work',
+    });
+    await service.transitionGradeEntry(TENANT, entry.id, 'submit');
+    await service.transitionGradeEntry(TENANT, entry.id, 'approve');
+    await service.transitionGradeEntry(TENANT, entry.id, 'lock');
+    const published = await service.transitionGradeEntry(TENANT, entry.id, 'publish');
+    expect(published.metadata.published).toBe(true);
+    expect(published.publishedAt).toBeTruthy();
+    const visible = await service.listPublishedGradeEntries(TENANT, { studentId: STUDENT });
+    expect(visible).toHaveLength(1);
+    expect(visible[0]!.id).toBe(entry.id);
+    const audits = await service.listGradeChangeAudits(TENANT, entry.id);
+    expect(audits.some((a) => a.action === 'grade.publish')).toBe(true);
+  });
+
+  it('CRUD comments bank and ranks a section with CGPA', async () => {
+    const service = setup();
+    const comment = await service.createCommentsBank(TENANT, {
+      gradeBand: 'A1',
+      label: 'Outstanding',
+      body: 'Consistently exceeds expectations.',
+    });
+    const listed = await service.listCommentsBank(TENANT, { gradeBand: 'A1' });
+    expect(listed.map((c) => c.id)).toContain(comment.id);
+
+    const other = '88888888-8888-4888-8888-888888888888';
+    await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: STUDENT,
+      assessmentCode: 'MATH',
+      numericScore: 95,
+    });
+    await service.upsertGradeEntry(TENANT, {
+      sectionId: SECTION,
+      studentId: other,
+      assessmentCode: 'MATH',
+      numericScore: 85,
+    });
+    const ranked = await service.computeClassRank(TENANT, { sectionId: SECTION, boardId: BOARD });
+    expect(ranked.ranks).toHaveLength(2);
+    expect(ranked.ranks[0]!.studentId).toBe(STUDENT);
+    expect(ranked.ranks[0]!.classRank).toBe(1);
+    expect(ranked.ranks[0]!.cgpa).toBe(10);
+    expect(ranked.ranks[1]!.classRank).toBe(2);
+    const stored = await service.listClassRanks(TENANT, SECTION);
+    expect(stored).toHaveLength(2);
+  });
+});

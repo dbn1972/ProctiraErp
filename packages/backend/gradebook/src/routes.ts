@@ -20,12 +20,15 @@ import {
 } from './gradebook-errors.js';
 import type { GradebookService } from './gradebook-service.js';
 import {
+  BulkTransitionGradeEntriesSchema,
+  ComputeClassRankSchema,
   ComputeGpaSchema,
   CreateBoardExportJobSchema,
   CreateCreditRuleSchema,
   CreateReportCardJobSchema,
   IssueTranscriptSchema,
   TransitionGradeEntrySchema,
+  UpsertCommentsBankSchema,
   UpsertGradeEntrySchema,
 } from './schemas.js';
 
@@ -134,6 +137,22 @@ export async function registerGradebookRoutes(
     }
   });
 
+  /** Parent-portal read: only PUBLISHED grades (G-907). */
+  fastify.get(`${prefix}/published`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as { sectionId?: string; studentId?: string };
+      const rows = await service.listPublishedGradeEntries(tenantId, {
+        sectionId: query.sectionId,
+        studentId: query.studentId,
+      });
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
   fastify.put(`${prefix}/entries`, async (request, reply) => {
     const tenantId = tenantIdOf(request, reply);
     if (!tenantId) return;
@@ -183,6 +202,162 @@ export async function registerGradebookRoutes(
     try {
       const row = await service.transitionGradeEntry(tenantId, id, action, requestUser(request));
       return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+
+  fastify.post(`${prefix}/entries/bulk-transition`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    const validated = validate(BulkTransitionGradeEntriesSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    const action = validated.data.action;
+    if (!isGradeWorkflowAction(action)) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Invalid workflow action',
+        statusCode: 400,
+      });
+    }
+    const needed: GradebookAction = action === 'submit' ? 'grade.entry' : 'grade.moderate';
+    if (!requireAction(request, reply, needed)) return;
+    try {
+      const rows = await service.bulkTransitionGradeEntries(
+        tenantId,
+        validated.data.ids,
+        action,
+        requestUser(request),
+      );
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/comments-bank`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as { subjectId?: string; gradeBand?: string; institutionId?: string };
+      const rows = await service.listCommentsBank(tenantId, query);
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/comments-bank`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'grade.entry')) return;
+    const validated = validate(UpsertCommentsBankSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const row = await service.createCommentsBank(tenantId, validated.data);
+      return reply.status(201).send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.put(`${prefix}/comments-bank/:id`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'grade.entry')) return;
+    const { id } = request.params as { id: string };
+    const validated = validate(UpsertCommentsBankSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const row = await service.updateCommentsBank(tenantId, id, validated.data);
+      return reply.send(row);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.delete(`${prefix}/comments-bank/:id`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'grade.moderate')) return;
+    try {
+      const { id } = request.params as { id: string };
+      await service.deleteCommentsBank(tenantId, id);
+      return reply.status(204).send();
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.post(`${prefix}/rank/compute`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    if (!requireAction(request, reply, 'gpa.compute')) return;
+    const validated = validate(ComputeClassRankSchema, request.body);
+    if (!validated.success) {
+      return reply.status(400).send({
+        code: 'VALIDATION_ERROR',
+        message: 'Validation failed',
+        statusCode: 400,
+        errors: validated.errors,
+      });
+    }
+    try {
+      const result = await service.computeClassRank(tenantId, validated.data);
+      return reply.status(201).send(result);
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/rank`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as { sectionId?: string };
+      if (!query.sectionId) {
+        return reply.status(400).send({
+          code: 'VALIDATION_ERROR',
+          message: 'sectionId query parameter is required',
+          statusCode: 400,
+        });
+      }
+      const rows = await service.listClassRanks(tenantId, query.sectionId);
+      return reply.send({ data: rows });
+    } catch (error) {
+      return sendDomainError(reply, error);
+    }
+  });
+
+  fastify.get(`${prefix}/audits`, async (request, reply) => {
+    const tenantId = tenantIdOf(request, reply);
+    if (!tenantId) return;
+    try {
+      const query = request.query as { gradeEntryId?: string };
+      const rows = await service.listGradeChangeAudits(tenantId, query.gradeEntryId);
+      return reply.send({ data: rows });
     } catch (error) {
       return sendDomainError(reply, error);
     }

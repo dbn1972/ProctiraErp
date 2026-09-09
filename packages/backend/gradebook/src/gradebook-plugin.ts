@@ -1,12 +1,15 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { createGradebookExtrasStore } from './extras-factory.js';
+import type { GradebookExtrasStore } from './extras-store.js';
 import type { GradebookRepository } from './gradebook-repository.js';
 import { GradebookService } from './gradebook-service.js';
 import { registerGradebookRoutes } from './routes.js';
 
 export interface GradebookPluginOptions {
   repository: GradebookRepository;
+  extras?: GradebookExtrasStore;
   prefix?: string;
 }
 
@@ -18,7 +21,8 @@ declare module 'fastify' {
 
 export const gradebookPlugin = fp(
   async function gradebookPluginImpl(fastify: FastifyInstance, options: GradebookPluginOptions) {
-    const service = new GradebookService(options.repository);
+    const extras = options.extras ?? createGradebookExtrasStore();
+    const service = new GradebookService(options.repository, extras);
     fastify.decorate('gradebookService', service);
     await registerGradebookRoutes(fastify, {
       service,
