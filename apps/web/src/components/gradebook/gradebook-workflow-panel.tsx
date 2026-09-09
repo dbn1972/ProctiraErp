@@ -17,7 +17,7 @@ import {
   type CommentsBankItem,
   type GradeEntry,
   type GradeWorkflowAction,
-} from '@/lib/api/gradebook';
+} from '@/lib/gradebook/workflow-status';
 import { Button, Input, Label, Textarea } from '@proctira/ui/components';
 
 const NEXT_ACTION: Record<string, GradeWorkflowAction | null> = {

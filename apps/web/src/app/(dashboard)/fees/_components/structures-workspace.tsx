@@ -37,6 +37,7 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ created: number; skipped: number } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function onCreate(event: React.FormEvent<HTMLFormElement>) {
@@ -69,6 +70,7 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
     const fd = new FormData(event.currentTarget);
     startTransition(async () => {
       setBulkError(null);
+      setBulkResult(null);
       const result = await bulkInvoiceAction({
         structureId: String(fd.get('structureId') ?? ''),
         classId: String(fd.get('classId') ?? ''),
@@ -79,6 +81,7 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
         setBulkError(result.error);
         return;
       }
+      setBulkResult(result.data ?? { created: 0, skipped: 0 });
       router.refresh();
     });
   }
@@ -204,6 +207,19 @@ export function StructuresWorkspace({ structures }: { structures: FeeStructure[]
             {bulkError ? (
               <p className="text-sm text-destructive sm:col-span-2" role="alert">
                 {bulkError}
+              </p>
+            ) : null}
+            {bulkResult ? (
+              <p
+                className="text-sm text-muted-foreground sm:col-span-2"
+                role="status"
+                data-testid="bulk-invoice-result"
+                data-created={bulkResult.created}
+                data-skipped={bulkResult.skipped}
+              >
+                {bulkResult.created} invoice(s) created
+                {bulkResult.skipped > 0 ? `, ${bulkResult.skipped} skipped (already invoiced)` : ''}
+                .
               </p>
             ) : null}
             <div className="sm:col-span-2">

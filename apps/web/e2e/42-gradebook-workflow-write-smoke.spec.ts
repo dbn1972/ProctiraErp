@@ -17,6 +17,8 @@ const TENANT_A = '00000000-0000-4000-8000-000000000001';
 const TENANT_B = '00000000-0000-4000-8000-0000000000bb';
 /** Seeded by tools/e2e/seed-e2e-tenants.sql. */
 const INSTITUTION_A = 'a2e96cd1-0232-4cce-97e2-00ebbfb9a374';
+/** Seeded section (E2E-SEC-A) — the gradebook service rejects unknown sections. */
+const SECTION_A = '00000000-0000-4000-8000-00000000eec1';
 
 function headers(
   tenantId = TENANT_A,
@@ -100,7 +102,7 @@ test.describe('Gradebook workflow — live chain (E2E_BACKEND_READY)', () => {
 
   test('submit → approve → lock → publish then GET /published', async ({ page, request }) => {
     const studentId = uuid();
-    const sectionId = uuid();
+    const sectionId = SECTION_A;
     const assessmentCode = `GB-${stamp()}`;
     const entry = await putEntry(request, { sectionId, studentId, assessmentCode });
 
@@ -148,7 +150,7 @@ test.describe('Gradebook workflow — live chain (E2E_BACKEND_READY)', () => {
 
   test('TEACHER cannot APPROVE a submitted grade', async ({ request }) => {
     const entry = await putEntry(request, {
-      sectionId: uuid(),
+      sectionId: SECTION_A,
       studentId: uuid(),
       assessmentCode: `TCH-${stamp()}`,
     });
@@ -171,7 +173,7 @@ test.describe('Gradebook workflow — live chain (E2E_BACKEND_READY)', () => {
   test('cross-tenant: tenant B cannot read tenant A published grades', async ({ request }) => {
     const studentId = uuid();
     const entry = await putEntry(request, {
-      sectionId: uuid(),
+      sectionId: SECTION_A,
       studentId,
       assessmentCode: `X-${stamp()}`,
     });

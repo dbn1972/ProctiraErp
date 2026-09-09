@@ -60,4 +60,35 @@ ON CONFLICT (id) DO UPDATE
       deleted_at = NULL,
       updated_at = now();
 
+-- ---------------------------------------------------------------------------
+-- Academic period + section fixture for tenant A (Wave 9): the gradebook
+-- service rejects grade entries whose section does not exist (NotFound), so
+-- the gradebook workflow spec (e2e/42) needs a real section. Fixed ids match
+-- SECTION_A / PERIOD_A in that spec.
+-- ---------------------------------------------------------------------------
+INSERT INTO academic_periods (id, tenant_id, name, code, start_date, end_date, status)
+VALUES (
+  '00000000-0000-4000-8000-00000000ac01',
+  '00000000-0000-4000-8000-000000000001',
+  'E2E Academic Year', 'E2E-AY',
+  DATE '2026-04-01', DATE '2027-03-31', 'active'
+)
+ON CONFLICT (id) DO UPDATE
+  SET status = 'active',
+      deleted_at = NULL,
+      updated_at = now();
+
+INSERT INTO sections (id, tenant_id, institution_id, academic_period_id, code, name, capacity, status)
+VALUES (
+  '00000000-0000-4000-8000-00000000eec1',
+  '00000000-0000-4000-8000-000000000001',
+  'a2e96cd1-0232-4cce-97e2-00ebbfb9a374',
+  '00000000-0000-4000-8000-00000000ac01',
+  'E2E-SEC-A', 'E2E Section A', 40, 'PUBLISHED'
+)
+ON CONFLICT (id) DO UPDATE
+  SET deleted_at = NULL,
+      status = 'PUBLISHED',
+      updated_at = now();
+
 COMMIT;

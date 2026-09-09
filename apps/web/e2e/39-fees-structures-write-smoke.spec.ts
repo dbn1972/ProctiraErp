@@ -124,6 +124,9 @@ test.describe('Fee structures — live chain (E2E_BACKEND_READY)', () => {
     });
     await page.locator('#bi-students').fill(STUDENT_A);
     await page.getByTestId('submit-bulk-invoice').click();
+    await expect(page.getByTestId('bulk-invoice-result')).toHaveAttribute('data-created', '1', {
+      timeout: 20_000,
+    });
 
     const listed = await request.get(`${GATEWAY_URL}/api/v1/fees/invoices`, { headers: headers() });
     expect(listed.status()).toBe(200);
