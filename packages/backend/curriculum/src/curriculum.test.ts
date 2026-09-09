@@ -48,7 +48,7 @@ describe('CurriculumService coverage', () => {
       gradeId: GRADE,
       academicPeriodId: PERIOD,
     });
-    expect(coverage).toMatchObject({ planned: 2, taught: 1, percent: 50 });
+    expect(coverage).toMatchObject({ planned: 2, taught: 1, percent: 50, taughtUnitIds: [u1.id] });
   });
 
   it('isolates units across tenants', async () => {

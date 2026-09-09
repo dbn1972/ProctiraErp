@@ -32,6 +32,7 @@ export type CoverageSummary = {
   planned: number;
   taught: number;
   percent: number;
+  taughtUnitIds: string[];
 };
 
 export class CurriculumService {
@@ -151,8 +152,10 @@ export class CurriculumService {
       tenantId,
       plannedUnits.map((u) => u.id),
     );
-    const taughtIds = new Set(coverageRows.map((c) => c.unitId));
-    const taught = plannedUnits.filter((u) => taughtIds.has(u.id)).length;
+    const taughtIds = [...new Set(coverageRows.map((c) => c.unitId))].filter((id) =>
+      plannedUnits.some((u) => u.id === id),
+    );
+    const taught = taughtIds.length;
     const planned = plannedUnits.length;
     const percent = planned === 0 ? 0 : Math.round((taught / planned) * 1000) / 10;
     return {
@@ -162,6 +165,7 @@ export class CurriculumService {
       planned,
       taught,
       percent,
+      taughtUnitIds: taughtIds,
     };
   }
 }
