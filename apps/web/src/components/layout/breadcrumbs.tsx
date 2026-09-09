@@ -30,10 +30,10 @@ export function Breadcrumbs() {
 
   return (
     <nav aria-label="Breadcrumb">
-      <ol className="flex items-center text-sm text-gray-500" role="list">
+      <ol className="flex items-center text-sm text-muted-foreground" role="list">
         {/* Home link */}
         <li>
-          <Link href="/" className="hover:text-gray-700">
+          <Link href="/" className="hover:text-foreground">
             {t('home')}
           </Link>
         </li>
@@ -43,11 +43,11 @@ export function Breadcrumbs() {
           <li key={crumb.href} className="flex items-center">
             <BreadcrumbSeparator />
             {crumb.isLast ? (
-              <span className="font-medium text-gray-900" aria-current="page">
+              <span className="font-medium text-foreground" aria-current="page">
                 {crumb.label}
               </span>
             ) : (
-              <Link href={crumb.href} className="hover:text-gray-700">
+              <Link href={crumb.href} className="hover:text-foreground">
                 {crumb.label}
               </Link>
             )}
