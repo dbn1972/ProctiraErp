@@ -178,14 +178,34 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
         repository: createAttendanceRepository(),
         prefix: '/attendance',
       });
-      bindAttendanceHeatmapSource({
-        listStudentAttendanceInRange: (tenantId, studentId, startDate, endDate) =>
-          scope.attendanceService.listStudentAttendanceInRange(
+      type HeatmapDay = { date: string; status: string };
+      type HeatmapBinder = (source: {
+        listStudentAttendanceInRange: (
+          tenantId: string,
+          studentId: string,
+          startDate: string,
+          endDate: string,
+        ) => Promise<HeatmapDay[]>;
+      }) => void;
+      const bindHeatmap = bindAttendanceHeatmapSource as unknown as HeatmapBinder;
+      const attendance = scope.attendanceService as unknown as {
+        listStudentAttendanceInRange: (
+          tenantId: string,
+          studentId: string,
+          startDate: string,
+          endDate: string,
+        ) => Promise<Array<{ date: string; status: unknown }>>;
+      };
+      bindHeatmap({
+        listStudentAttendanceInRange: async (tenantId, studentId, startDate, endDate) => {
+          const rows = await attendance.listStudentAttendanceInRange(
             tenantId,
             studentId,
             startDate,
             endDate,
-          ),
+          );
+          return rows.map((row) => ({ date: row.date, status: String(row.status) }));
+        },
       });
     },
   },

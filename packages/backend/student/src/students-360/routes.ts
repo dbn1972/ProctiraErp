@@ -19,7 +19,7 @@ import { validate } from '@proctira/validation';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 
 import { StudentParamsSchema } from '../schemas.js';
-import type { Students360Service } from './service.js';
+
 import {
   CreateDisciplineSchema,
   CreateSiblingSchema,
@@ -32,6 +32,7 @@ import {
   type SetConsentDto,
   type UploadPhotoDto,
 } from './schemas.js';
+import type { Students360Service } from './service.js';
 import type { ConsentRecord, DisciplineRecord, PhotoRecord, SiblingRecord } from './store.js';
 
 export interface Students360RoutesOptions {

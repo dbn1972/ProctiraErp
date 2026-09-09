@@ -3,9 +3,9 @@
  * otherwise a local-disk fallback (and an in-memory impl for unit tests).
  */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { Readable } from 'node:stream';
+import { dirname, join } from 'node:path';
+import type { Readable } from 'node:stream';
 
 import {
   createStorageAdapter,
@@ -90,9 +90,9 @@ export class StorageAdapterStudentBlobStore implements StudentBlobStore {
 }
 
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
+  const chunks: Uint8Array[] = [];
   for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    chunks.push(chunk instanceof Uint8Array ? chunk : Buffer.from(String(chunk)));
   }
   return Buffer.concat(chunks);
 }

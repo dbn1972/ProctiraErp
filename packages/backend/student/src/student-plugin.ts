@@ -20,9 +20,9 @@ import type { ImportQueue } from './import/types.js';
 import { registerStudentRoutes } from './routes.js';
 import type { StudentRepository } from './student-repository.js';
 import { StudentService } from './student-service.js';
+import { getBoundAttendanceHeatmapSource } from './students-360/attendance-bridge.js';
 import { createStudentBlobStore, type StudentBlobStore } from './students-360/blob-store.js';
 import { createStudents360Store } from './students-360/create-store.js';
-import { getBoundAttendanceHeatmapSource } from './students-360/attendance-bridge.js';
 import { registerStudents360Routes } from './students-360/routes.js';
 import {
   Students360Service,

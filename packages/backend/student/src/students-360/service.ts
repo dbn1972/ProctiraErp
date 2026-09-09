@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { ConflictError, NotFoundError, ValidationError } from '@proctira/common';
 
 import type { StudentEntity, StudentRepository } from '../student-repository.js';
+
 import type { StudentBlobStore } from './blob-store.js';
 import {
   aggregateAttendanceHeatmap,
