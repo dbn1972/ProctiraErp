@@ -18,7 +18,6 @@ import {
 } from '@proctira/database';
 
 import { createInMemoryAcademicsPrisma } from './education/in-memory-prisma-lite.js';
-import type { InstitutionRepository } from './institution-repository.js';
 import {
   InMemoryConditionOptionStore,
   InMemoryInfrastructureStore,
@@ -28,13 +27,15 @@ import {
   PgConditionOptionStore,
   PgInfrastructureStore,
 } from './infrastructure/pg-store.js';
+import type { InfrastructureTypeValue } from './infrastructure/schemas.js';
 import type {
   ConditionOptionRecord,
   ConditionOptionStore,
   InfrastructureRecord,
   InfrastructureStore,
 } from './infrastructure/service.js';
-import type { InfrastructureTypeValue } from './infrastructure/schemas.js';
+import type { InstitutionRepository } from './institution-repository.js';
+import { createTenantBoundPrisma } from './tenant-bound-prisma.js';
 import { currentTenantId } from './tenant-context.js';
 
 export interface AcademicsDeps {
@@ -160,7 +161,10 @@ export function createAcademicsDeps(config: AcademicsDepsConfig = {}): Academics
   void ensureInfrastructureSchema(pool).catch(() => undefined);
 
   return {
-    prisma: config.prisma ?? createPrismaClient({ datasourceUrl: databaseUrl }),
+    // Every academics model op runs under withTenantTransaction (FORCE RLS).
+    prisma: createTenantBoundPrisma(
+      config.prisma ?? createPrismaClient({ datasourceUrl: databaseUrl }),
+    ),
     infrastructureStore: new PgInfrastructureStore(pool),
     conditionStore: new PgConditionOptionStore(pool),
     persistence: 'prisma+pg',

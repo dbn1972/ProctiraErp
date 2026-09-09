@@ -132,3 +132,4 @@ export {
 export { PrismaInstitutionRepository } from './prisma-institution-repository.js';
 export { createInstitutionRepository, isPgInstitutionEnabled } from './repository-factory.js';
 export type { InstitutionRepositoryConfig } from './repository-factory.js';
+export { createTenantBoundPrisma } from './tenant-bound-prisma.js';

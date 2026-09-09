@@ -7,7 +7,7 @@
 import { randomUUID } from 'node:crypto';
 
 import Fastify, { type FastifyInstance } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryInstitutionRepository } from './in-memory-repository.js';
 import { institutionPlugin } from './institution-plugin.js';
@@ -30,6 +30,15 @@ async function buildApp(): Promise<FastifyInstance> {
 
 describe('G-901 institutionPlugin academics mount', () => {
   let app: FastifyInstance;
+
+  // This suite exercises the in-memory fallback; a live DATABASE_URL in the
+  // shell must not flip it onto Prisma (covered by the *.live tests instead).
+  beforeAll(() => {
+    vi.stubEnv('DATABASE_URL', '');
+  });
+  afterAll(() => {
+    vi.unstubAllEnvs();
+  });
 
   beforeEach(async () => {
     app = await buildApp();
