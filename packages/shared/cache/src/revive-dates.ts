@@ -1,26 +1,32 @@
-/** Revive ISO-8601 strings produced by JSON.stringify(Date) back into Dates. */
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
-
 /**
- * Recursively revive ISO date strings to `Date` instances after a JSON cache round-trip.
- * Idempotent: existing `Date` instances and non-date strings are left unchanged.
+ * Redis round-trips cached values through JSON, so `Date` fields come back as
+ * ISO-8601 strings. Repository decorators call this on cache hits to restore
+ * the shape their delegate returns.
+ *
+ * Only the named top-level keys are revived: entities carry opaque JSON
+ * (`metadata`, `customData`, workflow definitions) whose string values must
+ * stay strings even when they happen to look like timestamps. Idempotent —
+ * existing `Date` instances, `null` and `undefined` pass through untouched.
  */
-export function reviveDates<T>(value: T): T {
-  if (value instanceof Date) {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return (ISO_DATE.test(value) ? new Date(value) : value) as unknown as T;
-  }
+export const ENTITY_TIMESTAMP_KEYS = ['createdAt', 'updatedAt'] as const;
+
+export function reviveDates<T>(value: T, keys: readonly string[] = ENTITY_TIMESTAMP_KEYS): T {
+  if (value === null || value === undefined || typeof value !== 'object') return value;
   if (Array.isArray(value)) {
-    return (value as unknown[]).map((v) => reviveDates(v)) as unknown as T;
+    return (value as unknown[]).map((item) => reviveDates(item, keys)) as unknown as T;
   }
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out[k] = reviveDates(v);
+  const record = value as Record<string, unknown>;
+  let changed = false;
+  const out: Record<string, unknown> = { ...record };
+  for (const key of keys) {
+    const raw = record[key];
+    if (typeof raw === 'string' || typeof raw === 'number') {
+      const revived = new Date(raw);
+      if (!Number.isNaN(revived.getTime())) {
+        out[key] = revived;
+        changed = true;
+      }
     }
-    return out as T;
   }
-  return value;
+  return changed ? (out as T) : value;
 }

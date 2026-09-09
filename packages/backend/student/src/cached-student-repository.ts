@@ -6,30 +6,13 @@
  * If no CacheClient is provided, all operations pass through to the delegate.
  */
 import type { CacheClient } from '@proctira/cache';
-import { tenantKey } from '@proctira/cache';
+import { reviveDates, tenantKey } from '@proctira/cache';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 
 import type { StudentEntity, StudentFilter, StudentRepository } from './student-repository.js';
 
 /** TTL for student entity cache (5 minutes) */
 const STUDENT_TTL_SECONDS = 300;
-
-/**
- * Redis round-trips entities through JSON, so `Date` fields come back as ISO
- * strings. Callers (e.g. `formatStudentResponse`) call `.toISOString()` on
- * them, so a cache hit must restore the same shape the delegate returns.
- */
-function reviveDates(entity: StudentEntity | null): StudentEntity | null {
-  if (!entity) return entity;
-  const createdAt = entity.createdAt as unknown;
-  const updatedAt = entity.updatedAt as unknown;
-  if (createdAt instanceof Date && updatedAt instanceof Date) return entity;
-  return {
-    ...entity,
-    createdAt: createdAt instanceof Date ? createdAt : new Date(String(createdAt)),
-    updatedAt: updatedAt instanceof Date ? updatedAt : new Date(String(updatedAt)),
-  };
-}
 
 export class CachedStudentRepository implements StudentRepository {
   constructor(

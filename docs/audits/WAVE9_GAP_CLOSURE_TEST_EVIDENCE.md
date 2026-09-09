@@ -231,19 +231,6 @@ Run locally with `tools/scripts/run-e2e-backend-ready.sh` (`E2E_BACKEND_READY=1`
 
 - Batch-3 UX / multidevice captures were **not** re-taken; the §4 capture set predates the merge. Ungated heading smokes across all new pages ran headless on desktop viewport only.
 
-### 8.6 Redis read-through cache — Date revival audit
-
-Production bug: `CacheClient.getOrSet` JSON-round-trips entities so `createdAt`/`updatedAt` return as ISO strings on cache hit; route formatters calling `.toISOString()` then throw `TypeError` (HTTP 500 on second read within TTL when `REDIS_URL` is set). Fix: shared `reviveDates` in `@proctira/cache`, applied on every cache-hit path in each decorator. **Null caching note:** `CacheClient.getOrSet` treats a cached `null` as a miss (`if (cached !== null)`), so `null` results are re-fetched on every read — unchanged semantics.
-
-| Decorator                     | Date fields cached                                | Consumer that would break                            | Fixed            | Test file                                                                |
-| ----------------------------- | ------------------------------------------------- | ---------------------------------------------------- | ---------------- | ------------------------------------------------------------------------ |
-| `CachedStudentRepository`     | `createdAt`, `updatedAt`                          | `formatStudentResponse` → `.toISOString()`           | y (other branch) | —                                                                        |
-| `CachedWorkflowRepository`    | `createdAt`, `updatedAt`                          | `routes.ts` definition formatter → `.toISOString()`  | y                | `packages/backend/workflow/src/cached-workflow-repository.test.ts`       |
-| `CachedScholarshipRepository` | `createdAt`, `updatedAt`                          | `routes.ts` program formatter → `.toISOString()`     | y                | `packages/backend/scholarship/src/cached-scholarship-repository.test.ts` |
-| `CachedAttendanceRepository`  | none (`StudentRosterEntry` is string-only)        | n/a — no Date fields or `.toISOString()` on roster   | n/a              | —                                                                        |
-| `CachedInstitutionRepository` | `createdAt`, `updatedAt` (entity + list `data[]`) | `routes.ts` institution formatter → `.toISOString()` | y                | `packages/backend/institution/src/cached-institution-repository.test.ts` |
-| `CachedExaminationRepository` | `createdAt`, `updatedAt`                          | `routes.ts` examination formatter → `.toISOString()` | y                | `packages/backend/examination/src/cached-examination-repository.test.ts` |
-
 - Open Library ISBN, WhatsApp, GPS device feeds are stub / sandbox / env-gated.
 - Tip CI on the merged tip `7b20d79`: **`CI` workflow green** (Lint, Type Check, Unit, DoD, Tenant Isolation, Build, Bundle, Lighthouse, Integration Tests). **E2E Backend Ready: 294 passed / 5 flaky (passed on retry) / 2 failed / 1 skipped** — all ten new specs passed; the two failures were pre-existing specs affected by the merge and are fixed on the follow-up commit:
   - `26` quiz client validation expected the two-options error on blank question rows; G-915 now ignores blank rows (bank picks may replace them), so the spec asserts the rule on a prompted question with no options.
@@ -263,6 +250,21 @@ Production bug: `CacheClient.getOrSet` JSON-round-trips entities so `createdAt`/
 Fix (`aaec549`): `CachedStudentRepository.findById` revives `Date` fields on cache hits (unit test with a JSON round-tripping fake cache: delegate called once, second read returns `Date`s whose `toISOString()` matches); `getStudent()` returns `null` **only on 404** and throws `GatewayError` otherwise, so a gateway fault shows the error boundary instead of a misleading 404. Verification: spec 44 with Redis on the fixed tip → **4 / 4 passed**, 0 `toISOString` errors in the gateway log; `backend-student` 224 passed. The same decorator pattern exists in workflow / scholarship / attendance / institution / examination — audited in a parallel stream (§8.6).
 
 - Flaky-then-passed: `35` admin console chain, `48` two ungated library pages, `a11y-axe` `/parent` and `/parent/messages`.
+
+### 8.6 Redis read-through cache — Date revival audit
+
+Production bug: `CacheClient.getOrSet` JSON-round-trips entities so `createdAt`/`updatedAt` return as ISO strings on cache hit; route formatters calling `.toISOString()` then throw `TypeError` (HTTP 500 on second read within TTL when `REDIS_URL` is set). Fix: shared `reviveDates` in `@proctira/cache`, applied on every cache-hit path in each decorator. **Null caching note:** `CacheClient.getOrSet` treats a cached `null` as a miss (`if (cached !== null)`), so `null` results are re-fetched on every read — unchanged semantics.
+
+| Decorator                     | Date fields cached                                | Consumer that would break                            | Fixed         | Test file                                                                |
+| ----------------------------- | ------------------------------------------------- | ---------------------------------------------------- | ------------- | ------------------------------------------------------------------------ |
+| `CachedStudentRepository`     | `createdAt`, `updatedAt`                          | `formatStudentResponse` → `.toISOString()`           | y (`aaec549`) | `packages/backend/student/src/cached-student-repository.test.ts`         |
+| `CachedWorkflowRepository`    | `createdAt`, `updatedAt`                          | `routes.ts` definition formatter → `.toISOString()`  | y             | `packages/backend/workflow/src/cached-workflow-repository.test.ts`       |
+| `CachedScholarshipRepository` | `createdAt`, `updatedAt`                          | `routes.ts` program formatter → `.toISOString()`     | y             | `packages/backend/scholarship/src/cached-scholarship-repository.test.ts` |
+| `CachedAttendanceRepository`  | none (`StudentRosterEntry` is string-only)        | n/a — no Date fields or `.toISOString()` on roster   | n/a           | —                                                                        |
+| `CachedInstitutionRepository` | `createdAt`, `updatedAt` (entity + list `data[]`) | `routes.ts` institution formatter → `.toISOString()` | y             | `packages/backend/institution/src/cached-institution-repository.test.ts` |
+| `CachedExaminationRepository` | `createdAt`, `updatedAt`                          | `routes.ts` examination formatter → `.toISOString()` | y             | `packages/backend/examination/src/cached-examination-repository.test.ts` |
+
+Integration review tightened the helper: the stream's first version revived **every** ISO-looking string recursively, which would also have turned timestamps inside opaque JSON (`metadata`, `customData`, workflow definitions) into `Date`s on cache hits — a type drift in the other direction. `reviveDates(value, keys = ['createdAt', 'updatedAt'])` now revives only the named top-level entity keys (arrays are mapped; `PaginatedResult.data` is revived explicitly in the institution `list`). Suites after the change: cache 25 · student 224 · institution 259 · workflow 107 · scholarship 46 · examination 133 passed.
 
 ## Done criteria
 

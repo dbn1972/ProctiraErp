@@ -96,7 +96,7 @@ export class CachedInstitutionRepository implements InstitutionRepository {
       () => this.delegate.list(tenantId, filter, pagination),
       INSTITUTION_TTL_SECONDS,
     );
-    return reviveDates(cached);
+    return { ...cached, data: reviveDates(cached.data) };
   }
 
   async countActiveEnrollments(institutionId: string, tenantId: string): Promise<number> {
