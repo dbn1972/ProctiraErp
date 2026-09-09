@@ -455,12 +455,12 @@ describe('Wave 9 students 360 raw-SQL RLS (035_students_360_schema.sql)', () => 
 describe('Wave 9 LMS depth raw-SQL RLS (038_lms_depth_schema.sql)', () => {
   const sql = loadSql('038_lms_depth_schema.sql');
   const tables = [
-    'lms_question_bank_items',
+    'lms_question_bank',
     'lms_rubrics',
     'lms_rubric_criteria',
-    'lms_rubric_grades',
-    'lms_submission_files',
-    'lms_discussion_threads',
+    'lms_rubric_scores',
+    'lms_assignment_files',
+    'lms_discussions',
     'lms_discussion_posts',
     'lms_content_items',
     'lms_lessons',
@@ -488,7 +488,7 @@ describe('Wave 9 LMS depth raw-SQL RLS (038_lms_depth_schema.sql)', () => {
 
   it('policies use the app.tenant_id session contract for both USING and WITH CHECK', () => {
     const policies =
-      sql.match(/CREATE POLICY tenant_isolation ON lms_(question_bank_items|rubric_criteria|rubric_grades|rubrics|submission_files|discussion_threads|discussion_posts|content_items|lesson_resources|lessons)[\s\S]*?;/g) ??
+      sql.match(/CREATE POLICY tenant_isolation ON lms_(question_bank|rubric_criteria|rubric_scores|rubrics|assignment_files|discussions|discussion_posts|content_items|lesson_resources|lessons)[\s\S]*?;/g) ??
       [];
     expect(policies).toHaveLength(tables.length);
     for (const policy of policies) {

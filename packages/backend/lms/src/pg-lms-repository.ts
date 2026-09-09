@@ -1035,7 +1035,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
-        `INSERT INTO lms_question_bank_items (
+        `INSERT INTO lms_question_bank (
            id, tenant_id, scope, board_id, institution_id, subject, grade_level, tags,
            question_type, difficulty, prompt, payload, points, skill_id, rubric_id, created_by
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12::jsonb,$13,$14,$15,$16) RETURNING *`,
@@ -1073,7 +1073,7 @@ export class PgLmsRepository implements LmsRepository {
       if (!existing) return null;
       const next = { ...existing, ...patch };
       const result = await client.query(
-        `UPDATE lms_question_bank_items SET
+        `UPDATE lms_question_bank SET
            subject=$3, grade_level=$4, tags=$5::jsonb, question_type=$6, prompt=$7,
            payload=$8::jsonb, points=$9, skill_id=$10, rubric_id=$11, updated_at=now()
          WHERE tenant_id=$1 AND id=$2 RETURNING *`,
@@ -1099,7 +1099,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        'SELECT * FROM lms_question_bank_items WHERE tenant_id=$1 AND id=$2',
+        'SELECT * FROM lms_question_bank WHERE tenant_id=$1 AND id=$2',
         [tenantId, id],
       );
       return result.rows[0] ? mapBank(result.rows[0] as Record<string, unknown>) : null;
@@ -1111,7 +1111,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        'SELECT * FROM lms_question_bank_items WHERE tenant_id=$1 AND id = ANY($2::uuid[])',
+        'SELECT * FROM lms_question_bank WHERE tenant_id=$1 AND id = ANY($2::uuid[])',
         [tenantId, ids],
       );
       return result.rows.map((row) => mapBank(row as Record<string, unknown>));
@@ -1151,13 +1151,13 @@ export class PgLmsRepository implements LmsRepository {
       }
       const where = conditions.join(' AND ');
       const count = await client.query(
-        `SELECT count(*)::int AS c FROM lms_question_bank_items WHERE ${where}`,
+        `SELECT count(*)::int AS c FROM lms_question_bank WHERE ${where}`,
         params,
       );
       const totalItems = Number((count.rows[0] as { c: number }).c);
       params.push(pagination.pageSize, (pagination.page - 1) * pagination.pageSize);
       const result = await client.query(
-        `SELECT * FROM lms_question_bank_items WHERE ${where}
+        `SELECT * FROM lms_question_bank WHERE ${where}
          ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
@@ -1172,7 +1172,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        'DELETE FROM lms_question_bank_items WHERE tenant_id=$1 AND id=$2',
+        'DELETE FROM lms_question_bank WHERE tenant_id=$1 AND id=$2',
         [tenantId, id],
       );
       return Number((result as { rowCount?: number | null }).rowCount ?? 0) > 0;
@@ -1298,13 +1298,13 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       await client.query(
-        'DELETE FROM lms_rubric_grades WHERE tenant_id=$1 AND submission_id=$2',
+        'DELETE FROM lms_rubric_scores WHERE tenant_id=$1 AND submission_id=$2',
         [tenantId, submissionId],
       );
       const rows: RubricScoreEntity[] = [];
       for (const s of scores) {
         const result = await client.query(
-          `INSERT INTO lms_rubric_grades (
+          `INSERT INTO lms_rubric_scores (
              id, tenant_id, submission_id, criterion_id, question_id, level_index, points, comment, scored_by
            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
           [
@@ -1329,7 +1329,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        'SELECT * FROM lms_rubric_grades WHERE tenant_id=$1 AND submission_id=$2',
+        'SELECT * FROM lms_rubric_scores WHERE tenant_id=$1 AND submission_id=$2',
         [tenantId, submissionId],
       );
       return result.rows.map((row) => mapRubricScore(row as Record<string, unknown>));
@@ -1342,8 +1342,8 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
-        `INSERT INTO lms_submission_files (
-           id, tenant_id, assignment_id, submission_id, filename, mime_type, byte_size, object_key, created_by
+        `INSERT INTO lms_assignment_files (
+           id, tenant_id, assignment_id, submission_id, filename, mime_type, byte_size, storage_key, created_by
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
         [
           data.id,
@@ -1365,7 +1365,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        'SELECT * FROM lms_submission_files WHERE tenant_id=$1 AND id=$2',
+        'SELECT * FROM lms_assignment_files WHERE tenant_id=$1 AND id=$2',
         [tenantId, id],
       );
       return result.rows[0] ? mapFile(result.rows[0] as Record<string, unknown>) : null;
@@ -1387,7 +1387,7 @@ export class PgLmsRepository implements LmsRepository {
         extra = ` AND submission_id = $${params.length}`;
       }
       const result = await client.query(
-        `SELECT * FROM lms_submission_files WHERE tenant_id=$1 AND assignment_id=$2${extra}
+        `SELECT * FROM lms_assignment_files WHERE tenant_id=$1 AND assignment_id=$2${extra}
          ORDER BY created_at`,
         params,
       );
@@ -1401,7 +1401,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
-        `INSERT INTO lms_discussion_threads (
+        `INSERT INTO lms_discussions (
            id, tenant_id, institution_id, class_key, title, locked, created_by
          ) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
         [
@@ -1422,7 +1422,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        'SELECT * FROM lms_discussion_threads WHERE tenant_id=$1 AND id=$2',
+        'SELECT * FROM lms_discussions WHERE tenant_id=$1 AND id=$2',
         [tenantId, id],
       );
       return result.rows[0] ? mapDiscussion(result.rows[0] as Record<string, unknown>) : null;
@@ -1448,13 +1448,13 @@ export class PgLmsRepository implements LmsRepository {
       }
       const where = conditions.join(' AND ');
       const count = await client.query(
-        `SELECT count(*)::int AS c FROM lms_discussion_threads WHERE ${where}`,
+        `SELECT count(*)::int AS c FROM lms_discussions WHERE ${where}`,
         params,
       );
       const totalItems = Number((count.rows[0] as { c: number }).c);
       params.push(pagination.pageSize, (pagination.page - 1) * pagination.pageSize);
       const result = await client.query(
-        `SELECT * FROM lms_discussion_threads WHERE ${where}
+        `SELECT * FROM lms_discussions WHERE ${where}
          ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
         params,
       );
@@ -1473,7 +1473,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        `UPDATE lms_discussion_threads SET locked=$3, updated_at=now()
+        `UPDATE lms_discussions SET locked=$3, updated_at=now()
          WHERE tenant_id=$1 AND id=$2 RETURNING *`,
         [tenantId, id, locked],
       );
@@ -1488,7 +1488,7 @@ export class PgLmsRepository implements LmsRepository {
     return this.withTenant(data.tenantId, async (client) => {
       const result = await client.query(
         `INSERT INTO lms_discussion_posts (
-           id, tenant_id, thread_id, parent_id, body, hidden, pinned, created_by
+           id, tenant_id, discussion_id, parent_id, body, hidden, pinned, created_by
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
         [
           data.id,
@@ -1523,7 +1523,7 @@ export class PgLmsRepository implements LmsRepository {
     await this.ensureSchema();
     return this.withTenant(tenantId, async (client) => {
       const result = await client.query(
-        `SELECT * FROM lms_discussion_posts WHERE tenant_id=$1 AND thread_id=$2
+        `SELECT * FROM lms_discussion_posts WHERE tenant_id=$1 AND discussion_id=$2
          ORDER BY pinned DESC, created_at ASC`,
         [tenantId, discussionId],
       );
