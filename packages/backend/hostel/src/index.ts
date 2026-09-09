@@ -15,6 +15,10 @@ export type {
   HostelBlockEntity,
   HostelRoomEntity,
   HostelBedEntity,
+  MessPlanEntity,
+  GatePassEntity,
+  HostelFeeStructureEntity,
+  HostelAttendanceEntity,
   HostelRepository,
 } from './hostel-repository.js';
 
@@ -41,6 +45,10 @@ export {
   DecideLeaveSchema,
   VisitorParamsSchema,
   UpdateVisitorStatusSchema,
+  CreateMessPlanSchema,
+  CreateGatePassSchema,
+  CreateFeeStructureSchema,
+  CreateAttendanceSchema,
 } from './schemas.js';
 export type {
   CreateHostelInput,
@@ -52,7 +60,16 @@ export type {
   CreateBedInput,
   DecideLeaveInput,
   UpdateVisitorStatusInput,
+  CreateMessPlanInput,
+  CreateGatePassInput,
+  CreateFeeStructureInput,
+  CreateAttendanceInput,
 } from './schemas.js';
+
+export { canTransitionGatePass, isOverdueReturn } from './hostel-ops.js';
 
 export { registerHostelRoutes } from './routes.js';
 export type { HostelRoutesOptions } from './routes.js';
+
+export type { HostelFeesPort } from './fees-ledger-port.js';
+export { InMemoryHostelFeesPort } from './fees-ledger-port.js';

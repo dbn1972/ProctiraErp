@@ -102,6 +102,10 @@ describe('rbac-registry helpers', () => {
     expect(registry.roleHasPermission('student', 'lms', 'update')).toBe(false);
     expect(registry.roleHasPermission('parent', 'lms', 'read')).toBe(true);
     expect(registry.roleHasPermission('parent', 'lms', 'create')).toBe(false);
+    expect(registry.roleHasPermission('parent', 'library', 'read')).toBe(true);
+    expect(registry.roleHasPermission('guardian', 'library', 'read')).toBe(true);
+    expect(registry.roleHasPermission('student', 'library', 'read')).toBe(true);
+    expect(registry.roleHasPermission('parent', 'library', 'create')).toBe(false);
     expect(registry.roleHasPermission('admin', 'communication', 'create')).toBe(true);
     expect(registry.roleHasPermission('teacher', 'student', 'create')).toBe(false);
     expect(registry.roleHasPermission('nurse', 'health', 'manage')).toBe(true);

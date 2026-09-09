@@ -4,19 +4,36 @@
 import { BusinessRuleError, ConflictError, NotFoundError } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { HostelRepository, LeaveStatus, VisitorStatus } from './hostel-repository.js';
+import type { HostelFeesPort } from './fees-ledger-port.js';
+import { canTransitionGatePass, isOverdueReturn } from './hostel-ops.js';
+import type {
+  GatePassStatus,
+  HostelAttendanceStatus,
+  HostelRepository,
+  LeaveStatus,
+  VisitorStatus,
+} from './hostel-repository.js';
 import type {
   CreateAssignmentInput,
+  CreateAttendanceInput,
   CreateBedInput,
   CreateBlockInput,
+  CreateFeeStructureInput,
+  CreateGatePassInput,
   CreateHostelInput,
   CreateLeaveInput,
+  CreateMessMenuItemInput,
+  CreateMessPlanInput,
+  CreateMessSubscriptionInput,
   CreateRoomInput,
   CreateVisitorInput,
 } from './schemas.js';
 
 export class HostelService {
-  constructor(private readonly repository: HostelRepository) {}
+  constructor(
+    private readonly repository: HostelRepository,
+    private readonly feesLedger: HostelFeesPort | null = null,
+  ) {}
 
   async createHostel(tenantId: string, input: CreateHostelInput) {
     return this.repository.createHostel({
@@ -42,13 +59,32 @@ export class HostelService {
     return hostel;
   }
 
-  async createAssignment(tenantId: string, input: CreateAssignmentInput) {
+  async createAssignment(tenantId: string, input: CreateAssignmentInput, actorId = 'hostel-system') {
     const bed = await this.repository.findBedById(input.bedId, tenantId);
     if (!bed) {
       throw new NotFoundError(`Bed with id '${input.bedId}' not found`);
     }
     if (!bed.isAvailable && (input.isActive ?? true)) {
       throw new ConflictError('Bed is not available for assignment');
+    }
+
+    let invoice: Awaited<ReturnType<HostelFeesPort['postAllocationInvoice']>> | null = null;
+    if (input.feeStructureId) {
+      const structures = await this.repository.listFeeStructures(tenantId);
+      const structure = structures.find((row) => row.id === input.feeStructureId);
+      if (!structure) {
+        throw new NotFoundError(`Hostel fee structure with id '${input.feeStructureId}' not found`);
+      }
+      if (this.feesLedger) {
+        invoice = await this.feesLedger.postAllocationInvoice(tenantId, actorId, {
+          studentId: input.studentId,
+          title: `Hostel ${structure.roomType} — ${structure.termLabel}`,
+          description: `Allocation fee for bed ${input.bedId}`,
+          amountCents: structure.amountCents,
+          currency: structure.currency,
+          structureId: structure.id,
+        });
+      }
     }
 
     const assignment = await this.repository.createAssignment({
@@ -65,7 +101,7 @@ export class HostelService {
       await this.repository.updateBed(input.bedId, tenantId, { isAvailable: false });
     }
 
-    return assignment;
+    return { ...assignment, invoice };
   }
 
   async listAssignments(tenantId: string) {
@@ -183,5 +219,189 @@ export class HostelService {
 
   async listBeds(tenantId: string, roomId?: string) {
     return this.repository.listBeds(tenantId, roomId);
+  }
+
+  async createMessPlan(tenantId: string, input: CreateMessPlanInput) {
+    const hostel = await this.repository.findHostelById(input.hostelId, tenantId);
+    if (!hostel) {
+      throw new NotFoundError(`Hostel with id '${input.hostelId}' not found`);
+    }
+    return this.repository.createMessPlan({
+      id: uuidv4(),
+      tenantId,
+      hostelId: input.hostelId,
+      name: input.name,
+      mealCount: input.mealCount ?? 3,
+      status: 'active',
+    });
+  }
+
+  async listMessPlans(tenantId: string, hostelId?: string) {
+    return this.repository.listMessPlans(tenantId, hostelId);
+  }
+
+  async addMessMenuItem(tenantId: string, input: CreateMessMenuItemInput) {
+    const plan = await this.repository.findMessPlanById(input.planId, tenantId);
+    if (!plan) {
+      throw new NotFoundError(`Mess plan with id '${input.planId}' not found`);
+    }
+    return this.repository.createMessMenuItem({
+      id: uuidv4(),
+      tenantId,
+      planId: input.planId,
+      weekday: input.weekday,
+      meal: input.meal,
+      itemName: input.itemName,
+    });
+  }
+
+  async listMessMenu(tenantId: string, planId: string) {
+    return this.repository.listMessMenuItems(tenantId, planId);
+  }
+
+  async subscribeMess(tenantId: string, input: CreateMessSubscriptionInput) {
+    const plan = await this.repository.findMessPlanById(input.planId, tenantId);
+    if (!plan) {
+      throw new NotFoundError(`Mess plan with id '${input.planId}' not found`);
+    }
+    return this.repository.createMessSubscription({
+      id: uuidv4(),
+      tenantId,
+      planId: input.planId,
+      studentId: input.studentId,
+      startDate: input.startDate,
+      endDate: input.endDate ?? null,
+      status: 'active',
+    });
+  }
+
+  async listMessSubscriptions(tenantId: string, planId?: string) {
+    return this.repository.listMessSubscriptions(tenantId, planId);
+  }
+
+  async requestGatePass(tenantId: string, input: CreateGatePassInput) {
+    const hostel = await this.repository.findHostelById(input.hostelId, tenantId);
+    if (!hostel) {
+      throw new NotFoundError(`Hostel with id '${input.hostelId}' not found`);
+    }
+    const expectedOutAt = new Date(input.expectedOutAt);
+    const expectedInAt = new Date(input.expectedInAt);
+    if (Number.isNaN(expectedOutAt.getTime()) || Number.isNaN(expectedInAt.getTime())) {
+      throw new BusinessRuleError('expectedOutAt and expectedInAt must be valid timestamps');
+    }
+    if (expectedInAt.getTime() < expectedOutAt.getTime()) {
+      throw new BusinessRuleError('expectedInAt must be on or after expectedOutAt');
+    }
+    return this.repository.createGatePass({
+      id: uuidv4(),
+      tenantId,
+      hostelId: input.hostelId,
+      studentId: input.studentId,
+      requestedBy: input.requestedBy ?? 'resident',
+      requesterUserId: input.requesterUserId ?? null,
+      reason: input.reason ?? null,
+      expectedOutAt,
+      expectedInAt,
+      status: 'pending',
+      decidedBy: null,
+      outAt: null,
+      inAt: null,
+    });
+  }
+
+  async listGatePasses(tenantId: string, hostelId?: string, now: Date = new Date()) {
+    const rows = await this.repository.listGatePasses(tenantId, hostelId);
+    return rows.map((row) => ({
+      ...row,
+      overdueReturn: isOverdueReturn(row.status, row.expectedInAt, now),
+    }));
+  }
+
+  async transitionGatePass(
+    tenantId: string,
+    id: string,
+    next: GatePassStatus,
+    actorId?: string,
+  ) {
+    const pass = await this.repository.findGatePassById(id, tenantId);
+    if (!pass) {
+      throw new NotFoundError(`Gate pass with id '${id}' not found`);
+    }
+    if (!canTransitionGatePass(pass.status, next)) {
+      throw new ConflictError(`Cannot transition gate pass from ${pass.status} to ${next}`);
+    }
+    const patch: Partial<
+      Pick<typeof pass, 'status' | 'decidedBy' | 'outAt' | 'inAt'>
+    > = { status: next };
+    if (next === 'approved' || next === 'rejected') {
+      patch.decidedBy = actorId ?? null;
+    }
+    if (next === 'out') {
+      patch.outAt = new Date();
+    }
+    if (next === 'in') {
+      patch.inAt = new Date();
+    }
+    const updated = await this.repository.updateGatePass(id, tenantId, patch);
+    return {
+      ...updated!,
+      overdueReturn: isOverdueReturn(
+        updated!.status,
+        updated!.expectedInAt,
+        updated!.inAt ?? new Date(),
+      ),
+    };
+  }
+
+  async createFeeStructure(tenantId: string, input: CreateFeeStructureInput) {
+    const hostel = await this.repository.findHostelById(input.hostelId, tenantId);
+    if (!hostel) {
+      throw new NotFoundError(`Hostel with id '${input.hostelId}' not found`);
+    }
+    return this.repository.createFeeStructure({
+      id: uuidv4(),
+      tenantId,
+      hostelId: input.hostelId,
+      roomType: input.roomType,
+      termLabel: input.termLabel,
+      amountCents: input.amountCents,
+      currency: input.currency ?? 'INR',
+    });
+  }
+
+  async listFeeStructures(tenantId: string, hostelId?: string) {
+    return this.repository.listFeeStructures(tenantId, hostelId);
+  }
+
+  async summarizeFeeStructures(tenantId: string, hostelId?: string) {
+    const structures = await this.repository.listFeeStructures(tenantId, hostelId);
+    return {
+      hostelId: hostelId ?? null,
+      count: structures.length,
+      totalAmountCents: structures.reduce((sum, row) => sum + row.amountCents, 0),
+      currency: structures[0]?.currency ?? 'INR',
+      structures,
+    };
+  }
+
+  async upsertAttendance(tenantId: string, input: CreateAttendanceInput) {
+    const blocks = await this.repository.listBlocks(tenantId);
+    const block = blocks.find((b) => b.id === input.blockId);
+    if (!block) {
+      throw new NotFoundError(`Block with id '${input.blockId}' not found`);
+    }
+    return this.repository.upsertAttendance({
+      id: uuidv4(),
+      tenantId,
+      blockId: input.blockId,
+      studentId: input.studentId,
+      onDate: input.onDate,
+      status: input.status as HostelAttendanceStatus,
+      reason: input.reason ?? null,
+    });
+  }
+
+  async listAttendance(tenantId: string, blockId: string, onDate: string) {
+    return this.repository.listAttendance(tenantId, blockId, onDate);
   }
 }

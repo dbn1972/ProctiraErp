@@ -283,7 +283,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/hostel'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (008_hostel_schema.sql) when DATABASE_URL set.',
+    notes: 'Raw pg (008 + 040_hostel_ops_schema.sql) when DATABASE_URL; allocation invoices → fees ledger (G-921).',
     registrarName: 'hostel',
   },
   {
@@ -292,7 +292,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/library'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (009) when DATABASE_URL; fines → fees ledger via shared FeesService (G-603).',
+    notes: 'Raw pg (009 + 039_library_ops_schema.sql) when DATABASE_URL; fines → fees ledger via shared FeesService (G-603/G-916).',
     registrarName: 'library',
   },
   {

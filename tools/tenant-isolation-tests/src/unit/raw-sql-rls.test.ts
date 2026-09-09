@@ -737,3 +737,63 @@ describe('Wave 9 reports raw-SQL RLS (037_reports_schema.sql)', () => {
     }
   });
 });
+const LIBRARY_OPS_039_TABLES = [
+  'library_copies',
+  'library_holds',
+  'library_fine_policies',
+  'library_fines',
+] as const;
+
+describe('Wave 9 library ops raw-SQL RLS (039_library_ops_schema.sql)', () => {
+  const sql = loadSql('039_library_ops_schema.sql');
+
+  it('adds barcode/accession columns and forces RLS on copies, holds, and fines', () => {
+    expect(sql).toMatch(/ALTER TABLE library_items\s+ADD COLUMN IF NOT EXISTS barcode TEXT/);
+    expect(sql).toMatch(/ALTER TABLE library_items\s+ADD COLUMN IF NOT EXISTS accession_no TEXT/);
+    expect(sql).toMatch(/ALTER TABLE library_loans\s+ADD COLUMN IF NOT EXISTS copy_id UUID/);
+    for (const table of LIBRARY_OPS_039_TABLES) {
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(
+        new RegExp(
+          `CREATE POLICY tenant_isolation ON ${table}[\\s\\S]*?USING \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)[\\s\\S]*?WITH CHECK \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)`,
+        ),
+      );
+    }
+  });
+});
+
+const HOSTEL_OPS_040_TABLES = [
+  'mess_plans',
+  'mess_menu_items',
+  'mess_subscriptions',
+  'gate_passes',
+  'hostel_fee_structures',
+  'hostel_attendance',
+] as const;
+
+describe('Wave 9 hostel ops raw-SQL RLS (040_hostel_ops_schema.sql)', () => {
+  const sql = loadSql('040_hostel_ops_schema.sql');
+
+  it('creates mess/gate/fee/attendance tables with tenant_id and forces RLS on each', () => {
+    for (const table of HOSTEL_OPS_040_TABLES) {
+      const ddl = sql.match(
+        new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(([\\s\\S]*?)\\n\\);`),
+      );
+      expect(ddl, `missing CREATE TABLE for ${table}`).not.toBeNull();
+      expect(ddl?.[1]).toMatch(/tenant_id UUID NOT NULL/);
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(new RegExp(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY`));
+      expect(sql).toMatch(
+        new RegExp(
+          `CREATE POLICY tenant_isolation ON ${table}[\\s\\S]*?USING \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)[\\s\\S]*?WITH CHECK \\(tenant_id::text = NULLIF\\(current_setting\\('app\\.tenant_id', true\\), ''\\)\\)`,
+        ),
+      );
+    }
+  });
+});

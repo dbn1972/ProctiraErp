@@ -85,6 +85,96 @@ export interface HostelBedEntity {
   updatedAt: Date;
 }
 
+export type MessMeal = 'breakfast' | 'lunch' | 'dinner' | 'snacks';
+export type MessPlanStatus = 'active' | 'inactive';
+export type MessSubscriptionStatus = 'active' | 'paused' | 'cancelled';
+export type GatePassStatus = 'pending' | 'approved' | 'rejected' | 'out' | 'in';
+export type GatePassRequestedBy = 'resident' | 'parent';
+export type HostelAttendanceStatus = 'present' | 'absent' | 'leave';
+
+export interface MessPlanEntity {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  name: string;
+  mealCount: number;
+  status: MessPlanStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MessMenuItemEntity {
+  id: string;
+  tenantId: string;
+  planId: string;
+  weekday: number;
+  meal: MessMeal;
+  itemName: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MessSubscriptionEntity {
+  id: string;
+  tenantId: string;
+  planId: string;
+  studentId: string;
+  startDate: string;
+  endDate: string | null;
+  status: MessSubscriptionStatus;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GatePassEntity {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  studentId: string;
+  requestedBy: GatePassRequestedBy;
+  requesterUserId: string | null;
+  reason: string | null;
+  expectedOutAt: Date;
+  expectedInAt: Date;
+  status: GatePassStatus;
+  decidedBy: string | null;
+  outAt: Date | null;
+  inAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface HostelFeeStructureEntity {
+  id: string;
+  tenantId: string;
+  hostelId: string;
+  roomType: string;
+  termLabel: string;
+  amountCents: number;
+  currency: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface HostelAttendanceEntity {
+  id: string;
+  tenantId: string;
+  blockId: string;
+  studentId: string;
+  onDate: string;
+  status: HostelAttendanceStatus;
+  reason: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export type NewMessPlan = Omit<MessPlanEntity, 'createdAt' | 'updatedAt'>;
+export type NewMessMenuItem = Omit<MessMenuItemEntity, 'createdAt' | 'updatedAt'>;
+export type NewMessSubscription = Omit<MessSubscriptionEntity, 'createdAt' | 'updatedAt'>;
+export type NewGatePass = Omit<GatePassEntity, 'createdAt' | 'updatedAt'>;
+export type NewHostelFeeStructure = Omit<HostelFeeStructureEntity, 'createdAt' | 'updatedAt'>;
+export type NewHostelAttendance = Omit<HostelAttendanceEntity, 'createdAt' | 'updatedAt'>;
+
 export interface HostelRepository {
   createHostel(data: Omit<HostelEntity, 'createdAt' | 'updatedAt'>): Promise<HostelEntity>;
   listHostels(tenantId: string): Promise<HostelEntity[]>;
@@ -129,4 +219,33 @@ export interface HostelRepository {
     tenantId: string,
     data: Partial<Pick<HostelBedEntity, 'isAvailable'>>,
   ): Promise<HostelBedEntity | null>;
+
+  createMessPlan(data: NewMessPlan): Promise<MessPlanEntity>;
+  listMessPlans(tenantId: string, hostelId?: string): Promise<MessPlanEntity[]>;
+  findMessPlanById(id: string, tenantId: string): Promise<MessPlanEntity | null>;
+  createMessMenuItem(data: NewMessMenuItem): Promise<MessMenuItemEntity>;
+  listMessMenuItems(tenantId: string, planId: string): Promise<MessMenuItemEntity[]>;
+  createMessSubscription(data: NewMessSubscription): Promise<MessSubscriptionEntity>;
+  listMessSubscriptions(tenantId: string, planId?: string): Promise<MessSubscriptionEntity[]>;
+
+  createGatePass(data: NewGatePass): Promise<GatePassEntity>;
+  listGatePasses(tenantId: string, hostelId?: string): Promise<GatePassEntity[]>;
+  findGatePassById(id: string, tenantId: string): Promise<GatePassEntity | null>;
+  updateGatePass(
+    id: string,
+    tenantId: string,
+    data: Partial<
+      Pick<GatePassEntity, 'status' | 'decidedBy' | 'outAt' | 'inAt'>
+    >,
+  ): Promise<GatePassEntity | null>;
+
+  createFeeStructure(data: NewHostelFeeStructure): Promise<HostelFeeStructureEntity>;
+  listFeeStructures(tenantId: string, hostelId?: string): Promise<HostelFeeStructureEntity[]>;
+
+  upsertAttendance(data: NewHostelAttendance): Promise<HostelAttendanceEntity>;
+  listAttendance(
+    tenantId: string,
+    blockId: string,
+    onDate: string,
+  ): Promise<HostelAttendanceEntity[]>;
 }

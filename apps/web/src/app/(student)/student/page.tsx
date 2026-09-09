@@ -7,6 +7,7 @@ import {
   ClipboardList,
   Clock,
   GraduationCap,
+  Library,
 } from 'lucide-react';
 
 import {
@@ -31,6 +32,7 @@ const LINKS = [
   { href: '/student/grades', label: 'Grades', Icon: GraduationCap, hint: 'Published marks' },
   { href: '/student/timetable', label: 'Timetable', Icon: Clock, hint: 'Class meetings' },
   { href: '/student/homework', label: 'Homework', Icon: BookOpen, hint: 'Work that is due' },
+  { href: '/student/library', label: 'Library', Icon: Library, hint: 'Catalogue, loans, holds' },
   { href: '/student/calendar', label: 'Calendar', Icon: CalendarDays, hint: 'Holidays and events' },
   { href: '/student/notices', label: 'Notices', Icon: Bell, hint: 'School announcements' },
   {

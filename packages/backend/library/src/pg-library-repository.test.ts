@@ -25,6 +25,10 @@ describe('PgLibraryRepository', () => {
       author: 'Tester',
       copies: 2,
       available: 2,
+      barcode: null,
+      accessionNo: null,
+      publisher: null,
+      publishedYear: null,
     });
 
     await repo.updateItem(itemId, tenantId, { available: 1 });
@@ -32,6 +36,8 @@ describe('PgLibraryRepository', () => {
       id: loanId,
       tenantId,
       itemId,
+      copyId: null,
+      barcode: null,
       patronUserId: null,
       studentId: randomUUID(),
       checkoutAt: new Date(),

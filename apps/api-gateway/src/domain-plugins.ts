@@ -512,10 +512,31 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'hostel',
     proxyPrefixes: ['/hostel'],
     register: async (scope) => {
-      // Pg when DATABASE_URL (db/sql/008_hostel_schema.sql); else in-memory.
+      // Pg when DATABASE_URL (db/sql/008 + 040_hostel_ops_schema.sql); else in-memory.
+      // G-921: allocation invoices post to fees ledger via shared FeesService.
       const repository = createHostelRepository();
+      const feesService = new FeesService(createFeesRepository());
       await scope.register(hostelPlugin, {
         repository,
+        feesLedger: {
+          postAllocationInvoice: async (tenantId, actorId, input) => {
+            const invoice = await feesService.createInvoice(tenantId, actorId, {
+              studentId: input.studentId,
+              title: input.title,
+              description: input.description,
+              amountCents: input.amountCents,
+              currency: input.currency,
+            });
+            return {
+              id: invoice.id,
+              studentId: invoice.studentId,
+              title: invoice.title,
+              amountCents: invoice.amountCents,
+              currency: invoice.currency,
+              status: invoice.status,
+            };
+          },
+        },
         prefix: '/hostel',
       });
     },
@@ -547,7 +568,7 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     name: 'library',
     proxyPrefixes: ['/library'],
     register: async (scope) => {
-      // Pg when DATABASE_URL (db/sql/009_library_schema.sql); else in-memory.
+      // Pg when DATABASE_URL (db/sql/009 + 039_library_ops_schema.sql); else in-memory.
       // G-603: fines post to fees ledger via shared createFeesRepository().
       const repository = createLibraryRepository();
       const feesService = new FeesService(createFeesRepository());
