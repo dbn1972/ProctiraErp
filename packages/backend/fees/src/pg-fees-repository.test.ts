@@ -59,6 +59,10 @@ function createMockFeesPool(): PgPoolLike {
         status: values[8],
         due_at: values[9],
         created_by: values[10],
+        invoice_number: values[11] ?? null,
+        structure_id: values[12] ?? null,
+        class_id: values[13] ?? null,
+        grade_id: values[14] ?? null,
         created_at: now(),
         updated_at: now(),
       };
@@ -100,11 +104,17 @@ function createMockFeesPool(): PgPoolLike {
 
     if (/UPDATE parent_fee_invoices/i.test(sql)) {
       const status = values[0];
-      const id = values[1];
-      const tenantId = values[2];
+      const amountCents = values[1];
+      const id = values[2];
+      const tenantId = values[3];
       const idx = invoices.findIndex((row) => row.id === id && row.tenant_id === tenantId);
       if (idx < 0) return { rows: [] };
-      invoices[idx] = { ...invoices[idx]!, status, updated_at: now() };
+      invoices[idx] = {
+        ...invoices[idx]!,
+        status: status ?? invoices[idx]!.status,
+        amount_cents: amountCents ?? invoices[idx]!.amount_cents,
+        updated_at: now(),
+      };
       return { rows: [invoices[idx]!] };
     }
 

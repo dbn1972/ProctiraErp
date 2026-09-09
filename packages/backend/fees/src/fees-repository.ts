@@ -38,6 +38,10 @@ export interface FeeInvoiceEntity {
   createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  invoiceNumber: string | null;
+  structureId: string | null;
+  classId: string | null;
+  gradeId: string | null;
 }
 
 export interface FeePaymentEntity {
@@ -120,6 +124,100 @@ export function assertJournalBalanced(
   }
 }
 
+export type FeeStructureStatus = 'active' | 'archived';
+export type ConcessionKind = 'percent' | 'amount';
+export type ConcessionStatus = 'pending' | 'approved' | 'rejected';
+export type RefundStatus = 'pending' | 'posted' | 'rejected';
+
+export interface FeeStructureEntity {
+  id: string;
+  tenantId: string;
+  institutionId: string | null;
+  academicPeriodId: string | null;
+  gradeId: string | null;
+  classId: string | null;
+  category: string;
+  term: string | null;
+  code: string;
+  name: string;
+  amountCents: number;
+  currency: string;
+  status: FeeStructureStatus;
+  createdBy: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface FeeStructureComponentEntity {
+  id: string;
+  tenantId: string;
+  structureId: string;
+  name: string;
+  amountCents: number;
+  createdAt: Date;
+}
+
+export interface FeeStructureInstalmentEntity {
+  id: string;
+  tenantId: string;
+  structureId: string;
+  sequence: number;
+  amountCents: number;
+  dueOffsetDays: number;
+  label: string;
+  createdAt: Date;
+}
+
+export interface FeeConcessionEntity {
+  id: string;
+  tenantId: string;
+  studentId: string;
+  structureId: string;
+  invoiceId: string | null;
+  kind: ConcessionKind;
+  percent: number | null;
+  amountCents: number | null;
+  reason: string;
+  approverId: string | null;
+  status: ConcessionStatus;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+export interface FeeRefundEntity {
+  id: string;
+  tenantId: string;
+  invoiceId: string;
+  paymentId: string | null;
+  amountCents: number;
+  reason: string;
+  status: RefundStatus;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+export interface FeeReconciliationBatchEntity {
+  id: string;
+  tenantId: string;
+  filename: string;
+  matchedCount: number;
+  unmatchedCount: number;
+  createdBy: string | null;
+  createdAt: Date;
+}
+
+export interface FeeReconciliationRowEntity {
+  id: string;
+  tenantId: string;
+  batchId: string;
+  invoiceNumber: string;
+  amountCents: number;
+  matched: boolean;
+  invoiceId: string | null;
+  note: string | null;
+  createdAt: Date;
+}
+
 export interface FeesRepository {
   /**
    * Post one or more balanced journals atomically. Implementations MUST
@@ -138,12 +236,76 @@ export interface FeesRepository {
 
   createInvoice(data: Omit<FeeInvoiceEntity, 'createdAt' | 'updatedAt'>): Promise<FeeInvoiceEntity>;
   listInvoicesForTenant(tenantId: string): Promise<FeeInvoiceEntity[]>;
+  listInvoicesForStudentIds(tenantId: string, studentIds: string[]): Promise<FeeInvoiceEntity[]>;
   findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null>;
+  findInvoiceByNumber(tenantId: string, invoiceNumber: string): Promise<FeeInvoiceEntity | null>;
+  findInvoiceForStructureStudent(
+    tenantId: string,
+    structureId: string,
+    studentId: string,
+  ): Promise<FeeInvoiceEntity | null>;
   updateInvoice(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeInvoiceEntity, 'status'>>,
+    data: Partial<Pick<FeeInvoiceEntity, 'status' | 'amountCents'>>,
   ): Promise<FeeInvoiceEntity | null>;
+  listStudentIdsForScope(
+    tenantId: string,
+    scope: { classId?: string | null; gradeId?: string | null },
+  ): Promise<string[]>;
+
+  createFeeStructure(
+    data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<FeeStructureEntity>;
+  listFeeStructures(tenantId: string): Promise<FeeStructureEntity[]>;
+  findFeeStructureById(id: string, tenantId: string): Promise<FeeStructureEntity | null>;
+  replaceStructureInstalments(
+    tenantId: string,
+    structureId: string,
+    rows: Omit<FeeStructureInstalmentEntity, 'createdAt'>[],
+  ): Promise<FeeStructureInstalmentEntity[]>;
+  listStructureInstalments(
+    tenantId: string,
+    structureId: string,
+  ): Promise<FeeStructureInstalmentEntity[]>;
+  replaceStructureComponents(
+    tenantId: string,
+    structureId: string,
+    rows: Omit<FeeStructureComponentEntity, 'createdAt'>[],
+  ): Promise<FeeStructureComponentEntity[]>;
+  listStructureComponents(
+    tenantId: string,
+    structureId: string,
+  ): Promise<FeeStructureComponentEntity[]>;
+
+  createConcession(data: Omit<FeeConcessionEntity, 'createdAt'>): Promise<FeeConcessionEntity>;
+  findConcessionForStudentStructure(
+    tenantId: string,
+    studentId: string,
+    structureId: string,
+  ): Promise<FeeConcessionEntity | null>;
+  listConcessions(tenantId: string): Promise<FeeConcessionEntity[]>;
+  updateConcession(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status'>>,
+  ): Promise<FeeConcessionEntity | null>;
+
+  createRefund(data: Omit<FeeRefundEntity, 'createdAt'>): Promise<FeeRefundEntity>;
+  listRefundsForInvoice(tenantId: string, invoiceId: string): Promise<FeeRefundEntity[]>;
+  listRefundsForTenant(tenantId: string): Promise<FeeRefundEntity[]>;
+
+  createReconciliationBatch(
+    data: Omit<FeeReconciliationBatchEntity, 'createdAt'>,
+  ): Promise<FeeReconciliationBatchEntity>;
+  createReconciliationRows(
+    rows: Omit<FeeReconciliationRowEntity, 'createdAt'>[],
+  ): Promise<FeeReconciliationRowEntity[]>;
+  listReconciliationBatches(tenantId: string): Promise<FeeReconciliationBatchEntity[]>;
+  listReconciliationRows(
+    tenantId: string,
+    batchId: string,
+  ): Promise<FeeReconciliationRowEntity[]>;
 
   createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity>;
   listPaymentsForTenant(tenantId: string): Promise<FeePaymentEntity[]>;

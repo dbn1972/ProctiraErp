@@ -10,9 +10,14 @@ import fp from 'fastify-plugin';
 import type { FeesRepository } from './fees-repository.js';
 import {
   FeesService,
+  type ApplyConcessionInput,
+  type BulkInvoiceInput,
   type CreateFeePlanInput,
+  type CreateFeeStructureInput,
   type CreateInvoiceInput,
+  type GenerateInstalmentScheduleInput,
   type RecordPaymentInput,
+  type RecordRefundInput,
 } from './fees-service.js';
 import type { PaymentAdapter } from './payment-adapter.js';
 
@@ -76,12 +81,68 @@ const PayInvoiceSchema = Type.Object({
   amountCents: Type.Optional(Type.Number({ minimum: 0 })),
 });
 
+const CreateFeeStructureSchema = Type.Object({
+  code: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+  name: Type.String({ minLength: 1, maxLength: 500 }),
+  category: Type.String({ minLength: 1, maxLength: 120 }),
+  term: Type.Optional(Type.String({ maxLength: 64 })),
+  amountCents: Type.Number({ minimum: 0 }),
+  currency: Type.Optional(Type.String({ minLength: 3, maxLength: 3 })),
+  institutionId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  academicPeriodId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+});
+
+const GenerateInstalmentsSchema = Type.Object({
+  partCount: Type.Optional(Type.Integer({ minimum: 1, maximum: 24 })),
+  shares: Type.Optional(Type.Array(Type.Number({ minimum: 0 }), { minItems: 1 })),
+  dueOffsetDays: Type.Optional(Type.Array(Type.Integer())),
+  labels: Type.Optional(Type.Array(Type.String({ maxLength: 120 }))),
+});
+
+const BulkInvoiceSchema = Type.Object({
+  structureId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  classId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  gradeId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  studentIds: Type.Optional(Type.Array(Type.String({ pattern: UUID_PATTERN }), { minItems: 1 })),
+  dueAt: Type.Optional(Type.String()),
+});
+
+const ApplyConcessionSchema = Type.Object({
+  studentId: Type.String({ pattern: UUID_PATTERN }),
+  structureId: Type.String({ pattern: UUID_PATTERN }),
+  invoiceId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  kind: Type.Union([Type.Literal('percent'), Type.Literal('amount')]),
+  percent: Type.Optional(Type.Number({ minimum: 0, maximum: 100 })),
+  amountCents: Type.Optional(Type.Number({ minimum: 0 })),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+  approverId: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+});
+
+const RecordRefundSchema = Type.Object({
+  paymentId: Type.Optional(Type.String({ pattern: UUID_PATTERN })),
+  amountCents: Type.Number({ minimum: 1 }),
+  reason: Type.String({ minLength: 1, maxLength: 2000 }),
+});
+
+const ReconciliationImportSchema = Type.Object({
+  csv: Type.String({ minLength: 1 }),
+  filename: Type.Optional(Type.String({ maxLength: 255 })),
+});
+
 type IdParams = Static<typeof IdParamsSchema>;
+
+export interface ParentFeeBinding {
+  listLinkedStudentIds(tenantId: string, parentUserId: string): Promise<string[]>;
+  isLinked(tenantId: string, parentUserId: string, studentId: string): Promise<boolean>;
+}
 
 export interface FeesPluginOptions {
   repository: FeesRepository;
   paymentAdapter?: PaymentAdapter;
   prefix?: string;
+  parentBinding?: ParentFeeBinding;
 }
 
 declare module 'fastify' {
@@ -152,6 +213,10 @@ function formatInvoice(entity: {
   createdBy: string | null;
   createdAt: Date;
   updatedAt: Date;
+  invoiceNumber?: string | null;
+  structureId?: string | null;
+  classId?: string | null;
+  gradeId?: string | null;
 }) {
   return {
     id: entity.id,
@@ -167,6 +232,10 @@ function formatInvoice(entity: {
     createdBy: entity.createdBy,
     createdAt: entity.createdAt.toISOString(),
     updatedAt: entity.updatedAt.toISOString(),
+    invoiceNumber: entity.invoiceNumber ?? null,
+    structureId: entity.structureId ?? null,
+    classId: entity.classId ?? null,
+    gradeId: entity.gradeId ?? null,
   };
 }
 
@@ -220,7 +289,7 @@ function formatReceipt(entity: {
 
 export const feesPlugin = fp(
   async function feesPluginImpl(fastify: FastifyInstance, options: FeesPluginOptions) {
-    const { repository, paymentAdapter, prefix = '/fees' } = options;
+    const { repository, paymentAdapter, prefix = '/fees', parentBinding } = options;
     const feesService = new FeesService(repository, paymentAdapter);
     fastify.decorate('feesService', feesService);
 
@@ -268,6 +337,16 @@ export const feesPlugin = fp(
           ? (request.query as { institutionId?: string }).institutionId
           : undefined;
       let invoices = await feesService.listInvoices(tenantId);
+      const scope = String(
+        (request.query as { scope?: string; institutionId?: string }).scope ?? '',
+      ).toLowerCase();
+      if (scope === 'parent') {
+        if (!parentBinding) {
+          return reply.status(200).send({ data: [] });
+        }
+        const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
+        invoices = await feesService.listInvoicesForStudentIds(tenantId, studentIds);
+      }
       if (institutionId) {
         invoices = invoices.filter((inv) => {
           const id = (inv as { institutionId?: string | null }).institutionId;
@@ -427,6 +506,16 @@ export const feesPlugin = fp(
     fastify.get(`${prefix}/receipts`, async function listReceipts(request, reply) {
       const tenantId = getTenantId(request);
       if (!tenantId) return tenantRequired(reply);
+      const scope = String((request.query as { scope?: string }).scope ?? '').toLowerCase();
+      if (scope === 'parent' && parentBinding) {
+        const studentIds = await parentBinding.listLinkedStudentIds(tenantId, getActorId(request));
+        const invoices = await feesService.listInvoicesForStudentIds(tenantId, studentIds);
+        const receipts = await feesService.listReceiptsForInvoiceIds(
+          tenantId,
+          invoices.map((invoice) => invoice.id),
+        );
+        return reply.status(200).send({ data: receipts.map(formatReceipt) });
+      }
       const receipts = await feesService.listReceipts(tenantId);
       return reply.status(200).send({ data: receipts.map(formatReceipt) });
     });
@@ -504,6 +593,343 @@ export const feesPlugin = fp(
         ...balance,
         balanced: balance.debitCents === balance.creditCents,
       });
+    });
+
+    fastify.get(`${prefix}/structures`, async function listStructures(request, reply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      const structures = await feesService.listFeeStructures(tenantId);
+      return reply.status(200).send({
+        data: structures.map((row) => ({
+          ...row,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        })),
+      });
+    });
+
+    fastify.post(
+      `${prefix}/structures`,
+      async function createStructure(
+        request: FastifyRequest<{ Body: CreateFeeStructureInput }>,
+        reply: FastifyReply,
+      ) {
+        const result = validate(CreateFeeStructureSchema, request.body);
+        if (!result.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: result.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const structure = await feesService.createFeeStructure(
+            tenantId,
+            getActorId(request),
+            result.data,
+          );
+          return reply.status(201).send({
+            ...structure,
+            createdAt: structure.createdAt.toISOString(),
+            updatedAt: structure.updatedAt.toISOString(),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/structures/:id/instalments`,
+      async function generateInstalments(
+        request: FastifyRequest<{ Params: IdParams; Body: GenerateInstalmentScheduleInput }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid structure ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(GenerateInstalmentsSchema, request.body ?? {});
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const instalments = await feesService.generateInstalmentSchedule(
+            tenantId,
+            paramsResult.data.id,
+            bodyResult.data,
+          );
+          return reply.status(201).send({
+            data: instalments.map((row) => ({
+              ...row,
+              createdAt: row.createdAt.toISOString(),
+            })),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.get(
+      `${prefix}/structures/:id/instalments`,
+      async function listInstalments(
+        request: FastifyRequest<{ Params: IdParams }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid structure ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const instalments = await feesService.listInstalments(tenantId, paramsResult.data.id);
+          return reply.status(200).send({
+            data: instalments.map((row) => ({
+              ...row,
+              createdAt: row.createdAt.toISOString(),
+            })),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/structures/:id/bulk-invoice`,
+      async function bulkInvoice(
+        request: FastifyRequest<{ Params: IdParams; Body: BulkInvoiceInput }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid structure ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(BulkInvoiceSchema, request.body ?? {});
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const result = await feesService.bulkInvoiceClass(tenantId, getActorId(request), {
+            ...bodyResult.data,
+            structureId: paramsResult.data.id,
+          });
+          return reply.status(201).send({
+            created: result.created.map(formatInvoice),
+            skipped: result.skipped,
+            structureId: result.structureId,
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/concessions`,
+      async function applyConcession(
+        request: FastifyRequest<{ Body: ApplyConcessionInput }>,
+        reply: FastifyReply,
+      ) {
+        const result = validate(ApplyConcessionSchema, request.body);
+        if (!result.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: result.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const applied = await feesService.applyConcession(
+            tenantId,
+            getActorId(request),
+            result.data,
+          );
+          return reply.status(201).send({
+            concession: {
+              ...applied.concession,
+              createdAt: applied.concession.createdAt.toISOString(),
+            },
+            invoice: applied.invoice ? formatInvoice(applied.invoice) : null,
+            discountCents: applied.discountCents,
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.post(
+      `${prefix}/invoices/:id/refund`,
+      async function refundInvoice(
+        request: FastifyRequest<{ Params: IdParams; Body: RecordRefundInput }>,
+        reply: FastifyReply,
+      ) {
+        const paramsResult = validate(IdParamsSchema, request.params);
+        if (!paramsResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid invoice ID',
+            statusCode: 400,
+            errors: paramsResult.errors,
+          });
+        }
+        const bodyResult = validate(RecordRefundSchema, request.body);
+        if (!bodyResult.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: bodyResult.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const refund = await feesService.recordRefund(tenantId, getActorId(request), {
+            invoiceId: paramsResult.data.id,
+            ...bodyResult.data,
+          });
+          return reply.status(201).send({
+            ...refund,
+            createdAt: refund.createdAt.toISOString(),
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    fastify.get(`${prefix}/reports/dues`, async function duesReport(request, reply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      const asOfRaw = (request.query as { asOf?: string }).asOf;
+      const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
+      const report = await feesService.duesReport(tenantId, asOf);
+      const format = String((request.query as { format?: string }).format ?? 'json').toLowerCase();
+      if (format === 'csv') {
+        const header = 'classId,openCount,overdueCount,openCents,overdueCents';
+        const lines = report.byClass.map(
+          (row) =>
+            `${row.classId},${row.openCount},${row.overdueCount},${row.openCents},${row.overdueCents}`,
+        );
+        return reply
+          .status(200)
+          .header('content-type', 'text/csv; charset=utf-8')
+          .header('content-disposition', 'attachment; filename="fees-dues-report.csv"')
+          .send([header, ...lines].join('\n'));
+      }
+      return reply.status(200).send(report);
+    });
+
+    fastify.post(
+      `${prefix}/reconciliation/import`,
+      async function importReconciliation(
+        request: FastifyRequest<{ Body: { csv: string; filename?: string } }>,
+        reply: FastifyReply,
+      ) {
+        const result = validate(ReconciliationImportSchema, request.body);
+        if (!result.success) {
+          return reply.status(400).send({
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            statusCode: 400,
+            errors: result.errors,
+          });
+        }
+        const tenantId = getTenantId(request);
+        if (!tenantId) return tenantRequired(reply);
+        try {
+          const imported = await feesService.importReconciliationCsv(
+            tenantId,
+            getActorId(request),
+            result.data.csv,
+            result.data.filename,
+          );
+          return reply.status(201).send({
+            batch: {
+              ...imported.batch,
+              createdAt: imported.batch.createdAt.toISOString(),
+            },
+            matched: imported.matched,
+            unmatched: imported.unmatched,
+          });
+        } catch (error: unknown) {
+          if (error instanceof AppError) {
+            return reply.status(error.statusCode).send(error.toJSON());
+          }
+          throw error;
+        }
+      },
+    );
+
+    /**
+     * Dues reminder feed for the notification scheduler (G-903).
+     * `@proctira/backend-notification` has no fee-rule hook; poll
+     * GET /fees/reminders/overdue?asOf=ISO and emit from the scheduler.
+     */
+    fastify.get(`${prefix}/reminders/overdue`, async function overdueReminders(request, reply) {
+      const tenantId = getTenantId(request);
+      if (!tenantId) return tenantRequired(reply);
+      const asOfRaw = (request.query as { asOf?: string }).asOf;
+      const asOf = asOfRaw ? new Date(asOfRaw) : new Date();
+      const data = await feesService.listOverdueForReminder(tenantId, asOf);
+      return reply.status(200).send({ data, asOf: asOf.toISOString() });
     });
   },
   {

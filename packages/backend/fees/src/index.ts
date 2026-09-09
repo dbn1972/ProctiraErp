@@ -6,10 +6,19 @@
  */
 
 export { feesPlugin } from './fees-plugin.js';
-export type { FeesPluginOptions } from './fees-plugin.js';
+export type { FeesPluginOptions, ParentFeeBinding } from './fees-plugin.js';
 
-export { FeesService } from './fees-service.js';
-export type { CreateFeePlanInput, CreateInvoiceInput, RecordPaymentInput } from './fees-service.js';
+export { FeesService, parseReconciliationCsv } from './fees-service.js';
+export type {
+  CreateFeePlanInput,
+  CreateInvoiceInput,
+  RecordPaymentInput,
+  CreateFeeStructureInput,
+  GenerateInstalmentScheduleInput,
+  BulkInvoiceInput,
+  ApplyConcessionInput,
+  RecordRefundInput,
+} from './fees-service.js';
 
 export type {
   FeePlanEntity,
@@ -26,8 +35,20 @@ export type {
   LedgerAccount,
   LedgerSide,
   LedgerTrialBalance,
+  FeeStructureEntity,
+  FeeStructureInstalmentEntity,
+  FeeConcessionEntity,
+  FeeRefundEntity,
 } from './fees-repository.js';
 export { UnbalancedJournalError, assertJournalBalanced } from './fees-repository.js';
+
+export {
+  allocateInstalments,
+  allocateByShares,
+  concessionDiscountCents,
+  remainingRefundableCents,
+  assertRefundWithinPaid,
+} from './instalment-schedule.js';
 
 export { InMemoryFeesRepository } from './in-memory-repository.js';
 

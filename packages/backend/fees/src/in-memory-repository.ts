@@ -3,11 +3,18 @@
  */
 import {
   assertJournalBalanced,
+  type FeeConcessionEntity,
   type FeeInvoiceEntity,
   type FeeLedgerEntryEntity,
   type FeePaymentEntity,
   type FeePlanEntity,
   type FeeReceiptEntity,
+  type FeeReconciliationBatchEntity,
+  type FeeReconciliationRowEntity,
+  type FeeRefundEntity,
+  type FeeStructureComponentEntity,
+  type FeeStructureEntity,
+  type FeeStructureInstalmentEntity,
   type FeesRepository,
   type LedgerAccount,
   type LedgerTrialBalance,
@@ -19,6 +26,25 @@ export class InMemoryFeesRepository implements FeesRepository {
   private payments: FeePaymentEntity[] = [];
   private receipts: FeeReceiptEntity[] = [];
   private ledger: FeeLedgerEntryEntity[] = [];
+  private structures: FeeStructureEntity[] = [];
+  private components: FeeStructureComponentEntity[] = [];
+  private instalments: FeeStructureInstalmentEntity[] = [];
+  private concessions: FeeConcessionEntity[] = [];
+  private refunds: FeeRefundEntity[] = [];
+  private reconBatches: FeeReconciliationBatchEntity[] = [];
+  private reconRows: FeeReconciliationRowEntity[] = [];
+  private classRoster = new Map<string, string[]>();
+
+  /** Test helper — students billed when bulk-invoicing a class/grade. */
+  seedClassRoster(
+    tenantId: string,
+    scope: { classId?: string | null; gradeId?: string | null },
+    studentIds: string[],
+  ): void {
+    this.classRoster.set(`${tenantId}:${scope.classId ?? ''}:${scope.gradeId ?? ''}`, [
+      ...studentIds,
+    ]);
+  }
 
   // ─── Double-entry ledger (G-718) ──────────────────────────────────────────
 
@@ -80,7 +106,15 @@ export class InMemoryFeesRepository implements FeesRepository {
     data: Omit<FeeInvoiceEntity, 'createdAt' | 'updatedAt'>,
   ): Promise<FeeInvoiceEntity> {
     const now = new Date();
-    const entity: FeeInvoiceEntity = { ...data, createdAt: now, updatedAt: now };
+    const entity: FeeInvoiceEntity = {
+      ...data,
+      invoiceNumber: data.invoiceNumber ?? null,
+      structureId: data.structureId ?? null,
+      classId: data.classId ?? null,
+      gradeId: data.gradeId ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.invoices.push(entity);
     return entity;
   }
@@ -89,16 +123,54 @@ export class InMemoryFeesRepository implements FeesRepository {
     return this.invoices.filter((invoice) => invoice.tenantId === tenantId);
   }
 
+  async listInvoicesForStudentIds(
+    tenantId: string,
+    studentIds: string[],
+  ): Promise<FeeInvoiceEntity[]> {
+    if (studentIds.length === 0) return [];
+    const idSet = new Set(studentIds);
+    return this.invoices.filter(
+      (invoice) => invoice.tenantId === tenantId && idSet.has(invoice.studentId),
+    );
+  }
+
   async findInvoiceById(id: string, tenantId: string): Promise<FeeInvoiceEntity | null> {
     return (
       this.invoices.find((invoice) => invoice.id === id && invoice.tenantId === tenantId) ?? null
     );
   }
 
+  async findInvoiceByNumber(
+    tenantId: string,
+    invoiceNumber: string,
+  ): Promise<FeeInvoiceEntity | null> {
+    return (
+      this.invoices.find(
+        (invoice) => invoice.tenantId === tenantId && invoice.invoiceNumber === invoiceNumber,
+      ) ?? null
+    );
+  }
+
+  async findInvoiceForStructureStudent(
+    tenantId: string,
+    structureId: string,
+    studentId: string,
+  ): Promise<FeeInvoiceEntity | null> {
+    return (
+      this.invoices.find(
+        (invoice) =>
+          invoice.tenantId === tenantId &&
+          invoice.structureId === structureId &&
+          invoice.studentId === studentId &&
+          invoice.status !== 'void',
+      ) ?? null
+    );
+  }
+
   async updateInvoice(
     id: string,
     tenantId: string,
-    data: Partial<Pick<FeeInvoiceEntity, 'status'>>,
+    data: Partial<Pick<FeeInvoiceEntity, 'status' | 'amountCents'>>,
   ): Promise<FeeInvoiceEntity | null> {
     const index = this.invoices.findIndex(
       (invoice) => invoice.id === id && invoice.tenantId === tenantId,
@@ -111,6 +183,158 @@ export class InMemoryFeesRepository implements FeesRepository {
     };
     this.invoices[index] = updated;
     return updated;
+  }
+
+  async listStudentIdsForScope(
+    tenantId: string,
+    scope: { classId?: string | null; gradeId?: string | null },
+  ): Promise<string[]> {
+    return (
+      this.classRoster.get(`${tenantId}:${scope.classId ?? ''}:${scope.gradeId ?? ''}`) ?? []
+    );
+  }
+
+  async createFeeStructure(
+    data: Omit<FeeStructureEntity, 'createdAt' | 'updatedAt'>,
+  ): Promise<FeeStructureEntity> {
+    const now = new Date();
+    const entity: FeeStructureEntity = { ...data, createdAt: now, updatedAt: now };
+    this.structures.push(entity);
+    return entity;
+  }
+
+  async listFeeStructures(tenantId: string): Promise<FeeStructureEntity[]> {
+    return this.structures.filter((row) => row.tenantId === tenantId);
+  }
+
+  async findFeeStructureById(id: string, tenantId: string): Promise<FeeStructureEntity | null> {
+    return this.structures.find((row) => row.id === id && row.tenantId === tenantId) ?? null;
+  }
+
+  async replaceStructureInstalments(
+    tenantId: string,
+    structureId: string,
+    rows: Omit<FeeStructureInstalmentEntity, 'createdAt'>[],
+  ): Promise<FeeStructureInstalmentEntity[]> {
+    this.instalments = this.instalments.filter(
+      (row) => !(row.tenantId === tenantId && row.structureId === structureId),
+    );
+    const now = new Date();
+    const created = rows.map((row) => ({ ...row, createdAt: now }));
+    this.instalments.push(...created);
+    return created.map((row) => ({ ...row }));
+  }
+
+  async listStructureInstalments(
+    tenantId: string,
+    structureId: string,
+  ): Promise<FeeStructureInstalmentEntity[]> {
+    return this.instalments
+      .filter((row) => row.tenantId === tenantId && row.structureId === structureId)
+      .sort((a, b) => a.sequence - b.sequence);
+  }
+
+  async replaceStructureComponents(
+    tenantId: string,
+    structureId: string,
+    rows: Omit<FeeStructureComponentEntity, 'createdAt'>[],
+  ): Promise<FeeStructureComponentEntity[]> {
+    this.components = this.components.filter(
+      (row) => !(row.tenantId === tenantId && row.structureId === structureId),
+    );
+    const now = new Date();
+    const created = rows.map((row) => ({ ...row, createdAt: now }));
+    this.components.push(...created);
+    return created.map((row) => ({ ...row }));
+  }
+
+  async listStructureComponents(
+    tenantId: string,
+    structureId: string,
+  ): Promise<FeeStructureComponentEntity[]> {
+    return this.components.filter(
+      (row) => row.tenantId === tenantId && row.structureId === structureId,
+    );
+  }
+
+  async createConcession(data: Omit<FeeConcessionEntity, 'createdAt'>): Promise<FeeConcessionEntity> {
+    const entity: FeeConcessionEntity = { ...data, createdAt: new Date() };
+    this.concessions.push(entity);
+    return entity;
+  }
+
+  async findConcessionForStudentStructure(
+    tenantId: string,
+    studentId: string,
+    structureId: string,
+  ): Promise<FeeConcessionEntity | null> {
+    return (
+      this.concessions.find(
+        (row) =>
+          row.tenantId === tenantId &&
+          row.studentId === studentId &&
+          row.structureId === structureId &&
+          row.status !== 'rejected',
+      ) ?? null
+    );
+  }
+
+  async listConcessions(tenantId: string): Promise<FeeConcessionEntity[]> {
+    return this.concessions.filter((row) => row.tenantId === tenantId);
+  }
+
+  async updateConcession(
+    id: string,
+    tenantId: string,
+    data: Partial<Pick<FeeConcessionEntity, 'invoiceId' | 'status'>>,
+  ): Promise<FeeConcessionEntity | null> {
+    const index = this.concessions.findIndex((row) => row.id === id && row.tenantId === tenantId);
+    if (index === -1) return null;
+    const updated = { ...this.concessions[index]!, ...data };
+    this.concessions[index] = updated;
+    return updated;
+  }
+
+  async createRefund(data: Omit<FeeRefundEntity, 'createdAt'>): Promise<FeeRefundEntity> {
+    const entity: FeeRefundEntity = { ...data, createdAt: new Date() };
+    this.refunds.push(entity);
+    return entity;
+  }
+
+  async listRefundsForInvoice(tenantId: string, invoiceId: string): Promise<FeeRefundEntity[]> {
+    return this.refunds.filter((row) => row.tenantId === tenantId && row.invoiceId === invoiceId);
+  }
+
+  async listRefundsForTenant(tenantId: string): Promise<FeeRefundEntity[]> {
+    return this.refunds.filter((row) => row.tenantId === tenantId);
+  }
+
+  async createReconciliationBatch(
+    data: Omit<FeeReconciliationBatchEntity, 'createdAt'>,
+  ): Promise<FeeReconciliationBatchEntity> {
+    const entity: FeeReconciliationBatchEntity = { ...data, createdAt: new Date() };
+    this.reconBatches.push(entity);
+    return entity;
+  }
+
+  async createReconciliationRows(
+    rows: Omit<FeeReconciliationRowEntity, 'createdAt'>[],
+  ): Promise<FeeReconciliationRowEntity[]> {
+    const now = new Date();
+    const created = rows.map((row) => ({ ...row, createdAt: now }));
+    this.reconRows.push(...created);
+    return created.map((row) => ({ ...row }));
+  }
+
+  async listReconciliationBatches(tenantId: string): Promise<FeeReconciliationBatchEntity[]> {
+    return this.reconBatches.filter((row) => row.tenantId === tenantId);
+  }
+
+  async listReconciliationRows(
+    tenantId: string,
+    batchId: string,
+  ): Promise<FeeReconciliationRowEntity[]> {
+    return this.reconRows.filter((row) => row.tenantId === tenantId && row.batchId === batchId);
   }
 
   async createPayment(data: Omit<FeePaymentEntity, 'createdAt'>): Promise<FeePaymentEntity> {
