@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { InMemoryReportBlobStore } from './blob-store.js';
 import { reportCataloguePlugin } from './catalogue-plugin.js';
 import { CatalogueService } from './catalogue-service.js';
-import { buildRoleDashboard, inferDashboardRole } from './dashboards.js';
+import { buildRoleDashboard, inferDashboardRole, resolveDashboardRole } from './dashboards.js';
 import { generateCsv, generateReportBytes, sha256Hex } from './generators.js';
 import { InMemoryReportStore } from './report-store.js';
 import { computeNextRunAt, createReportScheduler } from './scheduler.js';
@@ -25,9 +25,8 @@ describe('G-909 generators + artifact hash', () => {
   it('stores sha256 equal to hash of generated CSV bytes', async () => {
     const { service, blobs } = makeService();
     const result = await service.generate(TENANT_A, 'tester', {
-      reportKey: 'enrolment_by_grade',
+      reportKey: 'students_roster',
       format: 'CSV',
-      filters: { academicPeriodId: '2025-26' },
     });
     expect(result.artifact.sha256).toBe(sha256Hex(result.bytes));
     expect(result.artifact.sha256).toMatch(/^[0-9a-f]{64}$/);
@@ -55,12 +54,12 @@ describe('G-909 generators + artifact hash', () => {
 describe('G-909 scheduler next_run_at', () => {
   it('advances daily / weekly / monthly from a fixed instant', () => {
     const from = new Date('2026-01-31T08:00:00.000Z');
-    expect(computeNextRunAt('daily', from).toISOString()).toBe('2026-02-01T08:00:00.000Z');
-    expect(computeNextRunAt('daily', from, 6).toISOString()).toBe('2026-02-01T06:00:00.000Z');
-    expect(computeNextRunAt('weekly', from).toISOString()).toBe('2026-02-07T08:00:00.000Z');
+    expect(computeNextRunAt('daily', from).toISOString()).toBe('2026-02-01T06:00:00.000Z');
+    expect(computeNextRunAt('daily', from, 8).toISOString()).toBe('2026-02-01T08:00:00.000Z');
+    expect(computeNextRunAt('weekly', from).toISOString()).toBe('2026-02-07T06:00:00.000Z');
     const monthly = computeNextRunAt('monthly', from);
     expect(monthly.getUTCMonth()).toBe(1);
-    expect(monthly.toISOString().startsWith('2026-02-')).toBe(true);
+    expect(monthly.toISOString()).toBe('2026-02-28T06:00:00.000Z');
   });
 
   it('tickDueSchedules writes a completed run into history', async () => {
@@ -82,6 +81,8 @@ describe('G-909 scheduler next_run_at', () => {
     expect(tick.completed).toBe(1);
     const runs = await service.listRuns(TENANT_A, { scheduleId: schedule.id });
     expect(runs.some((r) => r.source === 'schedule' && r.status === 'completed')).toBe(true);
+    const dueAlias = await service.runDue(new Date());
+    expect(dueAlias.due).toBe(0);
   });
 
   it('createReportScheduler.runOnce is idempotent while in flight', async () => {
@@ -109,6 +110,12 @@ describe('G-909 role dashboards', () => {
     expect(inferDashboardRole([{ roleName: 'PRINCIPAL' }])).toBe('principal');
     expect(inferDashboardRole([{ roleName: 'PARENT' }])).toBe('parent');
     expect(inferDashboardRole([{ roleName: 'BOARD_ADMIN' }])).toBe('board');
+  });
+
+  it('parents cannot request principal aggregates', () => {
+    expect(() => resolveDashboardRole([{ roleName: 'PARENT' }], 'principal')).toThrow(
+      /cannot fetch principal/i,
+    );
   });
 });
 
@@ -199,8 +206,9 @@ describe('G-909 catalogue plugin routes', () => {
       payload: { reportKey: 'attendance_summary', format: 'csv', cadence: 'daily', recipients: ['a@b.c'] },
     });
     expect(created.statusCode).toBe(201);
-    const schedule = created.json() as { id: string; nextRunAt: string };
+    const schedule = created.json() as { id: string; nextRunAt: string; hour: number };
     expect(schedule.nextRunAt).toBeTruthy();
+    expect(schedule.hour).toBe(6);
     expect(new Date(schedule.nextRunAt).getTime()).toBeGreaterThan(Date.now());
 
     const run = await app.inject({
@@ -215,8 +223,17 @@ describe('G-909 catalogue plugin routes', () => {
       url: `/reports/runs?scheduleId=${schedule.id}`,
       headers: { 'x-tenant-id': TENANT_A },
     });
-    const body = history.json() as { data: Array<{ status: string }> };
+    const body = history.json() as { data: Array<{ status: string; trigger?: string }> };
     expect(body.data.length).toBeGreaterThan(0);
+    expect(body.data[0]?.trigger).toBe('schedule');
+
+    const due = await app.inject({
+      method: 'POST',
+      url: '/reports/schedules/run-due',
+      headers: { 'x-tenant-id': TENANT_A },
+    });
+    expect(due.statusCode).toBe(200);
+    expect(due.json()).toMatchObject({ due: 0 });
   });
 
   it('dashboard cards differ for principal vs teacher', async () => {
@@ -236,5 +253,32 @@ describe('G-909 catalogue plugin routes', () => {
     expect(p.role).toBe('principal');
     expect(t.role).toBe('teacher');
     expect(p.cards.map((c) => c.id)).not.toEqual(t.cards.map((c) => c.id));
+  });
+
+  it('parent cannot fetch principal dashboard aggregates', async () => {
+    const app = Fastify();
+    apps.push(app);
+    app.addHook('preHandler', async (req) => {
+      (req as typeof req & { user?: { roles: Array<{ roleName: string }> } }).user = {
+        roles: [{ roleName: 'PARENT' }],
+      };
+    });
+    const store = new InMemoryReportStore();
+    const blobs = new InMemoryReportBlobStore();
+    await app.register(reportCataloguePlugin, { store, blobStore: blobs, disableScheduler: true });
+    await app.ready();
+    const denied = await app.inject({
+      method: 'GET',
+      url: '/reports/dashboard?role=principal',
+      headers: { 'x-tenant-id': TENANT_A },
+    });
+    expect(denied.statusCode).toBe(403);
+    const allowed = await app.inject({
+      method: 'GET',
+      url: '/reports/dashboard?role=parent',
+      headers: { 'x-tenant-id': TENANT_A },
+    });
+    expect(allowed.statusCode).toBe(200);
+    expect((allowed.json() as { role: string }).role).toBe('parent');
   });
 });
