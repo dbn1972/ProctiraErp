@@ -58,6 +58,7 @@ import {
 } from '@proctira/backend-developer-portal';
 import {
   createDocumentRepository,
+  createExamOpsStore,
   createExaminationRepository,
   createResultRepository,
   examinationPlugin,
@@ -183,13 +184,15 @@ const DOMAIN_REGISTRARS: DomainRegistrar[] = [
     proxyPrefixes: ['/examinations'],
     register: async (scope) => {
       // Prisma (Postgres + RLS) when DATABASE_URL is set, else in-memory.
+      const examOpsStore = createExamOpsStore();
       await scope.register(examinationPlugin, {
         repository: createExaminationRepository(),
         resultRepository: createResultRepository(),
-        documentRepository: createDocumentRepository(),
+        documentRepository: createDocumentRepository({}, examOpsStore),
         // G-902: document routes (/documents/generate, /documents/jobs) only
         // register when a PdfGenerator is supplied.
         pdfGenerator: new SimplePdfGenerator(),
+        examOpsStore,
         prefix: '/examinations',
       });
     },
