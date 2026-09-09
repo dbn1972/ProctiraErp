@@ -242,6 +242,107 @@ export function listAuditLogs(filters: AuditLogFilters = {}) {
   );
 }
 
+// ─── Audit integrity / retention / DSAR (G-913) ──────────────────────────
+
+export interface PlatformItemResult<T> {
+  data: T | null;
+  source: ScaffoldDataSource;
+  access: PlatformAccess;
+  errorCode?: string;
+}
+
+async function fetchPlatformItem<T>(path: string): Promise<PlatformItemResult<T>> {
+  const result = await gatewayFetch<T>(path, { throwOnError: false, next: { revalidate: 0 } });
+  const source = scaffoldSourceFromResponse(result.ok, result.status);
+  if (result.status === 403) {
+    return { data: null, source, access: 'forbidden', errorCode: result.error?.code };
+  }
+  if (!result.ok) {
+    return {
+      data: null,
+      source,
+      access: 'ok',
+      ...(result.error?.code ? { errorCode: result.error.code } : {}),
+    };
+  }
+  return { data: result.data ?? null, source, access: 'ok' };
+}
+
+export interface AuditChainVerification {
+  tenantId: string;
+  valid: boolean;
+  checkedEntries: number;
+  legacyEntries: number;
+  headHash: string | null;
+  headSeq: number;
+  brokenAt: {
+    chainSeq: number;
+    entryId: string;
+    reason: string;
+    expected: string | null;
+    actual: string | null;
+  } | null;
+  verifiedAt: string;
+}
+
+/** `GET /audit-logs/chain/verify` — recomputes the tenant hash chain. */
+export function verifyAuditChain() {
+  return fetchPlatformItem<AuditChainVerification>('/audit-logs/chain/verify');
+}
+
+export interface AuditRetentionConfig {
+  tenantId: string;
+  retentionMonths: number;
+  archivalEnabled: boolean;
+  archivalDestination: string | null;
+  lastArchivalAt: string | null;
+}
+
+/** `GET /audit-logs/retention` — 404 (no config yet) is folded into `data: null`. */
+export function getAuditRetention() {
+  return fetchPlatformItem<AuditRetentionConfig>('/audit-logs/retention');
+}
+
+export async function saveAuditRetention(input: {
+  retentionMonths: number;
+  archivalEnabled: boolean;
+  archivalDestination: string | null;
+}): Promise<AuditRetentionConfig> {
+  const result = await gatewayFetch<AuditRetentionConfig>('/audit-logs/retention', {
+    method: 'PUT',
+    json: input,
+  });
+  if (!result.data) throw new Error('Empty response from audit service');
+  return result.data;
+}
+
+export async function runAuditArchival(): Promise<{ archivedCount: number; cutoffDate: string }> {
+  const result = await gatewayFetch<{ archivedCount: number; cutoffDate: string }>(
+    '/audit-logs/archival/execute',
+    { method: 'POST' },
+  );
+  if (!result.data) throw new Error('Empty response from audit service');
+  return result.data;
+}
+
+export interface DsarPackage {
+  subjectId: string;
+  tenantId: string;
+  exportedAt: string;
+  entryCount: number;
+  truncated: boolean;
+  entries: AuditLogEntry[];
+}
+
+/** `GET /audit-logs/dsar/:subjectId` — every entry where the subject is the entity or the actor. */
+export async function exportDsarPackage(subjectId: string): Promise<PlatformItemResult<DsarPackage>> {
+  const raw = await fetchPlatformItem<Omit<DsarPackage, 'entries'> & { entries: Record<string, unknown>[] }>(
+    `/audit-logs/dsar/${encodeURIComponent(subjectId)}`,
+  );
+  if (!raw.data) return { ...raw, data: null };
+  return { ...raw, data: { ...raw.data, entries: raw.data.entries.map(mapAuditEntry) } };
+}
+
 // ─── Tenant lifecycle ────────────────────────────────────────────────────
 
 /** Known values: provisioning | active | suspended | decommissioned. */

@@ -5,10 +5,17 @@
  * and date filters carried in the URL so views are shareable and the page is
  * fully server-rendered (no client fetch, works without JS).
  */
+import Link from 'next/link';
+import { FileSearch, ShieldAlert, ShieldCheck } from 'lucide-react';
+
 import {
   Badge,
+  Button,
   Card,
   CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
   Table,
   TableBody,
   TableCell,
@@ -25,7 +32,14 @@ import {
   readParam,
   type SearchParams,
 } from '@/components/platform/PlatformSurfaceState';
-import { listAuditLogs, type AuditLogEntry } from '@/lib/api/platform.server';
+import {
+  getAuditRetention,
+  listAuditLogs,
+  verifyAuditChain,
+  type AuditChainVerification,
+  type AuditLogEntry,
+} from '@/lib/api/platform.server';
+import { RetentionPolicyForm } from '@/components/audit/audit-integrity-panel';
 import { EmptyState } from '@/components/page';
 
 export const dynamic = 'force-dynamic';
@@ -65,16 +79,20 @@ export default async function AuditLogsPage(props: { searchParams?: Promise<Sear
   const to = readParam(searchParams, 'to');
   const page = readPage(searchParams);
 
-  const result = await listAuditLogs({
-    entityType,
-    entityId,
-    userId,
-    operation,
-    startDate: toApiDate(from),
-    endDate: toApiDate(to),
-    page,
-    pageSize: 25,
-  });
+  const [result, chain, retention] = await Promise.all([
+    listAuditLogs({
+      entityType,
+      entityId,
+      userId,
+      operation,
+      startDate: toApiDate(from),
+      endDate: toApiDate(to),
+      page,
+      pageSize: 25,
+    }),
+    verifyAuditChain(),
+    getAuditRetention(),
+  ]);
   const entries = result.data;
   const filters = { entityType, entityId, userId, operation, from, to };
   const filtered = Object.values(filters).some(Boolean);
@@ -98,15 +116,44 @@ export default async function AuditLogsPage(props: { searchParams?: Promise<Sear
             Who changed what, when, and from where — immutable trail for this tenant.
           </p>
         </div>
-        {result.meta.totalItems > 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {result.meta.totalItems.toLocaleString()} matching entr
-            {result.meta.totalItems === 1 ? 'y' : 'ies'}
-          </p>
-        ) : null}
+        <div className="flex flex-col items-end gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/audit-logs/dsar" data-testid="dsar-link">
+              <FileSearch className="me-1.5 h-4 w-4" aria-hidden="true" />
+              DSAR export
+            </Link>
+          </Button>
+          {result.meta.totalItems > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {result.meta.totalItems.toLocaleString()} matching entr
+              {result.meta.totalItems === 1 ? 'y' : 'ies'}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       <PlatformSurfaceState surface="Audit logs" result={result} />
+
+      {result.access === 'ok' && result.source === 'gateway' ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ChainIntegrityCard verification={chain.data} />
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Retention policy</CardTitle>
+              <CardDescription>
+                {retention.data
+                  ? `Retain ${retention.data.retentionMonths} months · archival ${
+                      retention.data.archivalEnabled ? 'on' : 'off'
+                    }`
+                  : 'No policy yet — entries are kept indefinitely until one is saved.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <RetentionPolicyForm config={retention.data} />
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <form
         method="get"
@@ -206,6 +253,62 @@ export default async function AuditLogsPage(props: { searchParams?: Promise<Sear
         hrefFor={(p) => buildHref('/audit-logs', { ...filters, page: p })}
       />
     </section>
+  );
+}
+
+function ChainIntegrityCard({ verification }: { verification: AuditChainVerification | null }) {
+  if (!verification) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Chain integrity</CardTitle>
+          <CardDescription>Verification unavailable from the gateway.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+  const Icon = verification.valid ? ShieldCheck : ShieldAlert;
+  return (
+    <Card data-testid="chain-integrity" data-valid={verification.valid ? 'true' : 'false'}>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Icon
+            className={verification.valid ? 'h-5 w-5 text-emerald-600' : 'h-5 w-5 text-destructive'}
+            aria-hidden="true"
+          />
+          Chain integrity
+          <Badge variant={verification.valid ? 'success' : 'destructive'}>
+            {verification.valid ? 'Verified' : 'BROKEN'}
+          </Badge>
+        </CardTitle>
+        <CardDescription>
+          Every entry is sha256-linked to the previous one; the chain is recomputed from the first
+          entry on each load.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <dt className="text-muted-foreground">Entries verified</dt>
+          <dd className="tabular-nums">{verification.checkedEntries.toLocaleString()}</dd>
+          <dt className="text-muted-foreground">Legacy (pre-chain) entries</dt>
+          <dd className="tabular-nums">{verification.legacyEntries.toLocaleString()}</dd>
+          <dt className="text-muted-foreground">Head</dt>
+          <dd className="truncate font-mono text-xs" title={verification.headHash ?? ''}>
+            #{verification.headSeq} {verification.headHash ? verification.headHash.slice(0, 16) : '—'}
+          </dd>
+          <dt className="text-muted-foreground">Checked at (UTC)</dt>
+          <dd className="tabular-nums">{formatTimestamp(verification.verifiedAt)}</dd>
+        </dl>
+        {verification.brokenAt ? (
+          <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
+            Break at position #{verification.brokenAt.chainSeq} (entry{' '}
+            <span className="font-mono">{verification.brokenAt.entryId}</span>):{' '}
+            {verification.brokenAt.reason}. Treat every later entry as unverified and escalate to
+            the platform security owner.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
