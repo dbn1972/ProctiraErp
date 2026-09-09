@@ -15,9 +15,11 @@ export default async function TransportLivePage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Live map</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {live.honestyNote ||
-            'Inline SVG projection of lat/lng. OpenStreetMap deep links on each marker. No MapLibre or Leaflet.'}
+          Last known vehicle positions on route stops. Tap a marker for an OpenStreetMap link.
         </p>
+        {live.honestyNote ? (
+          <p className="mt-1 text-xs text-muted-foreground">{live.honestyNote}</p>
+        ) : null}
       </div>
       <LiveMapRefresher />
       <LiveMapSvg vehicles={live.vehicles} stops={live.stops} />

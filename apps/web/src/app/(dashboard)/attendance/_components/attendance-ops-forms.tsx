@@ -150,7 +150,10 @@ export function AttendanceOpsForms({
 
       <ul className="divide-y divide-border" role="list" data-testid="regularisation-list">
         {regularisations.length === 0 ? (
-          <li className="py-2 text-sm text-muted-foreground">No regularisation requests.</li>
+          <li className="py-4 text-sm text-muted-foreground">
+            No regularisation requests yet. Submit a request above when a past attendance mark needs
+            correction.
+          </li>
         ) : (
           regularisations.map((row) => (
             <li
@@ -267,7 +270,9 @@ export function AttendanceOpsForms({
 
       <ul className="divide-y divide-border" role="list" data-testid="leave-list">
         {leaves.length === 0 ? (
-          <li className="py-2 text-sm text-muted-foreground">No leave requests.</li>
+          <li className="py-4 text-sm text-muted-foreground">
+            No leave requests yet. Use the leave form to request a date range for a student.
+          </li>
         ) : (
           leaves.map((row) => (
             <li
