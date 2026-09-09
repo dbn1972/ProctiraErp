@@ -157,7 +157,7 @@ describe('Library Routes', () => {
       );
 
       const copies = (await app.inject({ method: 'GET', url: `/library/items/${item.id}` })).json()
-        .copies as Array<{ barcode: string }>;
+        .copyList as Array<{ barcode: string }>;
       expect(copies.length).toBe(1);
 
       const lookup = await app.inject({
