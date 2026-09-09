@@ -6,17 +6,19 @@ import {
   listTransportRoutes,
   listTransportVehicles,
 } from '@/lib/api/transport';
+import { listAllStops } from '@/lib/transport/api';
 import { AssignmentForms } from '../_components/assignment-forms';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransportAssignmentsPage() {
   await requireSession();
-  const [drivers, students, routes, vehicles] = await Promise.all([
+  const [drivers, students, routes, vehicles, stops] = await Promise.all([
     listDriverAssignments(),
     listStudentAssignments(),
     listTransportRoutes(),
     listTransportVehicles(),
+    listAllStops(),
   ]);
 
   return (
@@ -28,7 +30,7 @@ export default async function TransportAssignmentsPage() {
         </p>
       </div>
 
-      <AssignmentForms routes={routes} vehicles={vehicles} />
+      <AssignmentForms routes={routes} vehicles={vehicles} stops={stops} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
