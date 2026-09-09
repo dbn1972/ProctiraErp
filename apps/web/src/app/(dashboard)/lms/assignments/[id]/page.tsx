@@ -20,7 +20,15 @@ import {
   TableHeader,
   TableRow,
 } from '@proctira/ui/components';
-import { getAssignment, getQuizAnalytics, listAssignmentFiles, listSubmissions, type LmsSubmission } from '@/lib/api/lms';
+import {
+  getAssignment,
+  getQuizAnalytics,
+  getRubric,
+  listAssignmentFiles,
+  listSubmissions,
+  type LmsRubric,
+  type LmsSubmission,
+} from '@/lib/api/lms';
 import { isUuidLike } from '@/lib/entity-label';
 
 import { KindPill, ScopePill, StatusPill, SubmissionPill } from '../../_components/badges';
@@ -75,6 +83,11 @@ export default async function AssignmentDetailPage({
   const files = await listAssignmentFiles(id).catch(() => []);
   const quizAnalytics =
     assignment.kind === 'quiz' ? await getQuizAnalytics(id).catch(() => null) : null;
+  const essayQuestion = assignment.questions?.find(
+    (q) => q.questionType === 'essay' || Boolean(q.payload?.rubricId),
+  );
+  const rubricId = essayQuestion?.payload?.rubricId;
+  const rubric: LmsRubric | null = rubricId ? await getRubric(rubricId).catch(() => null) : null;
   const graded = submissions.filter((s) => s.status === 'graded' || s.status === 'returned');
   const average =
     graded.length > 0 ? graded.reduce((sum, s) => sum + (s.score ?? 0), 0) / graded.length : null;
@@ -180,8 +193,10 @@ export default async function AssignmentDetailPage({
                     {q.prompt}
                     <span className="ms-2 text-xs text-muted-foreground">
                       ({t('pointsShort', { count: q.points })})
+                      {q.questionType ? ` · ${q.questionType}` : ''}
                     </span>
                   </p>
+                  {q.options.length > 0 ? (
                   <ul className="mt-2 grid gap-1 sm:grid-cols-2">
                     {q.options.map((opt, oi) => (
                       <li
@@ -199,6 +214,7 @@ export default async function AssignmentDetailPage({
                       </li>
                     ))}
                   </ul>
+                  ) : null}
                   {q.explanation ? (
                     <p className="mt-2 text-xs text-muted-foreground">{q.explanation}</p>
                   ) : null}
@@ -313,7 +329,12 @@ export default async function AssignmentDetailPage({
                           initialScore={s.score}
                           initialFeedback={s.feedback}
                         />
-                        <RubricGradeForm assignmentId={assignment.id} submissionId={s.id} />
+                        <RubricGradeForm
+                          assignmentId={assignment.id}
+                          submissionId={s.id}
+                          questionId={essayQuestion?.id}
+                          rubric={rubric}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}

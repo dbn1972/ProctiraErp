@@ -3,7 +3,7 @@
  */
 import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
 
-import { listLessons } from '@/lib/api/lms';
+import { getLesson, listLessons } from '@/lib/api/lms';
 import { EmptyState } from '@/components/page';
 
 import { LmsSubnav } from '../_components/lms-subnav';
@@ -12,7 +12,8 @@ import { LessonForm } from '../_components/lesson-form';
 export const dynamic = 'force-dynamic';
 
 export default async function LmsLessonsPage() {
-  const items = await listLessons();
+  const listed = await listLessons();
+  const items = await Promise.all(listed.map(async (item) => (await getLesson(item.id)) ?? item));
   return (
     <section className="space-y-6" aria-labelledby="lms-lessons-heading">
       <div>
@@ -49,6 +50,23 @@ export default async function LmsLessonsPage() {
                 {item.subject ? ` · ${item.subject}` : ''}
               </p>
               {item.description ? <p className="mt-2 text-sm">{item.description}</p> : null}
+              {item.resources && item.resources.length > 0 ? (
+                <ul className="mt-2 space-y-1 text-sm">
+                  {item.resources.map((resource) => (
+                    <li key={resource.id}>
+                      {resource.kind}: {resource.title}
+                      {resource.url ? (
+                        <>
+                          {' '}
+                          <a href={resource.url} className="underline">
+                            {resource.url}
+                          </a>
+                        </>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
           ))}
         </ul>

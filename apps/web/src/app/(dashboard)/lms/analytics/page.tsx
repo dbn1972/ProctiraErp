@@ -1,9 +1,20 @@
 /**
  * Class analytics (G-915).
  */
-import { Card, CardContent, CardHeader, CardTitle } from '@proctira/ui/components';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@proctira/ui/components';
 
-import { getClassAnalytics } from '@/lib/api/lms';
+import { getClassAnalytics, getQuizAnalytics, listAssignments, type QuizAnalytics } from '@/lib/api/lms';
 import { EmptyState } from '@/components/page';
 
 import { LmsSubnav } from '../_components/lms-subnav';
@@ -18,6 +29,14 @@ export default async function LmsAnalyticsPage({
   const params = await searchParams;
   const classKey = typeof params.classKey === 'string' ? params.classKey : '7A';
   const analytics = await getClassAnalytics(classKey);
+  const quizzes = (await listAssignments({ kind: 'quiz', pageSize: 50 })).filter(
+    (a) => a.gradeLevel === classKey,
+  );
+  const quizRows: Array<{ quiz: (typeof quizzes)[number]; stats: QuizAnalytics }> = [];
+  for (const quiz of quizzes) {
+    const stats = await getQuizAnalytics(quiz.id);
+    if (stats) quizRows.push({ quiz, stats });
+  }
 
   return (
     <section className="space-y-6" aria-labelledby="lms-analytics-heading">
@@ -26,7 +45,7 @@ export default async function LmsAnalyticsPage({
           Class analytics
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Submission rate, average score, and mastery by skill for class {classKey}.
+          Submission rate, average score, and item difficulty for class {classKey}.
         </p>
       </div>
       <LmsSubnav current="/lms/analytics" />
@@ -44,64 +63,71 @@ export default async function LmsAnalyticsPage({
           Load
         </button>
       </form>
-      {!analytics || analytics.assignmentCount === 0 ? (
+      <div className="grid gap-4 sm:grid-cols-3" data-testid="lms-analytics-panel" data-hydrated="true">
         <Card>
+          <CardHeader>
+            <CardTitle>Assignments</CardTitle>
+          </CardHeader>
           <CardContent>
-            <EmptyState
-              title="No coursework for this class"
-              description="Publish assignments with this class as the grade level, then come back."
-            />
+            <p className="text-2xl font-bold">{analytics?.assignmentCount ?? 0}</p>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-3" data-testid="lms-analytics-panel" data-hydrated="true">
-          <Card>
-            <CardHeader>
-              <CardTitle>Submission rate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{analytics.submissionRate}</p>
-              <p className="text-xs text-muted-foreground">
-                {analytics.submissionCount} submissions / {analytics.assignmentCount} assignments
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Average score</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{analytics.averageScore}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Learners</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{analytics.uniqueStudents}</p>
-            </CardContent>
-          </Card>
-          <Card className="sm:col-span-3">
-            <CardHeader>
-              <CardTitle>Mastery by skill / tag</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analytics.masteryBySkill.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No quiz attempts tagged yet.</p>
-              ) : (
-                <ul className="space-y-1">
-                  {analytics.masteryBySkill.map((row) => (
-                    <li key={row.skillId} data-testid="lms-mastery-row">
-                      {row.label}: {Math.round(row.averageMastery * 100)}% ({row.attempts} attempts)
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Average score</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{analytics?.averageScore ?? 0}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Learners</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{analytics?.uniqueStudents ?? 0}</p>
+          </CardContent>
+        </Card>
+      </div>
+      {!analytics || analytics.assignmentCount === 0 ? (
+        <EmptyState
+          title="No coursework for this class"
+          description="Publish assignments with this class as the grade level, then come back."
+        />
+      ) : null}
+      {quizRows.map(({ quiz, stats }) => (
+        <Card key={quiz.id} data-testid="lms-quiz-analytics">
+          <CardHeader>
+            <CardTitle>{quiz.title}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Mean {stats.mean ?? '—'} · median {stats.median ?? '—'} · {stats.submissionCount}{' '}
+              submissions
+            </p>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Item</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Difficulty</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.items.map((item) => (
+                  <TableRow key={item.questionId} data-testid="lms-item-difficulty">
+                    <TableCell>{item.prompt}</TableCell>
+                    <TableCell>{item.questionType}</TableCell>
+                    <TableCell>
+                      {item.difficulty == null ? '—' : `${Math.round(item.difficulty * 100)}%`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ))}
     </section>
   );
 }

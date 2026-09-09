@@ -1,9 +1,9 @@
 /**
  * LMS depth — question bank, essay rubric grade, class analytics (Wave 9 / G-915).
  *
- * Ungated: the hub, bank and analytics pages render with a heading.
- * Gated (E2E_BACKEND_READY): bank → quiz from bank → essay rubric grade → analytics;
- * tenant B isolation.
+ * Ungated: hub, bank, rubrics, discussions, lessons, content and analytics pages render.
+ * Gated (E2E_BACKEND_READY): bank → quiz from bank → essay rubric grade → item difficulty;
+ * discussion post; tenant B isolation.
  */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
@@ -69,11 +69,6 @@ test.describe('LMS depth — pages render (ungated)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('/lms/analytics lists with a heading', async ({ page }) => {
-    await page.goto('/lms/analytics', { waitUntil: 'domcontentloaded' });
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-  });
-
   test('/lms/rubrics lists with a heading', async ({ page }) => {
     await page.goto('/lms/rubrics', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -84,13 +79,18 @@ test.describe('LMS depth — pages render (ungated)', () => {
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
+  test('/lms/lessons lists with a heading', async ({ page }) => {
+    await page.goto('/lms/lessons', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  });
+
   test('/lms/content lists with a heading', async ({ page }) => {
     await page.goto('/lms/content', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 
-  test('/lms/lessons lists with a heading', async ({ page }) => {
-    await page.goto('/lms/lessons', { waitUntil: 'domcontentloaded' });
+  test('/lms/analytics lists with a heading', async ({ page }) => {
+    await page.goto('/lms/analytics', { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 });
@@ -205,6 +205,17 @@ test.describe('LMS depth — live chain (E2E_BACKEND_READY)', () => {
     );
     expect(graded.status).toBe('graded');
 
+    const quizAnalyticsRes = await request.get(
+      `${GATEWAY_URL}/api/v1/lms/assignments/${quiz.id}/analytics`,
+      { headers: headers() },
+    );
+    expect(quizAnalyticsRes.status(), await quizAnalyticsRes.text()).toBe(200);
+    const quizAnalytics = (await quizAnalyticsRes.json()) as {
+      items: Array<{ difficulty: number | null }>;
+    };
+    expect(quizAnalytics.items.length).toBeGreaterThan(0);
+    expect(quizAnalytics.items[0]?.difficulty).toBe(1);
+
     const analytics = await request.get(
       `${GATEWAY_URL}/api/v1/lms/analytics?classKey=7A&institutionId=${INSTITUTION_A}`,
       { headers: headers() },
@@ -217,6 +228,23 @@ test.describe('LMS depth — live chain (E2E_BACKEND_READY)', () => {
     await page.goto('/lms/analytics?classKey=7A', { waitUntil: 'domcontentloaded' });
     await hydrated(page, 'lms-analytics-panel');
     await expect(page.getByTestId('lms-analytics-panel')).toBeVisible();
+    await expect(page.getByTestId('lms-item-difficulty').first()).toBeVisible();
+  });
+
+  test('teacher can open a class discussion and post', async ({ request }) => {
+    const thread = await postOk(
+      request,
+      '/lms/discussions',
+      { classKey: '7A', title: 'G-915 thread', institutionId: INSTITUTION_A },
+      201,
+    );
+    const post = await postOk(
+      request,
+      `/lms/discussions/${thread.id}/posts`,
+      { body: 'Welcome to fractions.' },
+      201,
+    );
+    expect(post.id).toBeTruthy();
   });
 
   test('cross-tenant: tenant B cannot read tenant A bank items', async ({ request }) => {
