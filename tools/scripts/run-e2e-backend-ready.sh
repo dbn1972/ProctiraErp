@@ -154,6 +154,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Every spec shares one JWT subject per tenant, and the rate limiter buckets by
+# tenant:sub (not IP). With the default 100 req/min the Next.js server-side
+# fan-out (page + chain verify + retention + ...) trips RATE_LIMIT_EXCEEDED
+# mid-run, so raise the anonymous-tier fallback for the harness only.
 echo "==> Starting api-gateway (PORT=${GATEWAY_PORT}, JWT_SECRET set)"
 PORT="$GATEWAY_PORT" \
 HOST=0.0.0.0 \
@@ -163,6 +167,7 @@ DATABASE_URL="$DATABASE_URL" \
 REDIS_URL="${REDIS_URL:-}" \
 JWT_SECRET="$JWT_SECRET" \
 CORS_ORIGINS="http://localhost:3001,http://127.0.0.1:3001" \
+RATE_LIMIT_MAX_REQUESTS="${RATE_LIMIT_MAX_REQUESTS:-10000}" \
 setsid pnpm --filter @proctira/api-gateway start >"$ROOT/.e2e-gateway.log" 2>&1 &
 GATEWAY_PID=$!
 

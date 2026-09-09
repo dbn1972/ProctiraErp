@@ -75,10 +75,11 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
     byGrade.set(section.gradeId, entry);
   }
 
-  // Only show grades that are offered here (have ≥1 section), falling back to
-  // the full catalog when no sections are configured yet.
-  const offered =
-    data.classes.length > 0 ? data.grades.filter((g) => byGrade.has(g.id)) : data.grades;
+  // Grades are a tenant-wide catalog; a grade added here must stay visible even
+  // before its first section exists, so list them all and let the Sections
+  // column show which ones are offered at this institution.
+  const offered = data.grades;
+  const offeredCount = offered.filter((g) => byGrade.has(g.id)).length;
 
   return (
     <div className="space-y-4">
@@ -89,7 +90,7 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
           <p className="text-sm text-muted-foreground">
             {data.error
               ? 'Catalog unavailable'
-              : `${offered.length} ${offered.length === 1 ? 'grade' : 'grades'} · section capacity per grade`}
+              : `${offered.length} ${offered.length === 1 ? 'grade' : 'grades'} · ${offeredCount} with sections here`}
           </p>
         </div>
         <AddGradeDialog />
@@ -121,7 +122,10 @@ export default async function InstitutionGradesPage(props: GradesPageProps) {
               <TableBody>
                 {offered
                   .slice()
-                  .sort((a, b) => a.order - b.order)
+                  .sort(
+                    (a, b) =>
+                      Number(byGrade.has(b.id)) - Number(byGrade.has(a.id)) || a.order - b.order,
+                  )
                   .map((grade) => {
                     const agg = byGrade.get(grade.id) ?? { sections: 0, capacity: 0 };
                     const cd =
