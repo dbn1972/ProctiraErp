@@ -12,6 +12,7 @@ import {
   DASHBOARD_ROUTES,
   FALLBACK_ROUTE,
   PARENT_PORTAL_ROUTE,
+  STUDENT_PORTAL_ROUTE,
   selectDefaultDashboardRoute,
   type RoleRouterInput,
 } from './selectDefaultDashboardRoute';
@@ -74,10 +75,11 @@ describe('selectDefaultDashboardRoute — role mapping (Task 52.1, Req 40.9)', (
     );
   });
 
-  it('routes the student role to /parent', () => {
+  it('routes the student role to /student', () => {
     expect(selectDefaultDashboardRoute(makeInput({ roles: ['student'] }))).toBe(
-      PARENT_PORTAL_ROUTE,
+      STUDENT_PORTAL_ROUTE,
     );
+    expect(STUDENT_PORTAL_ROUTE).toBe('/student');
   });
 
   it('treats common role aliases (snake_case, UPPER) the same as kebab-case', () => {

@@ -5,21 +5,19 @@ import { usePathname } from 'next/navigation';
 import {
   Bell,
   BookOpen,
+  Brain,
   CalendarDays,
   ClipboardList,
   Clock,
-  CreditCard,
   GraduationCap,
   Home,
-  MessageSquare,
-  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 import { useBrand } from '@/providers/BrandConfigProvider';
 
-interface ParentNavItem {
+interface StudentNavItem {
   key: string;
   label: string;
   href: string;
@@ -27,96 +25,82 @@ interface ParentNavItem {
   match: (pathname: string) => boolean;
 }
 
-const PARENT_NAV: readonly ParentNavItem[] = [
+const STUDENT_NAV: readonly StudentNavItem[] = [
   {
     key: 'home',
-    label: 'Home',
-    href: '/parent',
+    label: 'Today',
+    href: '/student',
     Icon: Home,
-    match: (pathname) => pathname === '/parent',
+    match: (pathname) => pathname === '/student',
   },
   {
     key: 'attendance',
     label: 'Attendance',
-    href: '/parent/attendance',
+    href: '/student/attendance',
     Icon: ClipboardList,
-    match: (pathname) => pathname.startsWith('/parent/attendance'),
+    match: (pathname) => pathname.startsWith('/student/attendance'),
   },
   {
     key: 'grades',
     label: 'Grades',
-    href: '/parent/grades',
+    href: '/student/grades',
     Icon: GraduationCap,
-    match: (pathname) => pathname.startsWith('/parent/grades'),
+    match: (pathname) => pathname.startsWith('/student/grades'),
   },
   {
     key: 'timetable',
     label: 'Timetable',
-    href: '/parent/timetable',
+    href: '/student/timetable',
     Icon: Clock,
-    match: (pathname) => pathname.startsWith('/parent/timetable'),
+    match: (pathname) => pathname.startsWith('/student/timetable'),
   },
   {
     key: 'homework',
     label: 'Homework',
-    href: '/parent/homework',
+    href: '/student/homework',
     Icon: BookOpen,
-    match: (pathname) => pathname.startsWith('/parent/homework'),
+    match: (pathname) => pathname.startsWith('/student/homework'),
   },
   {
     key: 'calendar',
     label: 'Calendar',
-    href: '/parent/calendar',
+    href: '/student/calendar',
     Icon: CalendarDays,
-    match: (pathname) => pathname.startsWith('/parent/calendar'),
+    match: (pathname) => pathname.startsWith('/student/calendar'),
   },
   {
     key: 'notices',
     label: 'Notices',
-    href: '/parent/notices',
+    href: '/student/notices',
     Icon: Bell,
-    match: (pathname) => pathname.startsWith('/parent/notices'),
+    match: (pathname) => pathname.startsWith('/student/notices'),
   },
   {
-    key: 'messages',
-    label: 'Messages',
-    href: '/parent/messages',
-    Icon: MessageSquare,
-    match: (pathname) => pathname.startsWith('/parent/messages'),
-  },
-  {
-    key: 'consents',
-    label: 'Consents',
-    href: '/parent/consents',
-    Icon: ShieldCheck,
-    match: (pathname) => pathname.startsWith('/parent/consents'),
-  },
-  {
-    key: 'fees',
-    label: 'Fees',
-    href: '/parent/fees',
-    Icon: CreditCard,
-    match: (pathname) => pathname.startsWith('/parent/fees'),
+    key: 'pal',
+    label: 'PAL plan',
+    href: '/student/pal',
+    Icon: Brain,
+    match: (pathname) => pathname.startsWith('/student/pal'),
   },
 ];
 
-export interface ParentPortalShellProps {
+export interface StudentPortalShellProps {
   children: React.ReactNode;
 }
 
-export function ParentPortalShell({ children }: ParentPortalShellProps) {
+export function StudentPortalShell({ children }: StudentPortalShellProps) {
   const pathname = usePathname();
   const { name: brandName } = useBrand();
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground" data-shell="parent">
+    <div className="flex min-h-screen flex-col bg-background text-foreground" data-shell="student">
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
         <div className="mx-auto flex h-14 min-h-14 max-w-5xl items-center justify-between gap-4 px-4 md:px-6">
           <Link
-            href="/parent"
+            href="/student"
             className="inline-flex min-h-12 flex-col justify-center text-foreground"
           >
-            <span className="text-base font-semibold tracking-tight">Family portal</span>
+            <span className="text-base font-semibold tracking-tight">Student portal</span>
             <span className="text-[11px] font-normal text-muted-foreground">{brandName}</span>
           </Link>
         </div>
@@ -125,10 +109,10 @@ export function ParentPortalShell({ children }: ParentPortalShellProps) {
       <div className="mx-auto flex w-full max-w-5xl flex-1">
         <nav
           className="hidden w-52 shrink-0 border-r border-border px-3 py-6 md:block"
-          aria-label="Parent portal navigation"
+          aria-label="Student portal navigation"
         >
           <ul className="space-y-1" role="list">
-            {PARENT_NAV.map((item) => {
+            {STUDENT_NAV.map((item) => {
               const active = item.match(pathname);
               const Icon = item.Icon;
               return (
@@ -157,10 +141,10 @@ export function ParentPortalShell({ children }: ParentPortalShellProps) {
 
       <nav
         className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
-        aria-label="Parent portal navigation"
+        aria-label="Student portal navigation"
       >
         <ul className="mx-auto flex max-w-5xl overflow-x-auto" role="list">
-          {PARENT_NAV.map((item) => {
+          {STUDENT_NAV.map((item) => {
             const active = item.match(pathname);
             const Icon = item.Icon;
             return (
