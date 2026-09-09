@@ -172,6 +172,7 @@ export async function createHostelAssignmentAction(input: {
   bedId: string;
   startDate: string;
   endDate?: string;
+  feeStructureId?: string;
 }): Promise<CampusActionState> {
   try {
     const row = await createHostelAssignment(input);

@@ -2,7 +2,16 @@
  * Hostel overview (Server Component).
  */
 import Link from 'next/link';
-import { BedDouble, Building2, CalendarDays, Users } from 'lucide-react';
+import {
+  BedDouble,
+  Building2,
+  CalendarDays,
+  ClipboardCheck,
+  CircleDollarSign,
+  DoorOpen,
+  Utensils,
+  Users,
+} from 'lucide-react';
 
 import {
   Button,
@@ -115,6 +124,62 @@ export default async function HostelOverviewPage() {
           <CardContent>
             <Button asChild variant="outline">
               <Link href="/hostel/visitors">{t('openVisitors')}</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Utensils className="h-4 w-4" aria-hidden="true" />
+              Mess
+            </CardTitle>
+            <CardDescription>Plans, weekly menu, and subscriptions</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <Link href="/hostel/mess">Open mess</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <DoorOpen className="h-4 w-4" aria-hidden="true" />
+              Gate passes
+            </CardTitle>
+            <CardDescription>Request, approve, and record out/in</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <Link href="/hostel/gate-passes">Open gate passes</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CircleDollarSign className="h-4 w-4" aria-hidden="true" />
+              Fee structures
+            </CardTitle>
+            <CardDescription>Room type × term amounts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <Link href="/hostel/fees">Open fees</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+              Night roll
+            </CardTitle>
+            <CardDescription>Present, absent, or on leave by block</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild variant="outline">
+              <Link href="/hostel/attendance">Open attendance</Link>
             </Button>
           </CardContent>
         </Card>

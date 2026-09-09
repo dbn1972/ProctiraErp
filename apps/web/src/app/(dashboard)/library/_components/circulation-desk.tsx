@@ -20,6 +20,7 @@ import {
   renewLibraryLoanAction,
   returnLibraryLoanAction,
 } from '../../campus-actions';
+import { checkoutBarcodeAction, returnBarcodeAction } from '../../campus-ops-actions';
 import type { LibraryItem } from '@/lib/api/library';
 
 export function CirculationDesk({
@@ -44,22 +45,29 @@ export function CirculationDesk({
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     const itemId = String(fd.get('itemId') ?? '').trim();
+    const barcode = String(fd.get('barcode') ?? '').trim();
     const studentId = String(fd.get('studentId') ?? '').trim();
     const dueAt = String(fd.get('dueAt') ?? '').trim();
-    if (!itemId) {
-      setError('Select a catalog item.');
+    if (!itemId && !barcode) {
+      setError('Select a catalog item or scan a barcode.');
       return;
     }
 
     startTransition(async () => {
       setError(null);
       setMessage(null);
-      const result = await checkoutLibraryItemAction({
-        itemId,
-        patronUserId,
-        studentId: studentId || undefined,
-        dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
-      });
+      const result = barcode
+        ? await checkoutBarcodeAction({
+            barcode,
+            patronUserId,
+            studentId: studentId || undefined,
+          })
+        : await checkoutLibraryItemAction({
+            itemId,
+            patronUserId,
+            studentId: studentId || undefined,
+            dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
+          });
       if (result.status === 'error') {
         setError(result.message ?? 'Checkout failed');
         return;
@@ -74,15 +82,18 @@ export function CirculationDesk({
     event.preventDefault();
     const fd = new FormData(event.currentTarget);
     const loanId = String(fd.get('loanId') ?? '').trim();
-    if (!loanId) {
-      setError('Loan id is required.');
+    const barcode = String(fd.get('barcode') ?? '').trim();
+    if (!loanId && !barcode) {
+      setError('Loan id or barcode is required.');
       return;
     }
 
     startTransition(async () => {
       setError(null);
       setMessage(null);
-      const result = await returnLibraryLoanAction(loanId);
+      const result = barcode
+        ? await returnBarcodeAction(barcode)
+        : await returnLibraryLoanAction(loanId);
       if (result.status === 'error') {
         setError(result.message ?? 'Return failed');
         return;
@@ -130,7 +141,16 @@ export function CirculationDesk({
             data-testid="library-checkout-form"
             data-hydrated={hydrated ? 'true' : 'false'}
           >
-            <FormField id="checkout-item" label="Catalog item" required>
+            <FormField id="checkout-barcode" label="Scan barcode">
+              <Input
+                id="checkout-barcode"
+                name="barcode"
+                className="h-11 min-h-11"
+                autoComplete="off"
+                data-testid="library-checkout-barcode"
+              />
+            </FormField>
+            <FormField id="checkout-item" label="Catalog item">
               <select
                 id="checkout-item"
                 name="itemId"
@@ -153,7 +173,7 @@ export function CirculationDesk({
             <FormField id="checkout-due" label="Due date">
               <Input id="checkout-due" name="dueAt" type="date" className="h-11 min-h-11" />
             </FormField>
-            <Button type="submit" disabled={pending || items.length === 0} className="min-h-11">
+            <Button type="submit" disabled={pending} className="min-h-11">
               <Check className="me-1.5 h-4 w-4" aria-hidden="true" />
               {pending ? 'Working…' : 'Checkout'}
             </Button>
@@ -176,7 +196,16 @@ export function CirculationDesk({
             aria-label="Return library loan"
             data-testid="library-return-form"
           >
-            <FormField id="return-loan" label="Loan id" required>
+            <FormField id="return-barcode" label="Scan barcode">
+              <Input
+                id="return-barcode"
+                name="barcode"
+                className="h-11 min-h-11"
+                autoComplete="off"
+                data-testid="library-return-barcode"
+              />
+            </FormField>
+            <FormField id="return-loan" label="Loan id">
               <Input
                 id="return-loan"
                 name="loanId"

@@ -11,6 +11,7 @@ import {
   Clock,
   GraduationCap,
   Home,
+  Library,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -60,6 +61,13 @@ const STUDENT_NAV: readonly StudentNavItem[] = [
     href: '/student/homework',
     Icon: BookOpen,
     match: (pathname) => pathname.startsWith('/student/homework'),
+  },
+  {
+    key: 'library',
+    label: 'Library',
+    href: '/student/library',
+    Icon: Library,
+    match: (pathname) => pathname.startsWith('/student/library'),
   },
   {
     key: 'calendar',
