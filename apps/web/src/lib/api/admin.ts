@@ -7,10 +7,9 @@
  *
  * The module exposes two stripes of helpers:
  *
- *   • Server-side helpers (`listUsers`, `listRoles`, `listPermissions`,
- *     `getTenantConfig`) that go through `gatewayFetch` for use by Next.js
- *     Server Components and Server Actions. These predate task 59.3 and
- *     stay here for backwards compatibility.
+ *   • Server-side helpers live in `./admin.server.ts` (G-910) and talk to the
+ *     gateway `/tenant/*` admin console via `gatewayFetch`; import them only
+ *     from Server Components / Server Actions.
  *
  *   • Client-side helpers used by the federated React Router shell
  *     (`apps/web/src/RootRouter.tsx`). These talk to the gateway directly
