@@ -82,9 +82,7 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
               <h3 className="text-base font-semibold">Assign substitute</h3>
               {meetingOptions.length === 0 ? (
                 <div className="space-y-3 text-sm text-muted-foreground">
-                  <p>
-                    Generate a timetable first so section meetings exist for substitution.
-                  </p>
+                  <p>Generate a timetable first so section meetings exist for substitution.</p>
                   <div className="flex flex-wrap gap-2">
                     <Button asChild variant="outline" size="sm" className="min-h-[44px]">
                       <Link href={`/institutions/${institutionId}/timetable/generate`}>

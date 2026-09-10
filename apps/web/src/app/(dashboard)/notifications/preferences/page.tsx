@@ -20,15 +20,21 @@ export default async function NotificationPreferencesPage() {
   return (
     <div className="space-y-4">
       <DocumentTitle pageTitle="Notification preferences" />
-      <div className="px-6 pt-6">
+      <div className="space-y-1 px-6 pt-6">
         <Button asChild variant="ghost" size="sm" className="-ms-2 w-fit">
           <Link href="/notifications">
             <ArrowLeft className="me-1.5 h-4 w-4" aria-hidden="true" />
             Inbox
           </Link>
         </Button>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Notification preferences
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Choose how you receive alerts by channel, category, digest, and quiet hours.
+        </p>
       </div>
-      <NotificationPreferences />
+      <NotificationPreferences suppressPageHeader />
     </div>
   );
 }

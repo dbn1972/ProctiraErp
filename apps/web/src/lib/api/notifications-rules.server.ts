@@ -116,7 +116,9 @@ export async function updateNotificationRule(
   return { rule: null, error: result.error?.message ?? 'Could not update rule' };
 }
 
-export async function deleteNotificationRule(ruleId: string): Promise<{ ok: boolean; error?: string }> {
+export async function deleteNotificationRule(
+  ruleId: string,
+): Promise<{ ok: boolean; error?: string }> {
   const result = await gatewayFetch<null>(`/notifications/rules/${ruleId}`, {
     method: 'DELETE',
     throwOnError: false,

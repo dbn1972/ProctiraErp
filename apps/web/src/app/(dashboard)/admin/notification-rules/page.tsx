@@ -24,7 +24,8 @@ export default async function NotificationRulesPage() {
   const [{ rules, source: rulesSource }, { templates, source: templatesSource }] =
     await Promise.all([listNotificationRules(), listNotificationTemplates()]);
 
-  const source = rulesSource === 'gateway' || templatesSource === 'gateway' ? 'gateway' : rulesSource;
+  const source =
+    rulesSource === 'gateway' || templatesSource === 'gateway' ? 'gateway' : rulesSource;
 
   return (
     <div className="space-y-6 p-6">

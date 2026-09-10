@@ -59,11 +59,7 @@ function Feedback({ state }: { state: NotificationRulesActionState | null }) {
   );
 }
 
-export function CreateNotificationRuleDialog({
-  templates,
-}: {
-  templates: NotificationTemplate[];
-}) {
+export function CreateNotificationRuleDialog({ templates }: { templates: NotificationTemplate[] }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -75,9 +71,7 @@ export function CreateNotificationRuleDialog({
   const [channels, setChannels] = useState<NotificationChannel[]>(['in_app']);
 
   const toggleChannel = (channel: NotificationChannel, checked: boolean) => {
-    setChannels((prev) =>
-      checked ? [...prev, channel] : prev.filter((c) => c !== channel),
-    );
+    setChannels((prev) => (checked ? [...prev, channel] : prev.filter((c) => c !== channel)));
   };
 
   const reset = () => {
@@ -294,9 +288,7 @@ export function NotificationRulesTable({ rules }: { rules: NotificationRule[] })
           <TableRow key={rule.id} data-testid="notification-rule-row">
             <TableCell>
               <p className="font-medium">{rule.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {rule.isActive ? 'Active' : 'Paused'}
-              </p>
+              <p className="text-xs text-muted-foreground">{rule.isActive ? 'Active' : 'Paused'}</p>
             </TableCell>
             <TableCell className="text-sm">
               {rule.entityType} · {rule.event}
