@@ -36,7 +36,7 @@ Status: `PROD_WAIVED` = shippable with documented waivers · `PARTIAL` = usable,
 
 ### Scoring notes
 
-- **Release pillar** capped because tip CI on `3c93595` is not yet green.
+- **Release pillar** capped because tip CI on `29a8d94` is not yet green (PRD-001).
 - **Test pillar** distinguishes inventory smoke vs `E2E_BACKEND_READY` write proof.
 - Health Build/Data pulled down by special-needs memory path despite Wave 10 nurse-incident PG.
 - Insights/DW/Admin intentionally below 7.0 until scaffolds removed or release-classified.
