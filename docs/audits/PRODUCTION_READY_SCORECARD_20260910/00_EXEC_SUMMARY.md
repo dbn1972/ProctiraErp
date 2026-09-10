@@ -4,7 +4,7 @@
 | ----- | ----- |
 | Date (UTC) | 2026-09-10 |
 | Branch | `cursor/w10-health-dw-ux-56c3` |
-| Tip SHA | `(pending commit — see tip after push)` |
+| Tip SHA | `601c693` |
 | PR | [#48](https://github.com/dbn1972/ProctiraErp/pull/48) (draft) |
 | Auditor | Cursor cloud agent (master scorecard prompt) |
 | Method | Inventory from `PAGE_REGRESSION_MATRIX` + nav + `GATEWAY_MOUNT_MATRIX` + gap register + module maturity signals; **no new live capture session this run** |
@@ -16,7 +16,7 @@
 | Metric | Score | Status |
 | ------ | ----: | ------ |
 | **Program production-ready (evidence-weighted)** | **8.5 / 10** | **PARTIAL** |
-| Prior campaign claim (`SCREEN_BY_SCREEN_SCOREBOARD`, 2026-09-07) | 9.4 / 10 | Do **not** treat as tip-proven on `3c93595` |
+| Prior campaign claim (`SCREEN_BY_SCREEN_SCOREBOARD`, 2026-09-07) | 9.4 / 10 | Do **not** treat as tip-proven on `601c693` |
 | Gap register OPEN product IDs | 0 | Residuals = **WAIVED** externals + honesty leftovers |
 | Page matrix coverage | 193 / 193 referenced | Smoke ≠ production-ready proof |
 | Tip CI | **pending on closure tip** | Re-run queued after Integration Tests flake |
