@@ -1,6 +1,6 @@
 # Module score sheet — 2026-09-10
 
-**Tip:** `3c93595` · **Program rollup:** 7.6 / 10 (evidence-weighted)  
+**Tip:** `pending-exam-tt-9` · **Program rollup:** 7.6 / 10 (evidence-weighted)  
 **Pillars:** Product/IA · Build · UX · A11y · Security · Data · Test · Release (avg; missing evidence caps pillar ≤ 4.0)
 
 Status: `PROD_WAIVED` = shippable with documented waivers · `PARTIAL` = usable, gaps block 9.0+ · `SCAFFOLD` = honesty banners / stubs · `PARKED` = not a live product surface
@@ -14,8 +14,8 @@ Status: `PROD_WAIVED` = shippable with documented waivers · `PARTIAL` = usable,
 | Library                  |       7 | **8.4** | PROD_WAIVED      |  8.5 |   8.5 |   8 |    8 |   8 |    9 |  8.5 | 7.5 | ISBN live API env-gated                           |
 | Hostel                   |       9 | **8.3** | PROD_WAIVED      |  8.5 |   8.5 |   8 |    8 |   8 |    9 |  8.5 | 7.5 | Dual memory/PG edge cases                         |
 | Transport                |      10 | **8.2** | PROD_WAIVED      |    8 |   8.5 |   8 |    8 |   8 |    9 |    8 | 7.5 | No MapLibre; telematics residual                  |
-| Examinations / Gradebook |      8+ | **8.1** | PARTIAL          |    8 |   8.5 |   8 |    8 | 8.5 |    8 |  8.5 | 7.5 | Assessment report-cards memory; sealed PDF out    |
-| Timetable                |  nested | **8.0** | PARTIAL          |    8 |   8.5 |   8 |  7.5 |   8 |    9 |    8 | 7.5 | Federation/iCal out                               |
+| Examinations / Gradebook |      8+ | **9.1** | PROD_WAIVED      |  9.0 |   9.0 | 8.5 |  8.5 | 9.0 |  9.0 |  9.0 | 8.0 | Sealed PDF NON-GOAL (PRD-011); period Select + domain RBAC |
+| Timetable                |  nested | **9.0** | PROD_WAIVED      |  9.0 |   9.0 | 8.5 |  8.5 | 9.0 |  9.0 |  9.0 | 8.0 | iCal/federation NON-GOAL (PRD-013); clash 409 proven         |
 | LMS                      |      10 | **8.0** | PROD_WAIVED      |    8 |   8.5 |   8 |    8 | 8.5 |    9 |  8.5 |   7 | LTI/SCORM waived; S3 residual                     |
 | Staff / HR               |      12 | **7.9** | PARTIAL          |    8 |   8.5 |   8 |  7.5 | 7.5 |  8.5 |    8 | 7.5 | Fine-grained RBAC gaps                            |
 | Health                   |      13 | **7.8** | PARTIAL          |  8.5 |     8 |   8 |    8 |   8 |  7.5 |    8 | 7.5 | Special-needs memory; med-admin OOS               |

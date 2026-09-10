@@ -168,7 +168,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'prisma+rls',
     rbacWired: false,
     notes:
-      'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set.',
+      'Exams + results + documents + ops (invigilators/seating/double-entry/re-eval); Prisma + raw SQL 036 when DATABASE_URL set. Domain RBAC via examination-access (rbacWired=false = gateway rbacPlugin not mounted; mutations assertExaminationAccess).',
     registrarName: 'examination',
   },
   {
@@ -185,7 +185,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'prisma+rls',
     rbacWired: false,
     notes:
-      'Proxy prefix `/assessments`; native routes include `/report-cards` (G-210 in-memory templates/jobs). Durable HTML also via gradebook `/gradebook/report-cards`.',
+      'Proxy prefix `/assessments`; `/report-cards` uses createReportCard*Repository() (PG/`024` when DATABASE_URL, else memory). Durable HTML also via gradebook `/gradebook/report-cards`. CA-sealed PDF = PRD-011 NON-GOAL.',
     registrarName: 'assessment',
   },
   {
@@ -195,7 +195,7 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     persistence: 'raw-pg',
     rbacWired: false,
     notes:
-      'Raw pg (003_sis_timetable_schedule_schema.sql + 041_timetable_generation_schema.sql) when DATABASE_URL set. G-917: /timetable/generation-jobs (sync in-process greedy+repair) and /timetable/teacher-absences. Else in-memory.',
+      'Raw pg (003 + 041) when DATABASE_URL set. Domain RBAC via timetable-access; meeting/substitution clashes → 409. G-917 generation-jobs + teacher-absences. iCal/federation = PRD-013 NON-GOAL.',
     registrarName: 'timetable',
   },
   {
@@ -204,7 +204,8 @@ export const MOUNT_MATRIX: readonly MountMatrixEntry[] = [
     prefixes: ['/gradebook'],
     persistence: 'raw-pg',
     rbacWired: false,
-    notes: 'Raw pg (003/004) when DATABASE_URL set; else in-memory.',
+    notes:
+      'Raw pg (003/004/032) when DATABASE_URL set. Domain RBAC via gradebook-access (mutations). Transcript HMAC stub; CA-sealed PDF = PRD-011 NON-GOAL.',
     registrarName: 'gradebook',
   },
   {

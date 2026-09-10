@@ -70,6 +70,7 @@ describe('Examination Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as any).tenantId = TENANT_ID;
+      (request as any).user = { roles: ['examinations_officer'] };
     });
 
     await registerExaminationRoutes(app, { examinationService: service });
@@ -264,4 +265,28 @@ describe('Examination Routes', () => {
       expect(response.statusCode).toBe(404);
     });
   });
+
+  describe('RBAC deny proofs', () => {
+    it('returns 403 when teacher posts a new examination', async () => {
+      await app.close();
+      repository = new InMemoryExaminationRepository();
+      const service = new ExaminationService(repository);
+      app = Fastify();
+      app.decorateRequest('tenantId', '');
+      app.addHook('onRequest', async (request) => {
+        (request as any).tenantId = TENANT_ID;
+        (request as any).user = { roles: ['teacher'] };
+      });
+      await registerExaminationRoutes(app, { examinationService: service });
+      await app.ready();
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/examinations',
+        payload: validExaminationBody(),
+      });
+      expect(response.statusCode).toBe(403);
+    });
+  });
+
 });

@@ -24,6 +24,7 @@ import {
   type DocumentExaminationParams,
   type DocumentJobParams,
 } from './document-schemas.js';
+import { examinationWritePreHandler } from './examination-http-guard.js';
 
 /**
  * Options for registering document generation routes.
@@ -77,6 +78,10 @@ export async function registerDocumentRoutes(
   options: DocumentRoutesOptions,
 ): Promise<void> {
   const { documentGenerationService, prefix = '/examinations' } = options;
+
+  fastify.addHook('preHandler', async (request, reply) => {
+    await examinationWritePreHandler(request, reply, 'document.generate');
+  });
 
   /**
    * POST /examinations/:examinationId/documents/generate

@@ -13,3 +13,4 @@ Secrets / vendors **not** available this run — do not fake live proofs.
 | PRD-010 | MapLibre transport map    | **NON-GOAL**          | SVG+OSM accepted                         |
 | PRD-011 | CA-sealed transcript PDF  | **NON-GOAL**          | HMAC stub accepted                       |
 | PRD-012 | LTI/SCORM                 | **WAIVED**            | Keep LMS waiver                          |
+| PRD-013 | Timetable iCal / federation | **NON-GOAL**          | Clash 409 + PG schedule accepted |

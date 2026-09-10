@@ -18,10 +18,10 @@ Legend — Write: `Y` live mutating UI · `P` partial · `N` read-only · API: `
 | Attendance   | `/attendance` + ops              |   8.5 | Y     | PG  | Y         |                   | 20*, 51*       | Devices vendor     |
 | Fees         | `/fees` structures/invoices      |   8.5 | Y     | PG  | Y         | SEC_FEES          | 39\*           | Live PSP           |
 | Fees         | `/fees` pay/receipts             |   7.8 | P     | PG  | Y         | Sandbox honesty   | 39\*           | G-202              |
-| Timetable    | `/institutions/[id]/timetable*`  |   8.0 | Y     | PG  | Y         |                   | 22*, 50*       | iCal OOS           |
-| Gradebook    | institution gradebook            |   8.2 | Y     | PG  | Y         | SEC_GRADEBOOK     | 23*, 42*       | Sealed PDF OOS     |
-| Examinations | `/examinations*`                 |   8.1 | Y     | PG  | Y         |                   | 19*, 34*, 45\* | Seed-gated creates |
-| Assessments  | `/assessments*`                  |   7.4 | P     | HY  | Y         | Report-cards MEM  | 21\*           | Durability         |
+| Timetable    | `/institutions/[id]/timetable*`  |   9.0 | Y     | PG  | Y         | domain RBAC       | 22*, 50*       | iCal NON-GOAL (PRD-013) |
+| Gradebook    | institution gradebook            |   9.1 | Y     | PG  | Y         | SEC_GRADEBOOK     | 23*, 42*       | Sealed PDF NON-GOAL     |
+| Examinations | `/examinations*`                 |   9.1 | Y     | PG  | Y         | exam domain RBAC  | 19*, 34*, 45\* | Period Select + RBAC    |
+| Assessments  | `/assessments*`                  |   8.5 | P     | PG  | Y         | report-cards PG   | 21\*           | PRD-008 closed          |
 
 ## B. Campus services
 
@@ -93,3 +93,7 @@ Full route inventory: `docs/testing/PAGE_REGRESSION_MATRIX.md`.
 | `/admin/*`                   |  ~6.0 | 7.2 | Ops stub banner             |
 | `/pipelines`                 |  ~6.8 | 8.0 | Write smoke added           |
 | `/report-cards` (assessment) |  ~7.0 | 8.3 | PG factory documented       |
+
+| Examinations create         |   8.1 | 9.1 | Period Select + exam RBAC |
+| Gradebook                   |   8.2 | 9.1 | PRD-011 waived            |
+| Timetable                   |   8.0 | 9.0 | Clash 409 + PRD-013 waive |

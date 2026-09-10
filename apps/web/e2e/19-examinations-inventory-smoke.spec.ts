@@ -80,10 +80,20 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
 
     await expect(page.getByText('Name is required', { exact: true })).toBeVisible();
     await expect(page.getByText('Code is required', { exact: true })).toBeVisible();
-    await expect(page.getByText('UUID is required').first()).toBeVisible();
     await expect(page.getByText('Date is required').first()).toBeVisible();
     await expect(page.getByText('Subject name is required', { exact: true })).toBeVisible();
     await expect(page.getByText('Center name is required', { exact: true })).toBeVisible();
+
+    // Period Select pre-fills when periods load; UUID prompt only on offline input fallback.
+    const periodControl = page.getByTestId('examination-academic-period');
+    const periodTag = await periodControl.evaluate((el) => el.tagName.toLowerCase());
+    if (periodTag === 'input') {
+      await periodControl.fill('');
+      await page.getByTestId('examination-create-submit').click();
+      await expect(page.getByText('UUID is required').first()).toBeVisible();
+    } else {
+      await expect(periodControl).toBeVisible();
+    }
   });
 
   test('create form posts to API without inventing demo success', async ({ page }) => {
@@ -95,7 +105,22 @@ test.describe('Examinations — inventory smoke (session cookie)', () => {
 
     await page.locator('#exam-name').fill('Mid-term Assessment');
     await page.locator('#exam-code').fill(`MTA-${Date.now()}`);
-    await page.getByTestId('examination-academic-period').fill(PERIOD_ID);
+    const periodControl = page.getByTestId('examination-academic-period');
+    const periodTag = await periodControl.evaluate((el) => el.tagName.toLowerCase());
+    if (periodTag === 'input') {
+      await periodControl.fill(PERIOD_ID);
+    } else {
+      const current = await periodControl.textContent();
+      if (!current || /select academic period/i.test(current)) {
+        await periodControl.click();
+        const option = page.getByRole('option').first();
+        if (await option.count()) {
+          await option.click();
+        } else {
+          await page.keyboard.press('Escape');
+        }
+      }
+    }
     await page.getByTestId('examination-subject-name').fill('Mathematics');
     await page.getByTestId('examination-subject-code').fill('MATH');
     await page.getByTestId('examination-center-name').fill('Hall A');
