@@ -59,13 +59,7 @@ export function LiveMapSvg({ vehicles, stops }: { vehicles: LiveVehicle[]; stops
           <g key={stop.id}>
             <title>{stop.name}</title>
             <circle cx={x} cy={y} r={8} fill="hsl(var(--primary))" />
-            <text
-              x={x + 12}
-              y={y + 4}
-              fontSize="17"
-              fill="currentColor"
-              className="max-sm:hidden"
-            >
+            <text x={x + 12} y={y + 4} fontSize="17" fill="currentColor" className="max-sm:hidden">
               {stop.name}
             </text>
           </g>
@@ -78,13 +72,7 @@ export function LiveMapSvg({ vehicles, stops }: { vehicles: LiveVehicle[]; stops
           <g key={bus.vehicleId}>
             <title>{label}</title>
             <rect x={x - 7} y={y - 7} width={14} height={14} fill="hsl(var(--destructive))" />
-            <text
-              x={x + 12}
-              y={y + 4}
-              fontSize="17"
-              fill="currentColor"
-              className="max-sm:hidden"
-            >
+            <text x={x + 12} y={y + 4} fontSize="17" fill="currentColor" className="max-sm:hidden">
               {label}
             </text>
           </g>

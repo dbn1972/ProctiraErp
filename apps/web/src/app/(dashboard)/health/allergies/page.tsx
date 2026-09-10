@@ -58,7 +58,9 @@ export default async function HealthAllergiesPage() {
                     <Link href={`/health/${r.studentId}`} className="font-medium hover:underline">
                       {r.studentName}
                     </Link>
-                    <p className="text-xs text-muted-foreground">{(r.allergies ?? []).join(', ')}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {(r.allergies ?? []).join(', ')}
+                    </p>
                   </div>
                 </li>
               ))}

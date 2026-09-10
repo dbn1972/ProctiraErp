@@ -253,9 +253,7 @@ export class PgSpecialNeedsStore {
           resourceId: r.resource_id == null ? null : String(r.resource_id),
           action: String(r.action),
           createdAt:
-            r.created_at instanceof Date
-              ? r.created_at.toISOString()
-              : String(r.created_at),
+            r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
         };
       });
     });

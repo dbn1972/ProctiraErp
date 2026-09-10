@@ -91,8 +91,8 @@ export function GpsDeviceForms({ vehicles }: { vehicles: TransportVehicle[] }) {
         <CardHeader>
           <CardTitle className="text-base">Ingest GPS ping</CardTitle>
           <CardDescription>
-            Submit a location update from a registered GPS device. Duplicate pings for the same device
-            are ignored.
+            Submit a location update from a registered GPS device. Duplicate pings for the same
+            device are ignored.
           </CardDescription>
         </CardHeader>
         <CardContent>

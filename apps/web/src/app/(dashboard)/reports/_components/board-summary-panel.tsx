@@ -74,7 +74,12 @@ export function BoardSummaryPanel() {
             aria-label="Board id"
           />
         </label>
-        <Button type="button" className="min-h-11" onClick={() => void onFetch()} disabled={loading}>
+        <Button
+          type="button"
+          className="min-h-11"
+          onClick={() => void onFetch()}
+          disabled={loading}
+        >
           {loading ? 'Loading…' : 'Fetch summary'}
         </Button>
       </div>
