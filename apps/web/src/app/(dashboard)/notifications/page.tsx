@@ -42,7 +42,7 @@ export default async function NotificationsInboxPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline">
-            <Link href="/app/settings/notifications">
+            <Link href="/notifications/preferences">
               <Settings className="me-1.5 h-4 w-4" aria-hidden="true" />
               Preferences
             </Link>

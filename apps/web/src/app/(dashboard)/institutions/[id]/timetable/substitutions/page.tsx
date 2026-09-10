@@ -59,19 +59,50 @@ export default async function TimetableSubstitutionsPage(props: PageProps) {
         </Button>
       </div>
 
-      <Card>
-        <CardContent className="space-y-4 p-6">
-          <h3 className="text-base font-semibold">Mark teacher absent</h3>
-          <TeacherAbsenceForm institutionId={institutionId} staffOptions={staffOptions} />
-        </CardContent>
-      </Card>
+      {staffOptions.length === 0 ? (
+        <Card>
+          <CardContent className="space-y-3 p-6 text-sm text-muted-foreground">
+            <p>Add staff members before marking absences or assigning substitutes.</p>
+            <Button asChild variant="outline" size="sm" className="min-h-[44px]">
+              <Link href="/staff">Staff directory</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <h3 className="text-base font-semibold">Mark teacher absent</h3>
+              <TeacherAbsenceForm institutionId={institutionId} staffOptions={staffOptions} />
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardContent className="space-y-4 p-6">
-          <h3 className="text-base font-semibold">Assign substitute</h3>
-          <SubstitutionCreateForm meetingOptions={meetingOptions} />
-        </CardContent>
-      </Card>
+          <Card>
+            <CardContent className="space-y-4 p-6">
+              <h3 className="text-base font-semibold">Assign substitute</h3>
+              {meetingOptions.length === 0 ? (
+                <div className="space-y-3 text-sm text-muted-foreground">
+                  <p>
+                    Generate a timetable first so section meetings exist for substitution.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" size="sm" className="min-h-[44px]">
+                      <Link href={`/institutions/${institutionId}/timetable/generate`}>
+                        Generate timetable
+                      </Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm" className="min-h-[44px]">
+                      <Link href="/academic-periods">Academic periods</Link>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <SubstitutionCreateForm meetingOptions={meetingOptions} />
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       <Card>
         <CardContent className="space-y-3 p-6">

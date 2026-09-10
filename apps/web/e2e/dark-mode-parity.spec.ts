@@ -59,6 +59,7 @@ const DASHBOARD_ROUTES = [
   { path: '/lms/pal', label: 'lms-spiral-pal' },
   { path: '/health', label: 'health' },
   { path: '/notifications', label: 'notifications' },
+  { path: '/notifications/preferences', label: 'notification-preferences' },
   { path: '/admin/notification-rules', label: 'notification-rules' },
   { path: '/transport', label: 'transport' },
   { path: '/transport/routes', label: 'transport-routes' },

@@ -106,6 +106,7 @@ const STANDARD_ROUTES = [
   '/reports/new',
   '/health',
   '/notifications',
+  '/notifications/preferences',
   '/admin/notification-rules',
   '/transport',
   '/transport/routes',

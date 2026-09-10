@@ -176,6 +176,7 @@ test.describe('a11y — authenticated surfaces (E2E_BACKEND_READY=1)', () => {
     '/health/counselling/new',
     '/health/special-needs',
     '/notifications',
+    '/notifications/preferences',
     '/transport',
     '/transport/routes',
     '/transport/vehicles',
