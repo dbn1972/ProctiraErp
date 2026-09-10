@@ -6,7 +6,16 @@ import { AppError } from '@proctira/common';
 
 export type StudentWriteAction = 'student.create' | 'student.update' | 'student.delete';
 
-const ADMIN_ROLES = ['admin', 'super-admin', 'super_admin', 'system_admin', 'system-admin', 'principal', 'school_admin', 'school-admin'] as const;
+const ADMIN_ROLES = [
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system_admin',
+  'system-admin',
+  'principal',
+  'school_admin',
+  'school-admin',
+] as const;
 
 const REGISTRAR_ROLES = [
   'registrar',

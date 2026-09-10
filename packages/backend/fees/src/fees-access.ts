@@ -6,7 +6,16 @@ import { AppError } from '@proctira/common';
 
 export type FeesAction = 'payment.record' | 'invoice.void' | 'refund.record';
 
-const ADMIN_ROLES = ['admin', 'super-admin', 'super_admin', 'system_admin', 'system-admin', 'principal', 'school_admin', 'school-admin'] as const;
+const ADMIN_ROLES = [
+  'admin',
+  'super-admin',
+  'super_admin',
+  'system_admin',
+  'system-admin',
+  'principal',
+  'school_admin',
+  'school-admin',
+] as const;
 
 const FINANCE_ROLES = [
   'finance_officer',
