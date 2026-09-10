@@ -58,6 +58,7 @@ import {
   developerPortalPlugin,
   InMemoryDeveloperPortalRepository,
 } from '@proctira/backend-developer-portal';
+import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import {
   createDocumentRepository,
   createExamOpsStore,
@@ -86,7 +87,6 @@ import {
   registrationPlugin,
 } from '@proctira/backend-registration';
 import { reportCataloguePlugin } from '@proctira/backend-report';
-import { createPipelineRepository, etlPlugin } from '@proctira/backend-etl';
 import { createScholarshipRepository, scholarshipPlugin } from '@proctira/backend-scholarship';
 import {
   createAssignmentRepository,

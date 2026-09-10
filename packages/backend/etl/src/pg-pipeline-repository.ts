@@ -2,17 +2,15 @@
  * PostgreSQL pipeline repository (Wave 10 Option C).
  * Stores Pipeline / PipelineExecution as JSONB documents with RLS.
  */
-import { randomUUID } from 'node:crypto';
-
 import { getSharedPgPool, withPgTenant, type PgQueryable } from '@proctira/database';
 
-import type { Pipeline, PipelineExecution } from './schemas.js';
+import { InMemoryPipelineRepository } from './in-memory-repository.js';
 import type {
   PipelineListFilter,
   PipelineListResult,
   PipelineRepository,
 } from './pipeline-repository.js';
-import { InMemoryPipelineRepository } from './in-memory-repository.js';
+import type { Pipeline, PipelineExecution } from './schemas.js';
 
 type Pool = NonNullable<ReturnType<typeof getSharedPgPool>>;
 

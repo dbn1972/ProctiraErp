@@ -16,8 +16,8 @@ import { NotFoundError, BusinessRuleError } from '@proctira/common';
 import type { PaginationOptions, PaginatedResult } from '@proctira/common';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { HealthRepository } from './health-repository.js';
 import type {
+  HealthRepository,
   HealthMeasurementEntity,
   AllergyEntity,
   HealthConditionEntity,
@@ -31,11 +31,6 @@ import type {
   ScreeningProgramEntity,
 } from './health-repository.js';
 import type { PhiAccessLogInput } from './pg-special-needs-store.js';
-
-type PhiAccessCapableRepository = HealthRepository & {
-  logPhiAccess?: (input: PhiAccessLogInput) => Promise<void>;
-};
-
 import type {
   CreateMeasurementInput,
   UpdateMeasurementInput,
@@ -58,6 +53,10 @@ import type {
   CreateScreeningProgramInput,
   UpdateScreeningProgramInput,
 } from './schemas.js';
+
+type PhiAccessCapableRepository = HealthRepository & {
+  logPhiAccess?: (input: PhiAccessLogInput) => Promise<void>;
+};
 
 /**
  * User context for access control checks.
