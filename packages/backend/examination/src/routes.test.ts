@@ -288,5 +288,4 @@ describe('Examination Routes', () => {
       expect(response.statusCode).toBe(403);
     });
   });
-
 });

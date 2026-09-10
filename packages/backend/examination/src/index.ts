@@ -219,4 +219,3 @@ export {
   normalizeExaminationRoles,
 } from './examination-access.js';
 export type { ExaminationAction } from './examination-access.js';
-

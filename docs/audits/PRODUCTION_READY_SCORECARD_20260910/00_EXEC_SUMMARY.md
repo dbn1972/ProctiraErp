@@ -53,13 +53,13 @@
 
 ## 4. Module score rollup (detail in `MODULE_SCORE_SHEET.md`)
 
-| Band                                        | Modules                                                                                                                      |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| **8.5–9.0** Ready w/ documented waivers     | Students, Institutions/Academics, Attendance, Fees (sandbox PSP), Library, Hostel, Transport (no live telematics)            |
-| **9.0–9.1** PROD_WAIVED (exams/TT uplift)   | Examinations/Gradebook, Timetable                                                                                              |
-| **7.5–8.4** Strong / partial proof          | Health, LMS, Staff/HR, Communication, Admissions, Workflows, Parent portal, Notifications                                      |
-| **6.0–7.4** Scaffold or honesty-heavy       | Reports/Insights, Data warehouse UI, ETL pipelines UI, Platform admin, Auth (live IdP waived)                                |
-| **PARKED** (not scored as product surfaces) | `backend/data-warehouse`, survey, custom-field, dashboards, theme, plugin, policy, admin-dashboard, install                  |
+| Band                                        | Modules                                                                                                           |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **8.5–9.0** Ready w/ documented waivers     | Students, Institutions/Academics, Attendance, Fees (sandbox PSP), Library, Hostel, Transport (no live telematics) |
+| **9.0–9.1** PROD_WAIVED (exams/TT uplift)   | Examinations/Gradebook, Timetable                                                                                 |
+| **7.5–8.4** Strong / partial proof          | Health, LMS, Staff/HR, Communication, Admissions, Workflows, Parent portal, Notifications                         |
+| **6.0–7.4** Scaffold or honesty-heavy       | Reports/Insights, Data warehouse UI, ETL pipelines UI, Platform admin, Auth (live IdP waived)                     |
+| **PARKED** (not scored as product surfaces) | `backend/data-warehouse`, survey, custom-field, dashboards, theme, plugin, policy, admin-dashboard, install       |
 
 ---
 
@@ -103,4 +103,5 @@ Batches 2–5 executed without interactive secrets:
 **Program score target met at 8.5/10** as evidence-weighted with documented waivers. Ceiling above ~8.7 still blocked by live IdP/PSP/comms and tip CI (PRD-001).
 
 ### Exams / Timetable 9.0 uplift (same tip)
+
 Domain RBAC + period Select + clash 409 e2e; PRD-011/013 NON-GOAL. MODULE scores **9.1 / 9.0 PROD_WAIVED**. Tip CI (PRD-001) still open.

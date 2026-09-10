@@ -9,15 +9,15 @@ Legend — Write: `Y` live mutating UI · `P` partial · `N` read-only · API: `
 
 ## A. Core SIS (stronger band)
 
-| Module       | Route                            | Score | Write | API | A11y list | Sec note          | E2E            | Gap                |
-| ------------ | -------------------------------- | ----: | ----- | --- | --------- | ----------------- | -------------- | ------------------ |
-| Students     | `/students`                      |   8.8 | Y     | PG  | Y         | JWT tenant        | 15*, 44*       | Live IdP           |
-| Students     | `/students/[id]` (+360 tabs)     |   8.6 | Y     | PG  | Y         | IDOR pack partial | 44\*           | Expand deny proofs |
-| Institutions | `/institutions`                  |   8.7 | Y     | PG  | Y         | rbacPlugin        | 16\*           | —                  |
-| Institutions | `/institutions/[id]/*` academics |   8.5 | Y     | PG  | Y         |                   | 27*, 38*, 43\* | —                  |
-| Attendance   | `/attendance` + ops              |   8.5 | Y     | PG  | Y         |                   | 20*, 51*       | Devices vendor     |
-| Fees         | `/fees` structures/invoices      |   8.5 | Y     | PG  | Y         | SEC_FEES          | 39\*           | Live PSP           |
-| Fees         | `/fees` pay/receipts             |   7.8 | P     | PG  | Y         | Sandbox honesty   | 39\*           | G-202              |
+| Module       | Route                            | Score | Write | API | A11y list | Sec note          | E2E            | Gap                     |
+| ------------ | -------------------------------- | ----: | ----- | --- | --------- | ----------------- | -------------- | ----------------------- |
+| Students     | `/students`                      |   8.8 | Y     | PG  | Y         | JWT tenant        | 15*, 44*       | Live IdP                |
+| Students     | `/students/[id]` (+360 tabs)     |   8.6 | Y     | PG  | Y         | IDOR pack partial | 44\*           | Expand deny proofs      |
+| Institutions | `/institutions`                  |   8.7 | Y     | PG  | Y         | rbacPlugin        | 16\*           | —                       |
+| Institutions | `/institutions/[id]/*` academics |   8.5 | Y     | PG  | Y         |                   | 27*, 38*, 43\* | —                       |
+| Attendance   | `/attendance` + ops              |   8.5 | Y     | PG  | Y         |                   | 20*, 51*       | Devices vendor          |
+| Fees         | `/fees` structures/invoices      |   8.5 | Y     | PG  | Y         | SEC_FEES          | 39\*           | Live PSP                |
+| Fees         | `/fees` pay/receipts             |   7.8 | P     | PG  | Y         | Sandbox honesty   | 39\*           | G-202                   |
 | Timetable    | `/institutions/[id]/timetable*`  |   9.0 | Y     | PG  | Y         | domain RBAC       | 22*, 50*       | iCal NON-GOAL (PRD-013) |
 | Gradebook    | institution gradebook            |   9.1 | Y     | PG  | Y         | SEC_GRADEBOOK     | 23*, 42*       | Sealed PDF NON-GOAL     |
 | Examinations | `/examinations*`                 |   9.1 | Y     | PG  | Y         | exam domain RBAC  | 19*, 34*, 45\* | Period Select + RBAC    |
@@ -94,6 +94,6 @@ Full route inventory: `docs/testing/PAGE_REGRESSION_MATRIX.md`.
 | `/pipelines`                 |  ~6.8 | 8.0 | Write smoke added           |
 | `/report-cards` (assessment) |  ~7.0 | 8.3 | PG factory documented       |
 
-| Examinations create         |   8.1 | 9.1 | Period Select + exam RBAC |
-| Gradebook                   |   8.2 | 9.1 | PRD-011 waived            |
-| Timetable                   |   8.0 | 9.0 | Clash 409 + PRD-013 waive |
+| Examinations create | 8.1 | 9.1 | Period Select + exam RBAC |
+| Gradebook | 8.2 | 9.1 | PRD-011 waived |
+| Timetable | 8.0 | 9.0 | Clash 409 + PRD-013 waive |
