@@ -4,7 +4,7 @@
 > Gate: `apps/web/src/app/page-regression-matrix.test.ts` fails when any page lacks an e2e reference.
 
 - App Router pages: **193**
-- Playwright specs: **82**
+- Playwright specs: **83**
 - Pages without any e2e reference: **0**
 
 Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WCAG 2.1 AA), `dark`, `touch` (≥44px targets), `rtl`, `cls` (loading skeleton), `visual` (screenshot baseline), `smoke` (inventory / route resolution).
@@ -139,7 +139,7 @@ Coverage kinds: `functional` (page-wise functional / write flow), `a11y` (axe WC
 | `/lms/rubrics` | a11y, dark, functional, touch | `47-lms-depth-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/notifications` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/notifications/preferences` | a11y, dark, smoke, touch | `20-notifications-transport-inventory-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
-| `/pipelines` | a11y, dark, touch | `a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
+| `/pipelines` | a11y, dark, functional, touch | `5x-pipelines-write-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/reports` | a11y, dark, functional, smoke, touch | `09-route-permission-coupling.spec.ts`<br>`13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts`<br>`46-reports-bi-write-smoke.spec.ts`<br>`46-reports-real-exports-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
 | `/reports/[id]/results` | smoke | `13-insights-system.spec.ts`<br>`14-insights-system-inventory-smoke.spec.ts` |
 | `/reports/dashboard` | a11y, dark, smoke, touch | `46-reports-real-exports-smoke.spec.ts`<br>`a11y-axe.spec.ts`<br>`dark-mode-parity.spec.ts`<br>`touch-target-minimum.spec.ts` |
