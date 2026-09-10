@@ -13,13 +13,13 @@
 
 ## 1. Program verdict (honest)
 
-| Metric                                                           |                      Score | Status                                               |
-| ---------------------------------------------------------------- | -------------------------: | ---------------------------------------------------- |
-| **Program production-ready (evidence-weighted)**                 |               **8.5 / 10** | **PARTIAL**                                          |
-| Prior campaign claim (`SCREEN_BY_SCREEN_SCOREBOARD`, 2026-09-07) |                   9.4 / 10 | Do **not** treat as tip-proven on `29a8d94`          |
-| Gap register OPEN product IDs                                    |                          0 | Residuals = **WAIVED** externals + honesty leftovers |
-| Page matrix coverage                                             |       193 / 193 referenced | Smoke ≠ production-ready proof                       |
-| Tip CI                                                           | **pending on `29a8d94`**   | PRD-001 Rel gate; CI + E2E Backend Ready queued      |
+| Metric                                                           |                    Score | Status                                               |
+| ---------------------------------------------------------------- | -----------------------: | ---------------------------------------------------- |
+| **Program production-ready (evidence-weighted)**                 |             **8.5 / 10** | **PARTIAL**                                          |
+| Prior campaign claim (`SCREEN_BY_SCREEN_SCOREBOARD`, 2026-09-07) |                 9.4 / 10 | Do **not** treat as tip-proven on `29a8d94`          |
+| Gap register OPEN product IDs                                    |                        0 | Residuals = **WAIVED** externals + honesty leftovers |
+| Page matrix coverage                                             |     193 / 193 referenced | Smoke ≠ production-ready proof                       |
+| Tip CI                                                           | **pending on `29a8d94`** | PRD-001 Rel gate; CI + E2E Backend Ready queued      |
 
 **One-line verdict:** Strong campus/SIS surface area with PG-backed cores and inventory smokes, but **not** program production-ready until tip CI is green, live IdP/PSP/comms waivers are either closed or explicitly accepted for release, and Insights/Admin/DW scaffold surfaces are de-scaffolded or honesty-gated in release notes.
 
