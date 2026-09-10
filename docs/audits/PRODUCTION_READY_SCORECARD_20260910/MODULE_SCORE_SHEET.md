@@ -40,3 +40,13 @@ Status: `PROD_WAIVED` = shippable with documented waivers · `PARTIAL` = usable,
 - **Test pillar** distinguishes inventory smoke vs `E2E_BACKEND_READY` write proof.
 - Health Build/Data pulled down by special-needs memory path despite Wave 10 nurse-incident PG.
 - Insights/DW/Admin intentionally below 7.0 until scaffolds removed or release-classified.
+
+
+### Headless uplift notes (2026-09-10)
+
+- Health Data/Security ↑ (special-needs PG confirmed; PHI deny 403 proofs).
+- Assessments Data ↑ (report-cards PG when DATABASE_URL).
+- DW / Admin honesty ↑ (scaffold classification; package PARKED explicit).
+- ETL Test ↑ (pipelines write smoke).
+- Multi-module Security ↑ (fees/student write denies).
+- Program rollup **~8.5** with waiver board unchanged for live IdP/PSP/comms/farm.

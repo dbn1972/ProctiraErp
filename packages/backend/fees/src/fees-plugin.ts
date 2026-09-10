@@ -7,6 +7,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fp from 'fastify-plugin';
 
+import { assertFeesAccess } from './fees-access.js';
 import type { FeesRepository } from './fees-repository.js';
 import {
   FeesService,
@@ -159,6 +160,11 @@ function getTenantId(request: FastifyRequest): string | null {
 function getActorId(request: FastifyRequest): string {
   const user = (request as FastifyRequest & { user?: { sub?: string } }).user;
   return user?.sub ?? 'anonymous';
+}
+
+function getRoles(request: FastifyRequest): unknown {
+  const user = (request as FastifyRequest & { user?: { roles?: unknown } }).user;
+  return user?.roles ?? [];
 }
 
 function tenantRequired(reply: FastifyReply) {
@@ -445,6 +451,7 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         try {
+          assertFeesAccess(getRoles(request), 'payment.record');
           const result = await feesService.recordPayment(tenantId, getActorId(request), {
             invoiceId: paramsResult.data.id,
             ...bodyResult.data,
@@ -488,6 +495,7 @@ export const feesPlugin = fp(
         const tenantId = getTenantId(request);
         if (!tenantId) return tenantRequired(reply);
         try {
+          assertFeesAccess(getRoles(request), 'payment.record');
           const paid = await feesService.recordPayment(tenantId, getActorId(request), result.data);
           return reply.status(201).send({
             invoice: formatInvoice(paid.invoice),

@@ -32,6 +32,7 @@ export {
   ConflictError,
   NotFoundError,
   BusinessRuleError,
+  ForbiddenError,
 } from './exceptions/index.js';
 
 // Utilities

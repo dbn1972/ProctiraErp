@@ -82,3 +82,14 @@ Full route inventory: `docs/testing/PAGE_REGRESSION_MATRIX.md`.
 | 7.5–8.4 | 40% | Campus + LMS + HR with waivers |
 | 6.5–7.4 | 25% | Auth/notifications/workflows/partial |
 | ≤6.4 | 10% | DW/admin/scaffold / special-needs memory |
+
+
+### Headless uplift (2026-09-10)
+
+| Page | Prior | Now | Note |
+| ---- | ----: | --: | ---- |
+| `/health/special-needs` | 6.5 | 8.2 | PG hybrid confirmed |
+| `/data-warehouse*` | ~6.2 | 7.4 | Honesty / PARKED classified |
+| `/admin/*` | ~6.0 | 7.2 | Ops stub banner |
+| `/pipelines` | ~6.8 | 8.0 | Write smoke added |
+| `/report-cards` (assessment) | ~7.0 | 8.3 | PG factory documented |

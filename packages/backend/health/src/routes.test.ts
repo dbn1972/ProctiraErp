@@ -241,4 +241,16 @@ describe('Health Routes', () => {
       expect(response.statusCode).toBeGreaterThanOrEqual(400);
     });
   });
+
+  describe('GET /health/phi-access (PRD-005 deny)', () => {
+    it('returns 403 when caller lacks health admin role', async () => {
+      healthOfficerContext.roles = ['teacher'];
+      const response = await app.inject({
+        method: 'GET',
+        url: '/health/phi-access',
+      });
+      healthOfficerContext.roles = ['health_officer'];
+      expect(response.statusCode).toBe(403);
+    });
+  });
 });

@@ -9,7 +9,8 @@
  * - Screening programs (Requirement 12.5)
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BusinessRuleError, NotFoundError } from '@proctira/common';
+import { BusinessRuleError,
+  ForbiddenError, ForbiddenError, NotFoundError } from '@proctira/common';
 
 import { HealthService, hasHealthAccess } from './health-service.js';
 import type { HealthAccessContext } from './health-service.js';
@@ -109,7 +110,7 @@ describe('HealthService', () => {
           },
           unauthorizedContext,
         ),
-      ).rejects.toThrow(BusinessRuleError);
+      ).rejects.toThrow(ForbiddenError);
     });
 
     it('allows guardian to create measurement for their student', async () => {
@@ -207,7 +208,7 @@ describe('HealthService', () => {
           },
           unauthorizedContext,
         ),
-      ).rejects.toThrow(BusinessRuleError);
+      ).rejects.toThrow(ForbiddenError);
     });
 
     it('updates an allergy record', async () => {
@@ -717,7 +718,7 @@ describe('HealthService', () => {
         guardianOfStudentIds: [],
       };
       await expect(service.listPhiAccessLogs(tenantId, nurseOnly)).rejects.toThrow(
-        BusinessRuleError,
+        ForbiddenError,
       );
     });
 

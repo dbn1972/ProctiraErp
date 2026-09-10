@@ -51,6 +51,7 @@ describe('Student Routes', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = TENANT_ID;
+      (request as unknown as { user: { roles: string[] } }).user = { roles: ['registrar'] };
     });
 
     await registerStudentRoutes(app, { studentService: service });

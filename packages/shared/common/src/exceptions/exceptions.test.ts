@@ -8,6 +8,7 @@ import {
   ConflictError,
   NotFoundError,
   BusinessRuleError,
+  ForbiddenError,
 } from './index.js';
 
 describe('AppError', () => {
@@ -130,5 +131,13 @@ describe('BusinessRuleError', () => {
   it('should accept custom message', () => {
     const error = new BusinessRuleError('Academic period is not active');
     expect(error.message).toBe('Academic period is not active');
+  });
+});
+
+describe('ForbiddenError', () => {
+  it('uses HTTP 403 and FORBIDDEN code', () => {
+    const err = new ForbiddenError('nope');
+    expect(err.statusCode).toBe(403);
+    expect(err.code).toBe(ErrorCode.FORBIDDEN);
   });
 });
