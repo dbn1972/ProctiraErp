@@ -59,6 +59,10 @@ describe('G-902 examinations UI contract', () => {
     app.decorateRequest('tenantId', '');
     app.addHook('onRequest', async (request) => {
       (request as unknown as { tenantId: string }).tenantId = TENANT_ID;
+      // Domain RBAC: mutations require an exam-officer / admin role.
+      (request as unknown as { user: { roles: string[] } }).user = {
+        roles: ['examinations_officer'],
+      };
     });
     repository = new InMemoryExaminationRepository();
     await app.register(examinationPlugin, {
